@@ -1,0 +1,16 @@
+PKG	pkgA
+SUB	pkgA	masquerade	x86_64-pc-linux-gnu	0	x86_64-pc-linux-gnu
+SUB	pkgA	candidate	x86_64-elfsysvnt-linux-gnu	0	x86_64-elfsysvnt-linux-gnu
+SUB	pkgA	control	x86_64-pc-elfsysvnt	1	(none)
+PKG	pkgB
+SUB	pkgB	masquerade	x86_64-pc-linux-gnu	0	x86_64-pc-linux-gnu
+SUB	pkgB	candidate	x86_64-elfsysvnt-linux-gnu	0	x86_64-unknown-linux-gnu
+SUB	pkgB	control	x86_64-pc-elfsysvnt	1	(none)
+LIT	pkgB	configure
+PKG	pkgC
+LIT	pkgC	configure.ac
+LIT	pkgC	m4/host.m4
+PKG	pkgD
+SUB	pkgD	masquerade	x86_64-pc-linux-gnu	0	x86_64-pc-linux-gnu
+SUB	pkgD	candidate	x86_64-elfsysvnt-linux-gnu	1	(none)
+SUB	pkgD	control	x86_64-pc-elfsysvnt	1	(none)

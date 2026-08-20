@@ -1,0 +1,16 @@
+packages_seen=4
+packages_with_config_sub=3
+config_sub_probed=3
+masquerade_accepted=3
+masquerade_rewritten=0
+masquerade_rejected=0
+candidate_accepted=1
+candidate_rewritten=1
+candidate_rejected=1
+control_accepted=0
+control_rewritten=0
+control_rejected=3
+packages_candidate_miss=2
+packages_literal_vendor=2
+packages_affected=3
+affected_share=75.0%
