@@ -371,7 +371,9 @@ Sealed but documented
 
 In-tree: `elf-userspace-execution.md` for the survey and the pricing of the two
 designs, `symbol-versioning-formats.md` for the record this work fences,
-`milestones.md` for the spikes below in their scheduled form.
+`milestones.md` for the spikes below in their scheduled form, `ROADMAP.md` and
+`IMPLEMENTATION-PLAN.md` for what the layers above become once the spikes have
+answered.
 
 In `rhelcyg-8.10`, the first consumer: `doc/plan-rpm-userland.md`,
 `doc/stage-model.md`.

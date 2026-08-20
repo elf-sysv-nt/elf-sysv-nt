@@ -9,7 +9,10 @@ loader semantics intact.
 
 Read `doc/elf-technical-breakdown.md` for the design and `doc/milestones.md`
 for the order of work. Nothing has been built, and both documents are
-proposals that may be wrong.
+proposals that may be wrong. `doc/ROADMAP.md` inventories what has to be
+written once the spikes have answered, and `doc/IMPLEMENTATION-PLAN.md` cuts
+that inventory into work packages; both are written along the recommended path
+and name the branch where a spike could send the program elsewhere.
 
 ## Risks worth knowing before touching anything
 

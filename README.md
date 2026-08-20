@@ -27,6 +27,9 @@ each layer marked by how much of its foundation already exists in public code.
 `doc/elf-userspace-execution.md` is the survey behind it: the prior art sorted
 by what it proves, and the two designs priced against each other.
 `doc/milestones.md` is what happens first, which is four spikes and no code.
+`doc/ROADMAP.md` is everything that has to be built after them, and
+`doc/IMPLEMENTATION-PLAN.md` breaks that into work packages with entry and exit
+criteria.
 
 Nothing has been built. Every technical claim carries a mark saying whether it
 was measured or recalled, and the spikes exist to move four of the load-bearing

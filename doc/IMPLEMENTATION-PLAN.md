@@ -1,0 +1,581 @@
+# Implementation plan
+
+`ROADMAP.md` says what has to exist. This says in what units it gets built, what
+each unit needs before it can start, and how anyone can tell it is finished.
+Same assumed path, same three reserved decisions, same caveat: a negative on
+spike 3 invalidates everything from phase 2 onward and the plan gets rewritten
+rather than patched.
+
+A work package is the smallest thing worth an entry criterion. Each carries
+four lines. Needs names the packages that must be finished first, and an empty
+one means the package can start today. Delivers names the artifact, in the tree,
+by path where the path is already decided. Done when is a test that either
+passes or does not, never a judgment. Risk appears only where the package has
+one worth naming in advance.
+
+Packages are numbered by phase and are not renumbered when one is added, so the
+sequence has gaps and the gaps mean nothing.
+
+Nothing here is scheduled. Three of the five spike answers can reshape the
+graph, so a date attached to WP-53 today would be fiction, and the dependency
+order is the only ordering claim the plan makes.
+
+---
+
+## Phase 0 — the spikes
+
+`milestones.md` is the governing document for these five and it is not restated
+here. What belongs in a plan is the rule around them: run one through to its
+stated verdict without asking, then stop at the boundary and report, rather than
+beginning the work the answer implies.
+
+Spikes 1, 2, and 5 can run in parallel; nothing connects them. Spike 3 wants
+spike 2's stub as a convenient carrier but does not require it, and spike 4 is
+independent of all four and should run early because it prices the whole
+program.
+
+---
+
+## Phase 1 — target definition and toolchain
+
+### WP-10 — the target definition record
+
+Needs: spike 5.
+Delivers: `doc/target-definition.md`, carrying five values that must agree — the
+triple, the `EI_OSABI` byte, the `.note.ABI-tag` payload, the dynamic linker
+SONAME, and the `uname` strings.
+Done when: every later package that hardcodes one of the five cites this
+document rather than a memory of it.
+
+Each of the five ends up compiled into shipped artifacts, so changing one later
+means rebuilding the world. Writing them down once, before anything consumes
+them, is cheap insurance against discovering in month nine that the loader and
+the specs file disagree about a SONAME.
+
+### WP-11 — config.sub and config.guess
+
+Needs: WP-10.
+Delivers: the patch against upstream `config`, plus a refresh procedure for the
+vendored copies that every source package carries at its own vintage.
+Done when: `config.sub x86_64-elfsysvnt-linux-gnu` echoes the input unchanged,
+and the refresh script rewrites a vendored copy in a package tree idempotently.
+
+### WP-12 — binutils
+
+Needs: WP-11.
+Delivers: `bfd` target vector, `ld` emulation and default linker script, ELF
+backend, assembler target.
+Done when: `as` accepts `.symver`, `ld` accepts `--version-script` and the
+resulting shared object carries `.gnu.version_d` entries that `readelf -V`
+prints, and a linked object's `EI_OSABI` and `.note.ABI-tag` match WP-10.
+
+That second clause is the whole reason the format changed. It is worth an
+explicit test rather than an assumption, because the failure being avoided here
+is precisely a linker that accepts the option and silently discards the version
+names.
+
+### WP-13 — gcc, stage one
+
+Needs: WP-12.
+Delivers: a cross compiler with no libc, targeting the triple.
+Done when: it compiles a freestanding object, and `-mno-red-zone` is on by
+default in the specs rather than passed by the caller.
+
+Risk: the specs file is where target mandates live, and anything a package can
+forget to pass is a mandate rather than an option. One object compiled with a
+red zone corrupts a stack under signal delivery at an unpredictable later date,
+which is close to the worst debugging shape a defect can take.
+
+### WP-14 — sysroot and startup files
+
+Needs: WP-13, WP-50.
+Delivers: the sysroot layout, `crt1.o`, `Scrt1.o`, `crti.o`, `crtn.o`, `libgcc`.
+Done when: a static hello links and the spike 2 stub runs it.
+
+### WP-15 — gcc, full bootstrap
+
+Needs: WP-14, WP-51.
+Delivers: the compiler rebuilt against our libc, plus `libstdc++` and whatever
+other language runtime the el8 set needs.
+Done when: the compiler builds itself, and a C++ program that throws across a
+shared library boundary catches on the other side.
+
+That exception test is not decoration. It exercises `dl_iterate_phdr`,
+`PT_GNU_EH_FRAME`, and the rule that DWARF unwinding never crosses into the
+host-facing core, all three at once.
+
+### WP-16 — build macros
+
+Needs: WP-15.
+Delivers: the rpm macro set carrying `-mno-red-zone`, the triple, and the
+sysroot paths.
+Done when: a package that names no flags gets all of them, and a ledger exists
+listing every package in the set with hand-written assembly, since that is where
+the red-zone assumption stays live after the macro closes it everywhere else.
+
+Two of those Needs lines point forward into phase 5, and that is the ordinary
+libc bootstrap cycle rather than a mistake in the graph. WP-50 is a header set,
+which can be written before anything implements it, and WP-51 is the first
+veneer that links. The loop is broken the usual way: headers, then a compiler
+that trusts them, then a library that satisfies them, then the compiler again.
+
+---
+
+## Phase 2 — the runtime
+
+Everything in this phase is gated on spike 3. A no here does not delay the
+phase; it replaces it with the veneer-thunk fallback, which has a different
+package list, and that is a decision for a person rather than a task for an
+agent.
+
+### WP-20 — the export inventory
+
+Needs: nothing.
+Delivers: a generated list of `cygwin1.dll`'s exports with their `SIGFE` and
+`NOSIGFE` annotations, their `DATA` markers, and their aliases, extracted from
+`winsup/cygwin/cygwin.din` at a named ref.
+Done when: the extraction reruns and reproduces the file byte for byte, and both
+WP-21 and WP-51 read this one list rather than each keeping its own.
+
+Two objects reading two copies of an export list drift, and the drift shows up
+as a symbol that resolves at build time and is absent at run time.
+
+### WP-21 — the down-call wrappers
+
+Needs: WP-20.
+Delivers: `ms_abi` wrappers around every imported Windows function, generated
+from the import list rather than written by hand.
+Done when: no direct call from the System V side to `ntdll` or `kernel32`
+survives an audit of the link map.
+
+### WP-22 — the host-facing core
+
+Needs: WP-21.
+Delivers: MS-ABI entry points with SEH unwind data for `DllMain`, thread starts,
+APCs, TLS callbacks, vectored exception handlers, and the fault path.
+Done when: a fault taken inside the ELF world reaches Cygwin's existing signal
+machinery and returns, with the register state on both sides matching what each
+convention promises.
+
+Risk: this is the treacherous half. Cygwin's signal delivery rides Windows SEH
+and MS-format unwind data, so every path Windows can call into has to be MS-ABI
+with unwind information the host recognizes. One missed callback leaks the
+convention out the bottom, and the symptom is corruption rather than a link
+error.
+
+### WP-23 — the callback trampolines
+
+Needs: WP-22.
+Delivers: System V to MS trampolines for anything the ELF world hands down to
+Windows as a function pointer.
+Done when: a `qsort` comparator, a thread start routine, and an exception filter
+each survive a round trip with their callee-saved registers intact.
+
+### WP-24 — varargs
+
+Needs: WP-21.
+Delivers: deliberate handling for the variadic surface, `printf` family
+included, rather than the generated wrapper the fixed-arity calls get.
+Done when: a `printf` call with sixteen mixed integer and floating arguments
+prints what Linux prints, and `vfprintf` called through a `va_list` built on the
+System V side works from the MS-ABI side.
+
+### WP-25 — the compatibility counter
+
+Needs: WP-22.
+Delivers: API major and minor counters for `elfsysv1.dll`, a changelog
+discipline, and the runtime check that reads what a program was built against.
+Done when: a program built against a lower minor runs against a higher one, and
+the reverse is refused with a diagnostic rather than a crash.
+
+Cygwin's rule is inherited down to the digit in the name, so the counter starts
+at the first release rather than at the first break. Retrofitting one after the
+fact means guessing which of the existing binaries predate which change.
+
+---
+
+## Phase 3 — TLS and the loader
+
+### WP-30 — the thread pointer
+
+Needs: spike 1, WP-22.
+Delivers: FS base establishment at thread creation and re-establishment
+wherever the host can disturb it, with the TCB in the psABI's variant II layout.
+Done when: a thread reads its own TCB correctly after a hundred thousand
+context switches under load, and after a `fork`, and after a signal delivered
+mid-computation.
+
+Risk: spike 1's verdict decides the mechanism, not the interface. Writing this
+package's interface before the verdict is safe; writing its body is not.
+
+### WP-31 — ELF parsing
+
+Needs: nothing.
+Delivers: header, program header, and `PT_DYNAMIC` parsing with bounds checking
+on every table reached through them.
+Done when: the fuzz target in WP-T1 runs a hundred million cases without a
+fault, and every rejection carries a diagnostic naming the field.
+
+This package is first in the loader because it is the only one that reads
+attacker-shaped input from its first line. Everything after it may assume its
+output is structurally sound, and that assumption is worth buying properly.
+
+### WP-32 — segment mapping
+
+Needs: WP-31.
+Delivers: `PT_LOAD` placement through Cygwin's `mmap` by reserve-and-commit,
+one region per object, with `PT_GNU_RELRO` and `PT_GNU_STACK` honored.
+Done when: a static ELF maps and runs, and every mapping the loader made is
+visible to Cygwin's own bookkeeping, which is what WP-41 depends on entirely.
+
+Windows reserves at 64 KB granularity and ELF aligns segments at 4 KB, so the
+arithmetic is the interesting part; cross-process text sharing is the price.
+Whether el8 binaries carry the linker's 2 MB `max-page-size` default makes this
+easier or harder, and one `readelf` against a vendor binary settles it.
+
+### WP-33 — the object graph
+
+Needs: WP-32.
+Delivers: `DT_NEEDED` walked breadth-first, `DT_SONAME` as identity, `DT_RPATH`
+and `DT_RUNPATH` with their precedence difference, `LD_LIBRARY_PATH`, the
+system path, and `ldconfig` with a cache format.
+Done when: `ldd` on a vendor binary lists the same objects in the same order a
+real `ld.so` lists them.
+
+### WP-34 — relocation
+
+Needs: WP-33.
+Delivers: the `R_X86_64_*` set el8 objects actually contain, `RELA` throughout,
+`RELR` where the toolchain emits it, `IRELATIVE` with its resolvers, lazy PLT
+binding and `BIND_NOW`.
+Done when: a dynamically linked hello runs both ways, and an ifunc-dispatched
+`memcpy` selects the same implementation a real loader selects.
+
+### WP-35 — symbol lookup
+
+Needs: WP-34.
+Delivers: GNU hash and SysV hash, scope ordering, `RTLD_GLOBAL` promotion, and
+the interposition rules behind `LD_PRELOAD`.
+Done when: the differential test in WP-T2 agrees with a real `ld.so` on
+resolution order for a graph with a deliberate three-way name collision.
+
+### WP-36 — the version matcher
+
+Needs: WP-35.
+Delivers: `.gnu.version`, `.gnu.version_d`, and `.gnu.version_r` read and
+matched; default `@@` and non-default `@` bindings distinguished; parent chains
+walked; a missing non-weak requirement refused at load with the message a real
+loader gives.
+Done when: a consumer built against `GLIBC_2.14`'s `memcpy` binds to that body
+and not to the `GLIBC_2.2.5` one in the same library, and removing the node from
+the library makes the load fail rather than silently pick the survivor.
+
+This is the package the whole project exists for, it is a few hundred lines, and
+it is written from Drepper's specification because glibc's implementation is GPL
+and assumes a kernel we do not have. Budget review time rather than coding time.
+
+### WP-37 — TLS in the loader
+
+Needs: WP-30, WP-34.
+Delivers: static block sizing from the initial `PT_TLS` set with a documented
+surplus for late arrivals, the dtv, `__tls_get_addr`, TLS descriptors if the
+toolchain emits them, and teardown that releases per-module blocks.
+Done when: all four TLS models resolve correctly in one program, and a
+`dlopen`-ed module with its own `PT_TLS` works in a thread created before the
+`dlopen`.
+
+Risk: the surplus is a tunable with a default, not a constant. Getting it wrong
+fails at run time inside a library the program did not know it would load.
+
+### WP-38 — the dl surface
+
+Needs: WP-36, WP-37.
+Delivers: `dlopen`, `dlsym`, `dlvsym`, `dlclose`, `dlerror`, `dladdr`,
+`dladdr1`, `dlinfo`, `dl_iterate_phdr`, and initialization order
+(`DT_PREINIT_ARRAY`, dependencies before dependents, `DT_INIT` and
+`DT_INIT_ARRAY`, the reverse on the way out), with a defined cycle tie-break.
+Done when: a plugin loaded and unloaded ten thousand times leaks nothing, and
+the unwinder finds `.eh_frame` through `dl_iterate_phdr` for an object that
+arrived after startup.
+
+### WP-39 — the rendezvous
+
+Needs: WP-33.
+Delivers: the SVr4 `r_debug` structure, a link map kept current, and the
+breakpoint function a debugger sets.
+Done when: a gdb built for the triple lists every loaded object and sets a
+breakpoint in one that arrived through `dlopen`.
+
+Early rather than late, and deliberately so. The alternative is debugging a
+world no tool can see, which taxes every package after this one.
+
+---
+
+## Phase 4 — process integration
+
+### WP-40 — the initial process image
+
+Needs: WP-32.
+Delivers: the stack built downward (`argc`, `argv`, null, `envp`, null, auxv,
+strings, `AT_RANDOM` bytes), entry reached with `%rsp` on `argc` and the ABI's
+alignment honored.
+Done when: the auxv a real Linux kernel builds and the auxv we build differ only
+in the entries that describe the platform, and `AT_SYSINFO_EHDR`'s absence is
+tolerated by every consumer in the set.
+
+There is no vDSO here, so anything that would have gone through one goes through
+the runtime. A consumer treating the missing entry as fatal is a bug worth
+finding in this package rather than in month nine.
+
+### WP-41 — exec dispatch and the stub
+
+Needs: WP-38, WP-40.
+Delivers: the magic-byte branch in Cygwin's spawn path, and the PE host stub
+that reserves the address space, opts out of CET shadow stacks and Control Flow
+Guard, loads the runtime, and hands the loader the file and the argument vector.
+Done when: `execve` on an ELF binary from a Cygwin program works, `#!` scripts
+still work, the ordering between the ELF, `#!`, and PE cases is written down,
+and the interpreter recursion limit is enforced.
+
+Descriptor inheritance, close-on-exec, the environment, the working directory,
+signal disposition reset, and `AT_SECURE` all come with it. Cygwin's `execve`
+never could replace a process image, so the parent-stub fiction is inherited
+rather than introduced.
+
+### WP-42 — fork
+
+Needs: WP-41.
+Delivers: loader state crossing into the child intact — object list, search
+paths, TLS block and every dtv, the `r_debug` structure and its address — plus
+`pthread_atfork` ordering and the loader lock held across the call and released
+on both sides.
+Done when: a `fork` from a thread that is inside `dlopen` produces a child that
+runs rather than a child that deadlocks, and the DLL rebase failure mode that
+haunts Cygwin's `fork` is confirmed absent rather than assumed absent.
+
+`posix_spawn` and `vfork` take the same path and get the same test.
+
+### WP-43 — signals
+
+Needs: WP-42, WP-23.
+Delivers: the trampoline from Cygwin's thread-hijack delivery onto an ELF-side
+stack, with `siginfo_t` and `ucontext_t` laid out as the psABI and the Linux
+headers agree, extended FPU state saved where a consumer looks for it, and a
+return path that restores all of it.
+Done when: `sigaltstack` works, `SA_SIGINFO` and `SA_RESTART` mean what they
+mean, a signal delivered to a thread inside the runtime returns correctly, and
+the 128 bytes below `%rsp` are intact on return for compiled code.
+
+Risk: the red zone is a specification guarantee the host does not honor, and
+`-mno-red-zone` closes it only for code the compiler emitted. Hand-written
+assembly is where it stays open, which is why WP-16 delivers a ledger.
+
+---
+
+## Phase 5 — the veneer
+
+### WP-50 — the headers
+
+Needs: WP-10.
+Delivers: a glibc-shaped header set, `features.h` included, with `__GLIBC__` and
+`__GLIBC_MINOR__` reporting el8's numbers and the feature-test macro behavior
+that goes with them.
+Done when: a package that probes the headers and then links the library gets one
+answer rather than two.
+
+First in this phase and early in the program overall, because WP-14 needs it and
+because a header set can be written before anything implements it.
+
+### WP-51 — the version map
+
+Needs: WP-20, WP-50.
+Delivers: every node from `GLIBC_2.2.5` through `GLIBC_2.28` with every symbol
+at the node el8's own glibc put it at, extracted from vendor binaries and
+committed as a generated artifact.
+Done when: the extraction reruns and reproduces the committed map, and the node
+set matches what `readelf -V` prints for the vendor's `libc.so.6`.
+
+Several thousand symbol-to-node bindings maintained by hand would be wrong
+within a month, so this is generated or it is not trustworthy.
+
+### WP-52 — the resolution classification
+
+Needs: WP-51.
+Delivers: every symbol in the map sorted into one of four buckets — forwards to
+a runtime export under another name, forwards under the same name, needs a shim
+because the semantics differ, or has nothing behind it and becomes a stub that
+fails predictably.
+Done when: the four buckets partition the map with no symbol unclassified, and
+the fourth bucket is published rather than filed.
+
+That fourth bucket is the honest inventory of what this platform does not have.
+It is the most useful document the project will produce for anyone deciding
+whether to depend on it.
+
+### WP-53 — libc.so.6
+
+Needs: WP-52, WP-36.
+Delivers: the ELF `libc.so.6` itself, versioned aliases resolving into
+`elfsysv1.dll`, plus the static side (`libc.a` and the startup files, which
+WP-14 consumed in draft).
+Done when: `memcpy@GLIBC_2.2.5` and `memcpy@@GLIBC_2.14` both live in the object
+and bind independently, and spike 4's `elfdeps` result reproduces against the
+real library rather than against the synthesized one.
+
+### WP-54 — the companion libraries
+
+Needs: WP-53.
+Delivers: `libm.so.6`, `libpthread.so.0`, `libdl.so.2`, `librt.so.1`,
+`libcrypt.so.1`, `libresolv.so.2`, `libnsl.so.1`, `libutil.so.1`.
+Done when: a vendor binary's `DT_NEEDED` list is satisfied entirely from our
+tree with no name left over.
+
+el8 still ships these as separate objects rather than the merged glibc of later
+releases, so the partition follows el8's rather than a modern one.
+
+---
+
+## Phase 6 — packaging and tooling
+
+### WP-60 — gdb for the triple
+
+Needs: WP-39, WP-15.
+Delivers: a gdb configured for the target, consuming `r_debug`.
+Done when: it breaks, steps, and prints locals in an ELF program running under
+the stub, and unwinds a C++ exception across a shared library boundary.
+
+### WP-61 — core dumps
+
+Needs: WP-60.
+Delivers: a decision, then whatever the decision implies.
+Done when: either an ELF core our gdb reads is produced on a fault, or the
+tree documents that a Windows minidump of a stub is what a crash leaves behind
+and says how to work from one.
+
+Open rather than planned, and it can wait. Not indefinitely, since the first
+hard crash in a package build is when somebody wants it.
+
+### WP-62 — the rpm surface
+
+Needs: WP-54.
+Delivers: confirmation rather than code — `file` reporting ELF, rpm's magic gate
+matching, `elfdeps` firing unmodified — plus `ldconfig`, the cache format, and
+the search path configuration it reads.
+Done when: a built package's `Provides` and `Requires` carry
+`libc.so.6(GLIBC_2.2.5)(64bit)` in the vendor's exact shape.
+
+Most of this repairs itself the moment the format is ELF. The stage 0.5
+admission in `symbol-versioning-formats.md` for a PE dependency generator does
+not apply on this route, and that admission should be marked superseded rather
+than left to confuse a later reader.
+
+### WP-63 — installation
+
+Needs: WP-62.
+Delivers: the installer and configurator, idempotent per `AGENTS.md`: derived
+configuration reseeded from a pristine template each run, orphans from retired
+revisions removed rather than merely untouched, leftovers reaped before acting.
+Done when: two runs with changed inputs leave only the new state, with injected
+stale values cleared and retired items gone.
+
+Endpoint protection exclusions belong here too. Self-mapped anonymous
+executable memory is malware-shaped, permanently, so the exclusion is a
+documented deployment step rather than a defect anyone will fix.
+
+---
+
+## Cross-cutting — test infrastructure
+
+These start with WP-31 and run beside everything after it. They are not a phase
+and they do not finish.
+
+### WP-T1 — fixtures and fuzzing
+
+Needs: WP-31.
+Delivers: a committed fixture corpus, small and ugly on purpose — zero-length
+segments, overlapping `PT_LOAD`, a `DT_NEEDED` pointing past the end of the
+string table, a verneed chain that loops — and a fuzz target fed malformed and
+truncated ELF.
+Done when: it runs in CI on the pinned 2019 Cygwin and a new crash blocks a
+merge.
+
+A relocator that has never seen a truncated `PT_DYNAMIC` is not finished, and
+that sentence is a rule rather than a sentiment.
+
+### WP-T2 — differential tests against Linux
+
+Needs: WP-35.
+Delivers: comparisons against a real glibc for everything with a specified
+answer — TLS layout, auxv contents, the `r_debug` structure, symbol resolution
+order, and the version matcher's verdict on a library a real `ld.so` also has an
+opinion about.
+Done when: each comparison either matches or carries a recorded, justified
+divergence.
+
+Checking against a running glibc beats checking against our reading of the
+specification, and the two disagree often enough to be worth the harness.
+
+### WP-T3 — spike transcript regeneration
+
+Needs: any spike.
+Delivers: a runner that reruns every spike script and diffs against its recorded
+transcript.
+Done when: a spike whose script has rotted fails the same way a broken unit test
+fails.
+
+### WP-T4 — the acceptance comparison
+
+Needs: WP-62.
+Delivers: the harness that takes a vendor source package, builds it against this
+tree, and compares the result against what Red Hat shipped.
+Done when: it runs unattended over the el8 set and produces a per-package
+verdict.
+
+This one belongs to `rhelcyg-8.10` rather than here, and it is listed because
+it is the criterion everything above serves. A tree that passes every test in
+WP-T1 through WP-T3 and fails this one has not done the job.
+
+---
+
+## The graph, condensed
+
+    spike 1 ─────────────────────────► WP-30 ─┐
+    spike 3 ─────────────► phase 2 ───────────┤
+    spike 5 ─► WP-10 ─► WP-11 ─► WP-12 ─► WP-13 ─► WP-14 ─► WP-15 ─► WP-16
+                  └───► WP-50 ─────────────────────┘
+    WP-20 ─► WP-21 ─► WP-22 ─► WP-23 ─► WP-43
+                        └────► WP-24, WP-25
+    WP-31 ─► WP-32 ─► WP-33 ─► WP-34 ─► WP-35 ─► WP-36 ─► WP-38
+                        └────► WP-39          WP-37 ─────┘
+    WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
+    WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
+
+Three chains run genuinely in parallel once their spikes have answered: the
+toolchain, the runtime, and the loader. They meet at WP-41, which is the first
+package that needs all three, and the program's critical path runs through
+whichever of them is slowest rather than through any one of them by name.
+
+WP-36 is the shortest package on the critical path and the one that justifies
+the program. WP-22 is the longest single risk. WP-53 is where anyone outside
+the project first sees the point.
+
+## Not verified
+
+The three assumed decisions, which `ROADMAP.md` tabulates and which spikes 1, 3,
+and 5 exist to settle. None has run, and phase 2 is written as though spike 3
+answered yes.
+
+That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
+built entirely on it and it is asserted from the design of both rather than
+measured.
+
+That el8 binaries carry 2 MB `PT_LOAD` alignment. WP-32's arithmetic is easier
+if they do; one `readelf` against a vendor binary settles it and nobody has run
+it.
+
+The size of the WP-51 map. Several thousand bindings is an estimate from the
+shape of glibc's export list, not a count.
+
+That el8's rpm 4.14.3 carries `elfdeps` and `fileattrs`. WP-62 assumes it does
+and that the Cygwin port's omission belongs to the port. Untested, and it is the
+cheapest thing on this list to check.
