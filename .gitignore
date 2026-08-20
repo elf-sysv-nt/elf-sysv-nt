@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+
+# Build products of the toolchain and the runtime. Everything here is
+# regenerated from source and a configure line; nothing in it belongs in
+# history.
+build/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Upstream sources are pinned and fetched, never vendored.
+upstream/
+src-cache/
+
+# Per-site or local config: anything with "local" in the name stays out.
+# Committed example templates are the exception, since they show what the
+# local file should contain.
+*local*
+!*local*.example.*
+
+# Logs belong in bug reports, not here. The *unredacted* guard also catches a
+# raw capture saved under some other extension.
+*.log
+*unredacted*
