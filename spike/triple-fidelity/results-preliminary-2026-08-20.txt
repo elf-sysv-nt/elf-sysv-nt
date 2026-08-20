@@ -1,0 +1,102 @@
+el8 sources against a nonstandard vendor field
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+source      source tree /tmp/tf-smoke
+masquerade  x86_64-pc-linux-gnu
+candidate   x86_64-elfsysvnt-linux-gnu
+control     x86_64-pc-elfsysvnt
+date        2026-08-20T08:50:49Z
+script      count-vendor-misses 1.0
+
+== config.sub verdicts, one row per file probed
+
+                   probed  accepted rewritten  rejected      miss
+    masquerade          9         9         0         0      0.0%
+    candidate           9         9         0         0      0.0%
+    control             9         9         0         0      0.0%
+
+    Accepted means the triple came back byte for byte. Rewritten means
+    config.sub canonicalized it into something else, which is a silent
+    miss and the shape that matters. The control is expected to be
+    rejected outright; a row that is not tells you the os field is
+    cheaper than assumed.
+
+== packages
+
+    seen                             9
+    carrying a config.sub            9   100.0% of seen
+    candidate not accepted           0   0.0% of those carrying one
+    literal vendor in a source       0   0.0% of seen
+    both                             0
+    affected either way              0   0.0% of seen
+
+    The literal count is an upper bound. The pattern matches a comment
+    and a live host test alike, so a nonzero figure wants reading
+    before it is quoted.
+
+== packages whose config.sub did not accept the candidate
+
+    none
+
+== files carrying a literal vendor, by hits
+
+    nothing counted
+
+== summary
+
+    packages_seen=9
+    packages_with_config_sub=9
+    config_sub_probed=9
+    masquerade_accepted=9
+    masquerade_rewritten=0
+    masquerade_rejected=0
+    candidate_accepted=9
+    candidate_rewritten=0
+    candidate_rejected=0
+    control_accepted=9
+    control_rewritten=0
+    control_rejected=0
+    packages_candidate_miss=0
+    packages_literal_vendor=0
+    packages_affected=0
+    affected_share=0.0%
+
+== config.sub vintages probed
+
+    automake-1.10      timestamp='2009-11-20'
+    automake-1.11      timestamp='2012-02-10'
+    automake-1.12      timestamp='2012-12-06'
+    automake-1.13      timestamp='2013-04-24'
+    automake-1.14      timestamp='2017-02-07'
+    automake-1.15      timestamp='2019-01-05'
+    automake-1.16      timestamp='2019-01-05'
+    automake-1.9       timestamp='2013-04-24'
+    newlib-cygwin      timestamp='2021-10-27'
+
+== note
+
+    Not the verdict. Nine config.sub files that happened to be on this
+    machine, not the el8 source set. Recorded because the control row
+    came back accepted rather than rejected, which corrects a claim the
+    design document was resting on. See README.md.
+
+== why the control was accepted
+
+    Probing one 2021 config.sub, which validates the os field where the
+    2013 and 2019 vintages here do not.
+
+    elfsysvnt    rc=0  x86_64-pc-elfsysvnt
+    elfsysv      rc=0  x86_64-pc-elfsysv
+    elfnt        rc=0  x86_64-pc-elfnt
+    sysvnt       rc=0  x86_64-pc-sysvnt
+    nt           rc=1  Invalid configuration `x86_64-pc-nt': OS `nt' not recognized
+    notarealos   rc=1  Invalid configuration `x86_64-pc-notarealos': OS `notarealos' not recognized
+    zzz          rc=1  Invalid configuration `x86_64-pc-zzz': OS `zzz' not recognized
+
+    The accepted os list carries elf* for bare-metal ELF targets, so
+    elfsysvnt matches it. Acceptance is an accident of a glob, not a
+    grant, and gcc config.gcc reads x86_64-*-elf* as bare metal. An
+    os field starting with elf is therefore worse than a rejected one.
+
+    	     | bosx* | nextstep* | cxux* | aout* | elf* | oabi* \

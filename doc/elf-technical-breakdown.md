@@ -256,6 +256,15 @@ residual cost is the package that matches a literal `*-pc-linux-gnu` or
 intended. Spike 5 counts those, and it wants running before the first package is
 built rather than after the hundredth.
 
+The os field is closed off for a reason worth recording, because it is not the
+one that would be guessed. `config.sub` does not refuse `elfsysvnt` there; it
+accepts it, by matching `elf*`, the entry in the recognized-os list that exists
+for bare-metal targets of the `i386-elf` kind. `config.gcc` then reads
+`x86_64-*-elf*` as bare metal and routes the triple to a target definition with
+no operating system beneath it. A refusal would stop a build; this succeeds and
+is wrong, which is the worse of the two. Measured against a 2021 `config.sub`
+on 2026-08-20; `spike/triple-fidelity/` holds the transcript.
+
 ## Debugging the opaque image
 
 **Protocol in the open, our triple new, opacity conceded.** The gap is the

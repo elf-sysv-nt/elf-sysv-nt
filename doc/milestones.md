@@ -49,11 +49,16 @@ guessing at it is precisely the habit these spikes exist to break.
 The script takes the `config.sub` shipped by each package in the el8 source
 set, feeds it three candidates, and records the canonicalized output of each:
 the masquerade `x86_64-pc-linux-gnu`, the vendor-honest
-`x86_64-elfsysvnt-linux-gnu`, and the os-honest `x86_64-pc-elfsysvnt`, which is
-expected to be rejected outright and is included to price that rejection. The
-same pass greps the set for literal vendor matches in `configure.ac`,
-`configure`, and any hand-written `case $host`. The transcript is two counts
-and the offending package names.
+`x86_64-elfsysvnt-linux-gnu`, and the os-honest `x86_64-pc-elfsysvnt` as a
+control. The control was put there expecting a rejection, and a preliminary run
+over nine local `config.sub` vintages says otherwise: pre-2020 files do not
+validate the os field at all, and the 2021 file accepts `elfsysvnt` by matching
+`elf*`, the entry that exists for bare-metal ELF targets. Silent acceptance
+into `config.gcc`'s bare-metal branch is a worse outcome than a refusal, which
+is the argument for the vendor field restated on firmer ground. The same pass
+greps the set for literal vendor matches in `configure.ac`, `configure`, and
+any hand-written `case $host`. The transcript is two counts and the offending
+package names.
 
 A verdict of a handful is a patch set. A verdict in the hundreds argues for the
 masquerade, and the honest name moves to `EI_OSABI`, the `.note.ABI-tag`, the
