@@ -167,7 +167,13 @@ the project's own rule: change the lowest feasible layer when that leaves the
 least change above it.
 
 So the runtime library is rebuilt as `elfsysv1.dll`, speaking System V on its
-export surface. The ELF world above it is then uniformly SysV, top to bottom;
+export surface. The name omits the `nt` that the target triple's vendor field
+carries, and the omission is deliberate: a DLL is an NT artifact by
+construction, so naming it for its host would restate what the extension
+already says. What wants stating is the face it presents, which is ELF and
+System V. The parallel with `cygwin1.dll` runs down to the digit, because the
+backward-compatibility rule the digit encodes is inherited rather than
+reinvented. The ELF world above it is then uniformly SysV, top to bottom;
 the libc veneer at the trunk collapses from a wall of generated thunks into
 plain versioned aliases; no layer above this one knows a boundary exists. The
 boundary itself does not vanish, because the DLL has two faces and only one is
@@ -236,8 +242,19 @@ triple. Masquerade as `x86_64-*-linux-gnu` and configure probes report maximum
 Linux fidelity, then discover epoll or inotify missing at link time; choose an
 honest custom triple and the divergence shows sooner and configure results drift
 from the vendor's. Probes link and run under either name, so the truth arrives
-regardless. The choice is where to put it, and it wants making before the first
-package is built rather than after the hundredth.
+regardless. The choice is where to put it.
+
+It is narrower than it first looks, because the triple has four fields and only
+two carry weight. `config.sub` passes an unrecognized vendor through untouched,
+while `os` and `abi` are what the machinery actually reads, so
+`x86_64-elfsysvnt-linux-gnu` puts the honest name where it costs least and
+leaves `linux-gnu` standing where configure looks. Buildroot has shipped
+`x86_64-buildroot-linux-gnu` on that reasoning for over a decade, at the same
+twenty-six characters, so neither the shape nor the length is new ground. The
+residual cost is the package that matches a literal `*-pc-linux-gnu` or
+`*-unknown-linux-gnu` and misses silently, taking a configure branch nobody
+intended. Spike 5 counts those, and it wants running before the first package is
+built rather than after the hundredth.
 
 ## Debugging the opaque image
 
@@ -293,6 +310,10 @@ meets this runtime and no earlier project stood.
    el8's `elfdeps` against a consumer linked to it, and confirm the
    vendor-shaped `Requires` line appears. Proves the trunk repairs fidelity
    before anything large is funded.
+5. Triple fidelity. Feed each el8 package's own `config.sub` the masquerade,
+   the vendor-honest candidate and an os-honest control, then grep the set for
+   literal vendor matches. Out of dependency order because it is cheap and
+   changes no runtime behavior; the deliverable is a count, not a yes or no.
 
 ## Sources
 
@@ -328,6 +349,12 @@ Specifications
     https://www.akkadia.org/drepper/dsohowto.pdf
     https://www.uclibc.org/docs/psABI-x86_64.pdf
 
+Toolchain tuples and the vendor field
+
+    https://buildroot.org/downloads/manual/manual.html
+    http://lists.busybox.net/pipermail/buildroot/2014-February/090227.html
+    https://wiki.osdev.org/Target_Triplet
+
 Sealed but documented
 
     https://learn.microsoft.com/en-us/archive/blogs/wsl/pico-process-overview
@@ -355,6 +382,13 @@ width of it.
 The licenses marked recalled: flinux, Blink, Qiling, Cosmopolitan, HelloElf,
 elf-on-windows. Each must be read before any code is lifted, and GPL or LGPL
 turns a lift into a distribution obligation.
+
+How many el8 packages mishandle a nonstandard vendor field. The vendor-honest
+triple rests on the claim that few do; nobody has counted, and spike 5 exists to
+count them. Path length under the longer vendor is the one part of that
+question already settled: the deepest installed path carrying a triple measures
+146 characters as Windows sees it, 156 with the ten the vendor adds, against a
+`MAX_PATH` of 260. Measured 2026-08-20.
 
 That el8 binaries carry 2 MB PT_LOAD alignment. Recalled binutils default,
 settled by one readelf against a vendor binary.
