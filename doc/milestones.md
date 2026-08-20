@@ -76,7 +76,9 @@ directories on top, but a hundred characters of headroom absorbs that. Measured
 
 ## After the spikes
 
-Unscheduled, because three of the five answers can reshape it.
+Unscheduled, because three of the five answers can reshape it. `ROADMAP.md`
+inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into packages; the
+sketch below is the shape both of them fill in.
 
 The target triple wants deciding before the first package is built, and spike 5
 is what it waits on. The toolchain follows, which is routine cross-toolchain
