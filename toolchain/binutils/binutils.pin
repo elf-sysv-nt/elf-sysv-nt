@@ -1,0 +1,12 @@
+# The binutils release this project builds, pinned by checksum.
+#
+# 2.42 rather than el8's own 2.30. Nothing here has to match the vendor's
+# assembler: what el8 shipped is an input to WP-51 and WP-T4, both of which
+# read vendor binaries rather than rebuild them, and a 2019 binutils would
+# cost us RELR and a decade of x86 fixes for no compatibility we need.
+#
+# Checked against the sha256 the GNU mirrors publish for this file.
+
+version	2.42
+url	https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.xz
+sha256	f6e4d41fd5fc778b06b7891457b3620da5ecea1006c6a4a41ae998109f85a800
