@@ -17,17 +17,20 @@ here; the inventory is not repeated there.
 Three points are decisions rather than tasks, `AGENTS.md` reserves them, and a
 roadmap that forked three ways under every heading would be unreadable. So this
 is written along the recommended path, with the branch named where it sits. One
-of the three is now settled and the other two are still assumptions.
+of the three is settled, one has been measured and went the other way, and one
+is still an assumption.
 
 | Decision | Taken as | Standing | If it goes the other way |
 |---|---|---|---|
-| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Assumed, gated on spike 1 | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
+| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Refuted 2026-08-29 by spike 1. Windows returns the base as zero after any deschedule, and the replacement is the operator's to pick | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
 | Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Assumed, gated on spike 3 | Unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. The veneer stops being aliases and becomes code. |
 | Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. |
 
-Only the middle row reshapes the program. A negative on spike 1 costs a layer's
-worth of design and leaves the dependency graph intact. The third row is
-finished: spike 5 ran on 2026-08-29 and the patch set it priced is one
+Only the middle row reshapes the program. The first row went the other way on
+2026-08-29, which costs a layer's worth of design and leaves the dependency
+graph intact, as it was written to; `spike/fs-base-persistence/` carries the
+measurement and section 3 below has been rewritten around it. The third row is
+finished: spike 5 ran the same day and the patch set it priced is one
 package. A negative on spike 3 moves the convention change from the
 runtime's export surface up into the veneer, where it is dearer at every call
 and at every version node, and the plan below would need rewriting from that
@@ -135,11 +138,21 @@ node, and independently testable piece by piece.
 Small. It decides the shape of two layers above it, which is a poor ratio of
 size to consequence.
 
-A thread's FS base is established at creation and re-established after every
-event that could disturb it, which on this host means thread entry, fork in the
-child, and whatever spike 1 discovers about context switches. The TCB sits at
-that base in the psABI's variant II layout, with the thread pointer at the top
-of the static block and negative offsets running down into it.
+This section was written around a thread pointer in `%fs`, established at
+creation and re-established after every event that could disturb it. Spike 1
+measured that on 2026-08-29 and the mechanism is not available: `WRFSBASE`
+works and the base addresses correctly, but Windows hands the thread back with
+a base of zero after anything that takes it off a processor, preemption
+included. Re-establishment is therefore not a repair, because preemption has no
+call site to hook, and `spike/fs-base-persistence/README.md` carries the
+numbers. What replaces `%fs` is reserved to the operator by `AGENTS.md` and is
+not decided here.
+
+Everything below this paragraph survives that answer, because none of it
+depends on where the thread pointer lives. The TCB sits at the thread pointer
+in the psABI's variant II layout, with the pointer at the top of the static
+block and negative offsets running down into it, whatever mechanism ends up
+producing the pointer.
 
 The static TLS block is sized by the loader at startup from the `PT_TLS`
 segments of the initial object set, with surplus reserved for objects that
@@ -440,11 +453,13 @@ roadmap serves.
 
 Recorded so a later reader does not mistake these for measured.
 
-The two assumed answers still in the table at the top. Spikes 1 and 3 exist to
-replace them, and neither has run. The third row is neither assumed nor
-unverified any more: the triple was decided on 2026-08-29 and spike 5 priced
-it the same day, at zero marginal cost through `config.sub` and one package
-through a literal host test.
+The runtime face, which is the one row in the table at the top still standing
+on an assumption. Spike 3 exists to replace it and has not run. The other two
+have their answers: the triple was decided on 2026-08-29 and spike 5 priced it
+the same day, at zero marginal cost through `config.sub` and one package
+through a literal host test, and spike 1 refuted the `%fs` thread pointer that
+afternoon. What section 3 says about the TCB layout survives spike 1's answer;
+what it used to say about establishing the base does not, and has gone.
 
 That el8 binaries carry 2 MB `PT_LOAD` alignment. Recalled binutils default;
 one `readelf` against a vendor binary settles it, and the mapping arithmetic in

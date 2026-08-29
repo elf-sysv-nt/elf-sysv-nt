@@ -148,13 +148,15 @@ through Cygwin's own `mmap` puts them inside the machinery Cygwin's fork
 already replays; and since ELF PIC objects relocate anywhere, the DLL
 rebase failure mode gets removed rather than added to. Fiddly, not novel.
 
-TLS is the load-bearing unknown. FSGSBASE (`wrfsbase` and friends) has
-been in every processor since Ivy Bridge, which is the modern-hardware
-half of the question; whether Windows preserves a user-written FS base
-across context switches decides whether ELF-standard TLS works at native
-cost, and that has to be measured before anything rests on it (recalled
-either way; spike 1). The fallback costs little, because we own the
-target: its TLS model can be defined as TEB-slot based or as emutls.
+TLS was the load-bearing unknown and it is now a measured no. FSGSBASE
+(`wrfsbase` and friends) has been in every processor since Ivy Bridge and
+Windows permits the instruction, so the hardware half of the question was
+never the problem; what decided it is that Windows hands a descheduled
+thread back with the base at zero, preemption included, which spike 1
+measured on 2026-08-29. ELF-standard TLS at native cost is therefore
+unavailable. The fallback costs little, because we own the target: its
+TLS model can be defined as TEB-slot based or as emutls, and which of
+those it becomes is the operator's to say.
 
 The ABI boundary is real but solved. ELF x86-64 code is SysV; cygwin1.dll
 is MS x64; gcc emits both conventions in one object via `ms_abi` and
@@ -199,9 +201,9 @@ link and run either way, so the truth comes out. Choose where.
 
 ## Spikes, in order
 
-1. FS base persistence. Write FS base with `wrfsbase` on two competing
-   threads, spin, read back, on this Windows build. An afternoon, and it
-   decides the TLS story.
+1. FS base persistence. Write FS base with `wrfsbase`, provoke everything
+   that can take the thread off a processor, read back, on this Windows
+   build. An afternoon, and it decided the TLS story. Run 2026-08-29: no.
 2. Map and jump. A PE stub maps a static ELF hello built for the custom
    target, then jumps to it across a hand-built initial stack and auxv.
    Proves the exec path end to end with no dynamic linking involved.
@@ -260,8 +262,10 @@ format and symbol versioning that prompted this survey.
 
 Recorded so a later reader does not mistake these for measured.
 
-Whether Windows preserves a user-written FS base across context switches.
-Load-bearing, unmeasured; spike 1 exists for it.
+Which TLS model stands in for `%fs`. The question this line used to carry,
+whether Windows preserves a user-written FS base, was measured on
+2026-08-29 and the answer is no; `spike/fs-base-persistence/` holds it.
+The replacement is an open decision rather than an open measurement.
 
 That Windows exception and APC dispatch clobbers the SysV red zone.
 Recalled from Wine-adjacent reading, not measured here; spike 3 covers it.

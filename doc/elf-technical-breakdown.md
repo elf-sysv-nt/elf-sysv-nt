@@ -114,16 +114,22 @@ lines on top of the musl-shaped relocator, and that matcher is what lets rpm's
 
 ## Thread-local storage
 
-**Framed in papers, with one measurement we still owe.** The gap: Linux sets a
-thread's FS base through `arch_prctl` and the kernel preserves it across every
-context switch, which is what makes `%fs`-relative TLS work. The models are
-documented and the hardware is present, so the theory is settled. The open fact
-is narrow and load-bearing: whether Windows preserves a *user*-written FS base
-across a context switch. If it does, ELF-standard TLS works at native cost. If
-it does not, the bridge is a TLS model of our own, TEB-slot based or emutls,
-which is our ground and cheap to hold because we own the target's definition.
-Spike 1 exists to turn this recalled question into a measured answer before
-anything rests on it.
+**Framed in papers, and the one measurement we owed came back no.** The gap:
+Linux sets a thread's FS base through `arch_prctl` and the kernel preserves it
+across every context switch, which is what makes `%fs`-relative TLS work. The
+models are documented and the hardware is present, so the theory was never the
+problem. The narrow, load-bearing fact was whether Windows preserves a
+*user*-written FS base, and spike 1 measured it on 2026-08-29.
+
+It does not. The instruction is available and the base addresses correctly, so
+this is not a hardware or a permissions answer; the base comes back zero after
+anything that takes the thread off a processor. Preemption alone does it, in
+tens of milliseconds, with no system call anywhere in the case, which closes
+the repair of re-establishing the base at a call site. So the bridge is a TLS
+model of our own, TEB-slot based or emutls, which is our ground and cheap to
+hold because we own the target's definition. Which one it is belongs to the
+operator under `AGENTS.md` and is not settled here.
+`spike/fs-base-persistence/` carries the probe and the transcript.
 
 ## The kernel-ABI seam — the fork in the road
 
@@ -297,7 +303,7 @@ Leaf to trunk, with where each layer's material comes from.
 | Initial process image | foundation poured | Userland Exec |
 | Dynamic loader | poured, extension owed | musl `dynlink.c` |
 | Symbol versioning | framed in papers | Drepper; glibc GPL-only |
-| Thread-local storage | papers + spike 1 | psABI, arch_prctl model |
+| Thread-local storage | papers; spike 1 refuted `%fs` | psABI, arch_prctl model |
 | Kernel-ABI seam | fork in the road | flinux/QEMU (GPL); WSL1, Drawbridge (sealed) |
 | ABI boundary, elfsysv1.dll | technique open, placement ours | Wine `ms_abi`/`sysv_abi` |
 | libc veneer | our ground, the trunk | midipix by contrast |
@@ -313,9 +319,10 @@ meets this runtime and no earlier project stood.
 
 ## Spikes, in dependency order
 
-1. FS base persistence. Write the FS base with `wrfsbase` on two competing
-   threads, spin, read it back, on this Windows build. An afternoon, and it
-   decides the TLS layer.
+1. FS base persistence. Write the FS base with `wrfsbase`, provoke every event
+   that can take the thread off a processor, and read it back. An afternoon,
+   and it decided the TLS layer. Run 2026-08-29: the base does not survive,
+   and preemption alone is enough to clear it.
 2. Map and jump. A PE stub maps a static ELF built for the custom target and
    jumps to it across a hand-built stack and auxv. Proves the two foundation
    layers end to end with no dynamic linking in play.
@@ -391,8 +398,10 @@ In `rhelcyg-8.10`, the first consumer: `doc/plan-rpm-userland.md`,
 
 Recorded so a later reader does not mistake these for measured.
 
-Whether Windows preserves a user-written FS base across a context switch. The
-load-bearing unknown; spike 1 exists for it.
+Which TLS model replaces `%fs`. Spike 1 settled the question that was recorded
+here on 2026-08-29, and the answer was no; what stands in its place is an
+operator decision that has not been taken. The measurement itself is in
+`spike/fs-base-persistence/`, on one Windows build and one processor.
 
 That the runtime core can be rebuilt SysV-faced without breaking its SEH-based
 fault handling, thread entry, and Windows callbacks. Asserted from the Wine

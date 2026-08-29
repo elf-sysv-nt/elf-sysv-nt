@@ -17,7 +17,7 @@ one worth naming in advance.
 Packages are numbered by phase and are not renumbered when one is added, so the
 sequence has gaps and the gaps mean nothing.
 
-Nothing here is scheduled. Three of the five spike answers can reshape the
+Nothing here is scheduled. Two of the five spike answers can still reshape the
 graph, so a date attached to WP-53 today would be fiction, and the dependency
 order is the only ordering claim the plan makes.
 
@@ -30,10 +30,17 @@ here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-Spikes 1 and 2 can run in parallel; nothing connects them. Spike 3 wants
+Spikes 1 and 2 could run in parallel; nothing connects them. Spike 3 wants
 spike 2's stub as a convenient carrier but does not require it, and spike 4 is
 independent of the others and should run early because it prices the whole
-program. Spike 5 is done, 2026-08-29.
+program. Spikes 1 and 5 are done, both 2026-08-29.
+
+Spike 1 came back no, which is the branch `milestones.md` reserved and not a
+delay. `%fs`-relative TLS is unavailable on this host: the base is writable and
+addresses correctly, and Windows returns it as zero after anything that
+deschedules the thread, preemption included. What replaces it is an operator
+decision under `AGENTS.md`. WP-30's interface is unaffected and its body waits
+on that decision rather than on further measurement.
 
 ---
 
@@ -208,15 +215,20 @@ fact means guessing which of the existing binaries predate which change.
 
 ### WP-30 — the thread pointer
 
-Needs: spike 1, WP-22.
-Delivers: FS base establishment at thread creation and re-establishment
-wherever the host can disturb it, with the TCB in the psABI's variant II layout.
+Needs: the TLS model decision, WP-22.
+Delivers: thread pointer establishment at thread creation and wherever the host
+can disturb it, with the TCB in the psABI's variant II layout.
 Done when: a thread reads its own TCB correctly after a hundred thousand
 context switches under load, and after a `fork`, and after a signal delivered
 mid-computation.
 
-Risk: spike 1's verdict decides the mechanism, not the interface. Writing this
-package's interface before the verdict is safe; writing its body is not.
+Risk: this package used to wait on spike 1 and now waits on a person. Spike 1
+ran on 2026-08-29 and took `%fs` away, so the mechanism is open and the
+interface is not: a thread pointer, established and readable, is the same
+contract whatever produces it. Write the interface. The body cannot be written
+until the operator picks the replacement, and the acceptance test above is
+deliberately written in terms of the TCB rather than the FS base so that it
+survives the choice.
 
 ### WP-31 — ELF parsing
 
@@ -549,7 +561,7 @@ WP-T1 through WP-T3 and fails this one has not done the job.
 
 ## The graph, condensed
 
-    spike 1 ─────────────────────────► WP-30 ─┐
+    TLS model ───────────────────────► WP-30 ─┐
     spike 3 ─────────────► phase 2 ───────────┤
     WP-10 ─► WP-11 ─► WP-12 ─► WP-13 ─► WP-14 ─► WP-15 ─► WP-16
        └───► WP-50 ─────────────────────┘
@@ -571,10 +583,12 @@ the project first sees the point.
 
 ## Not verified
 
-The two assumed decisions still open, which `ROADMAP.md` tabulates and which
-spikes 1 and 3 exist to settle. Neither has run, and phase 2 is written as
-though spike 3 answered yes. The third was decided in DR-0001 and measured by
-spike 5 on 2026-08-29, at one affected package in 2893.
+The runtime face, which `ROADMAP.md` tabulates and spike 3 exists to settle.
+It has not run, and phase 2 is written as though it answered yes. The other two
+have answers: DR-0001 fixed the triple and spike 5 priced it on 2026-08-29 at
+one affected package in 2893, and spike 1 refuted `%fs`-relative TLS the same
+day. What replaces `%fs` is open, but it is open as a decision rather than as a
+measurement, and phase 3 is written so that only WP-30's body depends on it.
 
 That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than

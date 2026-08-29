@@ -35,7 +35,8 @@ criteria.
 
 Nothing has been built. Every technical claim carries a mark saying whether it
 was measured or recalled, and the spikes exist to move four of the load-bearing
-ones from the second column to the first.
+ones from the second column to the first. Two have moved, and the first of them
+moved against the design, which is the outcome a spike is worth having for.
 
 ## Relationship to rhelcyg-8.10
 
@@ -48,4 +49,8 @@ with a different veneer.
 
 ## Status
 
-Pre-spike. No toolchain, no loader, no DLL, no code of any kind.
+Mid-spike. No toolchain, no loader, no DLL, and no code beyond the probes the
+spikes are made of. Two of the five have run, both on 2026-08-29: spike 5
+priced the target triple at one affected package in 2893, and spike 1 found
+that Windows does not preserve a user-written FS base, which takes
+`%fs`-relative TLS off the table and leaves the replacement open.

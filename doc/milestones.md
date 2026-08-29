@@ -5,8 +5,8 @@ deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
 month one. Four of the spikes gate something. The fifth prices a naming
-decision that has since been taken without it, which is the only change to
-this list since it was written.
+decision that has since been taken without it. Two have now run, and the first
+of them took the recommended path off the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 the first four and a count for the fifth. The verdict is the deliverable.
@@ -17,20 +17,41 @@ In dependency order, which is also cost order.
 
 | # | Spike | Question | Gates |
 |---|---|---|---|
-| 1 | `spike/fs-base-persistence/` | Does Windows preserve a user-written FS base across a context switch? | The TLS layer, and the toolchain target through it |
+| 1 | `spike/fs-base-persistence/` | Does Windows preserve a user-written FS base across a context switch? | The TLS layer, and the toolchain target through it. Run 2026-08-29: no. |
 | 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image |
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point |
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 
-Spike 1 is an afternoon and decides a layer. Spike 3 is the expensive one, and
-a no there sends the program to the veneer-thunk fallback, which is a different
-program. Spike 4 gates nothing technically; it measures whether the whole
-edifice repairs what it was built to repair, and it should run before anything
-large is funded. Spike 5 gated nothing in the end: the triple was decided on
-2026-08-29 without waiting for it, and the count it produced the same day is
-the size of the patch set that decision commits to. One package, well inside
-the threshold DR-0001 set in advance.
+Spike 1 was an afternoon and it decided a layer, against us. Spike 3 is the
+expensive one, and a no there sends the program to the veneer-thunk fallback,
+which is a different program. Spike 4 gates nothing technically; it measures
+whether the whole edifice repairs what it was built to repair, and it should
+run before anything large is funded. Spike 5 gated nothing in the end: the
+triple was decided on 2026-08-29 without waiting for it, and the count it
+produced the same day is the size of the patch set that decision commits to.
+One package, well inside the threshold DR-0001 set in advance.
+
+## Spike 1, the thread pointer
+
+Run 2026-08-29, and the answer is no. `WRFSBASE` is available on this host and
+a base written with it addresses `%fs:0` correctly, so the failure is not at
+the instruction. It is at the scheduler: anything that takes the thread off a
+processor returns it with the base at zero, and the probe's cases that block,
+yield, migrate, take a signal or get hijacked all fail on their first or second
+check.
+
+The case that settles what it costs makes no system call at all. It spins on
+`RDFSBASE` while a burner sits on every processor, and it still loses the base,
+in tens of milliseconds. A base cleared on the way back from a call could have
+been re-established at the call site; a base cleared by preemption cannot,
+because preemption has no call site. So the two obvious repairs are both closed
+and this reaches the toolchain layer rather than merely adding work to it, as
+the milestone said it would.
+
+`spike/fs-base-persistence/results-2026-08-29.txt` is the transcript and that
+spike's README reads it. What replaces `%fs` is reserved to the operator by
+`AGENTS.md`, and no fallback is picked here.
 
 ## Spike 5, the target triple
 
@@ -91,14 +112,18 @@ directories on top, but a hundred characters of headroom absorbs that. Measured
 
 ## After the spikes
 
-Unscheduled, because two of the five answers can still reshape it. `ROADMAP.md`
+Unscheduled, because spike 3's answer can still reshape it. `ROADMAP.md`
 inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into packages; the
 sketch below is the shape both of them fill in.
 
 The target triple wanted deciding before the first package was built, and it
-was, on 2026-08-29. The toolchain follows, which is routine cross-toolchain
-work. Then the loader, where musl's `dynlink.c` is the working model and the
-verdef and verneed matcher is the part musl leaves out. `elfsysv1.dll` and the
-libc veneer come after the loader can run something. The `r_debug` rendezvous
-can start as soon as there is a loader to announce objects, and it should,
-because the alternative is debugging a world Windows tools cannot see.
+was, on 2026-08-29. The TLS model now wants deciding on the same footing, and
+for the same reason: spike 1 came back no that afternoon, the replacement is
+the operator's call, and the toolchain cannot be configured around a thread
+pointer nobody has named. The toolchain follows, which is otherwise routine
+cross-toolchain work. Then the loader, where musl's `dynlink.c` is the working
+model and the verdef and verneed matcher is the part musl leaves out.
+`elfsysv1.dll` and the libc veneer come after the loader can run something. The
+`r_debug` rendezvous can start as soon as there is a loader to announce
+objects, and it should, because the alternative is debugging a world Windows
+tools cannot see.
