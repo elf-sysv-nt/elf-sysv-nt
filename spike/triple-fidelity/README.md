@@ -91,10 +91,25 @@ Read the check as proving isolation, not ordering.
 
 Much past eight jobs you are queueing on the mirror instead of going faster.
 
+On this machine it bought nothing at all, which is worth recording so nobody
+reaches for it again expecting otherwise. Measured 2026-08-29 over 40-second
+windows: one job gave 1.2 MB/s and 34 packages a minute, six jobs gave
+1.06 MB/s and 31, and twelve jobs completed nothing for two minutes because
+twelve dotnet source packages of several hundred megabytes each were sharing
+the same 10 Mbit link. The constraint here is the link, and concurrency only
+divides it into smaller pieces while multiplying what a restart throws away.
+On a faster line the option earns its place; here the run is set to one.
+
 A run holds a lock on its destination, skips packages it has already done, and
-reaps a dead run's working directory before starting. Resumption is the point:
-2893 packages is long enough that a network drop is expected rather than
-feared.
+reaps a dead run's working directory before starting. On a signal it takes its
+jobs down before cleaning up, because an orphaned job goes on writing into a
+directory the next run will delete, and could lay down a marker for a package
+whose fragment never finished — which the next run would then skip. That last
+path has no automated check; it was watched once, by killing a run and
+confirming every marker still had a fragment beside it.
+
+Resumption is the point of all of it. 2893 packages is long enough that a
+network drop is expected rather than feared.
 
 ## Reproducing it away from the tree
 
