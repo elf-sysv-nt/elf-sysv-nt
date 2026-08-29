@@ -16,20 +16,23 @@ here; the inventory is not repeated there.
 
 Three points are decisions rather than tasks, `AGENTS.md` reserves them, and a
 roadmap that forked three ways under every heading would be unreadable. So this
-is written along the recommended path, with the branch named where it sits.
+is written along the recommended path, with the branch named where it sits. One
+of the three is now settled and the other two are still assumptions.
 
-| Decision | Assumed | Gate | If the gate answers no |
+| Decision | Taken as | Standing | If it goes the other way |
 |---|---|---|---|
-| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Spike 1 | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
-| Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Spike 3 | Unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. The veneer stops being aliases and becomes code. |
-| Target triple | `x86_64-elfsysvnt-linux-gnu` | Spike 5 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. |
+| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Assumed, gated on spike 1 | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
+| Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Assumed, gated on spike 3 | Unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. The veneer stops being aliases and becomes code. |
+| Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened. |
 
 Only the middle row reshapes the program. A negative on spike 1 costs a layer's
-worth of design and leaves the dependency graph intact, and a negative on spike
-5 changes four string constants. A negative on spike 3 moves the convention
-change from the runtime's export surface up into the veneer, where it is dearer
-at every call and at every version node, and the plan below would need
-rewriting from that section outward.
+worth of design and leaves the dependency graph intact. The third row is no
+longer a gate at all: spike 5 still runs, and what it now produces is the size
+of the patch set the decision commits to, read against a threshold written down
+in advance. A negative on spike 3 moves the convention change from the
+runtime's export surface up into the veneer, where it is dearer at every call
+and at every version node, and the plan below would need rewriting from that
+section outward.
 
 ## Order of construction
 
@@ -53,7 +56,8 @@ be built with tools that already exist.
 
 The target definition itself comes before any of it: a triple, an `EI_OSABI`
 value, a `.note.ABI-tag` payload, a dynamic linker SONAME, and the string
-`uname` reports. Those five have to agree. They also have to be written down
+`uname` reports. The triple is settled, in DR-0001; the other four are not.
+Those five have to agree. They also have to be written down
 somewhere a later reader can find them, because every one of them ends up
 compiled into shipped artifacts (a `.note.ABI-tag` is in every binary, and the
 SONAME is in every dynamic object), where changing one means rebuilding the
@@ -437,8 +441,9 @@ roadmap serves.
 
 Recorded so a later reader does not mistake these for measured.
 
-The three assumed answers in the table at the top. Spikes 1, 3, and 5 exist to
-replace them, and none has run.
+The two assumed answers still in the table at the top. Spikes 1 and 3 exist to
+replace them, and neither has run. The third row is decided rather than
+assumed, and spike 5 now prices it rather than settling it.
 
 That el8 binaries carry 2 MB `PT_LOAD` alignment. Recalled binutils default;
 one `readelf` against a vendor binary settles it, and the mapping arithmetic in
