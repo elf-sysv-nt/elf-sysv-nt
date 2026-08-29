@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# Turn WP-10's exit criterion into something that either passes or does not.
+#
+# The criterion reads "every later package that hardcodes one of the five
+# cites this document rather than a memory of it", which is a judgment until
+# a script makes it a test. This is that script. It greps the tree for each
+# literal value in doc/target-definition.md and reports any file carrying one
+# without also naming the document.
+#
+# Prose is exempt, and deliberately. doc/ argues about these values, spike/
+# measures them, and the three markdown files at the root introduce them;
+# none is a consumer, and requiring a design document to cite another design
+# document in the same sentence produces citation noise rather than
+# traceability. What this covers is everything that gets built or run:
+# sources, scripts, specs files, makefiles, macro sets.
+#
+# Until WP-11 lands there is nothing outside doc/ and spike/ for it to find,
+# so a clean run today means the tree is empty rather than that the tree is
+# attributed. That is expected and it is why the count is printed.
+#
+# Usage:
+#   check-target-definition [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -e PAT, --exclude=PAT    Also skip paths matching this. Repeatable.
+#   -t, --terse              One key=value per line, no prose.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every file examined.
+#   -d, --debug              Trace execution; implies --verbose.
+#   -V, --version            Print the version and exit.
+#   -h, --help               Print this message and exit.
+#
+# Each option is also settable as CHECK_TARGET_DEFINITION_<OPTION>, and the
+# option wins over the variable.
+#
+# Exit codes: 0 every site attributed, 1 at least one is not, 2 usage error.
+
+set -u
+
+prog=check-target-definition
+release='check-target-definition 1.0'
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+
+root=${CHECK_TARGET_DEFINITION_DIRECTORY:-$here}
+terse=${CHECK_TARGET_DEFINITION_TERSE:-0}
+quiet=${CHECK_TARGET_DEFINITION_QUIET:-0}
+verbose=${CHECK_TARGET_DEFINITION_VERBOSE:-0}
+debug=${CHECK_TARGET_DEFINITION_DEBUG:-0}
+extra=${CHECK_TARGET_DEFINITION_EXCLUDE:-}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -C|--directory|-e|--exclude) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -C|--directory) root=$val ;;
+        -e|--exclude) extra="$extra $val" ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -d "$root" ] || usage_error "no such directory: $root"
+
+record=doc/target-definition.md
+[ -r "$root/$record" ] || die "$record is missing; WP-10 is what this checks"
+
+# One per line, and each has to be a string a consumer would actually write
+# rather than a phrase a document would. "Linux" and "x86_64" are values in
+# the record and are not listed: everything on the planet contains them.
+literals='x86_64-elfsysvnt-linux-gnu
+ld-linux-x86-64.so.2
+4.18.0-elfsysvnt
+#1 SMP elfsysvnt
+.note.elfsysvnt.abi'
+
+cd "$root" || die "cannot enter $root"
+
+skip() {
+    case $1 in
+        ./doc/*|./spike/*|./.git/*|./bin/check-target-definition) return 0 ;;
+        ./AGENTS.md|./CLAUDE.md|./README.md) return 0 ;;
+    esac
+    for pat in $extra; do
+        case $1 in *$pat*) return 0 ;; esac
+    done
+    return 1
+}
+
+examined=0
+carrying=0
+unattributed=0
+offenders=
+
+while IFS= read -r f; do
+    skip "$f" && continue
+    examined=$((examined + 1))
+    hit=0
+    while IFS= read -r lit; do
+        grep -qF "$lit" "$f" 2>/dev/null && hit=1
+    done <<EOF
+$literals
+EOF
+    [ "$hit" = 1 ] || continue
+    carrying=$((carrying + 1))
+    if grep -qF "$record" "$f" 2>/dev/null; then
+        chat "cited: $f"
+    else
+        unattributed=$((unattributed + 1))
+        offenders="$offenders${offenders:+
+}${f#./}"
+        note "unattributed: ${f#./}"
+    fi
+done <<EOF
+$(find . -type f ! -name '*.o' ! -name '*.a' 2>/dev/null)
+EOF
+
+if [ "$terse" = 1 ]; then
+    printf 'examined=%d\ncarrying=%d\nunattributed=%d\n' \
+        "$examined" "$carrying" "$unattributed"
+else
+    note "$examined files examined, $carrying carry a target value, $unattributed unattributed"
+fi
+
+[ "$unattributed" = 0 ] || exit 1
+exit 0

@@ -78,6 +78,15 @@ package cites it rather than restating the argument; the other four are open.
 Done when: every later package that hardcodes one of the five cites this
 document rather than a memory of it.
 
+Delivered 2026-08-29. The four open values were settled against measurement
+rather than recollection: `spike/vendor-image-shape/` read forty-one el8
+binaries first. `EI_OSABI` turned out not to be a value anyone picks, which
+is the finding — the linker writes `ELFOSABI_GNU` for an object using GNU
+extensions and `ELFOSABI_NONE` otherwise, and el8 splits five to thirty-six
+along exactly that line. The exit criterion is mechanical now:
+`bin/check-target-definition` greps the tree and exits non-zero on the first
+site that carries one of the values without citing the record.
+
 Each of the five ends up compiled into shipped artifacts, so changing one later
 means rebuilding the world. Writing them down once, before anything consumes
 them, is cheap insurance against discovering in month nine that the loader and
@@ -98,6 +107,15 @@ The twenty that refuse the honest triple refuse the masquerade too, on the cpu
 field, and predate x86_64. So the refresh policy is about vintage rather than
 about the vendor, and this package inherits one patch from the spike: `flac`,
 whose `configure.ac` gates `FLAC__SYS_LINUX` on a `*-pc-linux-gnu)` arm.
+
+Delivered 2026-08-29, in `toolchain/`. `config.sub` needed no patch at all,
+which was DR-0001's prediction and is now a check: upstream at `2026-05-17`
+returns the triple unchanged. `config.guess` needed one, for the reason the
+plan did not anticipate — it has to *produce* the triple, and `uname` cannot
+tell it, since our `sysname` is `Linux` on purpose. It asks the compiler for
+`__ELFSYSVNT__` the way it already asks which libc it is looking at, and falls
+back to a marker file where no compiler exists. Two obligations fall out:
+WP-13's specs define the macro, and WP-63 installs the marker.
 
 ### WP-12 — binutils
 
@@ -669,10 +687,12 @@ That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than
 measured.
 
-That el8 binaries carry 2 MB `PT_LOAD` alignment. Spike 2 showed WP-32's
-arithmetic works either way, so what this now decides is how often WP-41's
-ordering constraint bites rather than whether the mapping is harder. One
-`readelf` against a vendor binary settles it and nobody has run it.
+That el8 binaries carry 2 MB `PT_LOAD` alignment. Settled on 2026-08-29 and
+the answer is yes, uniformly: every one of the eighty-two `PT_LOAD` segments
+in `spike/vendor-image-shape/` has `p_align` 0x200000. So WP-41's ordering
+constraint bites in the common case rather than the awkward one. The same run
+found no non-PIE image at all, which would take the constraint away entirely
+if it held across the set, and three packages is not the set.
 
 That a PE TLS callback or an image entry point runs early enough to reserve a
 non-PIE image's span before the runtime takes part of it. Spike 2 established
@@ -682,6 +702,7 @@ tried. WP-41 rests on one of them working.
 The size of the WP-51 map. Several thousand bindings is an estimate from the
 shape of glibc's export list, not a count.
 
-That el8's rpm 4.14.3 carries `elfdeps` and `fileattrs`. WP-62 assumes it does
-and that the Cygwin port's omission belongs to the port. Untested, and it is the
-cheapest thing on this list to check.
+That el8's rpm 4.14.3 carries `elfdeps` and `fileattrs`. Checked on
+2026-08-29: `rpm-build-4.14.3-32.el8_10` ships both, `elf.attr` among the ten
+fileattrs, so the omission WP-62 attributes to Cygwin's port does belong to
+the port. `spike/vendor-image-shape/` has the transcript.
