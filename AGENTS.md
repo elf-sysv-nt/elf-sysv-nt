@@ -75,9 +75,12 @@ logical phase, no `Co-Authored-By` trailer. Most carry a subject line and
 nothing else; a body appears when the reasoning is not recoverable from the
 diff. Documents and source land at mode 644.
 
-Push on judgment rather than on a cadence. Published history is append-only, so
-no force-push and no rebasing a commit that has already left the machine. When
-a push fails, stop and say so rather than carrying on as though it succeeded.
+Push on judgment rather than on a cadence, and on your own judgment: push when
+the work is at a point worth publishing rather than asking whether to. A spike
+that has reached its verdict with its transcript and its tests is such a point.
+Published history is append-only, so no force-push and no rebasing a commit
+that has already left the machine. When a push fails, stop and say so rather
+than carrying on as though it succeeded.
 
 Commands written for this project follow docopt, with a `Usage:` block as the
 parsing source of truth. Every setting reachable by environment variable also
