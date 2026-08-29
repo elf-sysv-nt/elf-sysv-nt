@@ -26,7 +26,9 @@ job.
 each layer marked by how much of its foundation already exists in public code.
 `doc/elf-userspace-execution.md` is the survey behind it: the prior art sorted
 by what it proves, and the two designs priced against each other.
-`doc/milestones.md` is what happens first, which is four spikes and no code.
+`doc/milestones.md` is what happens first, which is five spikes and no code.
+`doc/decisions/` is what has been settled, and `doc/proposals/` is the argument
+each settlement came out of.
 `doc/ROADMAP.md` is everything that has to be built after them, and
 `doc/IMPLEMENTATION-PLAN.md` breaks that into work packages with entry and exit
 criteria.

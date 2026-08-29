@@ -76,10 +76,10 @@ file, built-in default.
 
 ## Layout
 
-`doc/` is tracked and holds the governing documents. `a/` is a working area
-excluded from git: session handoffs, surveys, and notes true only of one
-machine. Nothing in `a/` is authoritative for anyone else, and nothing in
-`doc/` should depend on it.
+`doc/` is tracked and holds the governing documents. Working notes — session
+handoffs, surveys, and anything true only of one machine — live in the
+untracked working area, are authoritative for nobody else, and are never cited
+from a tracked file, since a reader who clones this cannot open them.
 
 `spike/<question>/` is tracked and holds the evidence behind a decision in
 `doc/`: the script that measured it, its sources, and the transcript the script
@@ -88,8 +88,14 @@ be re-measured rather than believed. Rerunning the script has to regenerate the
 transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
-The four spikes in `doc/milestones.md` are the current contents of that
-directory, and all four are unrun.
+The five spikes in `doc/milestones.md` are the current contents of that
+directory, and all five are unrun. Spike 5 has its scripts and a sizing
+measurement; what it has not got is a verdict.
+
+`doc/decisions/` holds one settlement per file with an index beside them, and
+`doc/proposals/` holds the change that produced each. A decision record is
+append-only: reversing one means a new record pointing back, never an edit to
+the old.
 
 ## Where autonomy stops
 
@@ -100,11 +106,11 @@ beginning the work it implies.
 Three points are decisions rather than tasks, and an agent must not settle them
 alone.
 
-The target triple. Masquerading as `x86_64-*-linux-gnu` maximizes
-configure-time fidelity and invites probes to find epoll and inotify missing at
-link time; an honest custom triple tells the truth sooner and diverges from
-vendor configure results. It wants deciding before the first package is built,
-not after the hundredth.
+The target triple. Settled on 2026-08-29 as `x86_64-elfsysvnt-linux-gnu`, by
+the operator, and recorded in `doc/decisions/0001-target-triple.md`. That
+record also carries the share of affected packages at which it should be
+reopened, which is a decision for the operator too. An agent reading spike 5's
+verdict reports it against those bands and stops there.
 
 Spike 1's answer decides the TLS model, and a negative result changes the
 toolchain layer rather than merely adding work to it. Report it; do not pick a
