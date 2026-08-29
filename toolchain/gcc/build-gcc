@@ -133,6 +133,12 @@ if [ "$dryrun" = 1 ]; then
 fi
 
 command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+
+# Before the check, not after it. The cross assembler lives in the prefix this
+# script is about to install into, so a check that runs against the caller's
+# PATH only passes when the caller has already exported it by hand -- which is
+# how this went unnoticed until the toolchain was rebuilt from a clean shell.
+PATH=$prefix/bin:$PATH
 command -v "$target-as" >/dev/null 2>&1 || die "$target-as is not on PATH; WP-12 first"
 
 mkdir -p "$work/src" "$work/build" || die "cannot create $work"
@@ -187,7 +193,6 @@ stage() {
     [ "$rc" = 0 ] || die "$what failed, see $log"
 }
 
-PATH=$prefix/bin:$PATH
 cd "$builddir" || die "cannot enter $builddir"
 stage configure "$srcdir/configure" $configure_args
 stage make make -j"$jobs" all-gcc
