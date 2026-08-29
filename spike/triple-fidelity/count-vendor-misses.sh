@@ -39,7 +39,7 @@
 set -u
 
 prog=count-vendor-misses
-release='count-vendor-misses 1.0'
+release='count-vendor-misses 1.1'
 
 output=${COUNT_VENDOR_MISSES_OUTPUT:--}
 root=${COUNT_VENDOR_MISSES_ROOT:-}
@@ -113,8 +113,32 @@ trap 'rm -rf "$work"; exit 130' INT TERM
 # are the machinery, not a package's opinion about it, so the literal grep
 # steps over them. config.log is a build artifact and says nothing about
 # intent either.
+#
+# The rest of this list was measured rather than guessed. Forty packages
+# walked whole on 2026-08-29 produced 108 literal hits across five packages,
+# and every one was noise: 102 of them under a Rust vendor/ tree, where a
+# Cargo.toml naming x86_64-unknown-linux-gnu means Rust's own target triple
+# and nothing config.sub will ever read. The remaining six were a generated
+# libtool, a README, a doc/INSTALL, a CI yaml, and a top-level Cargo.toml.
+# Left in, they would have reported five packages of forty affected, 12.5%,
+# which is above the threshold at which the triple gets reconsidered -- a
+# reopened decision bought entirely with false positives.
+#
+# What survives the list is where an autotools host test actually lives:
+# configure, configure.ac, configure.in, the m4, and hand-written shell.
+#
+# An array rather than a string, because half of these carry a glob and an
+# unquoted string would hand them to the shell before grep ever sees them.
 lit_re='-(pc|unknown)-linux-gnu'
-lit_skip='--exclude=config.sub --exclude=config.guess --exclude=config.log'
+lit_skip=(
+	--exclude-dir=vendor --exclude-dir=.cargo
+	--exclude=config.sub --exclude=config.guess --exclude=config.log
+	--exclude=libtool --exclude=ltmain.sh
+	--exclude=Cargo.toml '--exclude=*.rs'
+	'--exclude=*.md' '--exclude=*.yml' '--exclude=*.yaml'
+	'--exclude=README*' '--exclude=CHANGELOG*' '--exclude=ChangeLog*'
+	--exclude=NEWS --exclude=INSTALL
+)
 
 probe_one_sub() {
 	pkg=$1 sub=$2
@@ -140,8 +164,7 @@ walk() {
 				while read -r sub; do
 					probe_one_sub "$pkg" "$sub"
 				done
-			# shellcheck disable=SC2086
-			grep -RIlE $lit_skip -e "$lit_re" "$root/$pkg" 2>/dev/null |
+			grep -RIlE "${lit_skip[@]}" -e "$lit_re" "$root/$pkg" 2>/dev/null |
 				LC_ALL=C sort |
 				while read -r hit; do
 					printf 'LIT\t%s\t%s\n' "$pkg" "${hit#$root/$pkg/}"
