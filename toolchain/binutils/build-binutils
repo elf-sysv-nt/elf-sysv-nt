@@ -23,6 +23,8 @@
 #   -w DIR, --work=DIR     Source and build trees. [default: $prefix/../work]
 #   -p FILE, --pin=FILE    The release pin. [default: beside this one]
 #   -T TRIPLE, --target=TRIPLE
+#                          The triple is doc/target-definition.md's;
+#                          change it there rather than here.
 #                          [default: x86_64-elfsysvnt-linux-gnu]
 #   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
 #   -n, --dry-run          Print the configure line and stop.
