@@ -62,12 +62,20 @@ because the hardware speaks it natively.
 
 One hairline crack runs through the shared bedrock, and it matters later. The
 psABI reserves the 128 bytes below `%rsp`, the red zone, and states that they
-"shall not be modified by signal or interrupt handlers." Linux honors that;
-Windows signal and APC delivery does not. That single divergence is why the
-whole ELF world must compile `-mno-red-zone`, and it is a spec guarantee broken
-by the host rather than anything we recalled. FSGSBASE, the instruction family
-that makes thread-local storage cheap, has been present since Ivy Bridge, so the
-silicon for the hardest layer above is already in every machine this runs on.
+"shall not be modified by signal or interrupt handlers." Linux honors that, and
+this design does not, so the whole ELF world must compile `-mno-red-zone`.
+Spike 3 measured where the guarantee actually goes and it is not where this
+paragraph used to say: Windows' own exception dispatch starts writing about 320
+bytes below `%rsp` and preemption and thread hijacking write nothing at all, so
+the host leaves the reserved 128 alone. Cygwin's signal delivery takes `%rsp-8`
+first, because it hijacks the thread and builds the handler's frame at the
+interrupted stack pointer. The crack is in our layer rather than the host's,
+which makes the flag one repair and a 128-byte gap in the delivery path
+another.
+
+FSGSBASE, the instruction family that makes thread-local storage cheap, has
+been present since Ivy Bridge, so the silicon for the hardest layer above is
+already in every machine this runs on.
 
 ## Mapping the image
 
@@ -208,10 +216,21 @@ touches; any callback the ELF world hands down to Windows gets a SysV-to-MS
 trampoline, or the convention leaks out the bottom. Wine crosses this same
 divide in production with functions gcc compiles under `ms_abi` and `sysv_abi`
 attributes, so the mechanics are proven; the placement beneath a whole libc is
-ours. The bedrock crack surfaces here as policy: the DLL compiles
-`-mno-red-zone` throughout, and the printf family needs the vararg care the two
-conventions disagree on. The fallback, if the bilingual core proves worse than
-expected, is the veneer-thunk design this section previously described:
+ours. Spike 3 crossed it in both directions on 2026-08-29 with every
+callee-saved register intact, including the `%rsi`, `%rdi` and `%xmm6` through
+`%xmm15` a Windows caller expects back and a System V callee is free to
+destroy, and had Windows enter SysV code through a thread start, an APC, a
+vectored handler and a signal handler. At one function's width, not a DLL's.
+
+The bedrock crack surfaces here as policy: the DLL compiles `-mno-red-zone`
+throughout, which spike 3 confirmed is a flag that changes code generation on
+this toolchain rather than a restatement of the default, and the printf family
+needs the vararg care the two conventions disagree on -- which turns out to be
+more than care. `va_list` here is Microsoft's eight-byte pointer and System V's
+is a twenty-four-byte descriptor reached through `__builtin_sysv_va_list`, so
+nothing forwards: every variadic export unpacks its arguments and passes them
+on by value. The fallback, if the bilingual core proves worse than expected,
+is the veneer-thunk design this section previously described:
 unmodified `cygwin1.dll` beneath a generated thunk layer at the width of
 glibc's export list. Dearer at every call and at every version node, but each
 piece independently testable.
@@ -338,7 +357,9 @@ meets this runtime and no earlier project stood.
    core, call it from an ELF object, deliver a signal mid-call, and inspect
    the 128 bytes below `%rsp`. Confirms the bilingual boundary and the
    red-zone policy by measurement, at one function's width before it is
-   attempted at the DLL's.
+   attempted at the DLL's. Run 2026-08-29: the boundary holds in both
+   directions, and the red zone is lost to Cygwin's own signal delivery
+   rather than to Windows.
 4. The payoff. Synthesize a versioned `libc.so.6` carrying one verdef node, run
    el8's `elfdeps` against a consumer linked to it, and confirm the
    vendor-shaped `Requires` line appears. Proves the trunk repairs fidelity
@@ -412,9 +433,24 @@ operator decision that has not been taken. The measurement itself is in
 `spike/fs-base-persistence/`, on one Windows build and one processor.
 
 That the runtime core can be rebuilt SysV-faced without breaking its SEH-based
-fault handling, thread entry, and Windows callbacks. Asserted from the Wine
-precedent, never attempted on Cygwin's source; spike 3 measures one function's
-width of it.
+fault handling, thread entry, and Windows callbacks. Narrowed rather than
+settled on 2026-08-29. Spike 3 measured one function's width of it and every
+case passed: arguments and callee-saved registers held in both directions,
+Windows entered SysV code through a thread start, an APC, a vectored handler
+and a Cygwin signal handler, and a fault beneath a SysV frame came back as
+SIGSEGV and left by `siglongjmp`. What remains unmeasured is unwind data --
+`RtlUnwindEx` through a `sysv_abi` frame, and C++ exceptions crossing at all --
+`DllMain` and PE TLS callbacks into a DLL whose export surface is SysV, and
+Cygwin's source rebuilt rather than called.
+
+That the red zone is Windows' to break. It is not, and that is the shape of
+the finding rather than a detail of it. Measured 2026-08-29: preemption and
+thread hijacking leave the 1024 bytes below `%rsp` untouched, and Windows' own
+exception dispatch starts writing about 320 bytes down, well outside the 128
+the psABI reserves. Cygwin's signal delivery takes `%rsp-8` first, every time.
+So `-mno-red-zone` is required by our own layer, and gcc does give a
+`sysv_abi` leaf a red zone here, so the flag changes code rather than
+restating a default.
 
 The licenses marked recalled: flinux, Blink, Qiling, Cosmopolitan, HelloElf,
 elf-on-windows. Each must be read before any code is lifted, and GPL or LGPL

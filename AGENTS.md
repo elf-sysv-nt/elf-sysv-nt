@@ -20,9 +20,18 @@ Claims this design rests on that have never been measured are listed in the Not
 verified section of `doc/elf-technical-breakdown.md`. One of the two
 load-bearing ones has since been settled and it went the wrong way: Windows
 does not preserve a user-written FS base, so `%fs`-relative TLS is off the
-table and nothing may assume it. The other is open. Do not write code that
-assumes the Cygwin runtime survives being rebuilt with a System V export
-surface before spike 3 has run.
+table and nothing may assume it. The other went our way on the same day: spike
+3 crossed the ABI boundary in both directions, through Windows callbacks and
+through a fault, at one function's width. That narrows the claim rather than
+settling it, and what it does not reach is listed in that spike's README --
+unwind data, `DllMain`, and Cygwin's source rebuilt rather than called. Do not
+read the spike as licence to assume the whole runtime survives re-facing.
+
+The red zone is ours to break, not Windows'. Spike 3 measured the host leaving
+the reserved 128 bytes alone under preemption, thread hijacking and its own
+exception dispatch, and Cygwin's signal delivery taking `%rsp-8` on every
+delivery. `-mno-red-zone` throughout stands as the policy; whether the delivery
+path is also repaired is an open decision, below.
 
 Cygwin binaries are backward compatible only. Nothing built against a newer
 `cygwin1.dll` runs on an older one, so borrowing a binary from a newer tree is
@@ -90,8 +99,7 @@ transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
 The five spikes in `doc/milestones.md` are the current contents of that
-directory. Spikes 1, 2, 4 and 5 ran on 2026-08-29 and have their verdicts;
-spike 3 is unrun.
+directory. All five ran on 2026-08-29 and have their verdicts.
 
 `doc/decisions/` holds one settlement per file with an index beside them, and
 `doc/proposals/` holds the change that produced each. A decision record is
@@ -120,9 +128,16 @@ rather than merely adding work to it. What replaces it is still an open
 decision and still not an agent's to take. Do not pick a fallback model
 unilaterally, and do not write WP-30's body until one is picked.
 
-Spike 3's answer decides whether the runtime is rebuilt System V-faced at all.
-A negative falls back to the veneer-thunk design named in the breakdown, which
-is a different program with a different cost, and that is a decision.
+The ABI boundary. Spike 3's answer decided whether the runtime is rebuilt
+System V-faced at all, and on 2026-08-29 it came back yes, so the veneer-thunk
+fallback stays where it is. The decision that opened in its place is the red
+zone: the host respects the reserved 128 bytes and Cygwin's own signal delivery
+does not, which makes `-mno-red-zone` throughout one repair and a 128-byte gap
+in the delivery path another. The flag is the recorded policy and it costs a
+stack adjustment in every leaf; changing delivery costs a patch to code this
+project already means to modify and buys the psABI guarantee back. Nobody has
+priced the second. An agent may measure either and must not choose between
+them.
 
 ## Testing
 

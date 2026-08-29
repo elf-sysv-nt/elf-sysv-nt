@@ -3,9 +3,9 @@
 `ROADMAP.md` says what has to exist. This says in what units it gets built, what
 each unit needs before it can start, and how anyone can tell it is finished.
 Same assumed path, same three reserved decisions — one of which, the target
-triple, was taken on 2026-08-29 and is recorded in DR-0001 — and the same
-caveat: a negative on spike 3 invalidates everything from phase 2 onward and
-the plan gets rewritten rather than patched.
+triple, was taken on 2026-08-29 and is recorded in DR-0001. The caveat that
+stood here — a negative on spike 3 invalidating everything from phase 2 onward
+— is discharged: it ran on 2026-08-29 and came back yes.
 
 A work package is the smallest thing worth an entry criterion. Each carries
 four lines. Needs names the packages that must be finished first, and an empty
@@ -30,8 +30,19 @@ here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-Spikes 1, 2, 4 and 5 are done, all on 2026-08-29. Spike 3 wants spike 2's stub
-as a convenient carrier and now has one, and is the last of the five.
+All five are done, all on 2026-08-29. Spike 3 did not want spike 2's stub in
+the end: the crossing is measurable inside one process with two hand-written
+callers, and carrying an ELF image into it would have added a variable without
+adding a question.
+
+Spike 3 came back yes and left two things behind rather than a schedule change.
+Variadic exports cannot forward: System V's `va_list` is a twenty-four-byte
+descriptor and Microsoft's is an eight-byte pointer, so WP-24's printf family
+unpacks and repasses by value rather than handing a list down. And the red zone
+is destroyed by Cygwin's own signal delivery, not by Windows, which leaves
+WP-13's and WP-16's `-mno-red-zone` mandates exactly where they were and adds
+one option nobody has priced: a 128-byte gap in the delivery path WP-43 owns.
+That option is `AGENTS.md`'s to settle.
 
 Spike 4 came back yes and left two conditions on WP-53 rather than a schedule
 change: the base `.gnu.version_d` node has to carry the same string as
@@ -110,8 +121,11 @@ default in the specs rather than passed by the caller.
 
 Risk: the specs file is where target mandates live, and anything a package can
 forget to pass is a mandate rather than an option. One object compiled with a
-red zone corrupts a stack under signal delivery at an unpredictable later date,
-which is close to the worst debugging shape a defect can take.
+red zone corrupts a stack under Cygwin's signal delivery -- measured by spike 3
+taking `%rsp-8` on every delivery, where the host itself takes nothing -- at an
+unpredictable later date, which is close to the worst debugging shape a defect
+can take. The flag is not a no-op on this toolchain either: gcc gives a
+`sysv_abi` leaf a red zone here unless told otherwise.
 
 ### WP-14 — sysroot and startup files
 
@@ -150,10 +164,11 @@ that trusts them, then a library that satisfies them, then the compiler again.
 
 ## Phase 2 — the runtime
 
-Everything in this phase is gated on spike 3. A no here does not delay the
-phase; it replaces it with the veneer-thunk fallback, which has a different
-package list, and that is a decision for a person rather than a task for an
-agent.
+This phase was gated on spike 3, which ran on 2026-08-29 and came back yes, so
+the veneer-thunk fallback and its different package list are a road not taken.
+What the spike measured is one function's width, not a DLL's, so the packages
+below still meet unwind data, `DllMain` and PE TLS callbacks for the first
+time.
 
 ### WP-20 — the export inventory
 
@@ -206,6 +221,12 @@ included, rather than the generated wrapper the fixed-arity calls get.
 Done when: a `printf` call with sixteen mixed integer and floating arguments
 prints what Linux prints, and `vfprintf` called through a `va_list` built on the
 System V side works from the MS-ABI side.
+Risk: there is no forwarding to be had. Spike 3 measured the two `va_list`
+types at twenty-four bytes and eight, and handing the System V one to a reader
+shaped for Microsoft's fetched the pair of offsets at its head as the first
+argument. Every variadic export walks its own list with
+`__builtin_sysv_va_start` and passes the values on one at a time, so this
+package is real work rather than a wrapper.
 
 ### WP-25 — the compatibility counter
 
@@ -424,9 +445,14 @@ Done when: `sigaltstack` works, `SA_SIGINFO` and `SA_RESTART` mean what they
 mean, a signal delivered to a thread inside the runtime returns correctly, and
 the 128 bytes below `%rsp` are intact on return for compiled code.
 
-Risk: the red zone is a specification guarantee the host does not honor, and
-`-mno-red-zone` closes it only for code the compiler emitted. Hand-written
-assembly is where it stays open, which is why WP-16 delivers a ledger.
+Risk: the red zone is a specification guarantee this package breaks, and spike 3
+showed it is this package rather than the host. Windows leaves the reserved 128
+bytes alone; Cygwin's hijack delivery builds the handler's frame at the
+interrupted stack pointer and takes `%rsp-8` first. `-mno-red-zone` closes that
+only for code the compiler emitted, so hand-written assembly stays exposed,
+which is why WP-16 delivers a ledger. The alternative -- this trampoline
+skipping 128 bytes before it builds anything, which would close it everywhere
+at once -- is not this package's to choose; `AGENTS.md` reserves it.
 
 ---
 
@@ -598,7 +624,6 @@ WP-T1 through WP-T3 and fails this one has not done the job.
 ## The graph, condensed
 
     TLS model ───────────────────────► WP-30 ─┐
-    spike 3 ─────────────► phase 2 ───────────┤
     WP-10 ─► WP-11 ─► WP-12 ─► WP-13 ─► WP-14 ─► WP-15 ─► WP-16
        └───► WP-50 ─────────────────────┘
     WP-20 ─► WP-21 ─► WP-22 ─► WP-23 ─► WP-43
@@ -608,7 +633,8 @@ WP-T1 through WP-T3 and fails this one has not done the job.
     WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
     WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
 
-Three chains run genuinely in parallel once their spikes have answered: the
+The spikes have all answered, and only the TLS model is still an input the
+graph waits on. Three chains run genuinely in parallel from here: the
 toolchain, the runtime, and the loader. They meet at WP-41, which is the first
 package that needs all three, and the program's critical path runs through
 whichever of them is slowest rather than through any one of them by name.
@@ -619,12 +645,17 @@ the project first sees the point.
 
 ## Not verified
 
-The runtime face, which `ROADMAP.md` tabulates and spike 3 exists to settle.
-It has not run, and phase 2 is written as though it answered yes. The other two
-have answers: DR-0001 fixed the triple and spike 5 priced it on 2026-08-29 at
-one affected package in 2893, and spike 1 refuted `%fs`-relative TLS the same
-day. What replaces `%fs` is open, but it is open as a decision rather than as a
-measurement, and phase 3 is written so that only WP-30's body depends on it.
+The runtime face at a DLL's width. Spike 3 ran on 2026-08-29 and answered yes,
+so phase 2's premise is measured rather than assumed, but it was measured at one
+function. Unwind data crossing a `sysv_abi` frame, `DllMain`, and PE TLS
+callbacks into a System V-faced DLL are what phase 2 meets first and what the
+spike never touched; `spike/abi-crossing/README.md` lists them.
+
+The other two decisions have answers: DR-0001 fixed the triple and spike 5
+priced it on 2026-08-29 at one affected package in 2893, and spike 1 refuted
+`%fs`-relative TLS the same day. What replaces `%fs` is open, but it is open as
+a decision rather than as a measurement, and phase 3 is written so that only
+WP-30's body depends on it.
 
 That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than

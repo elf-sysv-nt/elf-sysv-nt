@@ -161,9 +161,12 @@ those it becomes is the operator's to say.
 The ABI boundary is real but solved. ELF x86-64 code is SysV; cygwin1.dll
 is MS x64; gcc emits both conventions in one object via `ms_abi` and
 `sysv_abi` attributes, and Wine crosses an equivalent boundary in
-production. The red zone is the sharp edge: SysV leaf code uses 128 bytes
-below rsp, Windows dispatch does not honor them (recalled), so the ELF
-world compiles with `-mno-red-zone`, one line in the macro set since every
+production, and spike 3 crossed it here on 2026-08-29 with every callee-saved
+register intact in both directions. The red zone is the sharp edge: SysV leaf
+code uses 128 bytes below rsp, and something does not honor them. Which
+something was recalled wrongly and is now measured -- Windows leaves them
+alone, and Cygwin's own signal delivery takes `%rsp-8` first. Either way the
+ELF world compiles with `-mno-red-zone`, one line in the macro set since every
 package rebuilds anyway. Hand-written assembly inside packages that
 assumes a red zone is the residual risk, and it wants a ledger row.
 
@@ -209,7 +212,9 @@ link and run either way, so the truth comes out. Choose where.
    Proves the exec path end to end with no dynamic linking involved.
 3. The crossing. An ELF-side object calls a `cygwin1.dll` export through
    an `ms_abi` thunk; deliver a signal mid-call and inspect the 128 bytes
-   below rsp. Settles the red-zone claim by measurement.
+   below rsp. Settles the red-zone claim by measurement. Run 2026-08-29:
+   yes on the crossing, and the red zone goes to Cygwin's delivery rather
+   than to Windows. `spike/abi-crossing/`.
 4. The payoff check. Synthesize a shim `libc.so.6` carrying one verdef
    node, run `elfdeps` from el8's rpm against a consumer linked to it, and
    confirm the vendor-shaped Requires line appears. Proves the fidelity
@@ -267,8 +272,12 @@ whether Windows preserves a user-written FS base, was measured on
 2026-08-29 and the answer is no; `spike/fs-base-persistence/` holds it.
 The replacement is an open decision rather than an open measurement.
 
-That Windows exception and APC dispatch clobbers the SysV red zone.
-Recalled from Wine-adjacent reading, not measured here; spike 3 covers it.
+That Windows exception and APC dispatch clobbers the SysV red zone. Recalled
+from Wine-adjacent reading, measured by spike 3 on 2026-08-29, and wrong:
+Windows' exception dispatch starts about 320 bytes below `%rsp` and preemption
+and thread hijacking write nothing at all. Cygwin's own signal delivery is what
+takes `%rsp-8`, on every delivery. The `-mno-red-zone` conclusion survives the
+correction; the attribution does not.
 
 el8 binaries carrying 2 MB PT_LOAD alignment. Recalled binutils default,
 checkable with one readelf against any vendor binary.
