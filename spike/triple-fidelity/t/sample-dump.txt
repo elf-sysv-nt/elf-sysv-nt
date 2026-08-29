@@ -14,3 +14,7 @@ PKG	pkgD
 SUB	pkgD	masquerade	x86_64-pc-linux-gnu	0	x86_64-pc-linux-gnu
 SUB	pkgD	candidate	x86_64-elfsysvnt-linux-gnu	1	(none)
 SUB	pkgD	control	x86_64-pc-elfsysvnt	1	(none)
+PKG	pkgE
+SUB	pkgE	masquerade	x86_64-pc-linux-gnu	1	(none)
+SUB	pkgE	candidate	x86_64-elfsysvnt-linux-gnu	1	(none)
+SUB	pkgE	control	x86_64-pc-elfsysvnt	1	(none)
