@@ -54,6 +54,8 @@ fi
 refuses 2 'no destination' "$fetcher"
 refuses 2 'wants all or host-tests' "$fetcher" --dest /nonexistent --extract sideways
 refuses 2 'wants a number' "$fetcher" --dest /nonexistent --limit twelve
+refuses 2 'wants a number' "$fetcher" --dest /nonexistent --jobs some
+refuses 2 'at least 1' "$fetcher" --dest /nonexistent --jobs 0
 refuses 2 'unknown option' "$fetcher" --dest /nonexistent --frobnicate
 
 # The lock. Two runs against one destination race on the markers, and the
