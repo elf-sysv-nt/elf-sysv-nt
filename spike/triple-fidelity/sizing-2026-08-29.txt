@@ -1,0 +1,46 @@
+el8 source streamed past the vendor-field probe
+
+host         ins-15
+kernel       CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+date         2026-08-29T04:08:30Z
+script       fetch-host-tests 1.1
+destination  /c/-/el8
+aggregate    /c/-/el8/dump
+extracted    host-tests
+mode         dry run, nothing fetched beyond metadata
+
+== repositories, every build indexed
+
+    BaseOS             1018 builds      23798304321 bytes
+    AppStream          4040 builds     143925032137 bytes
+    PowerTools          624 builds       3050767075 bytes
+    extras              134 builds       3623202706 bytes
+
+== what a run would transfer
+
+    builds indexed         5816     174397306239 bytes
+    packages selected      2893      24402245002 bytes
+
+    One build per source name. The rest are updates and module
+    streams over the same upstream tarball, which is the file the
+    probe reads. --all-versions takes them all.
+
+    Only config.sub, config.guess, configure, configure.ac,
+    configure.in and the m4 were extracted. The literal-vendor
+    count below is therefore narrower than a walk of whole
+    source trees would give. --extract all is the wider scope.
+
+== summary
+
+    repositories=4
+    builds_indexed=5816
+    bytes_indexed=174397306239
+    packages_selected=2893
+    bytes_selected=24402245002
+    one_per_name=1
+    extract_scope=host-tests
+    packages_considered=0
+    packages_harvested=0
+    packages_skipped=0
+    packages_failed=0
+    dry_run=1
