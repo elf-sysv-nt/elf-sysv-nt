@@ -66,6 +66,10 @@ does.
 
 ## Reserved for counsel
 
+`doc/proposals/licensing-issue.md` is the docket. It carries these two and four
+more that surfaced beside them, with what was already checked so nobody checks
+it twice.
+
 Neither is an engineering question and neither should be answered by an
 engineer, including by the one who wrote this file.
 
