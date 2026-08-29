@@ -23,8 +23,13 @@ static unsigned long data_word = 0x4444444444444444UL;
 /* .bss: no bytes in the file, and every one of them has to arrive zero.
    Spike 2 found freshly committed pages arrive zeroed on this platform, so
    .bss is free; this is the assertion that it stayed free once a real linker
-   was choosing the layout.  */
-static unsigned long bss_words[512];
+   was choosing the layout.
+
+   volatile, and that is not decoration.  Without it the compiler proves the
+   array is zero and never written, deletes the loop below, and deletes the
+   array with it -- so the image ends up with no .bss at all and the test
+   that checks for one passes against nothing.  */
+static volatile unsigned long bss_words[512];
 
 int
 main (int argc, char **argv, char **envp)
