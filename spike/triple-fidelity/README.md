@@ -72,6 +72,25 @@ cargo cache, and the grep over that had not returned in ten minutes here.
 Every transcript names the scope it ran under as `extract_scope`. To price the
 narrowing, run a few dozen packages each way and compare.
 
+`--jobs` sets how many packages are in flight, four by default. One at a time
+the run is bounded by a single connection to a single mirror, which measured
+1.2 MB/s here on 2026-08-29 and put 24 GB at five hours. Nothing in a package's
+handling reaches another package -- its own scratch, its own fragment, its own
+marker -- and the aggregate is assembled from sorted filenames once everything
+has finished, so the dump does not depend on the order things complete in.
+
+`t/run-parallel-check.sh` fetches a dozen packages serially and the same dozen
+four at a time, then diffs the two dumps. It is separate from
+`t/run-tests.sh` because it needs the network. What it catches is jobs
+treading on each other: point two of them at one scratch directory and the
+parallel side harvests two packages of twelve while the serial side gets all
+twelve, which is the check going red as loudly as anything does. What it does
+not catch is the sorted assembly. Removing that sort leaves it green, because
+at a dozen small packages the completion order and the sorted order coincide.
+Read the check as proving isolation, not ordering.
+
+Much past eight jobs you are queueing on the mirror instead of going faster.
+
 A run holds a lock on its destination, skips packages it has already done, and
 reaps a dead run's working directory before starting. Resumption is the point:
 2893 packages is long enough that a network drop is expected rather than

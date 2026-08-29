@@ -10,9 +10,18 @@
 # hundred bytes of raw probe that come back, and deletes the rest before
 # moving to the next name.
 #
-# Peak disk is one unpacked package. Bandwidth is not saved by streaming,
-# because an SRPM cannot be opened halfway; what resumption buys is that a
-# drop at package nine hundred costs one package rather than a run.
+# Peak disk is one unpacked package per job. Bandwidth is not saved by
+# streaming, because an SRPM cannot be opened halfway; what resumption buys is
+# that a drop at package nine hundred costs one package rather than a run.
+#
+# --jobs decides how many are in flight. Serially the run is bounded by one
+# connection to one mirror: 1.2 MB/s measured on 2026-08-29, which is five
+# hours for 24 GB. Nothing in a package's handling touches another package --
+# separate scratch, separate fragment, separate marker -- and the aggregate is
+# assembled from sorted filenames at the end, so completion order is not a
+# thing the result depends on. Four at once is the default. Well past eight
+# you are queueing on the mirror rather than going faster, and a public CDN is
+# owed some restraint.
 #
 # Bandwidth is saved by taking one build per source name. The four Rocky 8.10
 # source repositories carry 5816 builds of 2893 names -- 73 of kernel, 35 of
@@ -52,6 +61,7 @@
 #   -a FILE, --aggregate=FILE  Concatenated probe dump. [default: DEST/dump]
 #   -p FILE, --probe=FILE      The probe script. [default: beside this one]
 #   -L N, --limit=N            Stop after N packages; 0 is no limit. [default: 0]
+#   -j N, --jobs=N             Packages in flight at once. [default: 4]
 #   -o FILE, --output=FILE     Report destination; - is stdout. [default: -]
 #   -1, --one-per-name         Newest build of each source name. The default.
 #       --all-versions         Every build, including 73 kernels.
@@ -78,7 +88,7 @@
 set -u
 
 prog=fetch-host-tests
-release='fetch-host-tests 1.1'
+release='fetch-host-tests 1.2'
 
 rocky=https://dl.rockylinux.org/pub/rocky/8.10
 default_repos="$rocky/BaseOS/source/tree $rocky/AppStream/source/tree $rocky/PowerTools/source/tree $rocky/extras/source/tree"
@@ -90,6 +100,7 @@ repos=${FETCH_HOST_TESTS_REPO:-}
 aggregate=${FETCH_HOST_TESTS_AGGREGATE:-}
 probe=${FETCH_HOST_TESTS_PROBE:-}
 limit=${FETCH_HOST_TESTS_LIMIT:-0}
+jobs=${FETCH_HOST_TESTS_JOBS:-4}
 output=${FETCH_HOST_TESTS_OUTPUT:--}
 onename=${FETCH_HOST_TESTS_ONE_PER_NAME:-1}
 extract=${FETCH_HOST_TESTS_EXTRACT:-host-tests}
@@ -128,6 +139,8 @@ while [ $# -gt 0 ]; do
 		--probe=*)        probe=${1#*=}; shift ;;
 		-L|--limit)       limit=${2:-}; shift 2 ;;
 		--limit=*)        limit=${1#*=}; shift ;;
+		-j|--jobs)        jobs=${2:-}; shift 2 ;;
+		--jobs=*)         jobs=${1#*=}; shift ;;
 		-o|--output)      output=${2:-}; shift 2 ;;
 		--output=*)       output=${1#*=}; shift ;;
 		-1|--one-per-name) onename=1; shift ;;
@@ -155,6 +168,11 @@ done
 case $limit in
 	'' | *[!0-9]*) printf '%s: --limit wants a number, got %s\n' "$prog" "$limit" >&2; exit 2 ;;
 esac
+
+case $jobs in
+	'' | *[!0-9]*) printf '%s: --jobs wants a number, got %s\n' "$prog" "$jobs" >&2; exit 2 ;;
+esac
+[ "$jobs" -ge 1 ] || { printf '%s: --jobs wants at least 1\n' "$prog" >&2; exit 2; }
 
 case $extract in
 	all | host-tests) ;;
@@ -302,7 +320,7 @@ build_selection() {
 # what the probe prints as the package.
 harvest_one() {
 	url=$1 name=$2 href=$3 sum=$4 key=$5
-	pkg=$work/pkg
+	pkg=$work/pkg.$key
 	rm -rf "$pkg"
 	mkdir -p "$pkg/unpack" "$pkg/stage/$name" || return 1
 
@@ -380,7 +398,14 @@ selected=$(wc -l < "$dest/manifest/selected.tsv")
 selbytes=$(awk -F "$tab" '{ s += $5 } END { printf "%.0f\n", s + 0 }' "$dest/manifest/selected.tsv")
 
 if [ "$dryrun" = 0 ]; then
-	note "harvesting $selected packages"
+	note "harvesting $selected packages, $jobs at a time"
+	status=$work/status
+	mkdir -p "$status" || die "cannot prepare a status directory"
+	# A backgrounded package cannot report back through a variable, so each
+	# leaves a file behind and the tally is taken from those at the end.
+	# Skips stay a parent's business, since the parent decides them.
+	inflight=0
+	dispatched=0
 	while IFS="$tab" read -r name evr url href size sum; do
 		[ -n "$name" ] || continue
 		seen=$((seen + 1))
@@ -388,16 +413,31 @@ if [ "$dryrun" = 0 ]; then
 		if [ -e "$dest/done/$key" ] && [ "$force" = 0 ]; then
 			skipped=$((skipped + 1))
 			chat "skip $name"
-		elif harvest_one "$url" "$name" "$href" "$sum" "$key" < /dev/null; then
-			did=$((did + 1))
-			chat "done $name"
 		else
-			failed=$((failed + 1))
+			if [ "$inflight" -ge "$jobs" ]; then
+				wait -n 2>/dev/null
+				inflight=$((inflight - 1))
+			fi
+			(
+				if harvest_one "$url" "$name" "$href" "$sum" "$key" < /dev/null; then
+					chat "done $name"
+					: > "$status/$key.ok"
+				else
+					: > "$status/$key.bad"
+				fi
+				rm -rf "$work/pkg.$key"
+			) &
+			inflight=$((inflight + 1))
+			dispatched=$((dispatched + 1))
 		fi
-		if [ "$limit" -gt 0 ] && [ $((did + skipped)) -ge "$limit" ]; then
+		if [ "$limit" -gt 0 ] && [ $((dispatched + skipped)) -ge "$limit" ]; then
 			break
 		fi
 	done < "$dest/manifest/selected.tsv"
+	wait
+
+	did=$(( $(find "$status" -name '*.ok' -type f | wc -l) ))
+	failed=$(( $(find "$status" -name '*.bad' -type f | wc -l) ))
 
 	find "$dest/frag" -name '*.dump' -type f -print > "$work/frags"
 	LC_ALL=C sort "$work/frags" > "$work/frags.sorted"
@@ -416,6 +456,7 @@ summary=$work/summary
 	printf 'bytes_selected=%s\n' "$selbytes"
 	printf 'one_per_name=%s\n' "$onename"
 	printf 'extract_scope=%s\n' "$extract"
+	printf 'jobs=%s\n' "$jobs"
 	printf 'packages_considered=%s\n' "$seen"
 	printf 'packages_harvested=%s\n' "$did"
 	printf 'packages_skipped=%s\n' "$skipped"
@@ -435,6 +476,7 @@ else
 		printf 'destination  %s\n' "$dest"
 		printf 'aggregate    %s\n' "$aggregate"
 		printf 'extracted    %s\n' "$extract"
+		printf 'jobs         %s\n' "$jobs"
 		[ "$dryrun" = 1 ] && printf 'mode         dry run, nothing fetched beyond metadata\n'
 		printf '\n== repositories, every build indexed\n\n'
 		awk -F "$tab" '{ printf "    %-14s %8d builds %16d bytes\n", $1, $2, $3 }' "$work/repos"
