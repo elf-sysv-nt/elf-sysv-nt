@@ -24,7 +24,7 @@ third has been measured and went ours.
 |---|---|---|---|
 | TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Refuted 2026-08-29 by spike 1; the replacement was measured by the gs-thread-pointer spike and picked the same day, DR-0003: a runtime-owned thread pointer through `%gs`, carrier C3, the `_my_tls` shape. The TLS section changes shape; the sections above it do not. | `TlsAlloc`-at-startup (C1) is the documented fallback, emutls the floor. Reopen if WP-2x finds the real `_my_tls` diverges from the stand-in the spike measured. |
 | Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Measured 2026-08-29, spike 3, at one function's width | Was: unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. Not taken. |
-| Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. |
+| Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893. DR-0005 fixes what the `linux` and `gnu` fields claim, and bounds the first at raw syscall dispatch, without changing the value. | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. Replacing the kernel or libc field is not on the table; DR-0005 prices it. |
 
 All three rows now stand on something. The first went the other way on
 2026-08-29, which costs a layer's worth of design and leaves the dependency
@@ -66,8 +66,12 @@ be built with tools that already exist.
 
 The target definition itself comes before any of it: a triple, an `EI_OSABI`
 value, a `.note.ABI-tag` payload, a dynamic linker SONAME, and the string
-`uname` reports. The triple is settled, in DR-0001; the other four are not.
-Those five have to agree. They also have to be written down
+`uname` reports. The triple is settled, in DR-0001, and what its two
+load-bearing fields claim is settled in DR-0005: `gnu` is glibc without
+qualification, and `linux` is the Linux kernel ABI satisfied by rebuild rather
+than by syscall dispatch, which bounds it at the one axis where a raw `syscall`
+instruction would have to reach something. The other four values are not
+settled here. All five have to agree. They also have to be written down
 somewhere a later reader can find them, because every one of them ends up
 compiled into shipped artifacts (a `.note.ABI-tag` is in every binary, and the
 SONAME is in every dynamic object), where changing one means rebuilding the

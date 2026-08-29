@@ -137,6 +137,14 @@ record also carries the share of affected packages at which it should be
 reopened, which is a decision for the operator too. An agent reading spike 5's
 verdict reports it against those bands and stops there.
 
+DR-0005 closes the adjacent question, and an agent should read it before
+proposing anything about the triple. The fields are `cpu-vendor-kernel-os`,
+`gnu` is glibc without qualification, and `linux` is a claim this project means
+everywhere except raw syscall dispatch. Neither load-bearing field is a lie, so
+"the triple is dishonest" is not an opening for a reopen; the measured price of
+substituting either is in that record and in
+`doc/proposals/0004-the-bounded-linux-claim.md`.
+
 The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
 FS base does not survive a context switch, or even a preemption, on this
 Windows. That took `%fs`-relative TLS away and changed the toolchain layer

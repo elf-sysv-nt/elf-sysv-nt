@@ -197,15 +197,21 @@ transcript and that spike's README reads it.
 
 ## Spike 5, the target triple
 
-The triple has four fields and they are not equally load-bearing. Only `os` and
-`abi` are consulted by the machinery that would break; `vendor` is passed
-through by `config.sub` untouched and read by almost nothing. So the triple is
-`x86_64-elfsysvnt-linux-gnu`, decided on that reasoning and recorded in
-DR-0001: it puts the honest name where it costs least and leaves `linux-gnu`
-standing where configure actually looks. Buildroot
-has shipped `x86_64-buildroot-linux-gnu` on the same grounds for over a decade,
-and crosstool-NG ships `unknown` in that slot, so neither the shape nor the
-length is novel.
+The triple has four fields and they are not equally load-bearing. The fields
+are `cpu-vendor-kernel-os` in `config.sub`'s own naming, none of them called
+`abi`; only the kernel and the libc are consulted by the machinery that would
+break, and `vendor` is passed through untouched and read by almost nothing. So
+the triple is `x86_64-elfsysvnt-linux-gnu`, decided on that reasoning and
+recorded in DR-0001: it puts the honest name where it costs least and leaves
+`linux-gnu` standing where configure actually looks. Neither of the two
+load-bearing fields is thereby a lie, which DR-0005 settles and
+`doc/target-definition.md` states: `gnu` is glibc exactly, and `linux` is the
+Linux kernel ABI bounded at raw syscall dispatch, which this project satisfies
+by rebuild instead.
+
+Buildroot has shipped `x86_64-buildroot-linux-gnu` on the same grounds for over
+a decade, and crosstool-NG ships `unknown` in that slot, so neither the shape
+nor the length is novel.
 
 What the vendor costs is the open question. A package that matches `*-linux-gnu`
 is unaffected; one that matches the literal `*-pc-linux-gnu` or
@@ -217,7 +223,7 @@ exist to break.
 The script takes the `config.sub` shipped by each package in the el8 source
 set, feeds it three candidates, and records the canonicalized output of each:
 the masquerade `x86_64-pc-linux-gnu`, the vendor-honest
-`x86_64-elfsysvnt-linux-gnu`, and the os-honest `x86_64-pc-elfsysvnt` as a
+`x86_64-elfsysvnt-linux-gnu`, and the kernel-honest `x86_64-pc-elfsysvnt` as a
 control. The control was put there expecting a rejection, and a preliminary run
 over nine local `config.sub` vintages says otherwise: pre-2020 files do not
 validate the os field at all, and the 2021 file accepts `elfsysvnt` by matching
