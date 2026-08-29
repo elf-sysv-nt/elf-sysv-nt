@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+#
+# Reseed the config.sub and config.guess a source package vendored.
+#
+# 891 of the 2893 el8 source packages carry at least one of these, 1193 copies
+# between them, each frozen at whatever vintage its last release captured.
+# Spike 5 measured what that costs and the answer was reassuring: every one of
+# those copies treats x86_64-elfsysvnt-linux-gnu exactly as it treats
+# x86_64-pc-linux-gnu, and the twenty that refuse the honest triple refuse the
+# masquerade too, on the cpu field, because they predate x86_64. So the
+# problem this solves is vintage and not vendor, and the fix is the ordinary
+# one every distribution already applies: put a current pair in the tree.
+#
+# Reseeded, never edited. Each copy is replaced outright from a pristine pair
+# built once from the pinned upstream plus this project's patch, so a run is a
+# function of the pin rather than of what the last run did. Editing in place
+# would leave a 2009 file that had been half-updated by three revisions of
+# this tool, which is the failure mode the reseed rule exists to prevent.
+#
+# Usage:
+#   refresh-config [options] TREE...
+#   refresh-config --check [options] TREE...
+#
+# Options:
+#   -s DIR, --seed=DIR    Where the pristine pair is built and cached.
+#                         [default: $TMPDIR/elfsysvnt-config-seed]
+#   -p FILE, --pin=FILE   The upstream pin. [default: beside this one]
+#       --patch=FILE      The config.guess patch. [default: beside this one]
+#   -c, --check           Report staleness and write nothing. Exits 1 if any
+#                         copy differs from the seed.
+#   -n, --dry-run         Say what would be written; write nothing.
+#   -f, --force           Rebuild the seed even when it is already current.
+#   -t, --terse           One key=value per line, no prose.
+#   -q, --quiet           Errors only.
+#   -v, --verbose         Name every copy as it is handled.
+#   -d, --debug           Trace execution; implies --verbose.
+#   -V, --version         Print the version and exit.
+#   -h, --help            Print this message and exit.
+#
+# Each option is also settable as REFRESH_CONFIG_<OPTION>, and the option wins
+# over the variable.
+#
+# Exit codes: 0 success, 1 failure or stale copies under --check, 2 usage.
+
+set -u
+
+prog=refresh-config
+release='refresh-config 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+seed=${REFRESH_CONFIG_SEED:-${TMPDIR:-/tmp}/elfsysvnt-config-seed}
+pin=${REFRESH_CONFIG_PIN:-$here/upstream.pin}
+patchfile=${REFRESH_CONFIG_PATCH:-$here/0001-config-guess-name-the-elfsysvnt-vendor.patch}
+check=${REFRESH_CONFIG_CHECK:-0}
+dryrun=${REFRESH_CONFIG_DRY_RUN:-0}
+force=${REFRESH_CONFIG_FORCE:-0}
+terse=${REFRESH_CONFIG_TERSE:-0}
+quiet=${REFRESH_CONFIG_QUIET:-0}
+verbose=${REFRESH_CONFIG_VERBOSE:-0}
+debug=${REFRESH_CONFIG_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+trees=
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -s|--seed|-p|--pin|--patch) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -s|--seed) seed=$val ;;
+        -p|--pin) pin=$val ;;
+        --patch) patchfile=$val ;;
+        -c|--check) check=1 ;;
+        -n|--dry-run) dryrun=1 ;;
+        -f|--force) force=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) while [ $# -gt 0 ]; do trees="$trees $1"; shift; done ;;
+        -*) usage_error "unknown option $opt" ;;
+        *) trees="$trees $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -n "$trees" ] || usage_error "name at least one tree"
+[ -r "$pin" ] || die "cannot read the pin: $pin"
+[ -r "$patchfile" ] || die "cannot read the patch: $patchfile"
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+command -v patch >/dev/null 2>&1 || die "patch is not on PATH"
+
+sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | cut -d' ' -f1
+    else
+        python3 -c 'import hashlib,sys
+print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"
+    fi
+}
+
+pinfield() { awk -v k="$1" '$1 == k { print $2; exit }' "$pin"; }
+
+base=$(pinfield base)
+vintage=$(pinfield timestamp)
+want_sub=$(pinfield config.sub)
+want_guess=$(pinfield config.guess)
+[ -n "$base" ] && [ -n "$want_sub" ] && [ -n "$want_guess" ] ||
+    die "the pin is missing base, config.sub or config.guess"
+
+# The seed is derived, so it is rebuilt from the pin rather than added to.
+# A stamp holding the pin's own checksums plus the patch's is what decides
+# whether the cached pair is still the pair the current inputs describe; when
+# it is not, the whole directory goes and is rebuilt. That is the reseed rule
+# applied to this tool's own cache and not only to the trees it edits.
+stamp_want="$want_sub $want_guess $(sha256 "$patchfile")"
+stamp=$seed/.stamp
+
+build_seed() {
+    rm -rf "$seed" || die "cannot clear the seed at $seed"
+    mkdir -p "$seed/upstream" || die "cannot create $seed"
+
+    for f in config.sub config.guess; do
+        curl -fsSL --retry 3 --retry-delay 2 -o "$seed/upstream/$f" "$base/$f" ||
+            die "cannot fetch $f from $base"
+    done
+
+    got=$(sha256 "$seed/upstream/config.sub")
+    [ "$got" = "$want_sub" ] || die "config.sub checksum: got $got, pin says $want_sub"
+    got=$(sha256 "$seed/upstream/config.guess")
+    [ "$got" = "$want_guess" ] || die "config.guess checksum: got $got, pin says $want_guess"
+
+    cp "$seed/upstream/config.sub" "$seed/config.sub" || die "cannot seed config.sub"
+    cp "$seed/upstream/config.guess" "$seed/config.guess" || die "cannot seed config.guess"
+
+    # config.sub takes no patch. Upstream passes an unrecognized vendor
+    # through untouched, which DR-0001 argued from and this tool rechecks
+    # below rather than trusting.
+    ( cd "$seed" && patch -p1 --no-backup-if-mismatch --silent < "$patchfile" ) ||
+        die "the config.guess patch did not apply to the pinned upstream"
+    rm -f "$seed"/*.orig "$seed"/*.rej
+
+    chmod 755 "$seed/config.sub" "$seed/config.guess"
+
+    round=$(sh "$seed/config.sub" x86_64-elfsysvnt-linux-gnu 2>/dev/null)
+    [ "$round" = x86_64-elfsysvnt-linux-gnu ] ||
+        die "the seeded config.sub rewrote the triple to '$round'"
+
+    printf '%s\n' "$stamp_want" > "$stamp"
+    chat "seed built at $seed from upstream $vintage"
+}
+
+if [ "$force" = 1 ] || [ ! -r "$stamp" ] || [ "$(cat "$stamp")" != "$stamp_want" ]; then
+    build_seed
+else
+    chat "seed at $seed is current"
+fi
+
+seen=0
+stale=0
+written=0
+reaped=0
+links=0
+
+# What a vendored copy's vintage is. Missing means the file is old enough to
+# predate the timestamp line, or is not really one of these at all; either way
+# it is reported rather than guessed at.
+vintage_of() {
+    v=$(sed -n "s/^timestamp='\\(.*\\)'.*/\\1/p" "$1" 2>/dev/null | head -1)
+    printf '%s' "${v:-none}"
+}
+
+reseed() {
+    target=$1
+    kind=$(basename "$target")
+    src=$seed/$kind
+
+    # Symlinked copies are common: automake and libtool both point build-aux
+    # at one real file. Following the link and reseeding the target once is
+    # right; replacing the link with a regular file breaks the package's own
+    # bookkeeping and would do it once per link.
+    if [ -L "$target" ]; then
+        links=$((links + 1))
+        chat "link, left alone: $target"
+        return 0
+    fi
+
+    seen=$((seen + 1))
+    if cmp -s "$target" "$src"; then
+        chat "current: $target"
+        return 0
+    fi
+
+    stale=$((stale + 1))
+    was=$(vintage_of "$target")
+    if [ "$check" = 1 ]; then
+        note "stale ($was): $target"
+        return 0
+    fi
+    if [ "$dryrun" = 1 ]; then
+        note "would reseed ($was -> $vintage): $target"
+        return 0
+    fi
+
+    mode=755
+    case $kind in config.sub|config.guess) mode=755 ;; esac
+    cp "$src" "$target.new" || die "cannot write beside $target"
+    chmod "$mode" "$target.new" || die "cannot set mode on $target.new"
+    mv -f "$target.new" "$target" || die "cannot replace $target"
+    written=$((written + 1))
+    chat "reseeded ($was -> $vintage): $target"
+}
+
+# Leftovers from a run that died partway, and from revisions of this tool
+# that used patch(1) in the tree or kept numbered backups. None of these is
+# managed any more, so they are removed rather than merely not written.
+reap() {
+    root=$1
+    while IFS= read -r junk; do
+        [ -n "$junk" ] || continue
+        if [ "$check" = 1 ] || [ "$dryrun" = 1 ]; then
+            note "would reap: $junk"
+        else
+            rm -f "$junk" && reaped=$((reaped + 1))
+            chat "reaped: $junk"
+        fi
+    done <<EOF
+$(find "$root" \( -name 'config.sub.orig' -o -name 'config.guess.orig' \
+    -o -name 'config.sub.rej' -o -name 'config.guess.rej' \
+    -o -name 'config.sub.new' -o -name 'config.guess.new' \
+    -o -name 'config.sub~' -o -name 'config.guess~' \) -type f 2>/dev/null)
+EOF
+}
+
+for tree in $trees; do
+    [ -d "$tree" ] || die "no such tree: $tree"
+    reap "$tree"
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        reseed "$f"
+    done <<EOF
+$(find "$tree" \( -name config.sub -o -name config.guess \) 2>/dev/null)
+EOF
+done
+
+if [ "$terse" = 1 ]; then
+    printf 'vintage=%s\nseen=%d\nstale=%d\nwritten=%d\nreaped=%d\nsymlinks=%d\n' \
+        "$vintage" "$seen" "$stale" "$written" "$reaped" "$links"
+else
+    note "$seen copies, $stale stale, $written reseeded to $vintage, $reaped reaped, $links symlinks left alone"
+fi
+
+if [ "$check" = 1 ] && [ "$stale" -gt 0 ]; then
+    exit 1
+fi
+exit 0

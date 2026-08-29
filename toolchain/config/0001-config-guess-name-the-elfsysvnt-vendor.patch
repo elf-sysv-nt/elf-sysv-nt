@@ -1,0 +1,59 @@
+Subject: [PATCH] config.guess: name the elfsysvnt vendor
+
+An ELF/SysV-on-NT system answers `uname -s` with `Linux`, deliberately and
+permanently, so config.guess reading uname alone returns x86_64-pc-linux-gnu
+and a native build silently configures for the wrong vendor. DR-0001 put the
+project's name in the vendor field precisely because almost nothing reads it;
+config.guess is the one thing that has to.
+
+The compiler is asked, which is how config.guess already tells uclibc from
+dietlibc from glibc a few lines above. A compilerless tree falls back to a
+marker file the runtime installs, since config.guess does run where no
+compiler exists.
+
+Only the x86_64 Linux arm is touched. Other architectures keep their
+hardcoded vendor, and a host without __ELFSYSVNT__ gets byte-identical output
+to unpatched upstream, which the four cases in toolchain/config/README.md
+check.
+
+Against GNU config timestamp='2026-05-17', pinned in upstream.pin.
+The five values this triple has to agree with are in doc/target-definition.md.
+
+--- a/config.guess
++++ b/config.guess
+@@ -193,6 +193,26 @@
+ 	if [ "$LIBC" = unknown ]; then
+ 		LIBC=gnu
+ 	fi
++
++	# The vendor field is the only place an ELF/SysV-on-NT system names
++	# itself, and uname cannot be asked: sysname is Linux there by design,
++	# so that the thousands of configure scripts branching on it keep
++	# working.  Ask the compiler instead, the same way LIBC is asked above.
++	VENDOR=
++	cat <<-EOF > "$dummy.c"
++	#if defined(__ELFSYSVNT__)
++	VENDOR=elfsysvnt
++	#endif
++	EOF
++	cc_set_vendor=`$CC_FOR_BUILD -E "$dummy.c" 2>/dev/null | grep '^VENDOR' | sed 's, ,,g'`
++	eval "$cc_set_vendor"
++
++	# Nothing above works without a compiler, and config.guess is run in
++	# trees that have none.  The runtime installs this file so that case
++	# still answers correctly.
++	if test -z "$VENDOR" && test -r /etc/elfsysvnt-release; then
++		VENDOR=elfsysvnt
++	fi
+ 	;;
+ esac
+ 
+@@ -1219,7 +1239,7 @@
+ 		x32) LIBCABI=${LIBC}x32 ;;
+ 	    esac
+ 	fi
+-	GUESS=$CPU-pc-linux-$LIBCABI
++	GUESS=$CPU-${VENDOR:-pc}-linux-$LIBCABI
+ 	;;
+     xtensa*:Linux:*:*)
+ 	GUESS=$UNAME_MACHINE-unknown-linux-$LIBC
