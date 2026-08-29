@@ -187,6 +187,24 @@ Delivers: a cross compiler with no libc, targeting the triple.
 Done when: it compiles a freestanding object, and `-mno-red-zone` is on by
 default in the specs rather than passed by the caller.
 
+Closed 2026-08-29. Like binutils, almost no port: the triple's os and abi
+fields route it through the ordinary x86_64 Linux arm, and `patches/0001`
+adds only the two things the target mandates. `-mno-red-zone` by
+`TARGET_SUBTARGET_DEFAULT`, and `__ELFSYSVNT__` for the `config.guess` WP-11
+taught to ask. `t/accept.sh` carries eleven claims.
+
+The mandate is a target default rather than a spec string, which is stronger:
+a spec can be overridden by a later flag on the same line. `-mred-zone` still
+works, deliberately, since WP-43 may retire the flag and a target that refused
+the option would have to be rebuilt to find out.
+
+One mistake is worth carrying forward. `i386/unix.h` already keeps `MASK_80387`,
+`MASK_IEEE_FP` and `MASK_FLOAT_RETURNS` in `TARGET_SUBTARGET_DEFAULT`, and the
+first version of the patch assigned rather than ORed, turning the x87 off.
+Configure succeeded, the compiler built, freestanding objects compiled, and it
+reported `-mno-red-zone [enabled]` exactly as wanted; libgcc failed twenty
+minutes later on `__mulxc3` with an error that reads like a libgcc bug.
+
 Risk: the specs file is where target mandates live, and anything a package can
 forget to pass is a mandate rather than an option. One object compiled with a
 red zone corrupts a stack under Cygwin's signal delivery -- measured by spike 3
@@ -200,6 +218,20 @@ can take. The flag is not a no-op on this toolchain either: gcc gives a
 Needs: WP-13, WP-50.
 Delivers: the sysroot layout, `crt1.o`, `Scrt1.o`, `crti.o`, `crtn.o`, `libgcc`.
 Done when: a static hello links and the spike 2 stub runs it.
+
+Delivered 2026-08-29, criterion half met. The startup files assemble, the
+sysroot lays out with el8's usrmerge links, and a static hello links and
+carries the right headers: seven claims in `toolchain/csu/t/`. The stub does
+not run it, and the obstacle is the stub's.
+
+Spike 2 could not link anything -- its README says so -- so everything its
+stub knows about image shape it learned from a synthesized specimen with
+exactly three `PT_LOAD` segments, one of each protection, and a handshake
+block at the head of the writable one. `ld` gives this hello four, and puts
+the image's own data where the handshake goes. The first thing WP-12 made
+possible immediately found a limit in the harness written before it existed.
+`spike/map-and-jump/issue/0001` states it as work; nothing in WP-14 waits on
+anything but that.
 
 ### WP-15 — gcc, full bootstrap
 
@@ -221,6 +253,13 @@ sysroot paths.
 Done when: a package that names no flags gets all of them, and a ledger exists
 listing every package in the set with hand-written assembly, since that is where
 the red-zone assumption stays live after the macro closes it everywhere else.
+
+Delivered 2026-08-29 in `toolchain/rpm/`, out of dependency order because it
+needs nothing WP-15 produces. The macro set is the easy half. `bin/asm-ledger`
+is the other, and it has not been run over the el8 set: the source dump spike 5
+used is gone from this machine and refetching 2893 packages is hours. The tool
+is verified against a constructed tree and against `flac`, which is to say it
+works and has not yet been pointed at the thing it exists for.
 
 Two of those Needs lines point forward into phase 5, and that is the ordinary
 libc bootstrap cycle rather than a mistake in the graph. WP-50 is a header set,
