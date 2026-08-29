@@ -1,0 +1,119 @@
+What the --extract narrowing costs
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+date        2026-08-29
+sample      the first 40 source names of the Rocky 8.10 selection,
+            C-sorted, which is not a random sample
+scripts     fetch-host-tests 1.2, count-vendor-misses 1.0, which is the
+            version that took these counts. 1.1 carries the exclusions the
+            reading below argues for. Replayed against this file list, 107
+            of the 108 hits fall to those rules and one survives:
+            aardvark-dns's contrib/cirrus/setup.sh, a CI script naming a
+            Rust target. So 1.1 would have reported one package of forty
+            rather than five, 2.5% rather than 12.5%.
+
+Taken with, for SCOPE in host-tests and all:
+
+    fetch-host-tests.sh --dest DIR --limit 40 --jobs 1 --extract SCOPE
+        --terse --quiet --output DIR.fetch
+    count-vendor-misses.sh --dump DIR/dump --terse --quiet
+
+== wall clock
+
+    host-tests   2m03s   all 40 packages
+    all         16m51s   of which 7m30s was 389-ds-base alone
+
+== verdicts, host-tests
+
+    packages_seen=40
+    packages_with_config_sub=22
+    config_sub_probed=22
+    masquerade_accepted=22
+    masquerade_rewritten=0
+    masquerade_rejected=0
+    candidate_accepted=22
+    candidate_rewritten=0
+    candidate_rejected=0
+    control_accepted=22
+    control_rewritten=0
+    control_rejected=0
+    packages_candidate_miss=0
+    packages_literal_vendor=0
+    packages_affected=0
+    affected_share=0.0%
+
+== verdicts, all
+
+    packages_seen=40
+    packages_with_config_sub=22
+    config_sub_probed=22
+    masquerade_accepted=22
+    masquerade_rewritten=0
+    masquerade_rejected=0
+    candidate_accepted=22
+    candidate_rewritten=0
+    candidate_rejected=0
+    control_accepted=22
+    control_rewritten=0
+    control_rejected=0
+    packages_candidate_miss=0
+    packages_literal_vendor=5
+    packages_affected=5
+    affected_share=12.5%
+
+== the 108 literal hits the wide scope added, by file name
+
+       61  Cargo.toml
+        9  lib.rs
+        5  README.md
+        5  CHANGELOG.md
+        3  tests.rs
+        3  run_miri.sh
+        2  vagga.yaml
+        2  dir.rs
+        2  atomic_cell.rs
+        1  tsan.sh
+        1  test.rs
+        1  setup.sh
+        1  README.Qtopia
+        1  pty.rs
+        1  parser.rs
+        1  mod.rs
+        1  miri.sh
+        1  memchr.rs
+        1  llvm.rs
+        1  libtool
+        1  INSTALL
+        1  generated.rs
+        1  flags.rs
+        1  build.rs
+        1  .cirrus.yml
+
+    102 of the 108 sit under a Rust vendor/ tree. A Cargo.toml naming
+    x86_64-unknown-linux-gnu is naming Rust target triple, which
+    config.sub never reads and no configure branch turns on. The other
+    six are a generated libtool, a README, a doc/INSTALL, a CI yaml and
+    one top-level Cargo.toml. None is a live case $host.
+
+== reading
+
+    The wide scope found no signal the narrow scope missed. It found
+    noise, and enough of it to report 12.5% of packages affected,
+    which is over the share at which DR-0001 says the triple gets
+    reconsidered. A decision reopened on that would have been reopened
+    on false positives.
+
+    count-vendor-misses.sh now excludes those shapes, and t/lit-noise
+    carries one package per shape so a dropped rule shows up as a
+    count of two rather than one.
+
+    One hit survives the new rules and should: a hand-written .sh naming
+    a triple. Excluding shell outright would be excluding the one place a
+    genuine hand-rolled host test could hide, so the literal figure stays
+    an upper bound, and its remaining false positives are CI scripts.
+    A nonzero literal count still wants reading before it is quoted.
+
+    Forty packages off the head of a sorted list prices the runtime and
+    characterises the noise. It says nothing about how many el8
+    packages hand-roll a host test.
