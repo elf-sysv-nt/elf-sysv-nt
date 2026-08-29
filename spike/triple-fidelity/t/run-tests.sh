@@ -51,6 +51,20 @@ else
 	fails=$((fails + 1))
 fi
 
+# The literal grep's exclusion list, against a tree of six packages: one
+# carrying a real host test, five carrying the shapes measured as noise on
+# 2026-08-29. Each noise package is covered by exactly one exclusion, so
+# dropping any single rule takes the count from one to two. Checked that way,
+# rule by rule, the day it was written.
+lit=$("$script" --root "$here/lit-noise" --terse --quiet 2>/dev/null)
+for want in packages_seen=6 packages_literal_vendor=1; do
+	case $lit in
+		*"$want"*) ;;
+		*) printf 'FAIL, expected %s from the lit-noise tree\n' "$want" >&2
+			fails=$((fails + 1)) ;;
+	esac
+done
+
 refuses 2 'no destination' "$fetcher"
 refuses 2 'wants all or host-tests' "$fetcher" --dest /nonexistent --extract sideways
 refuses 2 'wants a number' "$fetcher" --dest /nonexistent --limit twelve
