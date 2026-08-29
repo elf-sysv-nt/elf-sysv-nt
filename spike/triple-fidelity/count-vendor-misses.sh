@@ -127,6 +127,13 @@ trap 'rm -rf "$work"; exit 130' INT TERM
 # What survives the list is where an autotools host test actually lives:
 # configure, configure.ac, configure.in, the m4, and hand-written shell.
 #
+# The vendor rule is broader than the evidence behind it. A directory called
+# vendor is a cargo convention and cargo is what sat under it here, but a
+# package vendoring autotools under that name would have its configure
+# skipped, and a vendored configure does run and can take a wrong branch.
+# Nothing like that turned up in the sample; if one turns up later, narrow the
+# rule to the file types rather than the directory.
+#
 # An array rather than a string, because half of these carry a glob and an
 # unquoted string would hand them to the shell before grep ever sees them.
 lit_re='-(pc|unknown)-linux-gnu'
