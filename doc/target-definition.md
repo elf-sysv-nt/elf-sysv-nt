@@ -24,9 +24,14 @@ rather than falling out of it.
 
 `x86_64-elfsysvnt-linux-gnu`, fixed by DR-0001 on 2026-08-29 and priced by
 spike 5 the same day at one affected package in 2893. The argument for the
-vendor field is in that record and is not restated. What belongs here is the
-set of spellings derived from it, since those are what a later package
-hardcodes:
+vendor field is in that record and is not restated. The four fields are
+`cpu-vendor-kernel-os`, which is `config.sub`'s own naming and not this
+document's: it sets `kernel=linux` and `os=gnu`, then validates the pair under
+`case $kernel-$os-$obj`. Nothing is called `abi`. What each of the two claims,
+and where one of them stops, is below under the limit of the `linux` claim.
+
+What belongs here is the set of spellings derived from the triple, since those
+are what a later package hardcodes:
 
     sysroot          /usr/x86_64-elfsysvnt-linux-gnu/sys-root
     tool prefix      x86_64-elfsysvnt-linux-gnu-
@@ -35,6 +40,37 @@ hardcodes:
 
 The tool prefix is the honest one rather than a shortened alias. A second
 spelling for the same target is how a build ends up half cross-compiled.
+
+## The limit of the `linux` claim
+
+Settled by DR-0005 on 2026-08-29, and written here because this is the document
+every later package cites.
+
+`gnu` names glibc, and it is true with nothing subtracted. Everything this
+project ships is ELF, System V, versioned, and reaches `libc.so.6` through
+`ld-linux-x86-64.so.2`. That is not a field tolerated because configure reads
+it; it is the accurate one.
+
+`linux` names the Linux kernel ABI, and this project means it: system call
+numbers, `futex`, `clone`, `/proc`, the auxv a process is entered with, the
+`uname` strings below. One item on that list is not delivered. A toolchain
+reading `linux` assumes a `syscall` instruction reaches a kernel, and here it
+does not, because `doc/elf-technical-breakdown.md`'s second bridge rebuilds
+each package against `elfsysv1.dll` instead of catching anything. An object
+that reaches the kernel through a raw `syscall`, rather than through a call
+into the runtime, is outside the contract the triple advertises. No field of
+any triple expresses that restriction, which is why it is written down in prose
+rather than encoded in a name.
+
+Two consequences, and the second one is the reason this section exists at all.
+The kernel field is not a lie and must not be described as one, because the
+only replacements are a libc field `config.sub` refuses outright and a kernel
+field that costs a gcc, binutils and glibc port; DR-0005 carries the
+measurement. And the vendor binaries this platform exists to run were compiled
+under the unbounded claim, so their raw syscalls sit exactly on the axis where
+ours stops. `doc/proposals/0003-vendor-binary-tls-rewriting.md` handles the
+TLS half of that problem and the syscall half is not yet anybody's work
+package.
 
 ## EI_OSABI
 
@@ -113,9 +149,10 @@ the veneer renames anything.
 
 `sysname` is `Linux` and there is no version of this project where it is not.
 Thousands of configure scripts, `config.guess` among them, branch on this
-string; the os field of the triple already tells the same lie, deliberately,
-and these two have to agree or a package cross-compiles against one answer and
-runs against the other.
+string, and it makes the same bounded claim the triple's kernel field makes:
+the Linux kernel ABI, satisfied by rebuild rather than by syscall dispatch. The
+two have to agree, or a package cross-compiles against one answer and runs
+against the other.
 
 `release` is where the honest name goes, and it is the interesting choice on
 this list. Every parser that reads a kernel version stops at the first
@@ -129,8 +166,10 @@ That is a claim about behavior rather than about capability, and it is worth
 saying plainly. We do not have a 4.18 kernel. We have a runtime that answers
 the questions el8's userland asks, and a package that goes looking for a kernel
 interface we did not implement fails at the call rather than at the version
-test. Moving the version down would not make it fail earlier; it would only
-make it fail differently, in the packages that gate correctly.
+test. Which call it fails at is the bound above: a runtime entry point nobody
+has written yet returns an error, and a raw `syscall` instruction has no
+runtime to reach. Moving the version down would not make it fail earlier; it
+would only make it fail differently, in the packages that gate correctly.
 
 `version` carries the name again and nothing else. No build date, because a
 transcript that changes every run is a transcript nobody diffs. No runtime
@@ -147,9 +186,12 @@ belongs to WP-16 with the rest of the macro set.
 
 ## Where the name actually lives
 
-Not in `EI_OSABI`, not in the ABI-tag note, and not in the loader SONAME. All
-three are read by consumers who have a definite expectation, and all three are
-fields where a truthful string costs a broken check.
+Not in `EI_OSABI`, not in the ABI-tag note, not in the loader SONAME, and not
+in either of the triple's two load-bearing fields. All are read by consumers
+with a definite expectation, and in all of them a truthful string costs a
+broken check or a broken build. The vendor field and `uname -r` are the two
+places a name can sit without a consumer already depending on it, which is why
+those are where DR-0001 and this document put it.
 
 It goes in a note of its own: owner `ELFSYSVNT`, type 1, in a section named
 `.note.elfsysvnt.abi`. The payload is two 32-bit words, the API major and the

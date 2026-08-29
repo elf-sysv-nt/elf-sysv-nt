@@ -280,13 +280,28 @@ the vendor's. Probes link and run under either name, so the truth arrives
 regardless. The choice was where to put it.
 
 It is narrower than it first looks, because the triple has four fields and only
-two carry weight. `config.sub` passes an unrecognized vendor through untouched,
-while `os` and `abi` are what the machinery actually reads, so
-`x86_64-elfsysvnt-linux-gnu` puts the honest name where it costs least and
-leaves `linux-gnu` standing where configure looks. Buildroot has shipped
-`x86_64-buildroot-linux-gnu` on that reasoning for over a decade, at the same
-twenty-six characters, so neither the shape nor the length is new ground. The
-residual cost is the package that matches a literal `*-pc-linux-gnu` or
+two carry weight. The four are `cpu-vendor-kernel-os`, which is `config.sub`'s
+own naming: it sets `kernel=linux` and `os=gnu`, and validates the pair under
+`case $kernel-$os-$obj`. Nothing in it is called `abi`, and the field this
+document once called that is the C library, which is why `linux-musl` and
+`kfreebsd-gnu` are the two directions the same substitution runs. `config.sub`
+passes an unrecognized vendor through untouched, while kernel and libc are what
+the machinery reads, so `x86_64-elfsysvnt-linux-gnu` puts the honest name where
+it costs least and leaves `linux-gnu` standing where configure looks. Buildroot
+has shipped `x86_64-buildroot-linux-gnu` on that reasoning for over a decade,
+at the same twenty-six characters, so neither the shape nor the length is new
+ground.
+
+Neither of the two load-bearing fields is a lie, and DR-0005 settles the
+wording because the older one invited a reopen that would cost the toolchain
+its whole dividend. `gnu` is glibc, exactly and without subtraction. `linux` is
+the Linux kernel ABI, which this project satisfies along every axis but one:
+the second bridge above leaves no `syscall` instruction to catch, so an object
+reaching the kernel through a raw `syscall` rather than through a call into
+`elfsysv1.dll` sits outside the contract. `doc/target-definition.md` states
+that bound and is the place to cite for it.
+
+The residual cost is the package that matches a literal `*-pc-linux-gnu` or
 `*-unknown-linux-gnu` and misses silently, taking a configure branch nobody
 intended. Spike 5 counted those on 2026-08-29, over all 2893 source names in
 the el8 set: one package, `flac`, whose `configure.ac` opens `case "$host"`
@@ -298,14 +313,23 @@ file for file. `spike/triple-fidelity/results-2026-08-29.txt` is the
 transcript and that spike's README reads the other eighteen literal matches,
 all of which are comments, documentation and test fixtures.
 
-The os field is closed off for a reason worth recording, because it is not the
-one that would be guessed. `config.sub` does not refuse `elfsysvnt` there; it
-accepts it, by matching `elf*`, the entry in the recognized-os list that exists
-for bare-metal targets of the `i386-elf` kind. `config.gcc` then reads
+The kernel field is closed off for a reason worth recording, because it is not
+the one that would be guessed. `config.sub` does not refuse `elfsysvnt` there;
+it accepts it, by matching `elf*`, the entry in the recognized-os list that
+exists for bare-metal targets of the `i386-elf` kind. `config.gcc` then reads
 `x86_64-*-elf*` as bare metal and routes the triple to a target definition with
 no operating system beneath it. A refusal would stop a build; this succeeds and
 is wrong, which is the worse of the two. Measured against a 2021 `config.sub`
-on 2026-08-20; `spike/triple-fidelity/` holds the transcript.
+on 2026-08-20, and still true of upstream's 2026-05-17 file when DR-0005
+rechecked it: `x86_64-pc-elfsysvnt` comes back accepted.
+`spike/triple-fidelity/` holds the older transcript.
+
+The libc field is closed off harder, and by the script rather than by an
+argument. `config.sub` allowlists ten libc values against the `linux` kernel
+and refuses the rest outright, so `x86_64-elfsysvnt-linux-elfsysvnt` exits 1
+with `Kernel 'linux' not known to work with OS ''`. A refusal is the outcome
+worth having. Substituting there would also assert something false in the
+opposite direction, since this project's libc is glibc and nothing else.
 
 ## Debugging the opaque image
 

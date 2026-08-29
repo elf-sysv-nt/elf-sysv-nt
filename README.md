@@ -68,7 +68,12 @@ resume from it, which is what allows a load-time rewriter for vendor binaries
 to be a heuristic rather than exhaustive.
 
 In phase 1, the target definition is settled in `doc/target-definition.md` and
-`config.guess` names the vendor. Binutils builds for the triple with no port at
+`config.guess` names the vendor. That record now also carries what the triple's
+`linux` and `gnu` fields claim: `gnu` is glibc exactly, and `linux` is the
+Linux kernel ABI satisfied by rebuilding against our runtime rather than by
+dispatching system calls, which bounds it at the one axis where a raw `syscall`
+instruction would need a kernel to reach. DR-0005 settles that wording and
+leaves the triple itself alone. Binutils builds for the triple with no port at
 all, and passes ten acceptance claims covering symbol versioning and the header
 bytes. That package is reopened rather than finished: `ld` emits its own
 `%fs`-relative thread pointer fetches, which nothing in the original criteria

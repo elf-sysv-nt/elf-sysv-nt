@@ -203,6 +203,13 @@ to find epoll and inotify missing at link time; an honest custom triple
 tells the truth sooner and diverges from vendor configure results. Probes
 link and run either way, so the truth comes out. Choose where.
 
+Settled since this survey was written. DR-0001 took the vendor field on
+2026-08-29 and DR-0005 fixed what the remaining two claim, so the framing
+above, where the choice is between honesty and fidelity, is not the one that
+held: `gnu` and `linux` are both true, the second bounded at raw syscall
+dispatch, and the honest name sits in the vendor slot beside them.
+`doc/target-definition.md` is current and this paragraph is not.
+
 ## Spikes, in order
 
 1. FS base persistence. Write FS base with `wrfsbase`, provoke everything
