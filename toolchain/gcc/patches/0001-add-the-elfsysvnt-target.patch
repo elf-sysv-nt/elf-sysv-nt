@@ -47,7 +47,7 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
  		tm_file="${tm_file} kfreebsd-gnu.h i386/kfreebsd-gnu64.h"
 --- /dev/null
 +++ b/gcc/config/i386/elfsysvnt.h
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,78 @@
 +/* Target definitions for x86-64 ELF and System V on Windows NT, over Cygwin.
 +   Copyright (C) 2026 Philip Dye.
 +
@@ -69,21 +69,48 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +is the definition of a thing that belongs here instead of in a makefile.  The
 +target definition it answers to is doc/target-definition.md.  */
 +
-+/* The red zone is not available on this platform, and the reason is ours
-+   rather than Windows'.  Spike 3 measured the host leaving the reserved 128
-+   bytes alone under preemption, thread hijacking and its own exception
-+   dispatch, and measured Cygwin's signal delivery taking the word at %rsp-8
-+   on every single delivery.  One object compiled with a red zone corrupts a
-+   stack at an unpredictable later date, in a package nobody was looking at,
-+   which is close to the worst shape a defect can take.
++/* The red zone is honoured on this platform eventually, and not yet.  That
++   ordering is the whole content of this block, so it comes first.
 +
-+   So it is defaulted here rather than passed.  -mred-zone still turns it back
-+   on: WP-43 may retire this flag entirely if a delivery that reserves the 128
-+   bytes proves cheap enough, and a target that refused the option outright
-+   would have to be rebuilt to find out.  Hand-written assembly is not reached
-+   by this at all, which is why WP-16 delivers a ledger of it.  */
++   The psABI reserves 128 bytes below %rsp and a conforming platform leaves
++   them alone.  The direction is to honour them at the delivery site, the way
++   a Linux kernel does, rather than to compile the world with a flag that
++   announces through every leaf's prologue that this is not quite the ABI it
++   claims to be.  IMPLEMENTATION-PLAN's WP-43 is where that lands.  The flag
++   below is scaffolding for the bootstrap and not the shipped answer.
++
++   What stands in the way is not Windows.  Spike 3 measured the host leaving
++   the reserved bytes alone under preemption, thread hijacking and its own
++   exception dispatch, and measured Cygwin's own signal delivery taking the
++   word at %rsp-8 on every single delivery.  So the two repairs are not
++   alternatives to choose between but steps in an order: until that delivery
++   path reserves the bytes before it builds a handler frame, an object
++   compiled with a red zone corrupts a stack at an unpredictable later date in
++   a package nobody was looking at.  Removing the flag first would not make
++   this platform more faithful to ELF; it would make every leaf a defect.
++
++   Hence the flag, and hence -mred-zone still turning it back on.  That escape
++   hatch is the point rather than a concession.  Spike 7 showed a delivery
++   that reserves the 128 bytes first keeps them whole across every delivery;
++   WP-43 has to price that against Cygwin's real sigdelayed and write the
++   record that retires the flag.  A target that refused the option outright
++   would force a toolchain rebuild before that measurement could be taken at
++   all.
++
++   AGENTS.md reserves the choice between the two repairs, and nothing here
++   makes it.  What this file does is keep both reachable.
++
++   Hand-written assembly is reached by none of this, which is why WP-16
++   delivers a ledger of it.
++   Added to i386/unix.h's set rather than replacing it, which is the whole of
++   the difficulty.  That header defines the default as MASK_80387, MASK_IEEE_FP
++   and MASK_FLOAT_RETURNS, and a target header that assigns instead of ORing
++   silently turns the x87 off.  Nothing complains at configure time; libgcc
++   fails much later building __mulxc3 with "x87 register return with x87
++   disabled", which reads like a libgcc bug and is not one.  */
 +#undef  TARGET_SUBTARGET_DEFAULT
-+#define TARGET_SUBTARGET_DEFAULT MASK_NO_RED_ZONE
++#define TARGET_SUBTARGET_DEFAULT \
++	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS | MASK_NO_RED_ZONE)
 +
 +/* config.guess cannot read the vendor field off uname here: sysname is Linux
 +   by design, so that the thousands of configure scripts branching on it keep

@@ -14,16 +14,36 @@ pass. `patches/0001` adds them.
 ## The two mandates
 
 `-mno-red-zone`, defaulted through `TARGET_SUBTARGET_DEFAULT` rather than
-through a spec string. Spike 3 measured Cygwin's signal delivery taking the
-word at `%rsp-8` on every delivery where the host itself takes nothing, so one
-object compiled with a red zone corrupts a stack at an unpredictable later
-date in a package nobody was looking at.
+through a spec string. The order of that sentence matters and is easy to read
+backwards, so it is worth stating the destination before the mechanism: this
+platform is meant to honour the red zone, and does not yet.
 
-`-mred-zone` still turns it back on, and that is deliberate rather than an
-oversight. WP-43 may retire the flag entirely if a delivery that reserves the
-128 bytes prices out cheaply, and a target that refused the option outright
-would have to be rebuilt to find out. Hand-written assembly is reached by
-neither, which is what `bin/asm-ledger` exists for.
+The psABI reserves 128 bytes below `%rsp`, a conforming platform leaves them
+alone, and the direction is to honour them at the delivery site the way a
+Linux kernel does rather than to compile the world with a flag that announces
+in every leaf's prologue that this is not quite the ABI it claims to be. WP-43
+is where that lands. The flag here is scaffolding for the bootstrap.
+
+What stands in the way is not Windows. Spike 3 measured the host leaving the
+reserved bytes alone under preemption, thread hijacking and its own exception
+dispatch, and measured Cygwin's own delivery taking the word at `%rsp-8` on
+every single delivery. So the two repairs are not alternatives to pick
+between; they are steps in an order. Until delivery reserves the bytes before
+it builds a handler frame, an object compiled with a red zone corrupts a stack
+at an unpredictable later date in a package nobody was looking at, and
+removing the flag first would not make this platform more faithful to ELF — it
+would make every leaf a defect.
+
+`-mred-zone` still turns it back on, and that escape hatch is the point rather
+than a concession. Spike 7 showed a delivery that reserves the 128 bytes first
+keeps them whole; WP-43 has to price that against Cygwin's real `sigdelayed`
+and write the record that retires the flag. A target that refused the option
+outright would force a toolchain rebuild before that measurement could be
+taken at all.
+
+`AGENTS.md` reserves the choice between the two repairs and nothing here makes
+it. Hand-written assembly is reached by neither, which is what
+`bin/asm-ledger` exists for.
 
 `__ELFSYSVNT__`, because WP-11 taught `config.guess` to ask the compiler which
 vendor it is building for. `uname` cannot answer: `sysname` is `Linux` here by
