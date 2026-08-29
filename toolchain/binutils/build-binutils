@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+#
+# Build binutils for the triple.
+#
+# There is no port. That is the result rather than an omission: DR-0001 put
+# the project's name in the vendor field, and every target pattern binutils
+# matches on is written `x86_64-*-linux-*`, so the canonical triple lands on
+# the ordinary x86_64 ELF target with no patch to config.bfd, configure.tgt,
+# or the ELF backend. Verified on 2026-08-29 against 2.42; t/accept.sh is
+# what checks the result is the right one rather than merely a successful
+# configure.
+#
+# The build directory is cleared on every run rather than reused. GNU build
+# trees carry a config.cache and a config.status that survive a changed
+# --prefix and quietly install the previous run's answer, which is the
+# edit-in-place failure the reseed rule exists to prevent.
+#
+# Usage:
+#   build-binutils [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Install here. [default: $HOME/x-elfsysvnt]
+#   -w DIR, --work=DIR     Source and build trees. [default: $prefix/../work]
+#   -p FILE, --pin=FILE    The release pin. [default: beside this one]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
+#   -n, --dry-run          Print the configure line and stop.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Stream the build rather than logging it.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_BINUTILS_<OPTION>, and the option wins
+# over the variable.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-binutils
+release='build-binutils 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${BUILD_BINUTILS_PREFIX:-$HOME/x-elfsysvnt}
+work=${BUILD_BINUTILS_WORK:-}
+pin=${BUILD_BINUTILS_PIN:-$here/binutils.pin}
+target=${BUILD_BINUTILS_TARGET:-x86_64-elfsysvnt-linux-gnu}
+jobs=${BUILD_BINUTILS_JOBS:-}
+dryrun=${BUILD_BINUTILS_DRY_RUN:-0}
+terse=${BUILD_BINUTILS_TERSE:-0}
+quiet=${BUILD_BINUTILS_QUIET:-0}
+verbose=${BUILD_BINUTILS_VERBOSE:-0}
+debug=${BUILD_BINUTILS_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-w|--work|-p|--pin|-T|--target|-j|--jobs) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -w|--work) work=$val ;;
+        -p|--pin) pin=$val ;;
+        -T|--target) target=$val ;;
+        -j|--jobs) jobs=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -r "$pin" ] || die "cannot read the pin: $pin"
+[ -n "$work" ] || work=$(dirname "$prefix")/work
+[ -n "$jobs" ] || jobs=$(nproc 2>/dev/null || echo 4)
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+
+pinfield() { awk -v k="$1" '$1 == k { print $2; exit }' "$pin"; }
+
+version=$(pinfield version)
+url=$(pinfield url)
+want=$(pinfield sha256)
+[ -n "$version" ] && [ -n "$url" ] && [ -n "$want" ] ||
+    die "the pin is missing version, url or sha256"
+
+sysroot=$prefix/$target/sys-root
+tarball=$work/src/$(basename "$url")
+srcdir=$work/src/binutils-$version
+builddir=$work/build/binutils
+
+configure_args="--target=$target
+--prefix=$prefix
+--with-sysroot=$sysroot
+--disable-nls
+--disable-werror
+--disable-gdb
+--disable-gdbserver
+--disable-libdecnumber
+--disable-readline
+--disable-sim
+--enable-deterministic-archives"
+
+if [ "$dryrun" = 1 ]; then
+    printf '%s/configure' "$srcdir"
+    printf ' %s' $configure_args
+    printf '\n'
+    exit 0
+fi
+
+mkdir -p "$work/src" "$work/build" || die "cannot create $work"
+
+if [ -f "$tarball" ] && [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$want" ]; then
+    chat "have $(basename "$tarball")"
+else
+    rm -f "$tarball"
+    chat "fetching binutils $version"
+    curl -fsSL --retry 3 --retry-delay 2 -o "$tarball" "$url" ||
+        die "cannot fetch $url"
+    got=$(sha256sum "$tarball" | cut -d' ' -f1)
+    [ "$got" = "$want" ] || die "checksum: got $got, pin says $want"
+fi
+
+# The source tree is unpacked once and kept. It is not derived in the sense
+# the build tree is -- nothing writes into it -- and unpacking 30 MB of xz on
+# every run to prove that would be a slow way to say so.
+if [ ! -d "$srcdir" ]; then
+    chat "unpacking"
+    ( cd "$work/src" && tar xf "$tarball" ) || die "cannot unpack $tarball"
+fi
+
+rm -rf "$builddir" || die "cannot clear $builddir"
+mkdir -p "$builddir" "$sysroot" || die "cannot create $builddir"
+
+stage() {
+    what=$1; shift
+    log=$work/build/binutils-$what.log
+    chat "$what"
+    if [ "$verbose" = 1 ]; then
+        "$@" 2>&1 | tee "$log"
+        rc=${PIPESTATUS[0]}
+    else
+        "$@" > "$log" 2>&1
+        rc=$?
+    fi
+    [ "$rc" = 0 ] || die "$what failed, see $log"
+}
+
+cd "$builddir" || die "cannot enter $builddir"
+stage configure "$srcdir/configure" $configure_args
+stage make make -j"$jobs"
+stage install make install
+
+for t in as ld readelf objdump; do
+    [ -x "$prefix/bin/$target-$t" ] || [ -x "$prefix/bin/$target-$t.exe" ] ||
+        die "install left no $target-$t"
+done
+
+if [ "$terse" = 1 ]; then
+    printf 'version=%s\ntarget=%s\nprefix=%s\nsysroot=%s\n' \
+        "$version" "$target" "$prefix" "$sysroot"
+else
+    note "binutils $version for $target installed under $prefix"
+    note "now run t/accept.sh -B $prefix/bin"
+fi
+
+exit 0

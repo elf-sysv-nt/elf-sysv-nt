@@ -1,0 +1,14 @@
+/* Two nodes, the younger inheriting the elder, which is how every glibc
+   version map is built and what WP-51 will generate 29 of. */
+
+GLIBC_2.2.5 {
+	global:
+		memcpy;
+	local:
+		*;
+};
+
+GLIBC_2.14 {
+	global:
+		memcpy;
+} GLIBC_2.2.5;
