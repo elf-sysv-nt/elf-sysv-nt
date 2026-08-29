@@ -1,0 +1,94 @@
+Subject: [PATCH] x86-64: refuse the TLS relocations that presume an FS base
+
+Spike 1 measured a user-written FS base failing to survive a context switch on
+this Windows, so DR-0003 moved the thread pointer to a runtime-owned word
+reached through %gs. That was taken as a codegen change; it is not. ld relaxes
+the psABI's TLS access sequences in place and writes mov %fs:0x0,%rax itself,
+out of bfd rather than out of anything the compiler emitted, which
+spike/ld-tls-relaxation/ measures.
+
+Refused rather than rewritten. The psABI sizes general dynamic at sixteen
+bytes so the two-instruction local-exec form fits in place; the %gs carrier
+needs three instructions, so there is no substitution to make. A link error is
+the honest answer for an input this target cannot translate, and it makes
+hand-written assembly and stray vendor objects visible instead of silently
+wrong.
+
+Placed ahead of elf_x86_64_tls_transition, which is load-bearing and was found
+by measurement rather than by reading. The transition rewrites r_type in
+place, so a check downstream of it inspects the relaxation's output: general
+dynamic arrives as GOTTPOFF and is reported under the wrong name, and local
+dynamic arrives as an accepted form and goes on to emit the %fs fetch. A first
+version of this patch sat after the transition and let tls-ld.s link and leak.
+
+TPOFF32, TPOFF64, DTPMOD64 and DTPOFF64 stay accepted. Those are values rather
+than sequences, ld writes no instruction bytes for them, and WP-13's codegen
+wants TPOFF for sequences of its own.
+
+Against binutils 2.42, pinned in ../binutils.pin. The target definition these
+values answer to is doc/target-definition.md.
+
+--- a/bfd/elf64-x86-64.c
++++ b/bfd/elf64-x86-64.c
+@@ -2151,6 +2151,61 @@
+ 				       symtab_hdr, &no_dynreloc))
+ 	return false;
+ 
++      /* This target has no thread pointer in the FS segment base.  Spike 1
++	 measured a user-written base failing to survive a context switch on
++	 this Windows, and spike/ld-tls-relaxation/ caught ld writing the
++	 fetch itself while relaxing these sequences -- out of bfd, rather
++	 than out of anything the compiler emitted.
++
++	 So they are refused rather than rewritten.  The psABI sizes the
++	 general-dynamic sequence at sixteen bytes so that a two-instruction
++	 local-exec form fits in place, and the %gs carrier DR-0003 settled
++	 on needs three, which leaves no substitution to make.  A link error
++	 is the honest answer for an input this target cannot translate, and
++	 it is what makes hand-written assembly and stray vendor objects
++	 visible instead of silently wrong.
++
++	 This runs before elf_x86_64_tls_transition rather than after it.
++	 The transition rewrites r_type in place, so a check downstream of
++	 it sees the relaxation's output: general dynamic arrives as
++	 GOTTPOFF, which is refused anyway but reported under the wrong
++	 name, and local dynamic arrives as a form on the accepted list and
++	 goes on to emit the %fs fetch this exists to stop.
++
++	 TPOFF32, TPOFF64, DTPMOD64 and DTPOFF64 are deliberately absent
++	 from the list.  Those are values rather than sequences, the linker
++	 writes no instruction bytes for them, and the compiler wants TPOFF
++	 for sequences of its own.  */
++      switch (r_type)
++	{
++	case R_X86_64_TLSGD:
++	case R_X86_64_TLSLD:
++	case R_X86_64_GOTTPOFF:
++	case R_X86_64_CODE_4_GOTTPOFF:
++	case R_X86_64_GOTPC32_TLSDESC:
++	case R_X86_64_CODE_4_GOTPC32_TLSDESC:
++	case R_X86_64_TLSDESC_CALL:
++	  {
++	    reloc_howto_type *howto = elf_x86_64_rtype_to_howto (abfd, r_type);
++	    const char *tls_name = (h != NULL
++				    ? h->root.root.string
++				    : bfd_elf_sym_name (abfd, symtab_hdr, isym,
++							NULL));
++
++	    /* xgettext:c-format */
++	    _bfd_error_handler
++	      (_("%pB: relocation %s against `%s' is not supported by this"
++		 " target: it presumes a thread pointer in the FS segment"
++		 " base"),
++	       abfd, howto ? howto->name : "<unknown>", tls_name);
++	    bfd_set_error (bfd_error_bad_value);
++	    return false;
++	  }
++
++	default:
++	  break;
++	}
++
+       if (! elf_x86_64_tls_transition (info, abfd, sec, contents,
+ 				       symtab_hdr, sym_hashes,
+ 				       &r_type, GOT_UNKNOWN,
