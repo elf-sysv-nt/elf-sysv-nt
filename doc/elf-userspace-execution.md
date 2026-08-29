@@ -154,9 +154,10 @@ Windows permits the instruction, so the hardware half of the question was
 never the problem; what decided it is that Windows hands a descheduled
 thread back with the base at zero, preemption included, which spike 1
 measured on 2026-08-29. ELF-standard TLS at native cost is therefore
-unavailable. The fallback costs little, because we own the target: its
-TLS model can be defined as TEB-slot based or as emutls, and which of
-those it becomes is the operator's to say.
+unavailable. The fallback costs little, because we own the target, and it
+has been chosen: DR-0003 took carrier C3 of the gs-thread-pointer spike, a
+runtime-owned thread pointer through `%gs` kept below the stack base in the
+`_my_tls` shape, measured at about 5.5 cycles an access against emutls's 34.
 
 The ABI boundary is real but solved. ELF x86-64 code is SysV; cygwin1.dll
 is MS x64; gcc emits both conventions in one object via `ms_abi` and
@@ -267,10 +268,12 @@ format and symbol versioning that prompted this survey.
 
 Recorded so a later reader does not mistake these for measured.
 
-Which TLS model stands in for `%fs`. The question this line used to carry,
-whether Windows preserves a user-written FS base, was measured on
-2026-08-29 and the answer is no; `spike/fs-base-persistence/` holds it.
-The replacement is an open decision rather than an open measurement.
+Which TLS model stands in for `%fs`. Settled, no longer an open line. Whether
+Windows preserves a user-written FS base was measured no on 2026-08-29
+(`spike/fs-base-persistence/`); the gs-thread-pointer spike then measured the
+replacements and DR-0003 took carrier C3, a runtime-owned thread pointer through
+`%gs`. What is left to verify is the stand-in the spike used against Cygwin's
+real `_my_tls`, which WP-30 does as it builds.
 
 That Windows exception and APC dispatch clobbers the SysV red zone. Recalled
 from Wine-adjacent reading, measured by spike 3 on 2026-08-29, and wrong:

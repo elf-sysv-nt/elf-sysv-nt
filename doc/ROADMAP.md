@@ -22,14 +22,16 @@ third has been measured and went ours.
 
 | Decision | Taken as | Standing | If it goes the other way |
 |---|---|---|---|
-| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Refuted 2026-08-29 by spike 1. Windows returns the base as zero after any deschedule, and the replacement is the operator's to pick | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
+| TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Refuted 2026-08-29 by spike 1; the replacement was measured by the gs-thread-pointer spike and picked the same day, DR-0003: a runtime-owned thread pointer through `%gs`, carrier C3, the `_my_tls` shape. The TLS section changes shape; the sections above it do not. | `TlsAlloc`-at-startup (C1) is the documented fallback, emutls the floor. Reopen if WP-2x finds the real `_my_tls` diverges from the stand-in the spike measured. |
 | Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Measured 2026-08-29, spike 3, at one function's width | Was: unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. Not taken. |
 | Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. |
 
 All three rows now stand on something. The first went the other way on
 2026-08-29, which costs a layer's worth of design and leaves the dependency
 graph intact, as it was written to; `spike/fs-base-persistence/` carries the
-measurement and section 3 below has been rewritten around it. The second held:
+measurement, the gs-thread-pointer spike measured the replacement the same day,
+and DR-0003 picked carrier C3, so the layer now has a shape and section 3 below
+has been rewritten around it. The second held:
 spike 3 crossed the boundary in both directions that day, so the fallback in
 its last column is a road not taken and nothing below needs rewriting. The
 third is finished: spike 5 ran the same day and the patch set it priced is one

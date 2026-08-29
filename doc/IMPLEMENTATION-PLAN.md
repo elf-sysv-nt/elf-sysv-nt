@@ -59,9 +59,10 @@ region and a Cygwin runtime allocates before `main`.
 Spike 1 came back no, which is the branch `milestones.md` reserved and not a
 delay. `%fs`-relative TLS is unavailable on this host: the base is writable and
 addresses correctly, and Windows returns it as zero after anything that
-deschedules the thread, preemption included. What replaces it is an operator
-decision under `AGENTS.md`. WP-30's interface is unaffected and its body waits
-on that decision rather than on further measurement.
+deschedules the thread, preemption included. What replaces it was settled by
+the operator in DR-0003: a runtime-owned thread pointer through `%gs`, carrier
+C3, measured by `spike/gs-thread-pointer/`. WP-30's interface was unaffected
+throughout, and its body may now be written against that model.
 
 ---
 
@@ -246,20 +247,23 @@ fact means guessing which of the existing binaries predate which change.
 
 ### WP-30 — the thread pointer
 
-Needs: the TLS model decision, WP-22.
+Needs: DR-0003 (settled), WP-22.
 Delivers: thread pointer establishment at thread creation and wherever the host
 can disturb it, with the TCB in the psABI's variant II layout.
 Done when: a thread reads its own TCB correctly after a hundred thousand
 context switches under load, and after a `fork`, and after a signal delivered
 mid-computation.
 
-Risk: this package used to wait on spike 1 and now waits on a person. Spike 1
-ran on 2026-08-29 and took `%fs` away, so the mechanism is open and the
-interface is not: a thread pointer, established and readable, is the same
-contract whatever produces it. Write the interface. The body cannot be written
-until the operator picks the replacement, and the acceptance test above is
-deliberately written in terms of the TCB rather than the FS base so that it
-survives the choice.
+Risk: this package waited on spike 1 and then on a person, and both have
+answered. Spike 1 took `%fs` away on 2026-08-29; DR-0003 settled the
+replacement the same day as carrier C3 of `spike/gs-thread-pointer/`, a
+runtime-owned thread pointer kept below the stack base and reached through
+`%gs`. The interface never changed — a thread pointer, established and readable,
+is the same contract whatever produces it — and the body may now be written
+against C3. The acceptance test above is stated in terms of the TCB rather than
+the FS base, so it already fits the carrier and its own persistence cases the
+spike ran. The carried risk is DR-0003's: the spike measured a stand-in, and
+this package re-measures the real `_my_tls` as it builds against it.
 
 ### WP-31 — ELF parsing
 
@@ -633,8 +637,10 @@ WP-T1 through WP-T3 and fails this one has not done the job.
     WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
     WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
 
-The spikes have all answered, and only the TLS model is still an input the
-graph waits on. Three chains run genuinely in parallel from here: the
+The spikes have all answered and the three reserved decisions are settled, so
+the graph waits on no input outside itself; the `TLS model` node above is
+DR-0003, and WP-30 builds against it. Three chains run genuinely in parallel
+from here: the
 toolchain, the runtime, and the loader. They meet at WP-41, which is the first
 package that needs all three, and the program's critical path runs through
 whichever of them is slowest rather than through any one of them by name.
@@ -653,9 +659,11 @@ spike never touched; `spike/abi-crossing/README.md` lists them.
 
 The other two decisions have answers: DR-0001 fixed the triple and spike 5
 priced it on 2026-08-29 at one affected package in 2893, and spike 1 refuted
-`%fs`-relative TLS the same day. What replaces `%fs` is open, but it is open as
-a decision rather than as a measurement, and phase 3 is written so that only
-WP-30's body depends on it.
+`%fs`-relative TLS the same day. What replaces `%fs` is settled too: DR-0003
+picked carrier C3 of `spike/gs-thread-pointer/`, a runtime-owned thread pointer
+through `%gs`. The one thing still to verify there is not the model but the
+block: the spike measured a stand-in for Cygwin's `_my_tls`, and WP-30
+re-measures the real one as it builds against it.
 
 That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than

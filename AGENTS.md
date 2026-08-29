@@ -98,8 +98,11 @@ be re-measured rather than believed. Rerunning the script has to regenerate the
 transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
-The five spikes in `doc/milestones.md` are the current contents of that
-directory. All five ran on 2026-08-29 and have their verdicts.
+The five spikes in `doc/milestones.md` are the gates that stood before the
+reserved decisions; all five ran on 2026-08-29 and have their verdicts.
+`spike/gs-thread-pointer/` is a sixth, a follow-on to spike 1's no: it measured
+the `%gs` carriers that replace the refuted `%fs` base and fed DR-0003. It ran
+the same day and its transcript is kept on the same terms.
 
 `doc/decisions/` holds one settlement per file with an index beside them, and
 `doc/proposals/` holds the change that produced each. A decision record is
@@ -123,10 +126,15 @@ verdict reports it against those bands and stops there.
 
 The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
 FS base does not survive a context switch, or even a preemption, on this
-Windows. That takes `%fs`-relative TLS away and changes the toolchain layer
-rather than merely adding work to it. What replaces it is still an open
-decision and still not an agent's to take. Do not pick a fallback model
-unilaterally, and do not write WP-30's body until one is picked.
+Windows. That took `%fs`-relative TLS away and changed the toolchain layer
+rather than merely adding work to it. The replacement was measured by
+`spike/gs-thread-pointer/` the same day and settled by the operator in
+`doc/decisions/0003-tls-model.md`: a runtime-owned thread pointer through `%gs`,
+carrier C3, the shape Cygwin's `_my_tls` already uses. WP-30's body may now be
+written against that model. The one carried risk is the operator's to reopen,
+not an agent's: DR-0003 records that the spike measured a stand-in, and WP-2x
+re-measures the real `_my_tls`; if it diverges, the reopen is a new record
+pointing back at DR-0003.
 
 The ABI boundary. Spike 3's answer decided whether the runtime is rebuilt
 System V-faced at all, and on 2026-08-29 it came back yes, so the veneer-thunk

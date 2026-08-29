@@ -53,8 +53,14 @@ and this reaches the toolchain layer rather than merely adding work to it, as
 the milestone said it would.
 
 `spike/fs-base-persistence/results-2026-08-29.txt` is the transcript and that
-spike's README reads it. What replaces `%fs` is reserved to the operator by
-`AGENTS.md`, and no fallback is picked here.
+spike's README reads it. What replaces `%fs` was reserved to the operator by
+`AGENTS.md` and is now settled: a follow-on spike, `spike/gs-thread-pointer/`,
+measured four `%gs` carriers the same day against these same cases, and DR-0003
+took carrier C3 — a runtime-owned thread pointer kept below the stack base in
+Cygwin's `_my_tls` shape and reached through `%gs`. Where the `%fs` base came
+back zero on the first check of every descheduling case, the `%gs` carriers
+returned their pointer across 17.6 billion checks with none, at about a sixth of
+emulated TLS's per-access cost. That spike's README reads its own transcript.
 
 ## Spike 2, mapping and jumping
 
@@ -236,10 +242,12 @@ and the recommended path survived the one that could have taken it away.
 packages; the sketch below is the shape both of them fill in.
 
 The target triple wanted deciding before the first package was built, and it
-was, on 2026-08-29. The TLS model now wants deciding on the same footing, and
-for the same reason: spike 1 came back no that afternoon, the replacement is
-the operator's call, and the toolchain cannot be configured around a thread
-pointer nobody has named. The toolchain follows, which is otherwise routine
+was, on 2026-08-29. The TLS model wanted deciding on the same footing, and it
+was, the same day: spike 1 came back no that afternoon, the gs-thread-pointer
+spike measured the replacements, and the operator settled DR-0003 on carrier
+C3 — a runtime-owned thread pointer through `%gs`. The toolchain can now be
+configured around a named thread pointer. The toolchain follows, which is
+otherwise routine
 cross-toolchain work. Then the loader, where musl's `dynlink.c` is the working
 model and the verdef and verneed matcher is the part musl leaves out.
 `elfsysv1.dll` and the libc veneer come after the loader can run something. The

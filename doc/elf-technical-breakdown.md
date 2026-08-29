@@ -427,10 +427,14 @@ In `rhelcyg-8.10`, the first consumer: `doc/plan-rpm-userland.md`,
 
 Recorded so a later reader does not mistake these for measured.
 
-Which TLS model replaces `%fs`. Spike 1 settled the question that was recorded
-here on 2026-08-29, and the answer was no; what stands in its place is an
-operator decision that has not been taken. The measurement itself is in
-`spike/fs-base-persistence/`, on one Windows build and one processor.
+Which TLS model replaces `%fs`. Settled. Spike 1 answered the recorded question
+no on 2026-08-29 (`spike/fs-base-persistence/`, one Windows build and one
+processor), the gs-thread-pointer spike measured the replacements the same day,
+and the operator took DR-0003: a runtime-owned thread pointer through `%gs`,
+carrier C3, the `_my_tls` shape. What is not yet verified is narrower — that
+Cygwin's real `_my_tls`, its padding, and its behaviour under an alternate
+signal stack match the stand-in the spike measured; WP-30 re-measures that as it
+builds against C3.
 
 That the runtime core can be rebuilt SysV-faced without breaking its SEH-based
 fault handling, thread entry, and Windows callbacks. Narrowed rather than
