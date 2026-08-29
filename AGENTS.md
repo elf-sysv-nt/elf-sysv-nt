@@ -16,12 +16,13 @@ and name the branch where a spike could send the program elsewhere.
 
 ## Risks worth knowing before touching anything
 
-Four claims this design rests on have never been measured. They are listed in
-the Not verified section of `doc/elf-technical-breakdown.md`, and the first two
-are load-bearing: whether Windows preserves a user-written FS base across a
-context switch, and whether the Cygwin runtime survives being rebuilt with a
-System V export surface. Do not write code that assumes either answer before
-its spike has run.
+Claims this design rests on that have never been measured are listed in the Not
+verified section of `doc/elf-technical-breakdown.md`. One of the two
+load-bearing ones has since been settled and it went the wrong way: Windows
+does not preserve a user-written FS base, so `%fs`-relative TLS is off the
+table and nothing may assume it. The other is open. Do not write code that
+assumes the Cygwin runtime survives being rebuilt with a System V export
+surface before spike 3 has run.
 
 Cygwin binaries are backward compatible only. Nothing built against a newer
 `cygwin1.dll` runs on an older one, so borrowing a binary from a newer tree is
@@ -89,8 +90,8 @@ transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
 The five spikes in `doc/milestones.md` are the current contents of that
-directory. Spike 5 ran on 2026-08-29 and has its verdict; the other four are
-unrun.
+directory. Spikes 1 and 5 ran on 2026-08-29 and have their verdicts; the other
+three are unrun.
 
 `doc/decisions/` holds one settlement per file with an index beside them, and
 `doc/proposals/` holds the change that produced each. A decision record is
@@ -112,9 +113,12 @@ record also carries the share of affected packages at which it should be
 reopened, which is a decision for the operator too. An agent reading spike 5's
 verdict reports it against those bands and stops there.
 
-Spike 1's answer decides the TLS model, and a negative result changes the
-toolchain layer rather than merely adding work to it. Report it; do not pick a
-fallback model unilaterally.
+The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
+FS base does not survive a context switch, or even a preemption, on this
+Windows. That takes `%fs`-relative TLS away and changes the toolchain layer
+rather than merely adding work to it. What replaces it is still an open
+decision and still not an agent's to take. Do not pick a fallback model
+unilaterally, and do not write WP-30's body until one is picked.
 
 Spike 3's answer decides whether the runtime is rebuilt System V-faced at all.
 A negative falls back to the veneer-thunk design named in the breakdown, which
