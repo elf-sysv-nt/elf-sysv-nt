@@ -21,16 +21,16 @@ In dependency order, which is also cost order.
 | 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image |
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point |
-| 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It prices DR-0001 rather than gating it. |
+| 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 
 Spike 1 is an afternoon and decides a layer. Spike 3 is the expensive one, and
 a no there sends the program to the veneer-thunk fallback, which is a different
 program. Spike 4 gates nothing technically; it measures whether the whole
 edifice repairs what it was built to repair, and it should run before anything
-large is funded. Spike 5 gates nothing either, now: the triple was decided on
-2026-08-29 without waiting for it, so the count it produces is the size of the
-patch set that decision commits to, read against the threshold DR-0001 sets in
-advance.
+large is funded. Spike 5 gated nothing in the end: the triple was decided on
+2026-08-29 without waiting for it, and the count it produced the same day is
+the size of the patch set that decision commits to. One package, well inside
+the threshold DR-0001 set in advance.
 
 ## Spike 5, the target triple
 
@@ -72,6 +72,14 @@ those are read at runtime, by tools, whereas the triple is a build-time label
 that no shipped artifact consults. Where the line between the two sits is in
 DR-0001, as a share of packages rather than as an adjective, written before the
 count so that the count cannot be read to suit.
+
+It came back a handful, and a small one. Over all 2893 source names, the
+masquerade and the candidate get identical verdicts from every one of the 1193
+vendored `config.sub` files, and exactly one package carries a live literal
+host test: `flac`, whose `configure.ac` gates `FLAC__SYS_LINUX` on
+`*-pc-linux-gnu)`. The transcript is
+`spike/triple-fidelity/results-2026-08-29.txt` and that spike reads the
+eighteen other matches, which are comments and test fixtures.
 
 Path length is settled and needs no spike. On this machine the deepest
 installed path carrying a triple is a libstdc++ policy header at 132 characters

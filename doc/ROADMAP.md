@@ -23,13 +23,12 @@ of the three is now settled and the other two are still assumptions.
 |---|---|---|---|
 | TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Assumed, gated on spike 1 | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
 | Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Assumed, gated on spike 3 | Unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. The veneer stops being aliases and becomes code. |
-| Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened. |
+| Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. |
 
 Only the middle row reshapes the program. A negative on spike 1 costs a layer's
-worth of design and leaves the dependency graph intact. The third row is no
-longer a gate at all: spike 5 still runs, and what it now produces is the size
-of the patch set the decision commits to, read against a threshold written down
-in advance. A negative on spike 3 moves the convention change from the
+worth of design and leaves the dependency graph intact. The third row is
+finished: spike 5 ran on 2026-08-29 and the patch set it priced is one
+package. A negative on spike 3 moves the convention change from the
 runtime's export surface up into the veneer, where it is dearer at every call
 and at every version node, and the plan below would need rewriting from that
 section outward.
@@ -442,8 +441,10 @@ roadmap serves.
 Recorded so a later reader does not mistake these for measured.
 
 The two assumed answers still in the table at the top. Spikes 1 and 3 exist to
-replace them, and neither has run. The third row is decided rather than
-assumed, and spike 5 now prices it rather than settling it.
+replace them, and neither has run. The third row is neither assumed nor
+unverified any more: the triple was decided on 2026-08-29 and spike 5 priced
+it the same day, at zero marginal cost through `config.sub` and one package
+through a literal host test.
 
 That el8 binaries carry 2 MB `PT_LOAD` alignment. Recalled binutils default;
 one `readelf` against a vendor binary settles it, and the mapping arithmetic in
