@@ -5,8 +5,8 @@ deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
 month one. Four of the spikes gate something. The fifth prices a naming
-decision that has since been taken without it. Two have now run, and the first
-of them took the recommended path off the table, which is what a spike is for.
+decision that has since been taken without it. Three have now run, and one of
+them took the recommended path off the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 the first four and a count for the fifth. The verdict is the deliverable.
@@ -18,18 +18,19 @@ In dependency order, which is also cost order.
 | # | Spike | Question | Gates |
 |---|---|---|---|
 | 1 | `spike/fs-base-persistence/` | Does Windows preserve a user-written FS base across a context switch? | The TLS layer, and the toolchain target through it. Run 2026-08-29: no. |
-| 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image |
+| 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image. Run 2026-08-29: yes, with a constraint on when the span is claimed. |
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point |
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 
-Spike 1 was an afternoon and it decided a layer, against us. Spike 3 is the
-expensive one, and a no there sends the program to the veneer-thunk fallback,
-which is a different program. Spike 4 gates nothing technically; it measures
-whether the whole edifice repairs what it was built to repair, and it should
-run before anything large is funded. Spike 5 gated nothing in the end: the
-triple was decided on 2026-08-29 without waiting for it, and the count it
-produced the same day is the size of the patch set that decision commits to.
+Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
+yes and moved a question from whether to when. Spike 3 is the expensive one,
+and a no there sends the program to the veneer-thunk fallback, which is a
+different program. Spike 4 gates nothing technically; it measures whether the
+whole edifice repairs what it was built to repair, and it should run before
+anything large is funded. Spike 5 gated nothing in the end: the triple was
+decided on 2026-08-29 without waiting for it, and the count it produced the
+same day is the size of the patch set that decision commits to.
 One package, well inside the threshold DR-0001 set in advance.
 
 ## Spike 1, the thread pointer
@@ -52,6 +53,46 @@ the milestone said it would.
 `spike/fs-base-persistence/results-2026-08-29.txt` is the transcript and that
 spike's README reads it. What replaces `%fs` is reserved to the operator by
 `AGENTS.md`, and no fallback is picked here.
+
+## Spike 2, mapping and jumping
+
+Run 2026-08-29, and the answer is yes. A PE stub reserved the span a static
+`ET_EXEC` asks for, committed and protected one region per `PT_LOAD`, built
+the stack the psABI describes, and jumped to `e_entry`; the image ran at its
+link address, read its own segments, walked the auxv it was handed, and
+returned. Three of the four mapping cases did that, both controls were
+refused, and every protection Windows reported back was the one asked for --
+confirmed by fault probes rather than only by `VirtualQuery`, because a spike
+that reads back its own request has measured its own request.
+
+Two findings come free with it. `.bss` costs nothing, because Windows hands
+back freshly committed pages already zeroed and the word past `p_filesz` read
+as zero without the stub touching it. And a link base that is page-aligned but
+not granule-aligned costs address space rather than correctness: an image at
+`0x8048000` reserves from `0x8040000` and spends 32 KB below itself on
+nothing.
+
+The fourth case is the finding that matters. At a `p_align` of `0x200000` --
+`ld`'s default, and so what a vendor binary is expected to carry -- each
+segment lands on its own 2 MB boundary and the span inflates from 24 KB to
+4 MB without gaining a byte of content. At `0x400000` that span is not
+available: the free run there measured between `0x200000` and `0x260000`
+across runs, never the `0x405000` wanted, and the reservation was refused
+twenty times in twenty. The same geometry at `0x10000000` mapped and ran, so
+the arithmetic is right and the address is the problem.
+
+What takes the low addresses is Windows' bottom-up allocator, and the spike
+caught it in the act: in the case that mapped high, the stub's own stack
+allocation, requested with no base, came back at `0x400000`. Anything in the
+process that allocates before the image's span is claimed can take part of it,
+and a Cygwin runtime allocates before `main`.
+
+So the question moves from whether to when, and it lands on WP-41: a non-PIE
+image's span has to be reserved before the runtime under the stub warms up.
+Whether a PE TLS callback or an image entry point is early enough is not
+measured here, and it should be measured before that package is written rather
+than discovered inside it. `spike/map-and-jump/results-2026-08-29.txt` is the
+transcript and that spike's README reads it.
 
 ## Spike 5, the target triple
 
