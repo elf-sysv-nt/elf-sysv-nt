@@ -1,8 +1,15 @@
 # The vendor-field count
 
 How many el8 packages mishandle a nonstandard vendor field? Nothing in this
-directory answers that yet. The script takes the measurement on a tree of
-unpacked el8 sources, and what is kept here is the means of taking it again.
+directory answers that yet. Two scripts here take the measurement --
+`fetch-host-tests.sh` puts el8 source in front of the probe one package at a
+time, `count-vendor-misses.sh` is the probe and the classifier -- and what is
+kept is the means of taking it again.
+
+The triple was settled on 2026-08-29 as `x86_64-elfsysvnt-linux-gnu`, ahead of
+this count rather than by it, so what the count does now is price a decision
+instead of make one. `doc/decisions/0001-target-triple.md` carries the share
+of affected packages at which it should be reopened.
 
 The target triple has four fields and only two carry weight. `config.sub`
 passes an unrecognized vendor through untouched, so `x86_64-elfsysvnt-linux-gnu`
@@ -11,8 +18,8 @@ the fields configure actually reads. Buildroot has shipped
 `x86_64-buildroot-linux-gnu` on that reasoning for over a decade. The residual
 cost is the package that tests for a literal `*-pc-linux-gnu` or
 `*-unknown-linux-gnu` and misses, silently, taking a branch nobody intended.
-Such packages exist. How many is the number that decides the triple, and
-guessing at it is the habit these spikes exist to break.
+Such packages exist. How many is the size of the patch set the decision
+commits to, and guessing at it is the habit these spikes exist to break.
 
 ## Running it
 
@@ -30,6 +37,46 @@ the form to quote in a document. `--verbose` names every offending package
 rather than only counting it, which is what you want on the first run and not
 on the twentieth.
 
+## Getting the sources
+
+`fetch-host-tests.sh` supplies the tree, or rather supplies the probe without
+one. It reads a source repository's `repodata`, then takes each package in
+turn: fetch the `.src.rpm`, verify the checksum the metadata gave, unpack it,
+extract the host tests out of whatever archives fall out, run
+`count-vendor-misses.sh` over the result, keep the raw probe, delete
+everything else. Peak disk is one package.
+
+    ./fetch-host-tests.sh --dest /c/-/el8 --dry-run
+    ./fetch-host-tests.sh --dest /c/-/el8
+    ./count-vendor-misses.sh --dump /c/-/el8/dump -o results-$(date +%F).txt
+
+The default repositories are Rocky Linux 8.10's four source trees. Rocky
+rather than Red Hat's own because `config.sub` arrives inside the upstream
+tarball, which a rebuild carries unchanged, and an entitlement buys nothing
+for a file neither party touched.
+
+Two numbers decide how the run is shaped, and the dry run prints both. Those
+four repositories carry 5816 builds, 174 GB, of 2893 source names: 73 kernels,
+35 firefoxes, an accumulation of updates and module streams over the same
+upstream tarballs. Taking the newest build of each name is 24 GB, and
+`--all-versions` is there for anyone wanting to check that the other 150 GB
+would have said the same thing.
+
+The second is scope, and it is a real loss rather than a tuning choice.
+`--extract host-tests`, the default, pulls only `config.sub`, `config.guess`,
+`configure`, `configure.ac`, `configure.in` and the m4 out of each tarball, so
+the literal-vendor grep sees less than a walk of whole source trees would show
+it. `--extract all` is the wider scope and is not affordable: `389-ds-base`
+alone unpacks a 49 MB SRPM into 521 MB across a vendored `node_modules` and a
+cargo cache, and the grep over that had not returned in ten minutes here.
+Every transcript names the scope it ran under as `extract_scope`. To price the
+narrowing, run a few dozen packages each way and compare.
+
+A run holds a lock on its destination, skips packages it has already done, and
+reaps a dead run's working directory before starting. Resumption is the point:
+2893 packages is long enough that a network drop is expected rather than
+feared.
+
 ## Reproducing it away from the tree
 
 `--keep-dump FILE` writes the raw probe as the walk runs, and `--dump FILE`
@@ -43,6 +90,13 @@ sources at all.
 against counts worked out by hand. Four synthetic packages cover the shapes
 that matter: a clean accept, a silent rewrite, an outright rejection, and a
 package with no `config.sub` at all but a literal vendor in its sources.
+
+It also checks what `fetch-host-tests.sh` refuses: a missing destination, a
+bad `--extract`, a non-numeric `--limit`, an unknown option, and a destination
+another run already holds. The last of those is there because two instances
+did overlap on 2026-08-29, and the one behind skipped a package the one ahead
+had just finished. Its check was watched failing with the lock removed before
+it was trusted passing with the lock in place.
 
 ## A preliminary run, and a correction it forced
 
@@ -78,6 +132,9 @@ accepts it and what that acceptance then means downstream.
 ## Where the finding goes
 
 `doc/elf-technical-breakdown.md`, in `The toolchain and the triple`, and the
-`Not verified` entry that currently records the claim as uncounted. The number
-decides whether the vendor-honest triple stands or the honest name moves to
-`EI_OSABI`, the `.note.ABI-tag`, the dynamic linker SONAME, and `uname`.
+`Not verified` entry that records the claim as uncounted. Then
+`doc/decisions/0001-target-triple.md`, which is where the number is read
+against the reopen threshold. Above that threshold the honest name moves to
+`EI_OSABI`, the `.note.ABI-tag`, the dynamic linker SONAME, and `uname`, and
+the triple masquerades; below it, the count is the size of a patch set and
+nothing changes.
