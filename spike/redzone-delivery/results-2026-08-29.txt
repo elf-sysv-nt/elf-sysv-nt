@@ -1,0 +1,46 @@
+reserving the red zone before the handler frame
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+processors  12
+compiler    gcc (GCC) 7.4.0
+date        2026-08-29T14:14:37Z
+script      redzone-delivery 1.0
+probe       redzone 1.0
+rounds      200000 passes, 2000 deliveries, 1024 bytes watched
+
+== reserving the red zone before the handler frame
+
+                     kind      deliver   handled  nearest    words  what it saw
+    quiet            control         0         0        0        0  1024 bytes below %rsp intact over 200000 passes
+    deliver-naive    control      2000      2000        8      365  clobbered from offset 8 to 568 over 2000 deliveries
+    deliver-reserved measure      2000      2000      136      396  red zone intact, nearest write at offset 136 over 2000 deliveries
+    resume-integrity measure      2000      2000        0        0  value 0x3889bcadd2fe4df9 held across 2000 deliveries and 1033853 folds
+    handler-ran      measure      2000      2000      136      838  2000 deliveries, 2000 reached the handler and returned
+    nested           measure       500      1000      136      614  500 episodes, two handlers each, outer red zone intact past offset 136
+    altstack         measure      2000      2000        0        0  2000 deliveries on an alternate stack, original red zone untouched
+
+    Nearest is the offset below the watched %rsp of the closest
+    word the delivery moved; a red zone is intact when nothing
+    moved inside 128. quiet and deliver-naive are the controls
+    the measurements lean on: the first says the watcher can
+    see, the second says this model destroys the red zone where
+    Cygwin's real path does, at offset 8.
+
+== summary
+
+    verdict=yes
+    cases=7
+    cases_failed=0
+    cases_incomplete=0
+    shape=quiet:pass,deliver-naive:pass,deliver-reserved:pass,resume-integrity:pass,handler-ran:pass,nested:pass,altstack:pass
+    redzone_watched_bytes=1024
+    case_quiet=pass,nearest:0,words:0,deliveries:0,handled:0
+    case_deliver-naive=pass,nearest:8,words:365,deliveries:2000,handled:2000
+    case_deliver-reserved=pass,nearest:136,words:396,deliveries:2000,handled:2000
+    case_resume-integrity=pass,nearest:0,words:0,deliveries:2000,handled:2000
+    case_handler-ran=pass,nearest:136,words:838,deliveries:2000,handled:2000
+    case_nested=pass,nearest:136,words:614,deliveries:500,handled:1000
+    case_altstack=pass,nearest:0,words:0,deliveries:2000,handled:2000
+    redzone_reservation=holds across delivery
+    probe=redzone 1.0
