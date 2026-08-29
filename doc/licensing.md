@@ -14,7 +14,8 @@ PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License along
 with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-The full texts are at the root: `LICENSE` is LGPLv3 and `COPYING` is GPLv3,
+The full texts are at the root: `COPYING.LESSER` is LGPLv3 and `COPYING` is
+GPLv3,
 which is the pair LGPLv3 is written against. `doc/decisions/0004-license.md`
 is the record.
 

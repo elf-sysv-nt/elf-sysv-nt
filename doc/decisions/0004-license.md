@@ -7,8 +7,8 @@ Proposal: none; taken directly against Cygwin's licensing terms
 
 ## What was decided
 
-The repository is licensed LGPLv3 or later. `LICENSE` carries LGPLv3 and `COPYING`
-carries GPLv3, which is the pair LGPLv3 requires of a project that uses it, and
+The repository is licensed LGPLv3 or later. `COPYING.LESSER` carries LGPLv3 and
+`COPYING` carries GPLv3, which is the pair LGPLv3 requires of a project that uses it, and
 `doc/licensing.md` states the position in one page.
 
 Most of this was not a choice. The rest of the record says which part was.
@@ -91,6 +91,6 @@ Reopening means a new record pointing back at this one. Do not edit this one.
 
 ## Where it is written down
 
-`LICENSE` and `COPYING` at the root, with `doc/licensing.md` beside this
+`COPYING` and `COPYING.LESSER` at the root, with `doc/licensing.md` beside this
 record. `AGENTS.md`, under the licensing convention. `README.md`, in a section
 at the end.
