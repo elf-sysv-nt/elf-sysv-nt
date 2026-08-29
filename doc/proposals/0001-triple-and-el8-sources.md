@@ -321,3 +321,26 @@ a vendored autotools `configure`, which does run and can take a wrong branch.
 Nothing like that appeared in the sample — `vendor/` is a cargo convention and
 what sat under it was cargo — but the rule is broader than the evidence, and a
 package that vendors autotools under that name would go uncounted.
+
+## Addendum, 2026-08-29 — the Alma cross-check, declined
+
+The one open question this proposal left was whether the survey should run
+against Rocky alone or against Rocky and AlmaLinux both, so that packages where
+the two rebuilds diverge could be spotted. Rocky alone, and the result is why.
+
+The survey came back unanimous where a divergence could have mattered: across
+1193 vendored `config.sub` files the masquerade and the honest triple get
+identical verdicts, and the single live literal host test sits in `flac`'s
+upstream `configure.ac`. Both of those live inside the upstream tarball, which
+a rebuild carries unchanged. A second rebuild is a second carrier of the same
+bytes; where Rocky and Alma genuinely differ is the spec and the downstream
+patches, and the probe reads neither.
+
+So the cross-check would cost a second 24 GB transfer to compare two copies of
+one file. Declining it is also the reversible choice: the harvester takes
+`--repo`, and pointing it at `https://vault.almalinux.org/8.10/<repo>/Source/`
+runs the whole thing again against Alma whenever somebody wants it. What would
+change this is evidence that a rebuild patches `config.sub` or a `configure`
+host test downstream, which nothing here suggests and nobody has looked for.
+
+With that, the proposal has no open questions left.

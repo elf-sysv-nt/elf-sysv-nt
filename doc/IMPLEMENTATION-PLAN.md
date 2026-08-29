@@ -30,10 +30,10 @@ here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-Spikes 1, 2, and 5 can run in parallel; nothing connects them. Spike 3 wants
+Spikes 1 and 2 can run in parallel; nothing connects them. Spike 3 wants
 spike 2's stub as a convenient carrier but does not require it, and spike 4 is
-independent of all four and should run early because it prices the whole
-program.
+independent of the others and should run early because it prices the whole
+program. Spike 5 is done, 2026-08-29.
 
 ---
 
@@ -61,6 +61,14 @@ Delivers: the patch against upstream `config`, plus a refresh procedure for the
 vendored copies that every source package carries at its own vintage.
 Done when: `config.sub x86_64-elfsysvnt-linux-gnu` echoes the input unchanged,
 and the refresh script rewrites a vendored copy in a package tree idempotently.
+
+Spike 5 sized this on 2026-08-29 and the news is good: 891 of 2893 packages
+carry a `config.sub` at all, 1193 copies between them, and every one of those
+copies treats the honest triple exactly as it treats `x86_64-pc-linux-gnu`.
+The twenty that refuse the honest triple refuse the masquerade too, on the cpu
+field, and predate x86_64. So the refresh policy is about vintage rather than
+about the vendor, and this package inherits one patch from the spike: `flac`,
+whose `configure.ac` gates `FLAC__SYS_LINUX` on a `*-pc-linux-gnu)` arm.
 
 ### WP-12 — binutils
 
@@ -565,8 +573,8 @@ the project first sees the point.
 
 The two assumed decisions still open, which `ROADMAP.md` tabulates and which
 spikes 1 and 3 exist to settle. Neither has run, and phase 2 is written as
-though spike 3 answered yes. The third was decided rather than measured, in
-DR-0001, which also says what would reopen it.
+though spike 3 answered yes. The third was decided in DR-0001 and measured by
+spike 5 on 2026-08-29, at one affected package in 2893.
 
 That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than

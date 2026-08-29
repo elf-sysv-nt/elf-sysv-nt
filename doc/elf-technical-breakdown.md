@@ -255,9 +255,15 @@ leaves `linux-gnu` standing where configure looks. Buildroot has shipped
 twenty-six characters, so neither the shape nor the length is new ground. The
 residual cost is the package that matches a literal `*-pc-linux-gnu` or
 `*-unknown-linux-gnu` and misses silently, taking a configure branch nobody
-intended. Spike 5 counts those. It no longer has to run before the first
-package is built, since the name is chosen; it has to run before the count
-would be too late to act on, which is before the hundredth.
+intended. Spike 5 counted those on 2026-08-29, over all 2893 source names in
+the el8 set: one package, `flac`, whose `configure.ac` opens `case "$host"`
+with a `*-pc-linux-gnu)` arm that defines `FLAC__SYS_LINUX`. Under our triple
+that arm does not match and the define silently does not happen. At the
+`config.sub` gate the cost is not small but zero — across 1193 vendored
+`config.sub` files the masquerade and the honest triple get identical verdicts,
+file for file. `spike/triple-fidelity/results-2026-08-29.txt` is the
+transcript and that spike's README reads the other eighteen literal matches,
+all of which are comments, documentation and test fixtures.
 
 The os field is closed off for a reason worth recording, because it is not the
 one that would be guessed. `config.sub` does not refuse `elfsysvnt` there; it
@@ -397,16 +403,9 @@ The licenses marked recalled: flinux, Blink, Qiling, Cosmopolitan, HelloElf,
 elf-on-windows. Each must be read before any code is lifted, and GPL or LGPL
 turns a lift into a distribution obligation.
 
-How many el8 packages mishandle a nonstandard vendor field. The vendor-honest
-triple rests on the claim that few do; nobody has counted, and spike 5 exists to
-count them. The triple was decided ahead of that count, so what the count now
-settles is whether the decision was cheap or dear, against the bands in
-DR-0001. The source it will run against is named in DR-0002, and its size is
-measured: 2893 source names across Rocky 8.10's four source repositories,
-24 GB taking the newest build of each. Measured 2026-08-29. Path length under
-the longer vendor is the other part already settled: the deepest installed path
-carrying a triple measures 146 characters as Windows sees it, 156 with the ten
-the vendor adds, against a `MAX_PATH` of 260. Measured 2026-08-20.
+Path length under the longer vendor: the deepest installed path carrying a
+triple measures 146 characters as Windows sees it, 156 with the ten the vendor
+adds, against a `MAX_PATH` of 260. Measured 2026-08-20.
 
 That el8 binaries carry 2 MB PT_LOAD alignment. Recalled binutils default,
 settled by one readelf against a vendor binary.
