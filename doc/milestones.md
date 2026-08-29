@@ -319,11 +319,12 @@ nothing here can make it so, and the fallback narrows to binaries we built
 ourselves — which is barely a fallback, since a binary we built is one we
 could have compiled correctly.
 
-It reuses spike 1's twelve cases rather than inventing new ones, the spinning
-case included, since that is the one with no call site to hook. Ten of those
-twelve lose the base and an access afterwards raised an access violation every
-time; the other two are the two spike 1 recorded as surviving, and nothing read
-through a zeroed base anywhere in the run.
+It takes nine of spike 1's twelve cases unchanged, the spinning one included,
+since that is the one with no call site to hook, and its own README says where
+the two lists part. Ten of its twelve events lose the base and an access
+afterwards raised an access violation every time; the other two are the two
+descheduling cases spike 1 also recorded as surviving, and nothing read through
+a zeroed base anywhere in the run.
 
 The finding the fallback rests on is what Windows hands the handler. With the
 base at zero the effective address is the offset, so the faulting address is
