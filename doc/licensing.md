@@ -1,0 +1,57 @@
+# Licensing
+
+Copyright (C) 2026 Philip Dye
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+The full texts are at the root: `LICENSE` is LGPLv3 and `COPYING` is GPLv3,
+which is the pair LGPLv3 is written against. `doc/decisions/0004-license.md`
+is the record.
+
+## Why this licence
+
+It is inherited rather than chosen. Cygwin's API library, everything under
+winsup/, is LGPLv3 or later, and this project rebuilds that library with a
+different export face rather than replacing what is behind it.  A re-faced
+library is a modified version of it, so LGPLv3+ attaches to the largest
+component here by derivation.  doc/decisions/0004-license.md is the record.
+
+Cygwin's linking exception does not reach that component and says so in its own
+terms: it covers linking libcygwin.a, crt0.o and gcrt0.o with independent
+modules, and defines an independent module as one not itself based on the
+Cygwin library.
+
+
+## No exception is granted here, yet
+
+Cygwin grants an exception letting a linked executable be conveyed under terms
+of the linker's choosing, without complying with LGPLv3 section 4.  That
+exception is what lets a GPLv2-only program link Cygwin at all, since LGPLv3
+and GPLv2-only do not otherwise combine, and this project intends to carry an
+equivalent one forward for the same reason: el8 ships GPLv2-only software and
+running it is the point of the exercise.
+
+Whether a modified Cygwin library may carry that exception forward, and in what
+wording, is a question for a lawyer and not for the people writing this.  Until
+it is answered this repository grants no exception of its own.  The intent is
+stated so that nobody plans around its absence; the wording is withheld so that
+nobody relies on text an engineer invented.
+
+
+## Third-party material
+
+Files under toolchain/ that are patches carry the licence of what they patch
+rather than this one.  The GNU config patch is against GPLv3-with-exception
+material and the flac patch against flac's own terms.  Nothing in this tree is
+a copy of Cygwin, glibc, binutils or gcc source; where a specification was
+implemented rather than code lifted, the governing document says so.

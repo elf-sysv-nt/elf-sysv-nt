@@ -84,5 +84,5 @@ LGPLv3 or later. Inherited rather than chosen: this rebuilds Cygwin's `winsup`
 library with a different export face, and Cygwin's own linking exception
 excludes a library based on the Cygwin library by its own definition.
 `doc/decisions/0004-license.md` carries the reasoning and the two questions
-that are not an engineer's to answer. `LICENSE` states the position, and no
-linking exception is granted here yet.
+that are not an engineer's to answer, and `doc/licensing.md` states the
+position in one page. No linking exception is granted here yet.
