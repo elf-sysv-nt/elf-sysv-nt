@@ -297,3 +297,27 @@ skipped a package the one ahead had just finished; worse, the start-up reap of
 stale working directories would have deleted a live run's own. Neither was in
 the design. A run now takes a lock on its destination, refuses a destination
 another live run holds, and treats a lock naming a dead pid as stale.
+
+## Addendum, 2026-08-29 — the extract-scope question, answered
+
+The first addendum left the cost of the `host-tests` narrowing unmeasured and
+said so. It has now been measured, forty packages each way, and the transcript
+is `spike/triple-fidelity/extract-scope-2026-08-29.txt`.
+
+The answer runs against the worry. The wide scope found no signal the narrow
+scope had missed; it found 108 literal-vendor hits, all noise, 102 of them
+inside Rust `vendor/` trees where a `Cargo.toml` names Rust's own target
+triple. Uncorrected that reads as 12.5% of packages affected, over the share
+at which DR-0001 says the triple is reconsidered — a decision that would have
+been reopened on false positives. `count-vendor-misses.sh` now excludes those
+shapes and `t/lit-noise/` witnesses each rule.
+
+So the narrowing costs less than this proposal feared, and the wider scope
+costs more than runtime: it costs the ability to read the number. The default
+stands, and `--extract all` is now the diagnostic rather than the ideal.
+
+One consequence worth naming. Excluding a directory called `vendor` would drop
+a vendored autotools `configure`, which does run and can take a wrong branch.
+Nothing like that appeared in the sample — `vendor/` is a cargo convention and
+what sat under it was cargo — but the rule is broader than the evidence, and a
+package that vendors autotools under that name would go uncounted.
