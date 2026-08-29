@@ -17,24 +17,30 @@ here; the inventory is not repeated there.
 Three points are decisions rather than tasks, `AGENTS.md` reserves them, and a
 roadmap that forked three ways under every heading would be unreadable. So this
 is written along the recommended path, with the branch named where it sits. One
-of the three is settled, one has been measured and went the other way, and one
-is still an assumption.
+of the three is settled, one has been measured and went the other way, and the
+third has been measured and went ours.
 
 | Decision | Taken as | Standing | If it goes the other way |
 |---|---|---|---|
 | TLS model | ELF-standard `%fs`-relative, base written with `wrfsbase` | Refuted 2026-08-29 by spike 1. Windows returns the base as zero after any deschedule, and the replacement is the operator's to pick | A TLS model of our own, TEB-slot or emutls. The TLS section changes shape; the sections above it do not. |
-| Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Assumed, gated on spike 3 | Unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. The veneer stops being aliases and becomes code. |
+| Runtime face | `elfsysv1.dll`, System V outward over an MS-ABI core | Measured 2026-08-29, spike 3, at one function's width | Was: unmodified `cygwin1.dll` beneath a generated thunk layer at glibc's export width. Not taken. |
 | Target triple | `x86_64-elfsysvnt-linux-gnu` | Decided 2026-08-29, DR-0001; priced by spike 5 the same day at one affected package in 2893 | Masquerade as `x86_64-pc-linux-gnu` and move the honest name to `EI_OSABI`, `.note.ABI-tag`, the loader SONAME, and `uname`. DR-0001 carries the share of affected packages at which that is reopened, and the measurement is well inside it. |
 
-Only the middle row reshapes the program. The first row went the other way on
+All three rows now stand on something. The first went the other way on
 2026-08-29, which costs a layer's worth of design and leaves the dependency
 graph intact, as it was written to; `spike/fs-base-persistence/` carries the
-measurement and section 3 below has been rewritten around it. The third row is
-finished: spike 5 ran the same day and the patch set it priced is one
-package. A negative on spike 3 moves the convention change from the
-runtime's export surface up into the veneer, where it is dearer at every call
-and at every version node, and the plan below would need rewriting from that
-section outward.
+measurement and section 3 below has been rewritten around it. The second held:
+spike 3 crossed the boundary in both directions that day, so the fallback in
+its last column is a road not taken and nothing below needs rewriting. The
+third is finished: spike 5 ran the same day and the patch set it priced is one
+package.
+
+What spike 3 moved instead was the red zone, and it moved it toward us. Windows
+leaves the reserved 128 bytes alone under preemption, thread hijacking and its
+own exception dispatch; Cygwin's signal delivery takes `%rsp-8` first. The
+`-mno-red-zone` policy below is unchanged, but the layer it defends against is
+ours, and `AGENTS.md` reserves the choice between the flag and a gap in the
+delivery path.
 
 ## Order of construction
 
@@ -82,8 +88,9 @@ rather than what the user remembers: `-mno-red-zone` unconditionally, the
 default TLS model, the dynamic linker path, the `.note.ABI-tag` emission. A
 package that forgets a flag must still get the flag. The red zone is not a
 preference; one object compiled without `-mno-red-zone` will corrupt a stack
-under signal delivery, at some unpredictable later date, in a package nobody
-was looking at.
+under Cygwin's signal delivery, which spike 3 measured taking the word at
+`%rsp-8` every single time, at some unpredictable later date, in a package
+nobody was looking at.
 
 Then the sysroot layout, `libgcc`, the startup files (`crt1.o`, `Scrt1.o`,
 `crti.o`, `crtn.o`), and the bootstrap order that gets from a
@@ -128,10 +135,13 @@ Everything here compiles `-mno-red-zone`, including the parts that never touch
 ELF code, because the boundary between the two halves is not visible to the
 compiler. There is no partial application of that flag.
 
-If spike 3 answers no, this section is replaced rather than amended. The
-fallback keeps `cygwin1.dll` unmodified and puts a generated thunk layer above
-it at the width of glibc's export list: dearer per call, dearer per version
-node, and independently testable piece by piece.
+Spike 3 answered yes on 2026-08-29, so this section stands. The fallback it
+would have triggered -- `cygwin1.dll` unmodified under a generated thunk layer
+at the width of glibc's export list, dearer per call and per version node --
+is a road not taken. What the spike did add is a constraint on the variadic
+exports: System V and Microsoft `va_list` are different types of different
+sizes, so nothing forwards and every variadic entry point unpacks its
+arguments and passes them on by value.
 
 ## 3. Thread-local storage
 
@@ -345,10 +355,15 @@ extended state saved where a consumer looks for it, and a return path that
 restores all of it. `sigaltstack` works, `SA_SIGINFO` works, `SA_RESTART` means
 what it means.
 
-The red zone is the sharp edge. It is a specification guarantee the host does
-not honor: Windows exception and APC dispatch writes below `%rsp`, and System V
-says nothing may. Compiling the world `-mno-red-zone` closes it for compiled
-code. Hand-written assembly is where it stays open.
+The red zone is the sharp edge, and spike 3 found it in a different place than
+this paragraph used to put it. The host honors the guarantee by accident:
+preemption and thread hijacking write nothing below `%rsp`, and Windows'
+exception dispatch starts about 320 bytes down. What breaks it is this layer --
+Cygwin's own delivery builds the handler's frame at the interrupted stack
+pointer and takes `%rsp-8` first. Compiling the world `-mno-red-zone` closes it
+for compiled code. Hand-written assembly is where it stays open, and a
+128-byte gap in the delivery path would close it everywhere at once, which
+`AGENTS.md` records as an open decision rather than a task.
 
 Unwinding does not cross the boundary raw. DWARF and `.eh_frame` stay in the
 ELF world, SEH stays in the host-facing core, and the trampoline is the only
@@ -484,13 +499,20 @@ roadmap serves.
 
 Recorded so a later reader does not mistake these for measured.
 
-The runtime face, which is the one row in the table at the top still standing
-on an assumption. Spike 3 exists to replace it and has not run. The other two
-have their answers: the triple was decided on 2026-08-29 and spike 5 priced it
-the same day, at zero marginal cost through `config.sub` and one package
-through a literal host test, and spike 1 refuted the `%fs` thread pointer that
-afternoon. What section 3 says about the TCB layout survives spike 1's answer;
-what it used to say about establishing the base does not, and has gone.
+The runtime face at a DLL's width. Spike 3 measured it on 2026-08-29 and every
+case passed, so the row at the top no longer stands on an assumption, but it
+stands on one function rather than on `cygwin1.dll` rebuilt. What the spike did
+not reach is in `spike/abi-crossing/README.md`: unwind data crossing a
+`sysv_abi` frame, `DllMain` and PE TLS callbacks into a System V-faced DLL, and
+Cygwin's source compiled rather than called. Section 2 is written as though
+those follow, and they have not been shown to.
+
+The other two decisions have their answers: the triple was decided on
+2026-08-29 and spike 5 priced it the same day, at zero marginal cost through
+`config.sub` and one package through a literal host test, and spike 1 refuted
+the `%fs` thread pointer that afternoon. What section 3 says about the TCB
+layout survives spike 1's answer; what it used to say about establishing the
+base does not, and has gone.
 
 That el8 binaries carry 2 MB `PT_LOAD` alignment. Recalled binutils default;
 one `readelf` against a vendor binary settles it. Spike 2 relieved section 4's

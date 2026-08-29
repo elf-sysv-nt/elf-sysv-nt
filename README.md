@@ -35,8 +35,8 @@ criteria.
 
 Nothing has been built. Every technical claim carries a mark saying whether it
 was measured or recalled, and the spikes exist to move four of the load-bearing
-ones from the second column to the first. Two have moved, and the first of them
-moved against the design, which is the outcome a spike is worth having for.
+ones from the second column to the first. All of them have moved, and the first
+one moved against the design, which is the outcome a spike is worth having for.
 
 ## Relationship to rhelcyg-8.10
 
@@ -49,8 +49,17 @@ with a different veneer.
 
 ## Status
 
-Mid-spike. No toolchain, no loader, no DLL, and no code beyond the probes the
-spikes are made of. Two of the five have run, both on 2026-08-29: spike 5
-priced the target triple at one affected package in 2893, and spike 1 found
-that Windows does not preserve a user-written FS base, which takes
-`%fs`-relative TLS off the table and leaves the replacement open.
+The spikes are done and nothing else is started. No toolchain, no loader, no
+DLL, and no code beyond the probes the spikes are made of. All five ran on
+2026-08-29. Spike 1 found that Windows does not preserve a user-written FS
+base, which takes `%fs`-relative TLS off the table and leaves the replacement
+open. Spike 2 mapped a static ELF from a PE stub and entered it, with a
+constraint on when the image's span has to be claimed. Spike 3 crossed the ABI
+boundary in both directions and found the red zone destroyed by Cygwin's own
+signal delivery rather than by Windows. Spike 4 got el8's `elfdeps` to read a
+vendor-shaped `Requires` off a synthesized `libc.so.6`, byte for byte, which is
+the whole point of the exercise demonstrated in miniature. Spike 5 priced the
+target triple at one affected package in 2893.
+
+What is open is the TLS model, which is the operator's to pick, and the choice
+between two repairs for the red zone. `AGENTS.md` reserves both.

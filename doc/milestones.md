@@ -5,8 +5,8 @@ deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
 month one. Four of the spikes gate something. The fifth prices a naming
-decision that has since been taken without it. Four have now run, and one of
-them took the recommended path off the table, which is what a spike is for.
+decision that has since been taken without it. All five have now run, and one
+of them took the recommended path off the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 the first four and a count for the fifth. The verdict is the deliverable.
@@ -19,20 +19,21 @@ In dependency order, which is also cost order.
 |---|---|---|---|
 | 1 | `spike/fs-base-persistence/` | Does Windows preserve a user-written FS base across a context switch? | The TLS layer, and the toolchain target through it. Run 2026-08-29: no. |
 | 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image. Run 2026-08-29: yes, with a constraint on when the span is claimed. |
-| 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
+| 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy. Run 2026-08-29: yes, and the red zone is lost to our own layer rather than to the host. |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point. Run 2026-08-29: yes, byte for byte. |
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
-yes and moved a question from whether to when. Spike 3 is the expensive one,
-and a no there sends the program to the veneer-thunk fallback, which is a
-different program. Spike 4 gated nothing technically; it measured whether the
-whole edifice repairs what it was built to repair, which is the question worth
-answering before anything large is funded, and it came back yes. Spike 5 gated
-nothing in the end either: the triple was decided on 2026-08-29 without waiting
-for it, and the count it produced the same day is the size of the patch set
-that decision commits to. One package, well inside the threshold DR-0001 set in
-advance.
+yes and moved a question from whether to when. Spike 3 was the expensive one,
+and a no there would have sent the program to the veneer-thunk fallback, which
+is a different program; it came back yes, and left behind a measurement that
+moves the red-zone question from the host onto our own layer. Spike 4 gated
+nothing technically; it measured whether the whole edifice repairs what it was
+built to repair, which is the question worth answering before anything large is
+funded, and it came back yes. Spike 5 gated nothing in the end either: the
+triple was decided on 2026-08-29 without waiting for it, and the count it
+produced the same day is the size of the patch set that decision commits to.
+One package, well inside the threshold DR-0001 set in advance.
 
 ## Spike 1, the thread pointer
 
@@ -94,6 +95,46 @@ Whether a PE TLS callback or an image entry point is early enough is not
 measured here, and it should be measured before that package is written rather
 than discovered inside it. `spike/map-and-jump/results-2026-08-29.txt` is the
 transcript and that spike's README reads it.
+
+## Spike 3, the ABI crossing
+
+Run 2026-08-29, and the answer is yes on the crossing and no on the red zone,
+which are less related than they sound.
+
+The crossing holds in both directions at one function's width. A System V
+caller passed six integers, eight doubles and two stack arguments into a
+`sysv_abi` entry point that then made five descents into Microsoft x64 --
+`GetCurrentThreadId`, `VirtualQuery`, `QueryPerformanceCounter`, the runtime's
+`snprintf`, `Sleep` -- and returned with every System V callee-saved register
+intact. Going the other way, a Microsoft caller reached System V code with all
+eight callee-saved GPRs and all ten callee-saved XMM registers intact, which is
+the direction that could leak, because `%rsi`, `%rdi` and `%xmm6` through
+`%xmm15` are callee-saved to a Windows caller and volatile to a System V
+callee. Windows called in four ways -- a thread start, an APC, a vectored
+exception handler, a Cygwin signal handler -- and each reached System V code one
+frame down. A null store in Microsoft code beneath a System V frame came back
+as SIGSEGV and left by `siglongjmp` past that frame, which is the SEH claim
+AGENTS.md forbids assuming, tested at the only width anyone has tested it.
+
+The red zone is destroyed, and the finding is which layer destroys it. Windows
+does not: preemption with a burner on every processor moved nothing, two
+thousand suspend-and-restore hijacks moved nothing, and Windows' own exception
+dispatch left the nearest 320 bytes below `%rsp` untouched, which is well
+outside the 128 the psABI reserves. Cygwin's signal delivery takes the word at
+`%rsp-8` on every one of two thousand deliveries and everything down to the
+1024 bytes watched, because it hijacks the thread and builds the handler's call
+frame at the interrupted stack pointer.
+
+So `-mno-red-zone` throughout stands, and it is not free: gcc gives a
+`sysv_abi` leaf a red zone on this target and the flag turns `-32(%rsp)` into
+`subq $32, %rsp`. But the code breaking the guarantee is Cygwin's own delivery
+path, which this project already intends to modify, so there is a second option
+beside the flag and choosing between them is the operator's. `AGENTS.md` records
+it as open.
+
+`spike/abi-crossing/results-2026-08-29.txt` is the transcript and that spike's
+README reads it, along with what a one-function measurement does not reach:
+unwind data, `DllMain`, and the runtime actually rebuilt.
 
 ## Spike 4, the payoff
 
@@ -189,9 +230,10 @@ directories on top, but a hundred characters of headroom absorbs that. Measured
 
 ## After the spikes
 
-Unscheduled, because spike 3's answer can still reshape it. `ROADMAP.md`
-inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into packages; the
-sketch below is the shape both of them fill in.
+Still unscheduled, but no longer waiting on a spike. All five have answered,
+and the recommended path survived the one that could have taken it away.
+`ROADMAP.md` inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into
+packages; the sketch below is the shape both of them fill in.
 
 The target triple wanted deciding before the first package was built, and it
 was, on 2026-08-29. The TLS model now wants deciding on the same footing, and
