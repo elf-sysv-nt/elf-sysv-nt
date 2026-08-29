@@ -124,12 +124,35 @@ Delivers: `bfd` target vector, `ld` emulation and default linker script, ELF
 backend, assembler target.
 Done when: `as` accepts `.symver`, `ld` accepts `--version-script` and the
 resulting shared object carries `.gnu.version_d` entries that `readelf -V`
-prints, and a linked object's `EI_OSABI` and `.note.ABI-tag` match WP-10.
+prints, a linked object's `EI_OSABI` and `.note.ABI-tag` match WP-10, and no
+link produces a `%fs`-relative thread pointer fetch.
 
 That second clause is the whole reason the format changed. It is worth an
 explicit test rather than an assumption, because the failure being avoided here
 is precisely a linker that accepts the option and silently discards the version
 names.
+
+The fourth clause was added on 2026-08-29, after the first three had been met.
+There is no port: every pattern binutils matches on is `x86_64-*-linux-*`, so
+2.42 configures, builds and passes the three original criteria untouched, and
+`toolchain/binutils/t/accept.sh` mechanizes them. What the criteria missed is
+that `ld` rewrites the psABI's TLS sequences in place and emits
+`mov %fs:0x0,%rax` out of `bfd`, on a host where spike 1 established that base
+does not survive a context switch. DR-0003 named WP-30's codegen, WP-37's
+loader and WP-13's specs as where the carrier appears, and no linker;
+`spike/ld-tls-relaxation/` is the correction.
+
+The repair is to refuse `R_X86_64_TLSGD`, `TLSLD`, `GOTTPOFF`,
+`GOTPC32_TLSDESC` and `TLSDESC_CALL` rather than to rewrite them differently,
+since the `%gs` chain needs three instructions where the psABI reserves sixteen
+bytes for two, and a link error is the honest answer for an input this
+toolchain cannot translate. `TPOFF32`, `TPOFF64`, `DTPMOD64` and `DTPOFF64`
+stay accepted: they are values rather than sequences, and WP-13 will want
+`TPOFF` for sequences of its own.
+
+Vendor objects that already carry the refused relocations are not this
+package's problem to solve, only to make visible. They belong to proposal
+0003 and to spike 8.
 
 ### WP-13 — gcc, stage one
 
