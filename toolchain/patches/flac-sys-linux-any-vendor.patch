@@ -1,0 +1,33 @@
+Subject: [PATCH] flac: gate FLAC__SYS_LINUX on the os field, not the vendor
+
+flac decides it is on Linux by matching $host against *-pc-linux-gnu, so any
+triple with a vendor other than pc silently loses FLAC__SYS_LINUX and builds
+as though the platform were unknown. Spike 5 walked all 2893 el8 source
+packages looking for exactly this shape and flac is the only live instance;
+the eighteen other literal matches are comments and test fixtures.
+
+The fix is the one upstream eventually made: match the os field, which is
+what the test meant all along. *-*-linux-gnu* covers *-pc-linux-gnu, so no
+existing build changes.
+
+Only configure.ac is patched. flac's el8 spec runs ./autogen.sh at %prep, so
+the generated configure carrying the same line is rebuilt from this one; a
+patch to it would be applied and then discarded, which reads as a second fix
+and is not one.
+
+Against flac-1.3.2-11.el8, sha256
+912d166b2b1b9655047b28345288dff26933964f39261d136b82bc12b00fc73d on the
+source rpm. The triple this exists to accommodate is in
+doc/target-definition.md.
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -186,7 +186,7 @@
+ AM_CONDITIONAL(OS_IS_WINDOWS, test "x$os_is_windows" = xyes)
+ 
+ case "$host" in
+-	*-pc-linux-gnu)
++	*-*-linux-gnu*)
+ 		sys_linux=true
+ 		AC_DEFINE(FLAC__SYS_LINUX)
+ 		AH_TEMPLATE(FLAC__SYS_LINUX, [define if building for Linux])
