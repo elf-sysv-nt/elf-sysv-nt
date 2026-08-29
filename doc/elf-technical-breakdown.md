@@ -235,14 +235,16 @@ the boundary raw, which is Wine's rule restated.
 
 ## The toolchain and the triple
 
-**Foundation poured, assembly required, one decision live.** A binutils and gcc
-that emit ELF for this runtime is routine cross-toolchain work with decades of
-precedent; the gap is labor, not invention. The live decision is the target
-triple. Masquerade as `x86_64-*-linux-gnu` and configure probes report maximum
-Linux fidelity, then discover epoll or inotify missing at link time; choose an
-honest custom triple and the divergence shows sooner and configure results drift
-from the vendor's. Probes link and run under either name, so the truth arrives
-regardless. The choice is where to put it.
+**Foundation poured, assembly required, the naming decision taken.** A binutils
+and gcc that emit ELF for this runtime is routine cross-toolchain work with
+decades of precedent; the gap is labor, not invention. The decision that stood
+open here was the target triple, and it was settled on 2026-08-29 as
+`x86_64-elfsysvnt-linux-gnu`; DR-0001 records it. The argument it settled:
+masquerade as `x86_64-*-linux-gnu` and configure probes report maximum Linux
+fidelity, then discover epoll or inotify missing at link time; choose an honest
+custom triple and the divergence shows sooner and configure results drift from
+the vendor's. Probes link and run under either name, so the truth arrives
+regardless. The choice was where to put it.
 
 It is narrower than it first looks, because the triple has four fields and only
 two carry weight. `config.sub` passes an unrecognized vendor through untouched,
@@ -253,8 +255,9 @@ leaves `linux-gnu` standing where configure looks. Buildroot has shipped
 twenty-six characters, so neither the shape nor the length is new ground. The
 residual cost is the package that matches a literal `*-pc-linux-gnu` or
 `*-unknown-linux-gnu` and misses silently, taking a configure branch nobody
-intended. Spike 5 counts those, and it wants running before the first package is
-built rather than after the hundredth.
+intended. Spike 5 counts those. It no longer has to run before the first
+package is built, since the name is chosen; it has to run before the count
+would be too late to act on, which is before the hundredth.
 
 The os field is closed off for a reason worth recording, because it is not the
 one that would be guessed. `config.sub` does not refuse `elfsysvnt` there; it
@@ -396,10 +399,14 @@ turns a lift into a distribution obligation.
 
 How many el8 packages mishandle a nonstandard vendor field. The vendor-honest
 triple rests on the claim that few do; nobody has counted, and spike 5 exists to
-count them. Path length under the longer vendor is the one part of that
-question already settled: the deepest installed path carrying a triple measures
-146 characters as Windows sees it, 156 with the ten the vendor adds, against a
-`MAX_PATH` of 260. Measured 2026-08-20.
+count them. The triple was decided ahead of that count, so what the count now
+settles is whether the decision was cheap or dear, against the bands in
+DR-0001. The source it will run against is named in DR-0002, and its size is
+measured: 2893 source names across Rocky 8.10's four source repositories,
+24 GB taking the newest build of each. Measured 2026-08-29. Path length under
+the longer vendor is the other part already settled: the deepest installed path
+carrying a triple measures 146 characters as Windows sees it, 156 with the ten
+the vendor adds, against a `MAX_PATH` of 260. Measured 2026-08-20.
 
 That el8 binaries carry 2 MB PT_LOAD alignment. Recalled binutils default,
 settled by one readelf against a vendor binary.

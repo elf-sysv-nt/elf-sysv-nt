@@ -267,3 +267,33 @@ which this ran.
   classifier can run from a dump on a machine with no network and no
   repository, which is exactly the case where it could not produce a manifest
   honestly.
+
+## Addendum, 2026-08-29 — three deviations the implementation forced
+
+Recorded rather than absorbed. Each changed the shape of the harvester after
+the design above was written, and the first two came out of running it.
+
+The dry run priced the four repositories at 5816 builds and 174 GB, over 2893
+source names. Taking every build was never argued for and would have cost 150
+GB to re-read tarballs already read, so the fetcher takes the newest build of
+each name by default and `--all-versions` restores the rest. Where the design
+said "for each package in turn", read "for each source name".
+
+Whole-tarball extraction is not affordable and the design assumed it was.
+`389-ds-base` turns 49 MB of SRPM into 521 MB across a vendored `node_modules`
+and a cargo cache, and the literal-vendor grep over that had not returned in
+ten minutes; 2893 packages at anything near that is a week of wall time. So
+`--extract host-tests` is the default and takes `config.sub`, `config.guess`,
+`configure`, `configure.ac`, `configure.in` and the m4 out of each archive.
+
+That narrows the second probe, which is exactly the flaw this proposal held
+against the vendored-tree alternative, so the narrowing is named in every
+transcript as `extract_scope` and `--extract all` is kept for pricing it. The
+difference between the two scopes is itself measurable: a few dozen packages
+each way settles what the default costs, and nobody has run that yet.
+
+A lock was added. Two instances overlapped on 2026-08-29 and the one behind
+skipped a package the one ahead had just finished; worse, the start-up reap of
+stale working directories would have deleted a live run's own. Neither was in
+the design. A run now takes a lock on its destination, refuses a destination
+another live run holds, and treats a lock naming a dead pid as stale.

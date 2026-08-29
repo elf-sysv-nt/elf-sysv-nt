@@ -2,9 +2,10 @@
 
 `ROADMAP.md` says what has to exist. This says in what units it gets built, what
 each unit needs before it can start, and how anyone can tell it is finished.
-Same assumed path, same three reserved decisions, same caveat: a negative on
-spike 3 invalidates everything from phase 2 onward and the plan gets rewritten
-rather than patched.
+Same assumed path, same three reserved decisions — one of which, the target
+triple, was taken on 2026-08-29 and is recorded in DR-0001 — and the same
+caveat: a negative on spike 3 invalidates everything from phase 2 onward and
+the plan gets rewritten rather than patched.
 
 A work package is the smallest thing worth an entry criterion. Each carries
 four lines. Needs names the packages that must be finished first, and an empty
@@ -40,10 +41,11 @@ program.
 
 ### WP-10 — the target definition record
 
-Needs: spike 5.
+Needs: nothing. It waited on spike 5 until the triple was decided without it.
 Delivers: `doc/target-definition.md`, carrying five values that must agree — the
 triple, the `EI_OSABI` byte, the `.note.ABI-tag` payload, the dynamic linker
-SONAME, and the `uname` strings.
+SONAME, and the `uname` strings. The triple is fixed by DR-0001 and this
+package cites it rather than restating the argument; the other four are open.
 Done when: every later package that hardcodes one of the five cites this
 document rather than a memory of it.
 
@@ -541,8 +543,8 @@ WP-T1 through WP-T3 and fails this one has not done the job.
 
     spike 1 ─────────────────────────► WP-30 ─┐
     spike 3 ─────────────► phase 2 ───────────┤
-    spike 5 ─► WP-10 ─► WP-11 ─► WP-12 ─► WP-13 ─► WP-14 ─► WP-15 ─► WP-16
-                  └───► WP-50 ─────────────────────┘
+    WP-10 ─► WP-11 ─► WP-12 ─► WP-13 ─► WP-14 ─► WP-15 ─► WP-16
+       └───► WP-50 ─────────────────────┘
     WP-20 ─► WP-21 ─► WP-22 ─► WP-23 ─► WP-43
                         └────► WP-24, WP-25
     WP-31 ─► WP-32 ─► WP-33 ─► WP-34 ─► WP-35 ─► WP-36 ─► WP-38
@@ -561,9 +563,10 @@ the project first sees the point.
 
 ## Not verified
 
-The three assumed decisions, which `ROADMAP.md` tabulates and which spikes 1, 3,
-and 5 exist to settle. None has run, and phase 2 is written as though spike 3
-answered yes.
+The two assumed decisions still open, which `ROADMAP.md` tabulates and which
+spikes 1 and 3 exist to settle. Neither has run, and phase 2 is written as
+though spike 3 answered yes. The third was decided rather than measured, in
+DR-0001, which also says what would reopen it.
 
 That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than

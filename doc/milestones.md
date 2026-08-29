@@ -4,8 +4,9 @@ The first five milestones are spikes, and none produces shippable code. That is
 deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
-month one. The fifth spike answers a naming decision rather than a technical
-one, on the same grounds.
+month one. Four of the spikes gate something. The fifth prices a naming
+decision that has since been taken without it, which is the only change to
+this list since it was written.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 the first four and a count for the fifth. The verdict is the deliverable.
@@ -20,31 +21,35 @@ In dependency order, which is also cost order.
 | 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image |
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point |
-| 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | The target triple, and the toolchain behind it |
+| 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It prices DR-0001 rather than gating it. |
 
 Spike 1 is an afternoon and decides a layer. Spike 3 is the expensive one, and
 a no there sends the program to the veneer-thunk fallback, which is a different
 program. Spike 4 gates nothing technically; it measures whether the whole
 edifice repairs what it was built to repair, and it should run before anything
-large is funded. Spike 5 is out of dependency order because it is cheap, it
-touches no runtime behavior, and its answer is wanted early.
+large is funded. Spike 5 gates nothing either, now: the triple was decided on
+2026-08-29 without waiting for it, so the count it produces is the size of the
+patch set that decision commits to, read against the threshold DR-0001 sets in
+advance.
 
 ## Spike 5, the target triple
 
 The triple has four fields and they are not equally load-bearing. Only `os` and
 `abi` are consulted by the machinery that would break; `vendor` is passed
-through by `config.sub` untouched and read by almost nothing. So the candidate
-is `x86_64-elfsysvnt-linux-gnu`, which puts the honest name where it costs
-least and leaves `linux-gnu` standing where configure actually looks. Buildroot
-has shipped `x86_64-buildroot-linux-gnu` on that reasoning for over a decade,
-and crosstool-NG ships `unknown` in the same slot, so neither the shape nor the
+through by `config.sub` untouched and read by almost nothing. So the triple is
+`x86_64-elfsysvnt-linux-gnu`, decided on that reasoning and recorded in
+DR-0001: it puts the honest name where it costs least and leaves `linux-gnu`
+standing where configure actually looks. Buildroot
+has shipped `x86_64-buildroot-linux-gnu` on the same grounds for over a decade,
+and crosstool-NG ships `unknown` in that slot, so neither the shape nor the
 length is novel.
 
 What the vendor costs is the open question. A package that matches `*-linux-gnu`
 is unaffected; one that matches the literal `*-pc-linux-gnu` or
 `*-unknown-linux-gnu` misses, silently, and takes a configure branch nobody
-intended. Such packages exist. How many is the number that decides this, and
-guessing at it is precisely the habit these spikes exist to break.
+intended. Such packages exist. How many is the size of the patch set the
+decision commits to, and guessing at it is precisely the habit these spikes
+exist to break.
 
 The script takes the `config.sub` shipped by each package in the el8 source
 set, feeds it three candidates, and records the canonicalized output of each:
@@ -64,7 +69,9 @@ A verdict of a handful is a patch set. A verdict in the hundreds argues for the
 masquerade, and the honest name moves to `EI_OSABI`, the `.note.ABI-tag`, the
 dynamic linker SONAME, and `uname`, which is arguably where it belonged anyway:
 those are read at runtime, by tools, whereas the triple is a build-time label
-that no shipped artifact consults.
+that no shipped artifact consults. Where the line between the two sits is in
+DR-0001, as a share of packages rather than as an adjective, written before the
+count so that the count cannot be read to suit.
 
 Path length is settled and needs no spike. On this machine the deepest
 installed path carrying a triple is a libstdc++ policy header at 132 characters
@@ -76,12 +83,12 @@ directories on top, but a hundred characters of headroom absorbs that. Measured
 
 ## After the spikes
 
-Unscheduled, because three of the five answers can reshape it. `ROADMAP.md`
+Unscheduled, because two of the five answers can still reshape it. `ROADMAP.md`
 inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into packages; the
 sketch below is the shape both of them fill in.
 
-The target triple wants deciding before the first package is built, and spike 5
-is what it waits on. The toolchain follows, which is routine cross-toolchain
+The target triple wanted deciding before the first package was built, and it
+was, on 2026-08-29. The toolchain follows, which is routine cross-toolchain
 work. Then the loader, where musl's `dynlink.c` is the working model and the
 verdef and verneed matcher is the part musl leaves out. `elfsysv1.dll` and the
 libc veneer come after the loader can run something. The `r_debug` rendezvous
