@@ -1,9 +1,32 @@
 # Issue 0001 — the stub only accepts the shape it synthesized
 
-Status: open
+Status: closed 2026-08-29
 Raised: 2026-08-29, by WP-14
 Against: `stub.c`, `map-and-jump-stub 1.0`
-Blocks: WP-14's exit criterion
+Blocked: WP-14's exit criterion, which now passes 9 of 9
+
+Both changes below were made. The shape check is gone, the handshake block is a
+page the stub allocates after the reservation, and `AT_SPIKE_RODATA` and
+`AT_SPIKE_BSS` are derived from the image's own segments and omitted rather
+than zeroed when absent. Spike 2's summary block still diffs clean against its
+committed transcript, so the verdict it recorded is untouched.
+
+Two things surfaced that this issue did not predict.
+
+The execute probe followed the handshake. It planted a byte inside the image's
+writable segment, which was harmless against a specimen the stub had written
+and is not harmless against a linked image; it now plants at an explicit
+segment address and restores the original byte rather than zeroing it.
+
+Seven of the stub's nine post-return checks score the image against the
+specimen's report protocol, which only `payload.S` speaks. A linked image
+cannot fill in `out_rodata` or `out_pagesz` and was never going to, so the stub
+gained `--no-image-report` as an explicit caller statement. It is not inferred
+from a blank handshake block, because a specimen that dies before reporting
+leaves a blank block too and has to keep failing.
+
+The remaining item in Not verified stands: nobody has checked whether WP-32's
+loader inherited the same "one of each protection" reading.
 
 The spike's verdict stands and nothing here disputes it. A PE stub can map a
 static ELF and enter it; the transcript is real and the mechanism works.

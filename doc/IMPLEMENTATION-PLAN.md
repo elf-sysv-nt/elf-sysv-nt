@@ -221,19 +221,28 @@ Needs: WP-13, WP-50.
 Delivers: the sysroot layout, `crt1.o`, `Scrt1.o`, `crti.o`, `crtn.o`, `libgcc`.
 Done when: a static hello links and the spike 2 stub runs it.
 
-Delivered 2026-08-29, criterion half met. The startup files assemble, the
-sysroot lays out with el8's usrmerge links, and a static hello links and
-carries the right headers: seven claims in `toolchain/csu/t/`. The stub does
-not run it, and the obstacle is the stub's.
+Closed 2026-08-29, nine claims of nine. The startup files assemble, the
+sysroot lays out with el8's usrmerge links, a static hello links and carries
+the right headers, and the spike 2 stub maps it, enters it and gets control
+back.
 
-Spike 2 could not link anything -- its README says so -- so everything its
-stub knows about image shape it learned from a synthesized specimen with
-exactly three `PT_LOAD` segments, one of each protection, and a handshake
-block at the head of the writable one. `ld` gives this hello four, and puts
-the image's own data where the handshake goes. The first thing WP-12 made
-possible immediately found a limit in the harness written before it existed.
-`spike/map-and-jump/issue/0001` states it as work; nothing in WP-14 waits on
-anything but that.
+Getting there meant repairing the harness rather than the package. Spike 2
+could not link anything -- its README says so -- so everything its stub knew
+about image shape it learned from a synthesized specimen with exactly three
+`PT_LOAD` segments, one of each protection, and a handshake block at the head
+of the writable one. `ld` gives this hello four, and put the image's own
+`data_word` exactly where the handshake went. The first thing WP-12 made
+possible found a limit in the harness written before it existed, which is
+roughly what should happen.
+
+The stub now takes the image's shape from the image and allocates its handshake
+page rather than borrowing the image's. Spike 2's summary block still diffs
+clean against its committed transcript, so the verdict it recorded is
+untouched. `spike/map-and-jump/issue/0001` carries what else surfaced,
+including two of this package's own tests that could not have passed: the
+`.bss` claim compared `MemSiz` against the flags column, and the stub was
+invoked with `--quiet`, which suppressed the output the next claim then
+grepped for.
 
 ### WP-15 — gcc, full bootstrap
 
