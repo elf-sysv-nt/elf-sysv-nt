@@ -19,6 +19,8 @@
 #   -P DIR, --prefix=DIR  Where the toolchain is installed.
 #                         [default: $HOME/x-elfsysvnt]
 #   -T TRIPLE, --target=TRIPLE
+#                         The triple is doc/target-definition.md's;
+#                         change it there rather than here.
 #                         [default: x86_64-elfsysvnt-linux-gnu]
 #   -S DIR, --spike=DIR   Spike 2's directory.
 #                         [default: ../../../spike/map-and-jump]
@@ -150,11 +152,14 @@ run "$LD" -static --no-dynamic-linker -Ttext-segment=0x10000000 \
 claim 'it links at all'            test -s hello.elf
 claim 'it is a static executable'  grep -q 'EXEC (Executable file)' hdr.txt
 claim 'no interpreter is named'    sh -c '! grep -q INTERP seg.txt'
+# Compared as hex strings with leading zeros stripped, not through shell
+# arithmetic: readelf prints the symbol value 16 digits wide, and $(( )) reads
+# a leading zero as octal and refuses the digits above 7.
 claim 'the entry is _start' \
-    sh -c 'e=$(sed -n "s/.*Entry point address: *//p" hdr.txt);
-           s=$(awk "/ _start\$/ {print \$2}" sym.txt | head -1);
-           [ "0x$(printf %x $((s)))" = "$e" ] 2>/dev/null ||
-           [ "$e" = "0x$(echo $s | sed "s/^0*//")" ]'
+    sh -c 'e=$(sed -n "s/.*Entry point address: *0x//p" hdr.txt | tr A-F a-f);
+           s=$(awk "/ _start\$/ {print \$2}" sym.txt | head -1 |
+               sed "s/^0*//" | tr A-F a-f);
+           [ -n "$s" ] && [ "$s" = "$e" ]'
 claim 'EI_OSABI matches the record' grep -q 'OS/ABI: *UNIX - System V' hdr.txt
 # readelf -lW columns are Type Offset VirtAddr PhysAddr FileSiz MemSiz Flg
 # Align, so MemSiz is $6 and FileSiz is $5. A first version compared $6 with

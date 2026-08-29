@@ -11,6 +11,9 @@
 # problem this solves is vintage and not vendor, and the fix is the ordinary
 # one every distribution already applies: put a current pair in the tree.
 #
+# The triple this checks the seeded config.sub against is
+# doc/target-definition.md's. Change it there rather than here.
+#
 # Reseeded, never edited. Each copy is replaced outright from a pristine pair
 # built once from the pinned upstream plus this project's patch, so a run is a
 # function of the pin rather than of what the last run did. Editing in place
