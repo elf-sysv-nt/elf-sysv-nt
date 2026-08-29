@@ -80,6 +80,14 @@ loader are three living implementations of it, and LBW did it on Windows
 specifically. Mapping is a few thousand lines of well-trodden code, liftable in
 spirit even where license forbids lifting it in fact.
 
+Poured here too, as of 2026-08-29. Spike 2 reserved the span, committed and
+protected one region per PT_LOAD, built the stack, and jumped; the image ran at
+its link address and returned. What it added to the recalled account is one
+constraint that none of the prior art has to face, because none of it runs
+under a runtime that started first: the span has to be claimed before anything
+else in the process allocates without a base, since Windows hands out the
+lowest free region. `spike/map-and-jump/` carries the measurement.
+
 ## The initial process image
 
 **Foundation poured.** The gap: the kernel builds the initial stack, the
@@ -417,7 +425,14 @@ triple measures 146 characters as Windows sees it, 156 with the ten the vendor
 adds, against a `MAX_PATH` of 260. Measured 2026-08-20.
 
 That el8 binaries carry 2 MB PT_LOAD alignment. Recalled binutils default,
-settled by one readelf against a vendor binary.
+settled by one readelf against a vendor binary. Spike 2 showed the mapping
+works either way, so the answer now sizes the spans rather than deciding the
+method.
+
+That anything in a PE stub runs early enough to reserve a non-PIE image's span
+before the runtime under it allocates. Spike 2 established that something has
+to and named a TLS callback and the image entry point as the candidates.
+Neither has been tried.
 
 Gramine and Graphene as a design reference rather than a source. Cited for the
 libc-redirected-syscall pattern, not read line by line today.

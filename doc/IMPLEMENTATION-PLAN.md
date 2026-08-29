@@ -30,10 +30,14 @@ here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-Spikes 1 and 2 could run in parallel; nothing connects them. Spike 3 wants
-spike 2's stub as a convenient carrier but does not require it, and spike 4 is
-independent of the others and should run early because it prices the whole
-program. Spikes 1 and 5 are done, both 2026-08-29.
+Spikes 1, 2 and 5 are done, all on 2026-08-29. Spike 3 wants spike 2's stub as
+a convenient carrier and now has one; spike 4 is independent of the others and
+should run early because it prices the whole program.
+
+Spike 2 came back yes and left one constraint behind, which WP-32 and WP-41
+carry below: a non-PIE image's span has to be reserved before anything else in
+the process allocates without a base, because Windows hands out the lowest free
+region and a Cygwin runtime allocates before `main`.
 
 Spike 1 came back no, which is the branch `milestones.md` reserved and not a
 delay. `%fs`-relative TLS is unavailable on this host: the base is writable and
@@ -252,8 +256,22 @@ visible to Cygwin's own bookkeeping, which is what WP-41 depends on entirely.
 
 Windows reserves at 64 KB granularity and ELF aligns segments at 4 KB, so the
 arithmetic is the interesting part; cross-process text sharing is the price.
-Whether el8 binaries carry the linker's 2 MB `max-page-size` default makes this
-easier or harder, and one `readelf` against a vendor binary settles it.
+Spike 2 did that arithmetic on 2026-08-29 and it holds at both alignments,
+including the 2 MB one. It also settled three details this package no longer
+has to discover. Freshly committed pages arrive zeroed, so `.bss` is free. A
+link base that is not granule-aligned costs the bytes between it and the
+granule below and nothing else. And the protections have to be applied in a
+second pass after every segment is copied, because two segments can share a
+page and a segment made read-only before its neighbour is filled makes the
+fill fault.
+
+What spike 2 did not settle, and what still costs this package, is the address
+rather than the arithmetic: at a 2 MB `p_align` a three-segment image spans
+4 MB, and 4 MB at `0x400000` was unavailable in a Cygwin process every time it
+was asked. That is WP-41's ordering problem rather than this one's, but the
+span this package computes is what makes it bite. Whether el8 binaries carry
+the linker's 2 MB `max-page-size` default therefore decides how often it
+bites, and one `readelf` against a vendor binary still settles it.
 
 ### WP-33 — the object graph
 
@@ -363,6 +381,18 @@ Descriptor inheritance, close-on-exec, the environment, the working directory,
 signal disposition reset, and `AT_SECURE` all come with it. Cygwin's `execve`
 never could replace a process image, so the parent-stub fiction is inherited
 rather than introduced.
+
+Risk, and it is spike 2's: the reservation has to come first, before anything
+else in the process allocates without a base. Windows satisfies a
+based-anywhere allocation out of the lowest free region, so a runtime that has
+already started has already taken part of where a non-PIE image expects to
+live. Measured 2026-08-29: a 4 MB span at `0x400000`, which is what a
+three-segment image with a 2 MB `p_align` asks for, was refused twenty times in
+twenty inside a Cygwin process, while the same image mapped at `0x10000000`
+without complaint. Reserving from a PE TLS callback or the image entry point,
+ahead of the runtime's own initialization, is where this points, and whether
+that is early enough is unmeasured. Measure it at the start of this package
+rather than discovering it in the middle.
 
 ### WP-42 — fork
 
@@ -594,9 +624,15 @@ That Cygwin's `fork` replays every mapping made through its own `mmap`. WP-42 is
 built entirely on it and it is asserted from the design of both rather than
 measured.
 
-That el8 binaries carry 2 MB `PT_LOAD` alignment. WP-32's arithmetic is easier
-if they do; one `readelf` against a vendor binary settles it and nobody has run
-it.
+That el8 binaries carry 2 MB `PT_LOAD` alignment. Spike 2 showed WP-32's
+arithmetic works either way, so what this now decides is how often WP-41's
+ordering constraint bites rather than whether the mapping is harder. One
+`readelf` against a vendor binary settles it and nobody has run it.
+
+That a PE TLS callback or an image entry point runs early enough to reserve a
+non-PIE image's span before the runtime takes part of it. Spike 2 established
+that something has to, and named these as where to look; neither has been
+tried. WP-41 rests on one of them working.
 
 The size of the WP-51 map. Several thousand bindings is an estimate from the
 shape of glibc's export list, not a count.

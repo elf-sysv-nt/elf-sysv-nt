@@ -187,9 +187,13 @@ Mapping runs through Cygwin's `mmap`. That is not a detail; it is the mechanism
 that makes `fork` work later. Windows reserves address space at 64 KB
 granularity against ELF's 4 KB segment alignment, so segments are placed by
 reserve-and-commit inside one region per object, and cross-process text sharing
-is given up in exchange. If el8 binaries do carry the linker's 2 MB
-`max-page-size` default, the arithmetic gets easier; one `readelf` against a
-vendor binary settles it, and it has not been run.
+is given up in exchange. Spike 2 did that arithmetic on 2026-08-29 and it holds
+at 4 KB and at 2 MB alike; it also found that freshly committed pages arrive
+zeroed, so `.bss` costs nothing, and that a link base off the granule costs the
+bytes below it and nothing more. If el8 binaries do carry the linker's 2 MB
+`max-page-size` default the spans are megabytes rather than kilobytes, which
+makes section 7's ordering problem the common case rather than the awkward one;
+one `readelf` against a vendor binary settles it, and it has not been run.
 
 Then the object graph. `DT_NEEDED` walked breadth-first, `DT_SONAME` as the
 identity, `DT_RPATH` and `DT_RUNPATH` with their precedence difference,
@@ -281,6 +285,16 @@ The stub itself is a PE image with almost nothing in it: reserve a large region
 for the ELF world, opt out of CET shadow stacks and Control Flow Guard, load
 the runtime, hand the loader the file and the argument vector, and get out of
 the way. It carries the ELF world's address space and none of its semantics.
+
+Spike 2 built one on 2026-08-29 and it worked, and it moved one word in that
+paragraph from decoration to requirement: *first*. Windows satisfies an
+allocation with no requested base out of the lowest free region, so whatever
+runs before the reservation has already taken part of where a non-PIE image
+expects to live. A 4 MB span at `0x400000` was refused twenty times in twenty
+inside a Cygwin process, and the same image at `0x10000000` mapped without
+complaint. The reservation therefore has to happen ahead of the runtime's own
+initialization -- a PE TLS callback or the image entry point are where to look
+-- and whether either is early enough is unmeasured.
 
 Around that sit the ordinary `exec` obligations. Descriptor inheritance and
 close-on-exec, the environment, the working directory, signal disposition
@@ -462,8 +476,15 @@ afternoon. What section 3 says about the TCB layout survives spike 1's answer;
 what it used to say about establishing the base does not, and has gone.
 
 That el8 binaries carry 2 MB `PT_LOAD` alignment. Recalled binutils default;
-one `readelf` against a vendor binary settles it, and the mapping arithmetic in
-section 4 rests on it.
+one `readelf` against a vendor binary settles it. Spike 2 relieved section 4's
+arithmetic of depending on the answer, so what still rests on it is how large
+the spans in section 7 usually are, and therefore how hard the reservation has
+to work to get in first.
+
+That a PE TLS callback or an image entry point runs early enough to reserve a
+non-PIE image's span before anything else in the process allocates. Spike 2
+established that something must and named these as the candidates; neither has
+been tried, and section 7's stub rests on one of them working.
 
 That el8's rpm carries `elfdeps` and `fileattrs`. The Cygwin port of rpm 4.18
 omits both, and whether that omission belongs to the port or to the version is
