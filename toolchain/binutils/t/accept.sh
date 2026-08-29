@@ -94,7 +94,8 @@ done
 AS=$target-as
 LD=$target-ld
 READELF=$target-readelf
-for t in "$AS" "$LD" "$READELF"; do
+OBJDUMP=$target-objdump
+for t in "$AS" "$LD" "$READELF" "$OBJDUMP"; do
     command -v "$t" >/dev/null 2>&1 || usage_error "$t is not on PATH"
 done
 
@@ -184,6 +185,38 @@ run "$LD" -shared -o ifunc.so ifunc.o ||
 # only that the byte is zero, not that it is zero for a reason.
 claim 'an ifunc promotes the object to ELFOSABI_GNU' \
     grep -q 'OS/ABI: *UNIX - GNU' ihdr.txt
+
+# The fourth criterion, added after the first three were already met. ld
+# relaxes the psABI's TLS sequences in place and writes its own %fs-relative
+# fetch, which none of the claims above would have caught; spike/ld-tls-relaxation/
+# measured it and the bfd patch under ../patches/ refuses the relocations that
+# license the rewrite.
+#
+# One object per model, not one object carrying three. A combined object
+# proves only that the first model met was refused, and a draft of that patch
+# passed exactly that way while local dynamic still linked and leaked.
+refused() {
+    model=$1
+    run "$AS" --defsym "MODEL_$model=1" -o "tls$model.o" "$here/tls-models.s" ||
+        { note "the assembler rejected model $model"; return 1; }
+    # Assembling has to keep working. gas is not the layer at fault here, and
+    # a target that could not express the sequences could not diagnose them.
+    "$LD" -o "tls$model.exe" "tls$model.o" -e _start > "tls$model.err" 2>&1
+    [ $? -ne 0 ] || return 1
+    grep -q 'thread pointer in the FS segment' "tls$model.err"
+}
+
+claim 'general dynamic is refused'         refused GD
+claim 'local dynamic is refused'           refused LD
+claim 'initial exec is refused'            refused IE
+
+# And the other half: refusing everything would also pass the three above.
+leaks() {
+    run "$AS" --defsym MODEL_LE=1 -o tlsLE.o "$here/tls-models.s" || return 1
+    run "$LD" -o tlsLE.exe tlsLE.o -e _start || return 1
+    ! "$OBJDUMP" -d tlsLE.exe | grep -q '%fs:'
+}
+claim 'local exec still links, with no %fs in the output' leaks
 
 if [ "$terse" = 1 ]; then
     printf 'target=%s\npasses=%d\nfailures=%d\n' "$target" "$passes" "$failures"

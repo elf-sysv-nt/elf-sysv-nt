@@ -157,6 +157,24 @@ if [ ! -d "$srcdir" ]; then
     ( cd "$work/src" && tar xf "$tarball" ) || die "cannot unpack $tarball"
 fi
 
+# Patches are applied to a source tree that is kept between runs, so applying
+# them twice would fail on the second. Each is recorded once it lands and the
+# stamp is what makes a rerun a no-op rather than an error.
+applied=$srcdir/.elfsysvnt-patches
+touch "$applied"
+for p in "$here"/patches/*.patch; do
+    [ -e "$p" ] || break
+    name=$(basename "$p")
+    if grep -qxF "$name" "$applied"; then
+        chat "already applied: $name"
+        continue
+    fi
+    chat "applying $name"
+    ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
+        die "$name did not apply to binutils $version"
+    printf '%s\n' "$name" >> "$applied"
+done
+
 rm -rf "$builddir" || die "cannot clear $builddir"
 mkdir -p "$builddir" "$sysroot" || die "cannot create $builddir"
 
