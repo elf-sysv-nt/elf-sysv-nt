@@ -1,0 +1,81 @@
+
+a user-written FS base against the Windows scheduler
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+windows     10.0.26200.9168
+cpu         AMD Ryzen 5 7530U with Radeon Graphics         
+processors  12
+compiler    gcc (GCC) 7.4.0
+date        2026-08-29T10:07:28Z
+script      measure-fs-base 1.0
+
+== capability
+
+    cpuid leaf 7 FSGSBASE      yes
+    IsProcessorFeaturePresent  yes
+    the instruction executes   yes
+    %fs:0 addresses through it yes
+
+    The first two report what the processor and the loader
+    believe. CR4.FSGSBASE is the kernel's to set, so the third
+    one is the evidence and the fourth says the base is used
+    for address translation rather than merely remembered.
+
+== cases
+
+                             checks       failures
+    round trip                 2000              0
+    syscall                   20000              0
+    yields                    20000          19997
+    blocking wait             20000          20000
+    migration                  2000           1999
+    apc                        4000              0
+    hijack                      397            390
+    signal, sync               4000           4000
+    signal, fault               400            400
+    signal, async           3521559        3509013
+    preemption           4188400000     4175045750
+    load                 3040772224     3039675712
+
+    A check writes a base once, provokes the case's event, and
+    reads the base back. Only the round trip dereferences %fs:0,
+    under a guard, because a base that goes between the read and
+    the dereference takes the thread with it.
+
+== what came back instead
+
+    yields           wanted 0x6fffffd0000  got 0x0  at check 4
+    blocking wait    wanted 0x6fffffc0000  got 0x0  at check 1
+    migration        wanted 0x6fffffb0000  got 0x0  at check 2
+    hijack           wanted 0x6fffff90000  got 0x0  at check 8
+    signal, sync     wanted 0x6fffff80000  got 0x0  at check 1
+    signal, fault    wanted 0x6fffff70000  got 0x0  at check 1
+    signal, async    wanted 0x6fffff60000  got 0x0  at check 12558
+    preemption       wanted 0x6fffff50000  got 0x0  at check 13354251
+    load             wanted 0x6ffffde0000  got 0x0  at check 162113
+
+== observations
+
+    thread start     starts at zero
+    fork             the child's base is 0x0
+
+    Neither of these is a pass or a fail. The loader sets the
+    base at thread start and can set it again after a fork; what
+    matters is that the answer is the same every time.
+
+== summary
+
+    verdict=no
+    cases=12
+    cases_failed=9
+    cases_incomplete=0
+    shape=round trip:pass,syscall:pass,yields:fail,blocking wait:fail,migration:fail,apc:pass,hijack:fail,signal, sync:fail,signal, fault:fail,signal, async:fail,preemption:fail,load:fail
+    checks=7232766580
+    failures=7218277261
+    switches_under_load=47490897
+    preemption_checks_per_second=461877231
+    preemption_survived_ms=28.9
+    load_threads=24
+    load_seconds=10
+    probe=fs-base-probe 1.0
