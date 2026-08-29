@@ -49,17 +49,40 @@ with a different veneer.
 
 ## Status
 
-The spikes are done and nothing else is started. No toolchain, no loader, no
-DLL, and no code beyond the probes the spikes are made of. All five ran on
-2026-08-29. Spike 1 found that Windows does not preserve a user-written FS
-base, which takes `%fs`-relative TLS off the table and leaves the replacement
-open. Spike 2 mapped a static ELF from a PE stub and entered it, with a
-constraint on when the image's span has to be claimed. Spike 3 crossed the ABI
-boundary in both directions and found the red zone destroyed by Cygwin's own
-signal delivery rather than by Windows. Spike 4 got el8's `elfdeps` to read a
-vendor-shaped `Requires` off a synthesized `libc.so.6`, byte for byte, which is
-the whole point of the exercise demonstrated in miniature. Spike 5 priced the
-target triple at one affected package in 2893.
+Eight spikes have run, all on 2026-08-29, and phase 1 has started. There is no
+loader and no DLL.
 
-What is open is the TLS model, which is the operator's to pick, and the choice
-between two repairs for the red zone. `AGENTS.md` reserves both.
+Spike 1 found that Windows does not preserve a user-written FS base, which took
+`%fs`-relative TLS off the table. Spike 2 mapped a static ELF from a PE stub
+and entered it, with a constraint on when the image's span has to be claimed.
+Spike 3 crossed the ABI boundary in both directions and found the red zone
+destroyed by Cygwin's own signal delivery rather than by Windows. Spike 4 got
+el8's `elfdeps` to read a vendor-shaped `Requires` off a synthesized
+`libc.so.6`, byte for byte, which is the point of the exercise in miniature.
+Spike 5 priced the target triple at one affected package in 2893. Spike 6
+measured four `%gs` carriers for the thread pointer `%fs` could no longer hold,
+and DR-0003 took one. Spike 7 showed a signal delivery that reserves the red
+zone before building its frame keeps it whole. Spike 8 found that an access
+through a zeroed FS base faults rather than reading, and that a handler can
+resume from it, which is what allows a load-time rewriter for vendor binaries
+to be a heuristic rather than exhaustive.
+
+In phase 1, the target definition is settled in `doc/target-definition.md` and
+`config.guess` names the vendor. Binutils builds for the triple with no port at
+all, and passes ten acceptance claims covering symbol versioning and the header
+bytes. That package is reopened rather than finished: `ld` emits its own
+`%fs`-relative thread pointer fetches, which nothing in the original criteria
+caught.
+
+What is open is the choice between two repairs for the red zone, which
+`AGENTS.md` reserves, and two licence questions that DR-0004 reserves for
+counsel.
+
+## Licence
+
+LGPLv3 or later. Inherited rather than chosen: this rebuilds Cygwin's `winsup`
+library with a different export face, and Cygwin's own linking exception
+excludes a library based on the Cygwin library by its own definition.
+`doc/decisions/0004-license.md` carries the reasoning and the two questions
+that are not an engineer's to answer. `LICENSE` states the position, and no
+linking exception is granted here yet.

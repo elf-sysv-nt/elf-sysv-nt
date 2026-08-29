@@ -396,8 +396,11 @@ and not to the `GLIBC_2.2.5` one in the same library, and removing the node from
 the library makes the load fail rather than silently pick the survivor.
 
 This is the package the whole project exists for, it is a few hundred lines, and
-it is written from Drepper's specification because glibc's implementation is GPL
-and assumes a kernel we do not have. Budget review time rather than coding time.
+it is written from Drepper's specification because glibc's implementation is
+LGPL-2.1-or-later and assumes a kernel we do not have. Copying it would make
+this a derivative either way, so the reason to write from the specification
+stands; the licence is named correctly here because DR-0004 turns on the
+difference. Budget review time rather than coding time.
 
 ### WP-37 — TLS in the loader
 
