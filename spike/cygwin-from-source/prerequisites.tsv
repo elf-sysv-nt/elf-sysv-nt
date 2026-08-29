@@ -1,0 +1,29 @@
+# What a winsup build wants, and what this machine was missing.
+#
+# Built in the primary Cygwin root, which is where this project's work happens
+# and which runs Cygwin 3.6.9 with gcc 14. The RHEL-8.10 emulation cannot do
+# this job and that is a finding rather than a preference: it is pinned at
+# Cygwin 3.0.7 from a 2019 snapshot on purpose, because RHEL 8.10 ships gcc 8
+# and python 3.6 and matching them is the point of that instance. A 2019
+# toolchain will not build a 2025 Cygwin, and raising it would defeat the
+# instance. The two roots do different jobs.
+#
+# Every line below was absent when this spike started and was installed by
+# setup-x86_64.exe from the mirror the primary root already uses.
+#
+# package	why
+gcc-g++	winsup is C++ and only gcc-core was installed
+gperf	generates the perfect hash for winsup's symbol tables
+flex	winsup's lexers
+bison	winsup's parsers
+autoconf	the tree is a git checkout rather than a release tarball
+automake	same
+texinfo	makeinfo, which the build calls even when it builds no docs
+zlib-devel	winsup links it
+libiconv-devel	winsup links it
+gettext-devel	same
+mingw64-x86_64-gcc-core	the DLL's mingw-side helpers
+mingw64-x86_64-gcc-g++	same
+mingw64-x86_64-headers	the w32api the DLL is compiled against
+mingw64-x86_64-runtime	same
+mingw64-x86_64-zlib	linked by the mingw-side pieces

@@ -1,0 +1,95 @@
+# Can this machine build cygwin1.dll, and does a reserving delivery hold?
+#
+# Run 2026-08-29. Two questions; the first is answered and the second is not.
+
+host              ins-15
+kernel            CYGWIN_NT-10.0-26200 3.6.10-1.x86_64
+root              /c/-/cygwin/root  (the primary root, not the RHEL emulation)
+compiler          gcc 14.4.0, g++ 14.4.0, x86_64-w64-mingw32-gcc 14.4.0
+source            /c/-/repo/newlib-cygwin at cygwin-3.6.10, clean
+build             /c/-/cyg9
+
+== question 1: can a stock cygwin1.dll be built from source?
+
+    verdict                    yes
+    prerequisites installed    15, all absent beforehand; prerequisites.tsv
+    configure                  rc=0, after --disable-doc
+    first attempt              failed: docbook2texi is required to build
+                               documentation. winsup offers --disable-doc and
+                               that is cheaper than a docs toolchain.
+    make -j12                  new-cygwin1.dll, 24690539 bytes
+    the emulation root         cannot do this job. It is Cygwin 3.0.7 from a
+                               2019 snapshot, pinned to match RHEL 8.10's gcc 8
+                               and python 3.6, and a 2019 toolchain will not
+                               build a 2025 Cygwin.
+
+    This is the finding that mattered. Phase 2 rests entirely on rebuilding
+    this DLL and nothing in this project had ever tried.
+
+== the reservation patch
+
+    applies                    yes, to scripts/gendef
+    assembles                  yes
+    in the object              sigdelayed: sub $0x80,%rsp before push %r10
+    in the linked DLL          yes, at 1801a2ef7
+    relink                     rc=0
+
+== question 2: does the reservation keep the red zone whole?
+
+    verdict                    UNANSWERED. The probe is not sensitive to the
+                               frame it was built to watch, and the
+                               differential is what proves it.
+
+    single word at -8, stock installed dll
+        deliveries             813
+        covered rounds         812
+        broken                 0
+    control arm, a call into the same window
+        rounds                 2000
+        broken                 2000       first clobber 0x1004010ca
+        reads                  the control detects a clobber at -8 reliably,
+                               so the instrument is not simply blind
+
+    512-byte window, stock installed dll
+        deliveries             872
+        covered rounds         871
+        nearest write          296
+        furthest write         512 (the window edge)
+    512-byte window, patched dll
+        deliveries             1020
+        covered rounds         1020
+        nearest write          264
+        furthest write         512
+
+    A frame shifted down by exactly 128 bytes must move the nearest observed
+    write down by 128. It moved by -32, in the wrong direction, which is the
+    size of ordinary run-to-run variation here. So what this probe sees at
+    264 to 512 is not sigdelayed's frame, and its silence between 8 and 264
+    is not evidence that the red zone survived.
+
+== what this does not say
+
+    It does not say Cygwin 3.6.10 preserves the red zone. That reading is
+    available from the numbers above and it is not supported by them.
+
+    It does not contradict spike 3, which measured nearest:8 on Cygwin 3.0.7
+    in the RHEL emulation. Two probes on two Cygwin versions disagree and the
+    reason is unestablished: it may be the version, or it may be that one of
+    them watches a stack the delivery does not use.
+
+    It does not license retiring -mno-red-zone. DR-0006 stands exactly as
+    written.
+
+== summary
+
+    verdict=build-yes-reservation-unmeasured
+    build_cygwin1_dll=yes
+    dll_bytes=24690539
+    prerequisites_installed=15
+    patch_applies=yes
+    patch_in_dll=yes
+    probe_sensitive_to_sigdelayed=no
+    differential_shift_expected=128
+    differential_shift_observed=-32
+    redzone_verdict=unmeasured
+    dr0006_status=unchanged

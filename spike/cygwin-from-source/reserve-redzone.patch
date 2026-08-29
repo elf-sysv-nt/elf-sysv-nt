@@ -1,0 +1,54 @@
+Subject: [PATCH] sigdelayed: reserve the red zone before building the frame
+
+The psABI reserves 128 bytes below %rsp and a signal delivery is one of the
+two things that may not touch them; a kernel skips them before it builds a
+handler frame. Cygwin's sigdelayed does not. Its first instruction is
+`pushq %r10`, which writes at %rsp-8, and spike 3 measured that word lost on
+every single delivery.
+
+Two lines. `subq $128,%rsp` before the first push moves the whole frame below
+the reserved bytes, and `ret $128` releases them on the way out.
+
+`ret $128` rather than an `addq` because at that point in the epilogue every
+register has been restored and there is no scratch left to compute with. `ret
+imm16` pops the return address and then adds the immediate to %rsp, which is
+exactly the operation wanted and is why the instruction exists. The 128 bytes
+cannot be borrowed as scratch either: they are the red zone, and using them
+would defeat the patch.
+
+`.seh_stackalloc 128` keeps the unwind data honest. Without it an unwinder
+walking out of a handler computes a frame 128 bytes off, and Cygwin's own
+exception machinery rides SEH.
+
+Everything else in the routine is untouched, including the `.seh_setframe
+%rbp,0` further down: the frame is shifted down uniformly, and that directive
+records %rbp against %rsp at a point where both have moved together.
+
+Against newlib-cygwin at cygwin-3.6.10. sigdelayed lives in a generator
+rather than in a .S file, so the patch is against scripts/gendef.
+
+--- a/winsup/cygwin/scripts/gendef
++++ b/winsup/cygwin/scripts/gendef
+@@ -184,6 +184,11 @@
+ 	.global	sigdelayed
+ 	.seh_proc sigdelayed
+ sigdelayed:
++	# Skip the psABI red zone before touching the interrupted stack. The
++	# push below would otherwise land at %rsp-8, which is inside it.
++	subq	\$128,%rsp
++	.seh_stackalloc 128
++
+ 	pushq	%r10				# used for return address injection
+ 	.seh_pushreg %r10
+ 	pushq	%rbp
+@@ -252,7 +257,9 @@
+ 	popf
+ 	popq	%rbp
+ 	xchgq	%r10,(%rsp)
+-	ret
++	# Pop the return address and release the reservation in one step; no
++	# register is free here to add with.
++	ret	\$128
+ 	.seh_endproc
+ _sigdelayed_end:
+ 	.global _sigdelayed_end
