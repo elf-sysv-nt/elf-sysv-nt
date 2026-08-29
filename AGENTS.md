@@ -61,7 +61,17 @@ rather than letting it rot into a list of things that were checked years ago.
 Licenses are checked before code is lifted, not after. Most of the prior art
 this design leans on is GPL or LGPL: flinux, Blink, Qiling, glibc's resolver.
 Reading them is fine. Linking them into a released image is a distribution
-obligation, and the check precedes the lift.
+obligation, and the check precedes the lift. musl is the exception worth
+remembering, since it is MIT and the loader's working model.
+
+This tree is LGPLv3 or later, which DR-0004 records as inherited rather than
+chosen: `elfsysv1.dll` is Cygwin's `winsup` re-faced, Cygwin's exception
+excludes a library based on the Cygwin library by its own definition, and the
+licence follows the derivation. Two questions in that record are reserved for
+counsel rather than for an agent, and the sharp one is that LGPLv3 and
+GPLv2-only do not combine while el8 ships GPLv2-only software. Do not invent
+licence text, and do not grant an exception this repository has not been
+advised it may grant.
 
 Every installer and configurator is idempotent. Running it twice, or ten times,
 leaves the same result as running it once, whatever state the last run left
