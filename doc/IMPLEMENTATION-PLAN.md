@@ -88,6 +88,9 @@ Delivers: `doc/target-definition.md`, carrying five values that must agree — t
 triple, the `EI_OSABI` byte, the `.note.ABI-tag` payload, the dynamic linker
 SONAME, and the `uname` strings. The triple is fixed by DR-0001 and this
 package cites it rather than restating the argument; the other four are open.
+DR-0005 later added a sixth thing the record has to carry, which is not a value
+but a limit: what the `linux` and `gnu` fields claim, and the single axis where
+`linux` claims more than this project delivers.
 Done when: every later package that hardcodes one of the five cites this
 document rather than a memory of it.
 
@@ -166,6 +169,16 @@ stay accepted: they are values rather than sequences, and WP-13 will want
 Vendor objects that already carry the refused relocations are not this
 package's problem to solve, only to make visible. They belong to proposal
 0003 and to spike 8.
+
+Closed 2026-08-29. `toolchain/binutils/patches/0001` is the refusal and
+`t/accept.sh` carries fourteen claims across the four criteria. Where the
+check sits was the whole of the difficulty: placed after
+`elf_x86_64_tls_transition` it passes general dynamic and initial exec, both
+of which arrive there already rewritten, while local dynamic arrives as an
+accepted form and links with `mov %fs:0x0,%rax` in the output. It runs ahead
+of the transition instead. The test assembles one model per object for the
+same reason, since a combined object stops at the first refusal and reports
+success.
 
 ### WP-13 — gcc, stage one
 
