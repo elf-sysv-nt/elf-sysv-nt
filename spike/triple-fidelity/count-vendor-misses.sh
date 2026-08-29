@@ -39,7 +39,7 @@
 set -u
 
 prog=count-vendor-misses
-release='count-vendor-misses 1.1'
+release='count-vendor-misses 1.2'
 
 output=${COUNT_VENDOR_MISSES_OUTPUT:--}
 root=${COUNT_VENDOR_MISSES_ROOT:-}
@@ -217,6 +217,17 @@ $1 == "SUB" {
 		if (canon != "" && verdict == "rewritten")
 			rewrite[canon]++
 	}
+	# The number the spike exists for is not how many files refuse the
+	# candidate, it is how many refuse the candidate and accept the
+	# masquerade. A config.sub old enough to predate x86_64 refuses every
+	# triple put to it, and charging that to the vendor field bills this
+	# decision for a config.sub written before x86_64 existed. The three
+	# rows per file arrive masquerade, candidate, control, in that order.
+	if (label == "masquerade") lastmasq = verdict
+	else if (label == "candidate" && lastmasq == "accepted" && verdict != "accepted") {
+		onlybad[pkg] = verdict
+		nonlyfile++
+	}
 	next
 }
 
@@ -235,6 +246,7 @@ function row(label,    r, w, a) {
 END {
 	for (p in subs) nsubpkg++
 	for (p in bad) nbad++
+	for (p in onlybad) nonlybad++
 	for (p in lit) { nlit++; if (p in bad) noverlap++ }
 	for (p in bad) affected[p] = 1
 	for (p in lit) affected[p] = 1
@@ -255,12 +267,17 @@ END {
 	printf "    seen                        %6d\n", npkg
 	printf "    carrying a config.sub       %6d   %s of seen\n", nsubpkg + 0, pct(nsubpkg + 0, npkg)
 	printf "    candidate not accepted      %6d   %s of those carrying one\n", nbad + 0, pct(nbad + 0, nsubpkg + 0)
+	printf "    and the masquerade was      %6d   %s of those carrying one\n", nonlybad + 0, pct(nonlybad + 0, nsubpkg + 0)
 	printf "    literal vendor in a source  %6d   %s of seen\n", nlit + 0, pct(nlit + 0, npkg)
 	printf "    both                        %6d\n", noverlap + 0
 	printf "    affected either way         %6d   %s of seen\n", naff + 0, pct(naff + 0, npkg)
 	printf "\n    The literal count is an upper bound. The pattern matches a comment\n"
 	printf "    and a live host test alike, so a nonzero figure wants reading\n"
 	printf "    before it is quoted.\n"
+	printf "\n    The second row is the one that prices the decision. A config.sub\n"
+	printf "    that refuses the candidate and refuses the masquerade too is\n"
+	printf "    refusing something else about the triple, usually the cpu field,\n"
+	printf "    and the vendor should not be charged for it.\n"
 
 	for (p in bad) print bad[p], p > offfile
 	for (f in litfiles) print litfiles[f], f > litfile
@@ -278,6 +295,8 @@ END {
 	print "control_rewritten=" tally["control", "rewritten"] + 0 > sumfile
 	print "control_rejected=" tally["control", "rejected"] + 0 > sumfile
 	print "packages_candidate_miss=" nbad + 0 > sumfile
+	print "packages_candidate_only_miss=" nonlybad + 0 > sumfile
+	print "config_sub_candidate_only_miss=" nonlyfile + 0 > sumfile
 	print "packages_literal_vendor=" nlit + 0 > sumfile
 	print "packages_affected=" naff + 0 > sumfile
 	print "affected_share=" pct(naff + 0, npkg) > sumfile
