@@ -1,0 +1,104 @@
+el8 sources against a nonstandard vendor field
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+source      dump /c/-/el8/dump
+masquerade  x86_64-pc-linux-gnu
+candidate   x86_64-elfsysvnt-linux-gnu
+control     x86_64-pc-elfsysvnt
+date        2026-08-29T09:24:34Z
+script      count-vendor-misses 1.2
+
+== config.sub verdicts, one row per file probed
+
+                   probed  accepted rewritten  rejected      miss
+    masquerade       1193      1173         1        19      1.7%
+    candidate        1193      1173         1        19      1.7%
+    control          1193      1173         1        19      1.7%
+
+    Accepted means the triple came back byte for byte. Rewritten means
+    config.sub canonicalized it into something else, which is a silent
+    miss and the shape that matters. The control is expected to be
+    rejected outright; a row that is not tells you the os field is
+    cheaper than assumed.
+
+== packages
+
+    seen                          2893
+    carrying a config.sub          891   30.8% of seen
+    candidate not accepted          20   2.2% of those carrying one
+    and the masquerade was           0   0.0% of those carrying one
+    literal vendor in a source      19   0.7% of seen
+    both                             7
+    affected either way             32   1.1% of seen
+
+    The literal count is an upper bound. The pattern matches a comment
+    and a live host test alike, so a nonzero figure wants reading
+    before it is quoted.
+
+    The second row is the one that prices the decision. A config.sub
+    that refuses the candidate and refuses the masquerade too is
+    refusing something else about the triple, usually the cpu field,
+    and the vendor should not be charged for it.
+
+== packages whose config.sub did not accept the candidate
+
+    autoconf213                              rejected
+    cdrdao                                   rejected
+    gcc-toolset-11-gcc                       rejected
+    gcc-toolset-12-gcc                       rejected
+    gmp                                      rejected
+    java-1.8.0-openjdk                       rejected
+    java-1.8.0-openjdk-portable              rejected
+    java-11-openjdk                          rejected
+    java-11-openjdk-portable                 rejected
+    java-17-openjdk                          rejected
+    java-17-openjdk-portable                 rejected
+    java-21-openjdk                          rejected
+    librx                                    rejected
+    lrzsz                                    rejected
+    perl-Tk                                  rejected
+    recode                                   rejected
+    rrdtool                                  rejected
+    setserial                                rejected
+    tcpdump                                  rejected
+    glusterfs                                rewritten
+
+== files carrying a literal vendor, by hits
+
+    jdk-11.0.25+9/make/autoconf/toolchain.m4        2
+    jdk-17.0.20.1+1/make/autoconf/toolchain.m4        2
+    shenandoah8u504-b01/common/autoconf/toolchain.m4        2
+    autoconf-archive-2018.03.13/m4/ax_c_referenceable_passed_va_list.m4        1
+    firefox-140.14.0/python/mozbuild/mozbuild/test/configure/common.py        1
+    firefox-140.14.0/python/mozbuild/mozbuild/test/configure/test_moz_configure.py        1
+    firefox-140.14.0/python/mozbuild/mozbuild/test/configure/test_toolchain_configure.py        1
+    firefox-52.9.0esr/python/mozbuild/mozbuild/test/configure/common.py        1
+    firefox-52.9.0esr/python/mozbuild/mozbuild/test/configure/test_toolchain_configure.py        1
+    firefox-60.9.0/python/mozbuild/mozbuild/test/configure/common.py        1
+    firefox-60.9.0/python/mozbuild/mozbuild/test/configure/test_toolchain_configure.py        1
+    flac-1.3.2/configure                            1
+    flac-1.3.2/configure.ac                         1
+    glibc-2.28/configure                            1
+    glibc-2.28/configure.ac                         1
+
+== summary
+
+    packages_seen=2893
+    packages_with_config_sub=891
+    config_sub_probed=1193
+    masquerade_accepted=1173
+    masquerade_rewritten=1
+    masquerade_rejected=19
+    candidate_accepted=1173
+    candidate_rewritten=1
+    candidate_rejected=19
+    control_accepted=1173
+    control_rewritten=1
+    control_rejected=19
+    packages_candidate_miss=20
+    packages_candidate_only_miss=0
+    config_sub_candidate_only_miss=0
+    packages_literal_vendor=19
+    packages_affected=32
+    affected_share=1.1%
