@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+#
+# Find the hand-written assembly the red-zone mandate cannot reach.
+#
+# -mno-red-zone is a compiler flag, so it governs code the compiler emitted
+# and nothing else. Spike 3 measured Cygwin's signal delivery taking the word
+# at %rsp-8 on every delivery, which means any hand-written routine that keeps
+# a value below %rsp is corrupted at an unpredictable later date. There is no
+# flag for that and no way to find it except by looking.
+#
+# So this looks, and the output is a ledger rather than a verdict. It cannot
+# tell a routine that uses the red zone from one that merely exists, because
+# deciding that needs a human reading the routine. What it can do is bound the
+# reading: turn 2893 source packages into the few dozen that contain assembly
+# at all, and within those, rank by whether the assembly addresses memory
+# below the stack pointer.
+#
+# Three things are counted, and the third is the one worth acting on:
+#
+#   asm files      .s and .S, compiled by gas and never seen by the compiler's
+#                  register allocator or its prologue emitter.
+#   inline asm     __asm__ and asm() blocks in C and C++, which the compiler
+#                  does see but does not read.
+#   below rsp      either of the above containing a negative displacement off
+#                  %rsp or %esp. This is the shape the red zone takes when it
+#                  is written by hand, and a hit here is a routine somebody
+#                  has to read.
+#
+# Usage:
+#   asm-ledger [options] TREE...
+#
+# Options:
+#   -o FILE, --output=FILE  Write the ledger here. - means stdout. [default: -]
+#   -m N, --min-hits=N      Only report packages with at least N findings.
+#                           [default: 1]
+#   -t, --terse             The counts alone, one key=value per line.
+#   -q, --quiet             Errors only.
+#   -v, --verbose           Name every file as it is scanned.
+#   -d, --debug             Trace execution; implies --verbose.
+#   -V, --version           Print the version and exit.
+#   -h, --help              Print this message and exit.
+#
+# Each option is also settable as ASM_LEDGER_<OPTION>, and the option wins.
+#
+# Exit codes: 0 the scan ran, 1 it could not, 2 usage error.
+
+set -u
+
+prog=asm-ledger
+release='asm-ledger 1.0'
+
+output=${ASM_LEDGER_OUTPUT:--}
+minhits=${ASM_LEDGER_MIN_HITS:-1}
+terse=${ASM_LEDGER_TERSE:-0}
+quiet=${ASM_LEDGER_QUIET:-0}
+verbose=${ASM_LEDGER_VERBOSE:-0}
+debug=${ASM_LEDGER_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+trees=
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -o|--output|-m|--min-hits) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -o|--output) output=$val ;;
+        -m|--min-hits) minhits=$val ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) while [ $# -gt 0 ]; do trees="$trees $1"; shift; done ;;
+        -*) usage_error "unknown option $opt" ;;
+        *) trees="$trees $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -n "$trees" ] || usage_error "name at least one tree"
+
+# A negative displacement off the stack pointer, in either AT&T or Intel
+# syntax. This is deliberately loose: a false positive costs somebody a minute
+# reading a routine, and a false negative costs a corrupted stack in a package
+# nobody was looking at. The asymmetry decides the regex.
+below_rsp='-[0-9]+\(%r?sp\)|\[[er]sp[[:space:]]*-|-[0-9]+\(%rsp|movq?[[:space:]]+[^,]+,[[:space:]]*-[0-9]+\(%rsp\)'
+
+tmp=${TMPDIR:-/tmp}/asm-ledger.$$
+mkdir -p "$tmp" || die "cannot create $tmp"
+trap 'rm -rf "$tmp"' 0 1 2 13 15
+
+: > "$tmp/rows"
+packages=0
+with_asm=0
+with_below=0
+
+for tree in $trees; do
+    [ -d "$tree" ] || die "no such tree: $tree"
+
+    # One directory below the tree is a package, which is how an unpacked
+    # source set is shaped. A tree that is itself one package still works,
+    # since the loop then sees exactly one entry.
+    for pkg in "$tree"/*/; do
+        [ -d "$pkg" ] || continue
+        name=$(basename "$pkg")
+        packages=$((packages + 1))
+        chat "scanning $name"
+
+        asmfiles=$(find "$pkg" \( -name '*.S' -o -name '*.s' \) -type f 2>/dev/null | wc -l | tr -d ' ')
+        # -e on both, and not for tidiness: the below-rsp pattern begins with
+        # a minus, so grep reads it as an option bundle and fails with
+        # "unknown option -- [". It fails loudly on a hand-run and silently
+        # inside a $( ) that discards stderr, which is how it reported zero
+        # findings against a file that plainly used the red zone.
+        inline=$(grep -rlE -e '(^|[^[:alnum:]_])(__)?asm(__)?[[:space:]]*(volatile[[:space:]]*)?\(' \
+                    --include='*.c' --include='*.h' --include='*.cc' --include='*.cpp' \
+                    "$pkg" 2>/dev/null | wc -l | tr -d ' ')
+        below=$(grep -rlE -e "$below_rsp" \
+                    --include='*.S' --include='*.s' --include='*.c' --include='*.h' \
+                    --include='*.cc' --include='*.cpp' \
+                    "$pkg" 2>/dev/null | wc -l | tr -d ' ')
+
+        hits=$((asmfiles + inline))
+        [ "$hits" -ge "$minhits" ] || continue
+        [ "$hits" -gt 0 ] && with_asm=$((with_asm + 1))
+        [ "$below" -gt 0 ] && with_below=$((with_below + 1))
+        printf '%s\t%s\t%s\t%s\n' "$below" "$asmfiles" "$inline" "$name" >> "$tmp/rows"
+    done
+done
+
+emit() {
+    if [ "$terse" = 1 ]; then
+        printf 'packages=%d\nwith_asm=%d\nwith_below_rsp=%d\n' \
+            "$packages" "$with_asm" "$with_below"
+        return
+    fi
+
+    cat <<HEADER
+# Hand-written assembly in the el8 source set.
+#
+# Generated by $release. Rerunning it regenerates this file.
+#
+# -mno-red-zone governs what the compiler emits and nothing else, so every
+# routine below is outside the mandate. The third column is the one to read
+# first: a package with a below-rsp hit has assembly that addresses memory
+# under the stack pointer, which is where Cygwin's signal delivery writes.
+#
+# This is a ledger, not a verdict. It bounds who has to be read; it does not
+# decide what any of them do.
+
+packages_scanned	$packages
+carrying_assembly	$with_asm
+addressing_below_rsp	$with_below
+
+below	asm	inline	package
+HEADER
+    sort -rn -k1,1 -k2,2 "$tmp/rows"
+}
+
+if [ "$output" = "-" ]; then
+    emit
+else
+    emit > "$output" || die "cannot write $output"
+    note "ledger written to $output"
+fi
+
+[ "$terse" = 1 ] || note "$packages packages, $with_asm carrying assembly, $with_below addressing below rsp"
+exit 0

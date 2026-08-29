@@ -1,0 +1,85 @@
+# rpm macros for x86_64-elfsysvnt-linux-gnu.
+#
+# Every value here is one some package can forget to pass, which is the test
+# for whether it belongs in a macro set rather than in a spec file. The five
+# target values are doc/target-definition.md's and this file cites that record
+# rather than restating the argument for any of them.
+#
+# Installed as /usr/lib/rpm/macros.d/macros.elfsysvnt by WP-63, which reseeds
+# it from this copy on every run rather than editing it in place.
+
+%_elfsysvnt_triple	x86_64-elfsysvnt-linux-gnu
+%_elfsysvnt_sysroot	/usr/%{_elfsysvnt_triple}/sys-root
+
+%_host			%{_elfsysvnt_triple}
+%_host_cpu		x86_64
+%_host_vendor		elfsysvnt
+%_host_os		linux-gnu
+
+%_target		%{_elfsysvnt_triple}
+%_target_cpu		x86_64
+%_target_vendor		elfsysvnt
+%_target_os		linux-gnu
+
+%_arch			x86_64
+%_build_arch		x86_64
+%_vendor		elfsysvnt
+
+# The toolchain. Named in full rather than aliased: a second spelling for the
+# same target is how a build ends up half cross-compiled, and the tool prefix
+# is the honest triple for the same reason config.sub is asked the honest one.
+%__cc			%{_elfsysvnt_triple}-gcc
+%__cxx			%{_elfsysvnt_triple}-g++
+%__cpp			%{_elfsysvnt_triple}-gcc -E
+%__ar			%{_elfsysvnt_triple}-ar
+%__as			%{_elfsysvnt_triple}-as
+%__ld			%{_elfsysvnt_triple}-ld
+%__nm			%{_elfsysvnt_triple}-nm
+%__objcopy		%{_elfsysvnt_triple}-objcopy
+%__objdump		%{_elfsysvnt_triple}-objdump
+%__ranlib		%{_elfsysvnt_triple}-ranlib
+%__readelf		%{_elfsysvnt_triple}-readelf
+%__strip		%{_elfsysvnt_triple}-strip
+
+# -mno-red-zone appears here even though the compiler already defaults it,
+# and the duplication is deliberate. The compiler's default is the mandate;
+# this line is what makes the mandate visible in a build log, which is where
+# somebody debugging a corrupted stack in month nine will look. Spike 3
+# measured Cygwin's signal delivery taking the word at %rsp-8 on every
+# delivery, and WP-43 may retire the flag once a reserving delivery is priced;
+# until then it is policy in both places.
+#
+# Hand-written assembly is reached by neither. That is what the ledger under
+# toolchain/rpm/ is for.
+%_elfsysvnt_mandates	-mno-red-zone
+
+%optflags		-O2 -g -pipe -Wall -Werror=format-security \\\
+			-Wp,-D_FORTIFY_SOURCE=2 \\\
+			-fexceptions -fstack-protector-strong \\\
+			-fasynchronous-unwind-tables \\\
+			-fstack-clash-protection \\\
+			%{_elfsysvnt_mandates}
+
+# No CET. Spike 2 established that the PE stub opts out of shadow stacks and
+# Control Flow Guard so that a self-mapped image can be entered at all, and a
+# package compiled to expect CET on a process that disabled it is worse than
+# one that never asked.
+%_elfsysvnt_no_cet	-fcf-protection=none
+%build_cflags		%{optflags} %{_elfsysvnt_no_cet} --sysroot=%{_elfsysvnt_sysroot}
+%build_cxxflags		%{build_cflags}
+%build_ldflags		-Wl,-z,relro -Wl,-z,now --sysroot=%{_elfsysvnt_sysroot}
+
+# Paths inside the sysroot rather than on the build host. A package that
+# resolves %{_libdir} to the host's own /usr/lib64 links the host's libraries
+# and the failure is a binary that runs here and nowhere else.
+%_prefix		/usr
+%_libdir		%{_prefix}/lib64
+%_includedir		%{_prefix}/include
+%_sysconfdir		/etc
+
+# rpm's own dependency generation. WP-62 confirmed el8's rpm-build ships
+# elfdeps and fileattrs/elf.attr, so nothing here replaces them; the format is
+# ELF and the vendor's generator reads it unmodified, which was the whole
+# point of changing the format.
+%__elf_provides		%{_rpmconfigdir}/elfdeps --provides %{?__filter_GLIBC_PRIVATE:--filter-private}
+%__elf_requires		%{_rpmconfigdir}/elfdeps --requires %{?__filter_GLIBC_PRIVATE:--filter-private}
