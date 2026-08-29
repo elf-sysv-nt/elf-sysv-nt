@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+#
+# Assemble the startup files and lay out the sysroot.
+#
+# Four objects and a directory tree, which is the whole of WP-14 on the
+# delivery side. What makes it a work package rather than a Makefile line is
+# the exit criterion: a static image has to link against these and the spike 2
+# stub has to run it. t/run-tests.sh is that criterion.
+#
+# The sysroot is reseeded rather than added to. A stale crt1.o from a previous
+# toolchain is indistinguishable from a current one at link time and produces a
+# program that fails somewhere else entirely.
+#
+# Usage:
+#   build-csu [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -H DIR, --headers=DIR  The header set to install.
+#                          [default: ../sysroot/include, beside this]
+#   -n, --dry-run          Name what would be built; build nothing.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Name every object as it is assembled.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_CSU_<OPTION>, and the option wins.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-csu
+release='build-csu 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${BUILD_CSU_PREFIX:-$HOME/x-elfsysvnt}
+target=${BUILD_CSU_TARGET:-x86_64-elfsysvnt-linux-gnu}
+headers=${BUILD_CSU_HEADERS:-$here/../sysroot/include}
+dryrun=${BUILD_CSU_DRY_RUN:-0}
+terse=${BUILD_CSU_TERSE:-0}
+quiet=${BUILD_CSU_QUIET:-0}
+verbose=${BUILD_CSU_VERBOSE:-0}
+debug=${BUILD_CSU_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-T|--target|-H|--headers) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -T|--target) target=$val ;;
+        -H|--headers) headers=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -d "$headers" ] || die "no header set at $headers"
+
+PATH=$prefix/bin:$PATH
+AS=$target-as
+command -v "$AS" >/dev/null 2>&1 || die "$AS is not on PATH; WP-12 first"
+
+sysroot=$prefix/$target/sys-root
+libdir=$sysroot/usr/lib64
+incdir=$sysroot/usr/include
+
+objects='crt1 crti crtn Scrt1'
+
+if [ "$dryrun" = 1 ]; then
+    for o in $objects; do printf '%s -> %s/%s.o\n' "$here/$o.S" "$libdir" "$o"; done
+    printf '%s -> %s\n' "$headers" "$incdir"
+    exit 0
+fi
+
+# el8's usrmerge, and the loader's SONAME lives at /lib64 by
+# doc/target-definition.md, so the link has to exist before anything looks.
+mkdir -p "$libdir" "$incdir" "$sysroot/usr/bin" || die "cannot create $sysroot"
+rm -rf "$sysroot/lib64" "$sysroot/lib" "$sysroot/bin"
+ln -s usr/lib64 "$sysroot/lib64" || die "cannot link /lib64"
+ln -s usr/lib64 "$sysroot/lib"   || die "cannot link /lib"
+ln -s usr/bin   "$sysroot/bin"   || die "cannot link /bin"
+
+for o in $objects; do
+    chat "assembling $o.o"
+    "$AS" --64 -o "$libdir/$o.o" "$here/$o.S" || die "$o.S did not assemble"
+done
+
+# Reseeded, so a header dropped from the set leaves nothing behind.
+rm -rf "$incdir"
+mkdir -p "$incdir" || die "cannot create $incdir"
+( cd "$headers" && find . -type f -name '*.h' -print ) | while IFS= read -r h; do
+    mkdir -p "$incdir/$(dirname "$h")"
+    cp "$headers/$h" "$incdir/$h"
+    chmod 644 "$incdir/$h"
+done
+
+count=$(find "$incdir" -name '*.h' | wc -l | tr -d ' ')
+
+if [ "$terse" = 1 ]; then
+    printf 'target=%s\nsysroot=%s\nobjects=%d\nheaders=%d\n' \
+        "$target" "$sysroot" "$(echo $objects | wc -w | tr -d ' ')" "$count"
+else
+    note "startup files and $count headers under $sysroot"
+    note "now run t/run-tests.sh -P $prefix"
+fi
+exit 0
