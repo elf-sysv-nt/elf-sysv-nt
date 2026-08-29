@@ -1,7 +1,8 @@
 # The vendor-field count
 
-How many el8 packages mishandle a nonstandard vendor field? Nothing in this
-directory answers that yet. Two scripts here take the measurement --
+How many el8 packages mishandle a nonstandard vendor field? One, and the fix
+is a line. `results-2026-08-29.txt` is the transcript and the section below it
+is the reading. Two scripts here take the measurement --
 `fetch-host-tests.sh` puts el8 source in front of the probe one package at a
 time, `count-vendor-misses.sh` is the probe and the classifier -- and what is
 kept is the means of taking it again.
@@ -148,9 +149,13 @@ sources at all.
 ## The fixture
 
 `t/run-tests.sh` classifies `t/sample-dump.txt` and compares the summary
-against counts worked out by hand. Four synthetic packages cover the shapes
-that matter: a clean accept, a silent rewrite, an outright rejection, and a
-package with no `config.sub` at all but a literal vendor in its sources.
+against counts worked out by hand. Five synthetic packages cover the shapes
+that matter: a clean accept, a silent rewrite, a rejection of the candidate
+that the masquerade survived, a package with no `config.sub` at all but a
+literal vendor in its sources, and a `config.sub` that refuses every triple
+put to it. That last one exists to separate the two rejection counts, since
+charging the vendor field for a file written before x86_64 existed is the
+easiest way to read this measurement wrong.
 
 It also checks what `fetch-host-tests.sh` refuses: a missing destination, a
 bad `--extract`, a non-numeric `--limit`, an unknown option, and a destination
@@ -190,12 +195,60 @@ not weaker. It just does not rest where it was thought to. `config.sub`
 refusing the triple at the door was never the hazard; the hazard is what
 accepts it and what that acceptance then means downstream.
 
+## The verdict, 2026-08-29
+
+`results-2026-08-29.txt`, taken over all 2893 source names in Rocky 8.10's
+four source repositories. The number is zero.
+
+Across the 1193 `config.sub` files those packages carry, the masquerade and
+the candidate get identical verdicts. Not similar: identical, file by file.
+Twenty packages refuse the candidate, and all twenty refuse
+`x86_64-pc-linux-gnu` too, because their `config.sub` predates x86_64 and
+turns away anything with that cpu in it. `autoconf213` is the clearest case
+and its vintage is in its name. The marginal cost of the honest vendor field,
+at the gate that was supposed to be the hazard, is nothing at all.
+
+The literal-vendor grep found 19 packages, and the transcript has always said
+a nonzero figure there wants reading before it is quoted. Read, on the day:
+
+- `flac` is the one real hit. `configure.ac:189` opens `case "$host" in` and
+  its first arm is `*-pc-linux-gnu)`, which sets `sys_linux=true` and defines
+  `FLAC__SYS_LINUX`. Under our triple that arm does not match, the define
+  never happens, and nothing says so. This is precisely the shape the spike
+  was built to find, and it is one package in 2893.
+- `valgrind` and its three `gcc-toolset-N-valgrind` siblings match on comment
+  lines listing what other distributions call their compilers.
+- The seven `java-*-openjdk` packages match one comment in `toolchain.m4`,
+  `#    Target: x86_64-pc-linux-gnu`.
+- `glibc` matches two comments and one diagnostic message. We do not build
+  glibc anyway; the veneer is what stands in for it.
+- `autoconf-archive` matches a worked example inside a macro's documentation
+  block, and `mingw-pkg-config` matches a `dnl` comment.
+- `firefox`, `thunderbird`, `mozjs52` and `mozjs60` match Python test fixtures
+  under `python/mozbuild/mozbuild/test/configure/`. Those arrived because
+  `tar --no-anchored configure` matches a directory named `configure` as
+  readily as a file, which widens the extraction a little and is worth knowing
+  before someone reads a `.py` path in a dump and wonders.
+
+So the patch set the decision commits to is one package, `flac`, and the fix
+is one line. Read against DR-0001, that is 0.0% at the `config.sub` gate and
+one package at the literal gate, both inside the band where the triple stands
+without further argument.
+
+Worth adding, because it is the more interesting half: `flac` is already
+broken this way for anyone whose triple is not `*-pc-linux-gnu`. Debian's
+`x86_64-linux-gnu` and the `unknown` vendor that crosstool-NG ships both miss
+that arm. We are not stepping onto new ground; we are stepping onto ground
+that was already load-bearing for other people.
+
 ## Where the finding goes
 
-`doc/elf-technical-breakdown.md`, in `The toolchain and the triple`, and the
-`Not verified` entry that records the claim as uncounted. Then
-`doc/decisions/0001-target-triple.md`, which is where the number is read
-against the reopen threshold. Above that threshold the honest name moves to
-`EI_OSABI`, the `.note.ABI-tag`, the dynamic linker SONAME, and `uname`, and
-the triple masquerades; below it, the count is the size of a patch set and
-nothing changes.
+It has gone. `doc/elf-technical-breakdown.md` no longer carries the claim as
+uncounted, and `doc/ROADMAP.md`, `doc/milestones.md` and
+`doc/IMPLEMENTATION-PLAN.md` record spike 5 as run. DR-0001 is untouched,
+because a record is what was decided and when, not a place to write the
+outcome afterwards; the number is here and in the transcript, and it lands
+inside the band where that record says the triple stands.
+
+The one thing this verdict does not settle is whether `flac` gets patched or
+carried. That belongs to whoever builds it.

@@ -358,6 +358,11 @@ harvest_one() {
 	# them and are never read; config.sub lives inside the upstream tarball.
 	# A tarball carrying none of the wanted members makes tar exit non-zero,
 	# which is ordinary here rather than a failure.
+	#
+	# --no-anchored matches a directory named configure as readily as a
+	# file, so a tree like firefox's python/mozbuild/.../test/configure/
+	# comes out whole. Harmless, and it widens the scope a little in the
+	# right direction, but it is why a dump can name a .py file.
 	find "$pkg/unpack" -maxdepth 1 -type f -print > "$pkg/files"
 	while read -r f; do
 		case $f in
