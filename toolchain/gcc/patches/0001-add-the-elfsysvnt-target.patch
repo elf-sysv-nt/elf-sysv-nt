@@ -47,7 +47,7 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
  		tm_file="${tm_file} kfreebsd-gnu.h i386/kfreebsd-gnu64.h"
 --- /dev/null
 +++ b/gcc/config/i386/elfsysvnt.h
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,79 @@
 +/* Target definitions for x86-64 ELF and System V on Windows NT, over Cygwin.
 +   Copyright (C) 2026 Philip Dye.
 +
@@ -76,8 +76,8 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +   them alone.  The direction is to honour them at the delivery site, the way
 +   a Linux kernel does, rather than to compile the world with a flag that
 +   announces through every leaf's prologue that this is not quite the ABI it
-+   claims to be.  IMPLEMENTATION-PLAN's WP-43 is where that lands.  The flag
-+   below is scaffolding for the bootstrap and not the shipped answer.
++   claims to be.  DR-0006 records that direction and WP-43 is where it lands.
++   The flag below is scaffolding for the bootstrap and not the shipped answer.
 +
 +   What stands in the way is not Windows.  Spike 3 measured the host leaving
 +   the reserved bytes alone under preemption, thread hijacking and its own
@@ -97,8 +97,9 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +   would force a toolchain rebuild before that measurement could be taken at
 +   all.
 +
-+   AGENTS.md reserves the choice between the two repairs, and nothing here
-+   makes it.  What this file does is keep both reachable.
++   DR-0006 made the choice between the two repairs and left WP-43 the price.
++   Nothing here makes either call; what this file does is keep both reachable
++   until the number exists.
 +
 +   Hand-written assembly is reached by none of this, which is why WP-16
 +   delivers a ledger of it.

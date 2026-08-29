@@ -162,11 +162,20 @@ System V-faced at all, and on 2026-08-29 it came back yes, so the veneer-thunk
 fallback stays where it is. The decision that opened in its place is the red
 zone: the host respects the reserved 128 bytes and Cygwin's own signal delivery
 does not, which makes `-mno-red-zone` throughout one repair and a 128-byte gap
-in the delivery path another. The flag is the recorded policy and it costs a
-stack adjustment in every leaf; changing delivery costs a patch to code this
-project already means to modify and buys the psABI guarantee back. Nobody has
-priced the second. An agent may measure either and must not choose between
-them.
+in the delivery path another. Which of the two is the destination was settled
+on 2026-08-29 in `doc/decisions/0006-red-zone-direction.md`: the delivery site
+is repaired and the flag is scaffolding carried until it is. What that record
+does not settle is the price, which WP-43 measures against Cygwin's real
+`sigdelayed` rather than against spike 7's model, and which DR-0006 reads
+against bands written before the number exists.
+
+The flag is the standing policy meanwhile. It costs a stack adjustment in every
+leaf and does not reach hand-written assembly at all, which is the residue
+WP-16's ledger exists to bound; the delivery repair costs a patch to code this
+project already means to modify and buys the psABI guarantee back for compiled
+and hand-written code at once. That is the reasoning DR-0006 records. What is
+still open is only the number, so an agent may take the measurement and must
+not read the verdict off it.
 
 ## Testing
 

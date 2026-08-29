@@ -193,8 +193,10 @@ adds only the two things the target mandates. `-mno-red-zone` by
 `TARGET_SUBTARGET_DEFAULT`, and `__ELFSYSVNT__` for the `config.guess` WP-11
 taught to ask. `t/accept.sh` carries eleven claims.
 
-The mandate is a target default rather than a spec string, which is stronger:
-a spec can be overridden by a later flag on the same line. `-mred-zone` still
+The flag is scaffolding rather than the answer, which DR-0006 records and
+which the target header now says before it says anything else. The mandate is
+a target default rather than a spec string, which is stronger: a spec can be
+overridden by a later flag on the same line. `-mred-zone` still
 works, deliberately, since WP-43 may retire the flag and a target that refused
 the option would have to be rebuilt to find out.
 
@@ -565,7 +567,11 @@ interrupted stack pointer and takes `%rsp-8` first. `-mno-red-zone` closes that
 only for code the compiler emitted, so hand-written assembly stays exposed,
 which is why WP-16 delivers a ledger. The alternative -- this trampoline
 skipping 128 bytes before it builds anything, which would close it everywhere
-at once -- is not this package's to choose; `AGENTS.md` reserves it.
+at once -- is no longer a question of which. DR-0006 settled it as the
+destination on 2026-08-29 and left this package the price: measure the
+reserving delivery against Cygwin's real `sigdelayed` rather than spike 7's
+model, read the number against DR-0006's bands, and write the record that
+retires the flag or reopens the direction.
 
 ---
 

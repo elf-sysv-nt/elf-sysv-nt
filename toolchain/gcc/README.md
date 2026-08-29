@@ -21,8 +21,9 @@ platform is meant to honour the red zone, and does not yet.
 The psABI reserves 128 bytes below `%rsp`, a conforming platform leaves them
 alone, and the direction is to honour them at the delivery site the way a
 Linux kernel does rather than to compile the world with a flag that announces
-in every leaf's prologue that this is not quite the ABI it claims to be. WP-43
-is where that lands. The flag here is scaffolding for the bootstrap.
+in every leaf's prologue that this is not quite the ABI it claims to be.
+DR-0006 records that direction and WP-43 is where it lands. The flag here is
+scaffolding for the bootstrap.
 
 What stands in the way is not Windows. Spike 3 measured the host leaving the
 reserved bytes alone under preemption, thread hijacking and its own exception
@@ -41,8 +42,8 @@ and write the record that retires the flag. A target that refused the option
 outright would force a toolchain rebuild before that measurement could be
 taken at all.
 
-`AGENTS.md` reserves the choice between the two repairs and nothing here makes
-it. Hand-written assembly is reached by neither, which is what
+DR-0006 made the choice between the two repairs and left WP-43 the price;
+nothing here makes either call. Hand-written assembly is reached by neither, which is what
 `bin/asm-ledger` exists for.
 
 `__ELFSYSVNT__`, because WP-11 taught `config.guess` to ask the compiler which
