@@ -17,9 +17,9 @@ one worth naming in advance.
 Packages are numbered by phase and are not renumbered when one is added, so the
 sequence has gaps and the gaps mean nothing.
 
-Nothing here is scheduled. One of the five spike answers can still reshape the
-graph, so a date attached to WP-53 today would be fiction, and the dependency
-order is the only ordering claim the plan makes.
+Nothing here is scheduled. Every spike has now answered and none of the answers
+reshaped the graph, but a date attached to WP-53 today would still be fiction,
+and the dependency order remains the only ordering claim the plan makes.
 
 ---
 
@@ -55,6 +55,19 @@ Spike 2 came back yes and left one constraint behind, which WP-32 and WP-41
 carry below: a non-PIE image's span has to be reserved before anything else in
 the process allocates without a base, because Windows hands out the lowest free
 region and a Cygwin runtime allocates before `main`.
+
+Spike 8 came back with a qualified yes and left a subsystem this plan has not
+yet cut into a package. An access through a zeroed `%fs` base faults, a
+vectored handler registered ahead of Cygwin's emulates it through carrier C3
+and resumes, and the interrupted code gets its other registers and its flags
+back — so a load-time TLS rewriter for vendor binaries may be a heuristic over
+a sound fallback. The qualifier is that the fallback covers the data-movement
+forms and refuses the read-modify-write ones, where a missed site is a
+`SIGSEGV` rather than a slow success. `doc/proposals/0003-vendor-binary-tls-rewriting.md`
+carries the reading and names the census that prices the gap. WP-33's and
+WP-54's exit criteria both run a vendor binary and both inherit whatever this
+becomes; cutting it into a package is not done here, because that is a decision
+about scope rather than a finding.
 
 Spike 1 came back no, which is the branch `milestones.md` reserved and not a
 delay. `%fs`-relative TLS is unavailable on this host: the base is writable and
