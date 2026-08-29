@@ -152,6 +152,34 @@ is not simply "yes".
 
 ## Not verified
 
+Three of the entries below are rows this probe could add rather than findings
+it cannot reach, and they are marked so. Leaving a cheap measurement in this
+section is how the section rots.
+
+The null page's margin, which is what makes the fault reliable and is nowhere
+argued above. With the base at zero the faulting address is the displacement,
+so an access lands in the guard page when the displacement is a small positive
+and in non-canonical space when it is negative. Variant II puts the static
+block at negative offsets and only `tcbhead_t` above the thread pointer, which
+on x86-64 runs to roughly 0x480 against a 0x1000 page, so the margin is
+structural rather than lucky — and finite. A positive displacement of 0x1000
+or more would read mapped memory and return a value, which is the outcome this
+spike says does not happen. *A row: one access at a displacement past the
+guard page, to find the boundary rather than assert it.*
+
+`signal, async`, which spike 1 exercised and this did not. The `hijack` case
+covers the same mechanism at one remove, so the gap is narrower than a missing
+row suggests, but asynchronous delivery is the path nearest the coexistence
+risk below. *A row: spike 1's own case, carried over like the other nine.*
+
+The locked forms, which are worse than the arithmetic ones rather than more of
+them. A `lock`-prefixed read-modify-write on a TLS location cannot be emulated
+in a fault handler at all, however carefully `EFLAGS` is handled, because the
+handler cannot hold the atomicity the prefix promises. Emulating flags would
+close the plain arithmetic forms and leave these exactly where they are.
+*A row: whether a locked access faults the same way, which decides whether the
+rewriter can at least see them.*
+
 The census. Which forms actually appear in vendor binaries and in what
 proportion is uncounted, so the share of a real program's TLS accesses that
 falls in the refused set is unknown. Proposal 0003 already carries this as a
