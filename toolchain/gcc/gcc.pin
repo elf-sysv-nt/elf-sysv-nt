@@ -1,0 +1,15 @@
+# The gcc release this project builds, pinned by checksum.
+#
+# 13.3.0 rather than el8's 8.5. Nothing here has to match the vendor's
+# compiler: what el8 shipped is an input to WP-51 and WP-T4, both of which
+# read vendor binaries rather than rebuild them. A 2018 gcc would cost the
+# newer x86 support and a decade of fixes for no compatibility we need.
+#
+# The prerequisites are fetched by contrib/download_prerequisites rather than
+# pinned here, which is a gap: that script verifies what it downloads against
+# checksums it carries itself, so the pin exists, but it is upstream's rather
+# than ours and it is not recorded in this file.
+
+version	13.3.0
+url	https://ftp.gnu.org/gnu/gcc/gcc-13.3.0/gcc-13.3.0.tar.xz
+sha256	0845e9621c9543a13f484e94584a49ffc0129970e9914624235fc1d061a0c083
