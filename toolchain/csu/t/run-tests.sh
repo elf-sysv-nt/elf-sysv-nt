@@ -174,14 +174,24 @@ claim 'the stack is not executable' \
 run gcc -O1 -g -Wall -o stub.exe "$spike/stub.c" "$spike/enter.S" ||
     die "spike 2's stub did not build"
 
-# The image reports through the handshake block and leaves by restoring the
-# stack pointer the stub parked. A timeout means it neither reported nor left,
-# which is a different failure from reporting the wrong thing.
-timeout 30 ./stub.exe --terse --quiet hello.elf > ran.txt 2>&1
+# The image leaves by restoring the stack pointer the stub parked. A timeout
+# means it neither ran nor left, which is a different failure from running and
+# getting something wrong.
+#
+# --no-image-report because hello is not spike 2's specimen. payload.S fills
+# in every field of the handshake block and the stub scores it against all of
+# them; this image fills in one, the exit status, because that is all a crt1
+# and an _exit have to say. The claim here is about the mapping and the
+# transfer, which is what WP-14 needs and all it needs.
+#
+# --terse and not --quiet: --quiet suppresses the key=value block as well as
+# the prose, so the pair left nothing to read and 'the image came back' was
+# reading an empty file whichever way the run went.
+timeout 30 ./stub.exe --terse --no-image-report hello.elf > ran.txt 2>&1
 ran=$?
 
 claim 'the stub mapped and entered it' test "$ran" -eq 0
-claim 'the image came back' grep -q . ran.txt
+claim 'the image came back' grep -q '^case_returned=1$' ran.txt
 
 if [ "$terse" = 1 ]; then
     printf 'target=%s\npasses=%d\nfailures=%d\nimage=%s\n' \

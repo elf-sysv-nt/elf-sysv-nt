@@ -18,6 +18,8 @@
  * Options:
  *   -s N, --stack=N       Bytes for the image's stack. [default: 0x40000]
  *   -x, --no-fault-probe  Trust VirtualQuery instead of touching the pages.
+ *   -n, --no-image-report The image does not fill in the handshake block;
+ *                         measure the transfer and expect no report.
  *   -e, --expect-refusal  Pass when the reservation is refused, and only then.
  *   -t, --terse           The key=value block alone.
  *   -q, --quiet           Errors only.
@@ -72,7 +74,12 @@ typedef struct {
 #define AT_SPIKE_RODATA		0x7001
 #define AT_SPIKE_BSS		0x7002
 
-/* Mirrors the block make-elf.py puts at the head of the writable segment. */
+/* The block the two sides report through. It lives in a page this stub
+   allocates for the purpose, not inside the image: the image is told where it
+   is by AT_SPIKE_HANDSHAKE and has no other way to find it, so putting it
+   anywhere the image also owns only means the two sides overwrite each
+   other. It used to sit at the head of the writable segment, which was where
+   make-elf.py left room for it and where a linked image puts its own .data. */
 struct handshake {
 	uint64_t in_magic, host_rsp;
 	uint64_t out_magic, out_argc, out_rodata, out_bss, out_rip, out_pagesz;
@@ -94,9 +101,9 @@ extern char probe_exec_end[], probe_exec_fault[];
 
 static struct {
 	unsigned long long stack;
-	int fault_probe, expect_refusal, terse, quiet, verbose, debug;
+	int fault_probe, image_report, expect_refusal, terse, quiet, verbose, debug;
 	const char *path;
-} opt = { 0x40000, 1, 0, 0, 0, 0, 0, NULL };
+} opt = { 0x40000, 1, 1, 0, 0, 0, 0, 0, NULL };
 
 /* Results, collected as they are measured and printed once at the end so
    that the key=value block is the same set of names whatever happened. */
@@ -278,6 +285,8 @@ static void usage(FILE *to)
 "  -s N, --stack=N       Bytes for the image's stack. [default: 0x40000]\n"
 "  -w, --where           Print this stub's own image base and exit.\n"
 "  -x, --no-fault-probe  Trust VirtualQuery instead of touching the pages.\n"
+"  -n, --no-image-report The image does not fill in the handshake block;\n"
+"                        measure the transfer and expect no report.\n"
 "  -e, --expect-refusal  Pass when the reservation is refused, and only then.\n"
 "  -t, --terse           The key=value block alone.\n"
 "  -q, --quiet           Errors only.\n"
@@ -312,6 +321,8 @@ static int parse(int argc, char **argv, int *status)
 		opt.stack = strtoull(value, NULL, 0);
 	if (flag_from_env("NO_FAULT_PROBE"))
 		opt.fault_probe = 0;
+	if (flag_from_env("NO_IMAGE_REPORT"))
+		opt.image_report = 0;
 	opt.expect_refusal = flag_from_env("EXPECT_REFUSAL");
 	opt.terse = flag_from_env("TERSE");
 	opt.quiet = flag_from_env("QUIET");
@@ -344,6 +355,8 @@ static int parse(int argc, char **argv, int *status)
 			opt.stack = strtoull(arg + 8, NULL, 0);
 		} else if (!strcmp(arg, "-x") || !strcmp(arg, "--no-fault-probe")) {
 			opt.fault_probe = 0;
+		} else if (!strcmp(arg, "-n") || !strcmp(arg, "--no-image-report")) {
+			opt.image_report = 0;
 		} else if (!strcmp(arg, "-e") || !strcmp(arg, "--expect-refusal")) {
 			opt.expect_refusal = 1;
 		} else if (!strcmp(arg, "-t") || !strcmp(arg, "--terse")) {
@@ -422,13 +435,14 @@ int main(int argc, char **argv)
 	size_t size = 0;
 	unsigned char *image;
 	Elf64_Ehdr *eh;
-	Elf64_Phdr *phdr, *load[MAX_LOADS], *text = NULL, *ro = NULL, *rw = NULL;
+	Elf64_Phdr *phdr, *load[MAX_LOADS];
+	Elf64_Phdr *text = NULL, *ro = NULL, *rw = NULL, *bss = NULL;
 	unsigned nload = 0, i, j;
 	SYSTEM_INFO sysinfo;
 	MEMORY_BASIC_INFORMATION mbi;
 	uint64_t first = UINT64_MAX, last = 0, reserve_base, reserve_size;
-	uint64_t granule, hs_addr, ro_addr, bss_addr;
-	struct handshake *hs;
+	uint64_t granule, hs_addr = 0, ro_addr = 0, bss_addr = 0;
+	struct handshake *hs = NULL;
 	unsigned char *stack = NULL, *strings;
 	uint64_t *vec, argv0_word = 0;
 	PVOID handler = NULL;
@@ -465,18 +479,32 @@ int main(int argc, char **argv)
 			first = phdr[i].p_vaddr;
 		if (phdr[i].p_vaddr + phdr[i].p_memsz > last)
 			last = phdr[i].p_vaddr + phdr[i].p_memsz;
-		if (phdr[i].p_flags & PF_X)
-			text = &phdr[i];
-		else if (phdr[i].p_flags & PF_W)
-			rw = &phdr[i];
-		else
+		/* First of each kind, not last. A linked image routinely has
+		   more than one read-only PT_LOAD -- ld gave WP-14's hello a
+		   segment for .note.gnu.property and a second one for
+		   .eh_frame -- and there is no reason to expect otherwise. */
+		if (phdr[i].p_flags & PF_X) {
+			if (!text)
+				text = &phdr[i];
+		} else if (phdr[i].p_flags & PF_W) {
+			if (!rw)
+				rw = &phdr[i];
+		} else if (!ro && (phdr[i].p_flags & PF_R)) {
 			ro = &phdr[i];
+		}
+		if (!bss && phdr[i].p_memsz > phdr[i].p_filesz)
+			bss = &phdr[i];
 	}
 	if (!nload)
 		return refuse("%s has no PT_LOAD", opt.path);
-	if (!text || !ro || !rw)
-		return refuse("%s wants one executable, one read-only and one "
-			      "writable PT_LOAD; this is the specimen shape", opt.path);
+	/* The only shape this insists on. Everything else is read off the
+	   image: how many segments there are, which of them is read-only and
+	   which of them has bytes past p_filesz are all questions the program
+	   headers answer, and an image with no answer simply gets no auxv
+	   entry for it. */
+	if (!text)
+		return refuse("%s has no executable PT_LOAD; there would be "
+			      "nothing to enter", opt.path);
 
 	got.entry = eh->e_entry;
 	got.phnum = eh->e_phnum;
@@ -485,9 +513,10 @@ int main(int argc, char **argv)
 	got.span_last = last;
 	got.text_first = text->p_vaddr;
 	got.text_last = text->p_vaddr + text->p_memsz;
-	hs_addr = rw->p_vaddr;
-	ro_addr = ro->p_vaddr;
-	bss_addr = rw->p_vaddr + rw->p_filesz;
+	ro_addr = ro ? ro->p_vaddr : 0;
+	bss_addr = bss ? bss->p_vaddr + bss->p_filesz : 0;
+	/* hs_addr is not an address in the image at all; it comes from the
+	   page allocated below, once the image's own span is out of the way. */
 
 	GetSystemInfo(&sysinfo);
 	granule = sysinfo.dwAllocationGranularity;
@@ -607,7 +636,15 @@ int main(int argc, char **argv)
 	say("\n    segments sharing a page          %u\n", got.shared_pages);
 
 	if (opt.fault_probe) {
-		unsigned char *planted = (unsigned char *)(UINT_PTR)(hs_addr + 0x70);
+		/* The execute probe needs a byte it may both write and try to
+		   run, which means a writable segment of the image; an image
+		   without one is not asked the question. Its previous value is
+		   put back rather than zeroed, because in a linked image that
+		   byte belongs to the image. */
+		unsigned char *planted = NULL, saved = 0;
+		if (rw)
+			planted = (unsigned char *)(UINT_PTR)
+				(rw->p_vaddr + (rw->p_memsz > 0x70 ? 0x70 : 0));
 		handler = AddVectoredExceptionHandler(1, probe_handler);
 		if (!handler) {
 			got.reason = "no vectored exception handler";
@@ -620,19 +657,23 @@ int main(int argc, char **argv)
 		got.store_faulted = probe_store((void *)(UINT_PTR) text->p_vaddr);
 		armed = 0;
 
-		*planted = 0xC3;		/* ret, in a page that must not run it */
-		armed = 2;
-		got.exec_faulted = probe_exec(planted);
-		armed = 0;
-		*planted = 0;
+		if (planted) {
+			saved = *planted;
+			*planted = 0xC3;	/* ret, in a page that must not run it */
+			armed = 2;
+			got.exec_faulted = probe_exec(planted);
+			armed = 0;
+			*planted = saved;
+		}
 
 		RemoveVectoredExceptionHandler(handler);
 		say("\n== the probes\n\n");
 		say("    a store into the text segment    %s\n",
 		    got.store_faulted ? "faulted" : "LANDED");
 		say("    a call into the data segment     %s\n",
+		    !planted ? "not asked -- no writable segment" :
 		    got.exec_faulted ? "faulted" : "RAN");
-		if (!got.store_faulted || !got.exec_faulted)
+		if (!got.store_faulted || (planted && !got.exec_faulted))
 			failures++;
 	}
 
@@ -646,6 +687,19 @@ int main(int argc, char **argv)
 		failures++;
 		goto report;
 	}
+
+	/* A page of the stub's own, asked for with no base so that Windows
+	   picks somewhere free. It cannot land inside the image: the whole
+	   span was reserved above and is still held. */
+	hs = VirtualAlloc(NULL, (SIZE_T) PAGE_SIZE, MEM_RESERVE | MEM_COMMIT,
+			  PAGE_READWRITE);
+	if (!hs) {
+		got.reason = "no handshake page";
+		failures++;
+		goto report;
+	}
+	hs_addr = (uint64_t)(UINT_PTR) hs;
+
 	strings = stack + opt.stack - 64;
 	memcpy(strings, ARGV0, sizeof ARGV0);
 	memcpy(&argv0_word, ARGV0, 8);
@@ -655,17 +709,25 @@ int main(int argc, char **argv)
 	   shape WP-40 owns; what it is doing here is carrying three spike-local
 	   keys, because handing addresses to the image any other way would mean
 	   the image had to know something the loader had not told it. */
-	vec[0] = 1;
-	vec[1] = (uint64_t)(UINT_PTR) strings;
-	vec[2] = 0;
-	vec[3] = 0;
-	vec[4] = AT_PAGESZ;		vec[5] = PAGE_SIZE;
-	vec[6] = AT_SPIKE_HANDSHAKE;	vec[7] = hs_addr;
-	vec[8] = AT_SPIKE_RODATA;	vec[9] = ro_addr;
-	vec[10] = AT_SPIKE_BSS;		vec[11] = bss_addr;
-	vec[12] = AT_NULL;		vec[13] = 0;
+	j = 0;
+	vec[j++] = 1;
+	vec[j++] = (uint64_t)(UINT_PTR) strings;
+	vec[j++] = 0;
+	vec[j++] = 0;
+	vec[j++] = AT_PAGESZ;		vec[j++] = PAGE_SIZE;
+	vec[j++] = AT_SPIKE_HANDSHAKE;	vec[j++] = hs_addr;
+	/* Absent means absent. An image with no read-only segment and an image
+	   with nothing past p_filesz are both ordinary, and a key whose value
+	   would be zero is worse than no key: the image cannot tell the two
+	   apart, and payload.S dereferences what it finds. */
+	if (ro_addr) {
+		vec[j++] = AT_SPIKE_RODATA;	vec[j++] = ro_addr;
+	}
+	if (bss_addr) {
+		vec[j++] = AT_SPIKE_BSS;	vec[j++] = bss_addr;
+	}
+	vec[j++] = AT_NULL;		vec[j++] = 0;
 
-	hs = (struct handshake *)(UINT_PTR) hs_addr;
 	memset(hs, 0, sizeof *hs);
 	hs->in_magic = IN_MAGIC;
 
@@ -674,6 +736,16 @@ int main(int argc, char **argv)
 	    (uint64_t)(UINT_PTR) stack, opt.stack);
 	say("    entered with %%rsp at             0x%016" PRIx64 "\n",
 	    (uint64_t)(UINT_PTR) vec);
+	say("    handshake block                  0x%016" PRIx64 " (the stub's own page)\n",
+	    hs_addr);
+	if (ro_addr)
+		say("    AT_SPIKE_RODATA                  0x%016" PRIx64 "\n", ro_addr);
+	else
+		say("    AT_SPIKE_RODATA                  not passed; no read-only segment\n");
+	if (bss_addr)
+		say("    AT_SPIKE_BSS                     0x%016" PRIx64 "\n", bss_addr);
+	else
+		say("    AT_SPIKE_BSS                     not passed; nothing past p_filesz\n");
 	fflush(stdout);
 
 	got.gpr_mask = abi_probe((void *)(UINT_PTR) got.entry, vec, hs, &got.xmm_mask);
@@ -681,6 +753,18 @@ int main(int argc, char **argv)
 	got.seen = *hs;
 
 	say("    control came back                yes\n\n");
+	/* Seven of the nine checks below are the specimen's report, and only
+	   payload.S makes it. An image linked from ordinary startup files
+	   fills in nothing but the slot it leaves through, so asking it these
+	   questions would be scoring it against a protocol it never agreed to.
+	   Not asking is an option the caller states, not something inferred
+	   from a blank block: a specimen that dies before it reports leaves a
+	   blank block too, and that has to keep failing. */
+	if (!opt.image_report) {
+		say("    the image's own report           not expected\n");
+		say("    the status it left in out_argc   %" PRIu64 "\n\n",
+		    got.seen.out_argc);
+	} else {
 	failures += check("the image ran at all",
 			  got.seen.out_magic == (IN_MAGIC ^ MAGIC_KEY), NULL);
 	failures += check("it read the read-only segment",
@@ -696,6 +780,7 @@ int main(int argc, char **argv)
 	failures += check("it ran inside its own text",
 			  got.seen.out_rip >= got.text_first &&
 			  got.seen.out_rip < got.text_last, NULL);
+	}
 	failures += check("callee-saved GPRs came back",
 			  got.gpr_mask == 0, NULL);
 	failures += check("callee-saved XMMs came back",
@@ -710,6 +795,8 @@ report:
 		if (stack)
 			VirtualFree(stack, 0, MEM_RELEASE);
 	}
+	if (hs)
+		VirtualFree(hs, 0, MEM_RELEASE);
 
 	if (!opt.quiet) {
 		printf("%scase_module_base=0x%" PRIx64 "\n", opt.terse ? "" : "\n",
