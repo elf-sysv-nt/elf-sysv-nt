@@ -5,7 +5,7 @@ deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
 month one. Four of the spikes gate something. The fifth prices a naming
-decision that has since been taken without it. Three have now run, and one of
+decision that has since been taken without it. Four have now run, and one of
 them took the recommended path off the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
@@ -20,18 +20,19 @@ In dependency order, which is also cost order.
 | 1 | `spike/fs-base-persistence/` | Does Windows preserve a user-written FS base across a context switch? | The TLS layer, and the toolchain target through it. Run 2026-08-29: no. |
 | 2 | `spike/map-and-jump/` | Can a PE stub map a static ELF and jump to it? | Image mapping and the initial process image. Run 2026-08-29: yes, with a constraint on when the span is claimed. |
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy |
-| 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point |
+| 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point. Run 2026-08-29: yes, byte for byte. |
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 is the expensive one,
 and a no there sends the program to the veneer-thunk fallback, which is a
-different program. Spike 4 gates nothing technically; it measures whether the
-whole edifice repairs what it was built to repair, and it should run before
-anything large is funded. Spike 5 gated nothing in the end: the triple was
-decided on 2026-08-29 without waiting for it, and the count it produced the
-same day is the size of the patch set that decision commits to.
-One package, well inside the threshold DR-0001 set in advance.
+different program. Spike 4 gated nothing technically; it measured whether the
+whole edifice repairs what it was built to repair, which is the question worth
+answering before anything large is funded, and it came back yes. Spike 5 gated
+nothing in the end either: the triple was decided on 2026-08-29 without waiting
+for it, and the count it produced the same day is the size of the patch set
+that decision commits to. One package, well inside the threshold DR-0001 set in
+advance.
 
 ## Spike 1, the thread pointer
 
@@ -92,6 +93,41 @@ image's span has to be reserved before the runtime under the stub warms up.
 Whether a PE TLS callback or an image entry point is early enough is not
 measured here, and it should be measured before that package is written rather
 than discovered inside it. `spike/map-and-jump/results-2026-08-29.txt` is the
+transcript and that spike's README reads it.
+
+## Spike 4, the payoff
+
+Run 2026-08-29, and the answer is yes. This is the spike that asks whether
+building the thing repairs what it was built to repair, and the sharpest form
+of that question is a string: does rpm write `libc.so.6(GLIBC_2.2.5)(64bit)`
+when it is pointed at a library we made up.
+
+It does, and not merely in the right shape. The line a synthesized `libc.so.6`
+carrying one verdef node yields from el8's own `elfdeps` is byte-identical to
+the line el8's `libc-2.28.so` yields from the same binary, and to the
+requirement a synthesized consumer emits from its `.gnu.version_r`. The edge
+closes: what the library provides is what a program asks for, spelled the same
+way at both ends, which is the whole of what `doc/symbol-versioning-formats.md`
+says PE can never do.
+
+Synthesized again with el8 libc's whole node list -- 29 of them, `GLIBC_2.2.5`
+through `GLIBC_2.28` and `GLIBC_PRIVATE` -- the provides set is identical to
+the vendor's, thirty lines each. So one node proves the mechanism and the
+ladder prices the veneer: a package requiring `GLIBC_2.14` is not satisfied by
+a library defining only `GLIBC_2.2.5`, and `rpm`'s own binary needs three of
+the nodes.
+
+One finding is a trap worth carrying forward. A versioned provide is read off
+the base verdef node, not off `DT_SONAME`; a library that gets those two
+strings out of step provides under one name, is required under the other, and
+says nothing about it. In a library a linker produced they are always the same
+and the question never arises, which is exactly why a synthesized one will get
+it wrong. Measured here, by a fixture built to get it wrong on purpose.
+
+What the verdict does not buy is automatic generation on the build host. That
+needs an rpm carrying `elfdeps` and `fileattrs`, and Cygwin's ships neither, so
+the stage 0.5 admission survives -- changed from a format impossibility into an
+installation gap. `spike/versioned-libc/results-2026-08-29.txt` is the
 transcript and that spike's README reads it.
 
 ## Spike 5, the target triple
