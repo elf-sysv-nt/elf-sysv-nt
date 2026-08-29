@@ -10,6 +10,8 @@ is a record nobody will find.
 
 | # | Decision | Status | Proposal |
 |---|---|---|---|
+| [0001](0001-target-triple.md) | The target triple is `x86_64-elfsysvnt-linux-gnu` | accepted 2026-08-29 | 0001 |
+| [0002](0002-el8-source-acquisition.md) | el8 source comes from Rocky 8.10 and lives outside the repository | accepted 2026-08-29 | 0001 |
 
 ## What earns a record
 
