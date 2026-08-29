@@ -41,13 +41,23 @@ binary we built is a binary we could have compiled correctly.
 
 ## Method
 
-Reuse spike 1's cases rather than inventing new ones. `spike/fs-base-persistence/`
-already has twelve ways to lose the base, the spinning one included, which is
-the case that matters most here because it has no call site to hook.
+Take spike 1's cases rather than inventing new ones, and say where the two
+lists differ. `spike/fs-base-persistence/` has twelve cases, of which nine lose
+the base; the spinning one matters most here because it has no call site to
+hook.
+
+Nine carry over unchanged. Spike 1's `round trip` control is replaced by an
+explicit zero, since what wants exercising here is the access rather than the
+capability. Its two observations, `thread start` and `fork`, become cases,
+because a base that is zero by construction faults exactly like one the
+scheduler cleared and the handler cannot tell them apart. Its `signal, async`
+and `load` cases are not in the table: `load` reappears as the no-call-site
+row, under the same burner, and `signal, async` does not appear at all, which
+the Not verified section reads.
 
 1. Write a base with `WRFSBASE` and confirm `%fs:0x0` reads it back, which is
    spike 1's own precondition and fails the run if it does not hold.
-2. Deschedule by each of spike 1's cases.
+2. Deschedule by each of the cases above.
 3. Read `%fs:0x0` and record what came out: a value, or an exception, with its
    code and the faulting address.
 4. Install a vectored exception handler and repeat. Record whether the handler
@@ -76,12 +86,12 @@ acceptance of the rewriting route worth revisiting.
 
 ## What came back
 
-The first branch, on every case. Ten of spike 1's twelve events lose the base
+The first branch, on every case. Ten of the twelve events here lose the base
 and an access through it afterwards raised `0xc0000005` every time — a read at
-`0x0`, or a write at the store's own offset. The other two are the two spike 1
-recorded as surviving, `syscall` and `apc`, and no access was made through a
-base that was still good. Nothing read through a zeroed base anywhere in the
-run.
+`0x0`, or a write at the store's own offset. The other two are the two
+descheduling cases spike 1 also recorded as surviving, `syscall` and `apc`, and
+no access was made through a base that was still good. Nothing read through a
+zeroed base anywhere in the run.
 
 A vectored handler registered first sees the fault ahead of Cygwin's own
 machinery, and the interesting part is what Windows hands it. **With the base
