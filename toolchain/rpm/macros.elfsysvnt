@@ -41,13 +41,22 @@
 %__readelf		%{_elfsysvnt_triple}-readelf
 %__strip		%{_elfsysvnt_triple}-strip
 
-# -mno-red-zone appears here even though the compiler already defaults it,
-# and the duplication is deliberate. The compiler's default is the mandate;
-# this line is what makes the mandate visible in a build log, which is where
-# somebody debugging a corrupted stack in month nine will look. Spike 3
-# measured Cygwin's signal delivery taking the word at %rsp-8 on every
-# delivery, and WP-43 may retire the flag once a reserving delivery is priced;
-# until then it is policy in both places.
+# -mno-red-zone is scaffolding, not the shipped answer, and this line exists
+# to make the scaffolding visible.
+#
+# The platform is meant to honour the red zone: the psABI reserves 128 bytes
+# below %rsp and WP-43 is where honouring them at the delivery site lands.
+# What stands in the way is our own layer rather than Windows -- spike 3
+# measured Cygwin's delivery taking the word at %rsp-8 on every delivery where
+# the host takes nothing -- so the flag and the delivery repair are steps in
+# an order rather than alternatives. Removing the flag before the repair would
+# not make this more faithful to ELF; it would make every leaf a defect.
+#
+# The compiler already defaults it, so this duplicates the mandate on purpose:
+# it puts the flag in every build log, which is where somebody debugging a
+# corrupted stack in month nine will look, and where its absence would
+# otherwise be indistinguishable from a compiler that had quietly stopped
+# defaulting it. When WP-43 retires the flag this line goes with it.
 #
 # Hand-written assembly is reached by neither. That is what the ledger under
 # toolchain/rpm/ is for.
