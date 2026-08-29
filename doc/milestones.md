@@ -5,11 +5,11 @@ deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
 month one. Five were planned. Four of them gate something, the fifth prices a
-naming decision that has since been taken without it, and the work added two
-more as it went: a sixth that settled what `%fs` could not provide, and a
-seventh that priced whether the red zone can survive delivery. All seven have
-run, and one of them took the recommended path off the table, which is what a
-spike is for.
+naming decision that has since been taken without it, and the work added three
+more as it went: a sixth that settled what `%fs` could not provide, a seventh
+that priced whether the red zone can survive delivery, and an eighth that WP-12
+turned up and nobody has run. Seven have run, and one of them took the
+recommended path off the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 most and a count for the fifth. The verdict is the deliverable. Reaching one is
@@ -26,6 +26,7 @@ In dependency order, which is also cost order.
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 | 6 | `spike/gs-thread-pointer/` | Does a thread pointer reached through `%gs` survive the switch that `%fs` did not? | The TLS model. Run 2026-08-29: yes, four carriers measured; DR-0003 took C3. |
 | 7 | `spike/redzone-delivery/` | Can delivery reserve the red zone before it builds the handler frame? | Whether `-mno-red-zone` can be retired. Run 2026-08-29: yes, a reserved delivery holds it and the far side survives; the cost is WP-43's to price. |
+| 8 | `spike/fs-base-fault/` | What does an access through a zeroed `%fs` base do, and can a handler resume from it? | Whether a load-time TLS rewriter for vendor binaries may be a heuristic. Not yet run. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
@@ -295,12 +296,44 @@ is taken against this spike's transcript rather than ahead of it.
 `spike/redzone-delivery/README.md` carries the mechanism, the cases and the
 reading; `results-2026-08-29.txt` is the transcript.
 
+## Spike 8, reading a zeroed `%fs` base
+
+Not yet run. Spike 1 measured the base and found it zero after anything that
+deschedules the thread; it never measured the next instruction, and that gap
+turns out to decide something larger than its size suggests.
+
+Vendor binaries are built for real Linux and reach for TLS through `%fs`, and
+no toolchain choice of ours touches a binary that arrives already linked. The
+operator's direction is that load-time rewriting is the fallback for that case,
+which puts the weight on finding every access site rather than on rewriting
+one: in a linked executable the local-exec relocations have been consumed, so
+a rewriter is reduced to scanning bytes, and code-versus-data on x86-64 has no
+sound general answer. It will miss sites. What a miss costs is what this asks.
+
+If an access through the zeroed base faults, and a vectored handler can
+identify the instruction, emulate it through the C3 carrier and resume, then
+the rewriter is an optimization over a sound fallback and is allowed to be a
+heuristic. If it reads something instead, the rewriter has to be exhaustive,
+nothing here can make it so, and the fallback narrows to binaries we built
+ourselves — which is barely a fallback, since a binary we built is one we
+could have compiled correctly.
+
+It reuses spike 1's twelve cases rather than inventing new ones, the spinning
+case included, since that is the one with no call site to hook. The verdict
+goes to `doc/proposals/0003-vendor-binary-tls-rewriting.md`, which is written
+against it rather than ahead of it. `spike/fs-base-fault/README.md` carries the
+method.
+
+Nothing in phase 1 waits on this. What waits is the loader's answer to a
+vendor binary, which is phase 3 at the earliest.
+
 ## After the spikes
 
-No package waits on a spike. All seven have answered and the recommended path
-survived the one that could have taken it away; the seventh gated only whether a
-delivery-site red-zone repair is available to weigh against `-mno-red-zone`, and
-nothing starting now depends on which way that weighing goes.
+No package waits on a spike that has run, and the one that has not is phase 3's
+rather than phase 1's. All seven ran and the recommended path survived the one
+that could have taken it away; the seventh gated only whether a delivery-site
+red-zone repair is available to weigh against `-mno-red-zone`, and nothing
+starting now depends on which way that weighing goes.
 `ROADMAP.md` inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into
 packages; the sketch below is the shape both of them fill in.
 
