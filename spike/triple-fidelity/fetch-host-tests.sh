@@ -221,8 +221,27 @@ printf '%s\n' "$$" > "$lock" || die "cannot take the lock at $lock"
 rm -rf "$dest"/work.* 2>/dev/null
 
 work=$(mktemp -d "$dest/work.XXXXXX") || die 'cannot create a working directory'
-trap 'rm -rf "$work"; rm -f "$lock"' EXIT
-trap 'rm -rf "$work"; rm -f "$lock"; exit 130' INT TERM
+
+# Killing the parent does not kill the packages in flight, and an orphan goes
+# on writing into a working directory the next run will reap out from under
+# it. Seen on 2026-08-29: a job of a killed run failed writing its status file
+# because the successor had already deleted the directory holding it. Worse
+# than the noise is what it risks, an orphan laying down a marker for a
+# package whose fragment never finished, which the next run would then skip.
+#
+# So the signal path takes the jobs down before it cleans up. curl and tar
+# below them may outlive their parent by an instant; they write only inside
+# the tree being deleted, and the marker is written by the job, not by them.
+reap_jobs() {
+	pids=$(jobs -p 2>/dev/null)
+	[ -n "$pids" ] || return 0
+	kill $pids 2>/dev/null
+	wait 2>/dev/null
+	return 0
+}
+
+trap 'reap_jobs; rm -rf "$work"; rm -f "$lock"' EXIT
+trap 'reap_jobs; rm -rf "$work"; rm -f "$lock"; exit 130' INT TERM
 
 # --connect-timeout because curl's default is 300 seconds and three retries of
 # that is fifteen minutes of looking like a slow mirror rather than an
