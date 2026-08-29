@@ -62,15 +62,42 @@ upstream tarballs. Taking the newest build of each name is 24 GB, and
 `--all-versions` is there for anyone wanting to check that the other 150 GB
 would have said the same thing.
 
-The second is scope, and it is a real loss rather than a tuning choice.
+The second is scope, and it was taken for a real loss until it was measured.
 `--extract host-tests`, the default, pulls only `config.sub`, `config.guess`,
 `configure`, `configure.ac`, `configure.in` and the m4 out of each tarball, so
-the literal-vendor grep sees less than a walk of whole source trees would show
-it. `--extract all` is the wider scope and is not affordable: `389-ds-base`
+the literal-vendor grep sees less of a package than a walk of the whole source
+tree would show it. `--extract all` is the wider scope and is not affordable:
+`389-ds-base`
 alone unpacks a 49 MB SRPM into 521 MB across a vendored `node_modules` and a
 cargo cache, and the grep over that had not returned in ten minutes here.
-Every transcript names the scope it ran under as `extract_scope`. To price the
-narrowing, run a few dozen packages each way and compare.
+Every transcript names the scope it ran under as `extract_scope`.
+
+That narrowing was priced on 2026-08-29, forty packages each way, and the
+answer came back the opposite way round from the worry. The narrow pass took
+2 minutes 3 seconds and reported no literal-vendor hits. The wide pass took 17
+minutes, seven and a half of them on `389-ds-base` alone, and reported 108
+hits across five packages — 12.5% affected, which is over the share at which
+DR-0001 says the triple gets reconsidered.
+
+Every one of those 108 was noise. 102 sat under a Rust `vendor/` tree, where a
+`Cargo.toml` naming `x86_64-unknown-linux-gnu` means Rust's own target triple
+and nothing `config.sub` will ever read; the rest were a generated `libtool`,
+a `README`, a `doc/INSTALL`, a CI yaml, and one top-level `Cargo.toml`. Not
+one was a live `case $host`. So the wide scope does not find more signal here,
+it finds more noise, and it would have bought a reopened decision with false
+positives. The exclusion list in `count-vendor-misses.sh` now covers those
+shapes, and `t/lit-noise/` holds one package per shape so that dropping any
+single rule shows up as a count of two rather than one.
+
+Replayed against those rules, 107 of the 108 fall and one stands: a CI setup
+script naming a Rust target. It stands on purpose. Hand-written shell is the
+one place a genuine hand-rolled host test could hide, so excluding `*.sh`
+would cost signal to buy quiet, and the literal figure keeps its old warning —
+it is an upper bound, and a nonzero one wants reading before it is quoted.
+
+Forty packages off the head of a C-sorted list is not a sample, so read this
+as pricing the runtime and characterising the noise, not as evidence about how
+many el8 packages hand-roll a host test.
 
 `--jobs` sets how many packages are in flight, four by default. One at a time
 the run is bounded by a single connection to a single mirror, which measured
