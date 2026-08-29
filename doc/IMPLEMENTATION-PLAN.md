@@ -17,7 +17,7 @@ one worth naming in advance.
 Packages are numbered by phase and are not renumbered when one is added, so the
 sequence has gaps and the gaps mean nothing.
 
-Nothing here is scheduled. Two of the five spike answers can still reshape the
+Nothing here is scheduled. One of the five spike answers can still reshape the
 graph, so a date attached to WP-53 today would be fiction, and the dependency
 order is the only ordering claim the plan makes.
 
@@ -30,9 +30,15 @@ here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-Spikes 1, 2 and 5 are done, all on 2026-08-29. Spike 3 wants spike 2's stub as
-a convenient carrier and now has one; spike 4 is independent of the others and
-should run early because it prices the whole program.
+Spikes 1, 2, 4 and 5 are done, all on 2026-08-29. Spike 3 wants spike 2's stub
+as a convenient carrier and now has one, and is the last of the five.
+
+Spike 4 came back yes and left two conditions on WP-53 rather than a schedule
+change: the base `.gnu.version_d` node has to carry the same string as
+`DT_SONAME`, since the versioned `Provides` is formatted against the base node
+and the unversioned one against `DT_SONAME`, and the whole 29-node ladder has
+to be defined rather than a node, since a package requiring `GLIBC_2.14` is not
+satisfied by a library that stops at `GLIBC_2.2.5`.
 
 Spike 2 came back yes and left one constraint behind, which WP-32 and WP-41
 carry below: a non-PIE image's span has to be reserved before anything else in

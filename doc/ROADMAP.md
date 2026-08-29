@@ -242,8 +242,16 @@ complete implementation. It is GPL and it assumes a Linux kernel underneath, so
 it informs the design and does not join it. Writing from the specification is
 the plan of record.
 
-Downstream, this is what rpm's `elfdeps` reads. Spike 4 measures whether it
-does before anything large is funded.
+Downstream, this is what rpm's `elfdeps` reads, and spike 4 measured on
+2026-08-29 that it reads a library we synthesized exactly as it reads the
+vendor's. Two conditions come out of that run and belong here rather than in
+the transcript. The base `.gnu.version_d` node has to carry the same string as
+`DT_SONAME`, because the versioned `Provides` is formatted against the base
+node and the unversioned one against `DT_SONAME`, and a library that gets them
+out of step satisfies nothing and says nothing. And the veneer has to define
+the whole node ladder, not a node: el8's libc carries 29, from `GLIBC_2.2.5`
+through `GLIBC_2.28` plus `GLIBC_PRIVATE`, and a package requiring `GLIBC_2.14`
+is unsatisfied by a library that stops lower.
 
 ## 6. The initial process image
 
@@ -419,10 +427,19 @@ stating anyway, because the PE route needed a workaround for every line of it.
 
 `file` reports ELF, rpm's magic gate matches, `elfdeps` fires unmodified, and
 `Provides` and `Requires` take the vendor's exact
-`libc.so.6(GLIBC_2.2.5)(64bit)` shape. No dependency generator has to be
-written. The stage 0.5 admission recorded in `symbol-versioning-formats.md` for
-a PE generator does not apply here, and it should be marked superseded rather
-than left to confuse a later reader.
+`libc.so.6(GLIBC_2.2.5)(64bit)` shape. Spike 4 measured that on 2026-08-29
+against a synthesized library rather than assuming it: the string el8's
+`elfdeps` writes off our file is byte-identical to the one it writes off el8's
+own libc, and both to the requirement a consumer emits. No dependency generator
+has to be written. The stage 0.5 admission recorded in
+`symbol-versioning-formats.md` for a PE generator does not apply here, and it
+should be marked superseded rather than left to confuse a later reader.
+
+One thing does have to be installed, which is not the same as written. rpm
+carries `elfdeps` and `fileattrs/elf.attr` in its `rpm-build` package and
+Cygwin's port of rpm ships neither, so the build host has to acquire the
+vendor's generator before a package built here gets these dependencies without
+being told them one at a time.
 
 What is left is ours: `ldconfig` and the cache format, the search path
 configuration it reads, and the macro set that puts `-mno-red-zone` and the

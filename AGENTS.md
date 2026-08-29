@@ -90,8 +90,8 @@ transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
 The five spikes in `doc/milestones.md` are the current contents of that
-directory. Spikes 1, 2 and 5 ran on 2026-08-29 and have their verdicts; the
-other two are unrun.
+directory. Spikes 1, 2, 4 and 5 ran on 2026-08-29 and have their verdicts;
+spike 3 is unrun.
 
 `doc/decisions/` holds one settlement per file with an index beside them, and
 `doc/proposals/` holds the change that produced each. A decision record is

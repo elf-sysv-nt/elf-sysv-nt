@@ -318,6 +318,9 @@ Whether cygport has any codified policy on version scripts. Nothing documented
 was found, and the practical answer appears to be that none is needed because
 `ld` degrades silently.
 
-Whether el8's own rpm 4.14.3 build carries `elfdeps` and `fileattrs`. The
-Cygwin port omits them; whether that omission is the port's or the version's is
-untested, and it is the first thing to probe.
+Whether el8's own rpm 4.14.3 build carries `elfdeps` and `fileattrs` was the
+open item here, and spike 4 settled it on 2026-08-29:
+`rpm-build-4.14.3-32.el8_10` carries `/usr/lib/rpm/elfdeps` and ten
+`fileattrs`, `elf.attr` among them. The omission is the Cygwin port's and not
+the version's, which turns the stage 0.5 admission above from writing a
+generator into installing one. See `spike/versioned-libc/`.
