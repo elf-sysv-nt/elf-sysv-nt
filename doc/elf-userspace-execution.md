@@ -1,8 +1,8 @@
 # ELF through a user-space loader, survey and assessment
 
 Surveyed 2026-08-20 in `rhelcyg-8.10` at commit `54a8fc8`, moved here the same
-day. This answers the open question at the end of that repository's
-`a/handoff/rhel-emulation-image-format-and-symbol-versioning.md`, and it scopes
+day. This answers the open question that repository's working notes left on
+image format and symbol versioning, and it scopes
 `symbol-versioning-formats.md` so that record is not read more broadly than it
 holds. It is the survey behind `elf-technical-breakdown.md`, and where the two
 disagree the breakdown is later and wins; the one place they do disagree is
@@ -252,9 +252,9 @@ Mechanism references
 
 In-tree: `symbol-versioning-formats.md`, `elf-technical-breakdown.md`.
 
-In `rhelcyg-8.10`: `doc/plan-rpm-userland.md`, `doc/stage-model.md`,
-`a/handoff/rhel-emulation-image-format-and-symbol-versioning.md`, and the two
-`spike/*/results-2026-08-19.txt` transcripts.
+In `rhelcyg-8.10`: `doc/plan-rpm-userland.md`, `doc/stage-model.md`, the two
+`spike/*/results-2026-08-19.txt` transcripts, and the working notes on image
+format and symbol versioning that prompted this survey.
 
 ## Not verified
 
