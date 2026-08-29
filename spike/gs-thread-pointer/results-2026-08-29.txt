@@ -1,0 +1,126 @@
+
+a runtime-owned thread pointer through %gs, four carriers side by side
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+windows     10.0.26200.9168
+cpu         AMD Ryzen 5 7530U with Radeon Graphics         
+processors  12
+compiler    gcc (GCC) 7.4.0
+date        2026-08-29T12:45:28Z
+script      measure-gs-tp 1.0
+
+== carriers
+
+         carrier                  chain                          available
+    C1   fixed TlsSlots index     gs:[0x1480+8k]                 yes
+    C2   PE TLS directory         gs:[0x58], then _tls_index     no
+         image carries no PE TLS directory (this toolchain emits emulated TLS)
+    C3   word below stack base    gs:[0x08], then a fixed offset yes
+    C4   ArbitraryUserPointer     gs:[0x28]                      yes
+
+    Each chain was confirmed against the running kernel
+    before the probe was written. C3 is a stand-in for the
+    forked runtime's block, measured at the same distance
+    below the stack base by the same chain.
+
+== C1  fixed TlsSlots index
+
+                             checks       failures
+    round trip                20000              0
+    syscall                   20000              0
+    yields                    20000              0
+    blocking wait             20000              0
+    migration                  2000              0
+    apc                        4000              0
+    hijack                      124              0
+    signal, sync               4000              0
+    signal, fault               400              0
+    signal, async           3954740              0
+    preemption           2796800000              0
+    load                 2950024256              0
+    address                    2000              0
+
+
+== C2  PE TLS directory
+
+    not measured: image carries no PE TLS directory (this toolchain emits emulated TLS)
+
+== C3  word below stack base
+
+                             checks       failures
+    round trip                20000              0
+    syscall                   20000              0
+    yields                    20000              0
+    blocking wait             20000              0
+    migration                  2000              0
+    apc                        4000              0
+    hijack                     1177              0
+    signal, sync               4000              0
+    signal, fault               400              0
+    signal, async           4094136              0
+    preemption           2878200000              0
+    load                 3017382464              0
+    address                    2000              0
+
+
+== C4  ArbitraryUserPointer
+
+                             checks       failures
+    round trip                20000              0
+    syscall                   20000              0
+    yields                    20000              0
+    blocking wait             20000              0
+    migration                  2000              0
+    apc                        4000              0
+    hijack                      231              0
+    signal, sync               4000              0
+    signal, fault               400              0
+    signal, async           3856612              0
+    preemption           3069600000              0
+    load                 2878649088              0
+    address                    2000              0
+
+
+== observations
+
+    contention     lowest free index 3 at start, 10 after loading 10 DLLs; 0 fixed-range indices consumed
+    contention     C1's constant is index 63; TlsAlloc hands out from the same 64 and any injected DLL draws first
+    thread start   C1: entry holds 0x0, hook re-established in 33440 cycles (hook: thread entry, reachable)
+    fork           C1: child inherits 0x0, hook re-established in 36600 cycles (hook: post-fork, reachable)
+    cost           C1: 5.1 cycles/access
+    thread start   C3: entry holds 0x0, hook re-established in 34480 cycles (hook: thread entry, reachable)
+    fork           C3: child inherits 0x6ffff630000, hook re-established in 46020 cycles (hook: post-fork, reachable)
+    cost           C3: 5.5 cycles/access
+    thread start   C4: entry holds 0x0, hook re-established in 57660 cycles (hook: thread entry, reachable)
+    fork           C4: child inherits 0x0, hook re-established in 48600 cycles (hook: post-fork, reachable)
+    cost           C4: 5.6 cycles/access
+
+    Cost baselines: global 2.5, emulated-TLS 33.7, %fs read 3.8 cycles/access.
+    Thread start and fork carry no pass or fail; the value at
+    entry is what would be read before a hook runs, and every
+    carrier here starts the new context empty.
+
+== summary
+
+    C1=pass
+    C2=unavailable
+    C3=pass
+    C4=pass
+    carriers_pass=3
+    carriers_fail=0
+    carriers_unavailable=1
+    shape=C1/round trip:pass,C1/syscall:pass,C1/yields:pass,C1/blocking wait:pass,C1/migration:pass,C1/apc:pass,C1/hijack:pass,C1/signal, sync:pass,C1/signal, fault:pass,C1/signal, async:pass,C1/preemption:pass,C1/load:pass,C1/address:pass,C2/*:unavail,C3/round trip:pass,C3/syscall:pass,C3/yields:pass,C3/blocking wait:pass,C3/migration:pass,C3/apc:pass,C3/hijack:pass,C3/signal, sync:pass,C3/signal, fault:pass,C3/signal, async:pass,C3/preemption:pass,C3/load:pass,C3/address:pass,C4/round trip:pass,C4/syscall:pass,C4/yields:pass,C4/blocking wait:pass,C4/migration:pass,C4/apc:pass,C4/hijack:pass,C4/signal, sync:pass,C4/signal, fault:pass,C4/signal, async:pass,C4/preemption:pass,C4/load:pass,C4/address:pass
+    checks=17602840028
+    failures=0
+    switches_under_load=44963361
+    preemption_checks_per_second=334016506
+    cost_global_cycles=2.5
+    cost_emutls_cycles=33.7
+    cost_fs_cycles=3.8
+    cost_C1_cycles=5.1
+    cost_C3_cycles=5.5
+    cost_C4_cycles=5.6
+    load_threads=24
+    load_seconds=10
+    probe=gs-tp-probe 1.0
