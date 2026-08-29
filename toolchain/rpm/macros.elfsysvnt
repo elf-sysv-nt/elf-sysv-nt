@@ -45,7 +45,7 @@
 # to make the scaffolding visible.
 #
 # The platform is meant to honour the red zone: the psABI reserves 128 bytes
-# below %rsp and WP-43 is where honouring them at the delivery site lands.
+# below %rsp; DR-0006 records that direction and WP-43 is where it lands.
 # What stands in the way is our own layer rather than Windows -- spike 3
 # measured Cygwin's delivery taking the word at %rsp-8 on every delivery where
 # the host takes nothing -- so the flag and the delivery repair are steps in
