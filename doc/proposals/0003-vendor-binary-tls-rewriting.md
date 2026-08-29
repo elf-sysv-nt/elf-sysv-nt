@@ -86,6 +86,14 @@ handler, or require the rewriter to be exhaustive over exactly the forms it is
 least able to be exhaustive about. Which is cheaper turns on the site census
 below, which is no longer optional.
 
+The two are not the symmetric pair that reads as, and the asymmetry is worth
+naming before anyone prices them. A `lock`-prefixed read-modify-write on a TLS
+location cannot be emulated in a fault handler at all, however carefully
+`EFLAGS` is handled, because the handler cannot hold the atomicity the prefix
+promises. So the first option closes the plain arithmetic forms and leaves the
+locked ones exactly where they were: with the rewriter, unconditionally. The
+census should count them separately for that reason.
+
 Cost, for the same reason. A handled fault measured 2215 ns against 0.5 ns for
 the same access once rewritten. That is fine for a miss and ruinous as a
 policy, which is the argument for the rewriter existing at all rather than the
