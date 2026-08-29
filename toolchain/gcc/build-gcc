@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+#
+# Build the stage-one cross compiler.
+#
+# Stage one means no libc: --without-headers and --with-newlib, C only, no
+# threads and no shared libraries. That is not a compromise, it is the first
+# turn of the bootstrap the plan describes -- headers, then a compiler that
+# trusts them, then a library that satisfies them, then the compiler again.
+# WP-15 is the second turn and it waits on a libc that does not exist.
+#
+# libgcc is built and installed here rather than in WP-14, because it comes
+# out of this source tree and configuring it separately would mean configuring
+# gcc twice. WP-14 consumes it.
+#
+# Usage:
+#   build-gcc [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Install here. [default: $HOME/x-elfsysvnt]
+#   -w DIR, --work=DIR     Source and build trees. [default: $prefix/../work]
+#   -p FILE, --pin=FILE    The release pin. [default: beside this one]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
+#   -n, --dry-run          Print the configure line and stop.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Stream the build rather than logging it.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_GCC_<OPTION>, and the option wins.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-gcc
+release='build-gcc 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${BUILD_GCC_PREFIX:-$HOME/x-elfsysvnt}
+work=${BUILD_GCC_WORK:-}
+pin=${BUILD_GCC_PIN:-$here/gcc.pin}
+target=${BUILD_GCC_TARGET:-x86_64-elfsysvnt-linux-gnu}
+jobs=${BUILD_GCC_JOBS:-}
+dryrun=${BUILD_GCC_DRY_RUN:-0}
+terse=${BUILD_GCC_TERSE:-0}
+quiet=${BUILD_GCC_QUIET:-0}
+verbose=${BUILD_GCC_VERBOSE:-0}
+debug=${BUILD_GCC_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-w|--work|-p|--pin|-T|--target|-j|--jobs) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -w|--work) work=$val ;;
+        -p|--pin) pin=$val ;;
+        -T|--target) target=$val ;;
+        -j|--jobs) jobs=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -r "$pin" ] || die "cannot read the pin: $pin"
+[ -n "$work" ] || work=$(dirname "$prefix")/work
+[ -n "$jobs" ] || jobs=$(nproc 2>/dev/null || echo 4)
+
+pinfield() { awk -v k="$1" '$1 == k { print $2; exit }' "$pin"; }
+version=$(pinfield version)
+url=$(pinfield url)
+want=$(pinfield sha256)
+[ -n "$version" ] && [ -n "$url" ] && [ -n "$want" ] ||
+    die "the pin is missing version, url or sha256"
+
+sysroot=$prefix/$target/sys-root
+tarball=$work/src/$(basename "$url")
+srcdir=$work/src/gcc-$version
+builddir=$work/build/gcc1
+
+configure_args="--target=$target
+--prefix=$prefix
+--with-sysroot=$sysroot
+--with-newlib
+--without-headers
+--disable-nls
+--disable-shared
+--disable-threads
+--disable-libatomic --disable-libgomp --disable-libquadmath
+--disable-libssp --disable-libvtv --disable-libstdcxx
+--disable-multilib
+--disable-bootstrap
+--enable-languages=c"
+
+if [ "$dryrun" = 1 ]; then
+    printf '%s/configure' "$srcdir"; printf ' %s' $configure_args; printf '\n'
+    exit 0
+fi
+
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+command -v "$target-as" >/dev/null 2>&1 || die "$target-as is not on PATH; WP-12 first"
+
+mkdir -p "$work/src" "$work/build" || die "cannot create $work"
+
+if [ -f "$tarball" ] && [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$want" ]; then
+    chat "have $(basename "$tarball")"
+else
+    rm -f "$tarball"
+    chat "fetching gcc $version"
+    curl -fsSL --retry 3 --retry-delay 2 -o "$tarball" "$url" || die "cannot fetch $url"
+    got=$(sha256sum "$tarball" | cut -d' ' -f1)
+    [ "$got" = "$want" ] || die "checksum: got $got, pin says $want"
+fi
+
+if [ ! -d "$srcdir" ]; then
+    chat "unpacking"
+    ( cd "$work/src" && tar xf "$tarball" ) || die "cannot unpack $tarball"
+fi
+
+# gmp, mpfr, mpc and isl, fetched by upstream's own script against checksums
+# it carries. Ours is the pin on gcc; theirs is the pin on these.
+if [ ! -d "$srcdir/gmp" ]; then
+    chat "fetching prerequisites"
+    ( cd "$srcdir" && ./contrib/download_prerequisites --no-verify ) ||
+        die "the prerequisites did not download"
+fi
+
+applied=$srcdir/.elfsysvnt-patches
+touch "$applied"
+for p in "$here"/patches/*.patch; do
+    [ -e "$p" ] || break
+    name=$(basename "$p")
+    if grep -qxF "$name" "$applied"; then chat "already applied: $name"; continue; fi
+    chat "applying $name"
+    ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
+        die "$name did not apply to gcc $version"
+    printf '%s\n' "$name" >> "$applied"
+done
+
+rm -rf "$builddir" || die "cannot clear $builddir"
+mkdir -p "$builddir" "$sysroot" || die "cannot create $builddir"
+
+stage() {
+    what=$1; shift
+    log=$work/build/gcc1-$what.log
+    chat "$what"
+    if [ "$verbose" = 1 ]; then
+        "$@" 2>&1 | tee "$log"; rc=${PIPESTATUS[0]}
+    else
+        "$@" > "$log" 2>&1; rc=$?
+    fi
+    [ "$rc" = 0 ] || die "$what failed, see $log"
+}
+
+PATH=$prefix/bin:$PATH
+cd "$builddir" || die "cannot enter $builddir"
+stage configure "$srcdir/configure" $configure_args
+stage make make -j"$jobs" all-gcc
+stage install make install-gcc
+stage libgcc make -j"$jobs" all-target-libgcc
+stage libgcc-install make install-target-libgcc
+
+[ -x "$prefix/bin/$target-gcc" ] || [ -x "$prefix/bin/$target-gcc.exe" ] ||
+    die "install left no $target-gcc"
+
+if [ "$terse" = 1 ]; then
+    printf 'version=%s\ntarget=%s\nprefix=%s\n' "$version" "$target" "$prefix"
+else
+    note "gcc $version for $target installed under $prefix"
+    note "now run t/accept.sh -P $prefix"
+fi
+exit 0

@@ -1,0 +1,101 @@
+Subject: [PATCH] i386: add the elfsysvnt target
+
+The triple's os and abi fields are honestly linux-gnu, so config.gcc already
+routes x86_64-elfsysvnt-linux-gnu through the ordinary x86_64 Linux arm and
+the compiler builds without this. What it does not do without this is carry
+the two things the target mandates rather than suggests, and both are values
+some package can forget to pass.
+
+-mno-red-zone, by TARGET_SUBTARGET_DEFAULT rather than by a spec string.
+Spike 3 measured Cygwin's signal delivery taking the word at %rsp-8 on every
+delivery where the host itself takes nothing, so one object compiled with a
+red zone corrupts a stack at an unpredictable later date in a package nobody
+was looking at. -mred-zone still turns it back on, deliberately: WP-43 may
+retire the flag if a delivery that reserves the 128 bytes prices out cheaply,
+and a target that refused the option outright would have to be rebuilt to
+find out.
+
+__ELFSYSVNT__, because config.guess cannot read the vendor field off uname
+here -- sysname is Linux by design, so that the configure scripts branching
+on it keep working. It asks the compiler instead, the way it already asks
+which libc it is looking at. Without this define a native build silently
+configures as x86_64-pc-linux-gnu, which is the failure DR-0001 chose the
+vendor field to avoid.
+
+Nothing else is touched. GLIBC_DYNAMIC_LINKER64 in i386/linux64.h is already
+/lib64/ld-linux-x86-64.so.2, which is what doc/target-definition.md fixes the
+loader SONAME at, so the two agree without a patch.
+
+Against gcc 13.3.0, pinned in ../gcc.pin.
+
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -1980,6 +1980,14 @@
+ 	x86_64-*-linux*)
+ 		tm_file="${tm_file} linux.h linux-android.h i386/linux-common.h i386/linux64.h"
+ 		extra_options="${extra_options} linux-android.opt"
++		# The vendor field is what distinguishes this target, since its os
++		# and abi fields are honestly linux-gnu and everything above reads
++		# them.  DR-0001 records why the name sits there.
++		case ${target} in
++		x86_64-elfsysvnt-*)
++			tm_file="${tm_file} i386/elfsysvnt.h"
++			;;
++		esac
+ 	  	;;
+ 	x86_64-*-kfreebsd*-gnu)
+ 		tm_file="${tm_file} kfreebsd-gnu.h i386/kfreebsd-gnu64.h"
+--- /dev/null
++++ b/gcc/config/i386/elfsysvnt.h
+@@ -0,0 +1,51 @@
++/* Target definitions for x86-64 ELF and System V on Windows NT, over Cygwin.
++   Copyright (C) 2026 Philip Dye.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify it under the terms
++of the GNU General Public License as published by the Free Software Foundation;
++either version 3, or (at your option) any later version.
++
++GCC is distributed in the hope that it will be useful, but WITHOUT ANY
++WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
++PARTICULAR PURPOSE.  See the GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License along with
++GCC; see the file COPYING3.  If not see <http://www.gnu.org/licenses/>.
++
++This header carries what the target mandates rather than what a caller
++remembers.  Everything in it is a value some package can forget to pass, which
++is the definition of a thing that belongs here instead of in a makefile.  The
++target definition it answers to is doc/target-definition.md.  */
++
++/* The red zone is not available on this platform, and the reason is ours
++   rather than Windows'.  Spike 3 measured the host leaving the reserved 128
++   bytes alone under preemption, thread hijacking and its own exception
++   dispatch, and measured Cygwin's signal delivery taking the word at %rsp-8
++   on every single delivery.  One object compiled with a red zone corrupts a
++   stack at an unpredictable later date, in a package nobody was looking at,
++   which is close to the worst shape a defect can take.
++
++   So it is defaulted here rather than passed.  -mred-zone still turns it back
++   on: WP-43 may retire this flag entirely if a delivery that reserves the 128
++   bytes proves cheap enough, and a target that refused the option outright
++   would have to be rebuilt to find out.  Hand-written assembly is not reached
++   by this at all, which is why WP-16 delivers a ledger of it.  */
++#undef  TARGET_SUBTARGET_DEFAULT
++#define TARGET_SUBTARGET_DEFAULT MASK_NO_RED_ZONE
++
++/* config.guess cannot read the vendor field off uname here: sysname is Linux
++   by design, so that the thousands of configure scripts branching on it keep
++   working.  It asks the compiler instead, the way it already asks which libc
++   it is looking at, and this is the answer it asks for.  Removing this define
++   makes a native build silently configure as x86_64-pc-linux-gnu.  */
++#undef  TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()		\
++  do						\
++    {						\
++      GNU_USER_TARGET_OS_CPP_BUILTINS ();	\
++      ANDROID_TARGET_OS_CPP_BUILTINS ();	\
++      builtin_define ("__ELFSYSVNT__");		\
++    }						\
++  while (0)
