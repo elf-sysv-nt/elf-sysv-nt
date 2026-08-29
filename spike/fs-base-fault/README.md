@@ -155,17 +155,21 @@ is not simply "yes".
 Three of the entries below are rows this probe could add rather than findings
 it cannot reach, and they are marked so. Leaving a cheap measurement in this
 section is how the section rots.
+`issue/0001-rows-the-probe-still-owes.md` states each as a work order, with
+what to measure and what would falsify it.
 
-The null page's margin, which is what makes the fault reliable and is nowhere
-argued above. With the base at zero the faulting address is the displacement,
-so an access lands in the guard page when the displacement is a small positive
-and in non-canonical space when it is negative. Variant II puts the static
-block at negative offsets and only `tcbhead_t` above the thread pointer, which
-on x86-64 runs to roughly 0x480 against a 0x1000 page, so the margin is
-structural rather than lucky — and finite. A positive displacement of 0x1000
-or more would read mapped memory and return a value, which is the outcome this
-spike says does not happen. *A row: one access at a displacement past the
-guard page, to find the boundary rather than assert it.*
+The floor, which is what makes the fault reliable and is nowhere argued above.
+With the base at zero the faulting address is the displacement, so an access
+lands in reserved low memory when the displacement is a small positive and in
+non-canonical space when it is negative. Variant II puts the static block at
+negative offsets and only `tcbhead_t` above the thread pointer, roughly 0x480
+of it on x86-64, while Windows reserves the lowest 64 KB and grants no
+allocation there. That is a margin of about 139 and it is a property of the
+operating system rather than of the layout, which is the better of the two
+things to be relying on. It is still finite: a displacement at or past
+`0x10000`, in a process that mapped something there, would return a value
+instead of faulting. *A row: find where faulting stops, rather than asserting
+it lies out of reach.*
 
 `signal, async`, which spike 1 exercised and this did not. The `hijack` case
 covers the same mechanism at one remove, so the gap is narrower than a missing
