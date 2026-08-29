@@ -8,8 +8,8 @@ month one. Five were planned. Four of them gate something, the fifth prices a
 naming decision that has since been taken without it, and the work added three
 more as it went: a sixth that settled what `%fs` could not provide, a seventh
 that priced whether the red zone can survive delivery, and an eighth that WP-12
-turned up and nobody has run. Seven have run, and one of them took the
-recommended path off the table, which is what a spike is for.
+turned up. All eight have run, and one of them took the recommended path off
+the table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 most and a count for the fifth. The verdict is the deliverable. Reaching one is
@@ -26,7 +26,7 @@ In dependency order, which is also cost order.
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
 | 6 | `spike/gs-thread-pointer/` | Does a thread pointer reached through `%gs` survive the switch that `%fs` did not? | The TLS model. Run 2026-08-29: yes, four carriers measured; DR-0003 took C3. |
 | 7 | `spike/redzone-delivery/` | Can delivery reserve the red zone before it builds the handler frame? | Whether `-mno-red-zone` can be retired. Run 2026-08-29: yes, a reserved delivery holds it and the far side survives; the cost is WP-43's to price. |
-| 8 | `spike/fs-base-fault/` | What does an access through a zeroed `%fs` base do, and can a handler resume from it? | Whether a load-time TLS rewriter for vendor binaries may be a heuristic. Not yet run. |
+| 8 | `spike/fs-base-fault/` | What does an access through a zeroed `%fs` base do, and can a handler resume from it? | Whether a load-time TLS rewriter for vendor binaries may be a heuristic. Run 2026-08-29: it faults and a handler resumes, over the data-movement forms and not the arithmetic ones. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
@@ -298,9 +298,10 @@ reading; `results-2026-08-29.txt` is the transcript.
 
 ## Spike 8, reading a zeroed `%fs` base
 
-Not yet run. Spike 1 measured the base and found it zero after anything that
-deschedules the thread; it never measured the next instruction, and that gap
-turns out to decide something larger than its size suggests.
+Run 2026-08-29, and the answer is that it faults and a handler resumes from it.
+Spike 1 measured the base and found it zero after anything that deschedules the
+thread; it never measured the next instruction, and that gap turns out to
+decide something larger than its size suggests.
 
 Vendor binaries are built for real Linux and reach for TLS through `%fs`, and
 no toolchain choice of ours touches a binary that arrives already linked. The
@@ -319,21 +320,51 @@ ourselves — which is barely a fallback, since a binary we built is one we
 could have compiled correctly.
 
 It reuses spike 1's twelve cases rather than inventing new ones, the spinning
-case included, since that is the one with no call site to hook. The verdict
-goes to `doc/proposals/0003-vendor-binary-tls-rewriting.md`, which is written
-against it rather than ahead of it. `spike/fs-base-fault/README.md` carries the
-method.
+case included, since that is the one with no call site to hook. Ten of those
+twelve lose the base and an access afterwards raised an access violation every
+time; the other two are the two spike 1 recorded as surviving, and nothing read
+through a zeroed base anywhere in the run.
 
-Nothing in phase 1 waits on this. What waits is the loader's answer to a
-vendor binary, which is phase 3 at the earliest.
+The finding the fallback rests on is what Windows hands the handler. With the
+base at zero the effective address is the offset, so the faulting address is
+the TLS displacement itself and the handler never computes an address: `0x0`,
+`0x40`, `-0x8` and `-0x18` were each reported as themselves. What is left is a
+length and a destination register. Nine forms were decoded, emulated through
+DR-0003's carrier C3, and resumed correctly, each checked both against the
+value the block held and against a landing pad the probe computed beside the
+access; the interrupted code got its other registers and its carry flag back
+intact. The case that decides it is the one with no call site, and it held:
+1,304,000 reads under a burner on every processor, every one a fault, every one
+correct, and 15,662,000 more across 24 threads with none wrong.
+
+So the rewriter may be a heuristic, and that is the verdict — over the
+data-movement forms. The qualifier is the spike's second deliverable and it is
+not small: a read-modify-write access, `addl $1, %fs:-0x4` and its relatives,
+is refused by name rather than guessed at, because emulating it means emulating
+`EFLAGS`. A missed site of that shape is a `SIGSEGV` rather than a slow
+success. Closing that gap is a choice between emulating the flags and requiring
+the rewriter to be exhaustive over exactly the forms it is least able to be
+exhaustive about, and what it costs turns on a census nobody has run. A handled
+fault costs about 2.2 microseconds against half a nanosecond rewritten — three
+orders of magnitude, which is fine for a miss and would be ruinous as a policy.
+
+`spike/fs-base-fault/README.md` carries the method, the reading, and what the
+measurement does not reach; `results-2026-08-29.txt` is the transcript. The
+verdict goes to `doc/proposals/0003-vendor-binary-tls-rewriting.md`, which was
+written against it rather than ahead of it.
+
+Nothing in phase 1 waited on this. What waits is the loader's answer to a
+vendor binary, which is phase 3 at the earliest, and the rewriter is not yet
+cut into a work package.
 
 ## After the spikes
 
-No package waits on a spike that has run, and the one that has not is phase 3's
-rather than phase 1's. All seven ran and the recommended path survived the one
-that could have taken it away; the seventh gated only whether a delivery-site
-red-zone repair is available to weigh against `-mno-red-zone`, and nothing
-starting now depends on which way that weighing goes.
+No package waits on a spike. All eight have run and the recommended path
+survived the one that could have taken it away; the seventh gated only whether
+a delivery-site red-zone repair is available to weigh against `-mno-red-zone`,
+and the eighth gated only what a load-time rewriter for vendor binaries is
+allowed to be, which is phase 3's question at the earliest. Nothing starting
+now depends on either.
 `ROADMAP.md` inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into
 packages; the sketch below is the shape both of them fill in.
 
