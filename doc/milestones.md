@@ -1,17 +1,19 @@
 # Milestones
 
-The first five milestones are spikes, and none produces shippable code. That is
+The milestones open with spikes, and none produces shippable code. That is
 deliberate. `elf-technical-breakdown.md` ends with a list of claims that were
 recalled rather than measured, four of them carry weight, and building on an
 unmeasured claim is how a program discovers in year two that it chose wrong in
-month one. Four of the spikes gate something. The fifth prices a naming
-decision that has since been taken without it. All five have now run, and one
-of them took the recommended path off the table, which is what a spike is for.
+month one. Five were planned. Four of them gate something, the fifth prices a
+naming decision that has since been taken without it, and the work added two
+more as it went: a sixth that settled what `%fs` could not provide, and a
+seventh that priced whether the red zone can survive delivery. All seven have
+run, and one of them took the recommended path off the table, which is what a
+spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
-the first four and a count for the fifth. The verdict is the deliverable.
-Reaching one is a successful outcome even when the answer is unwelcome, and
-especially then.
+most and a count for the fifth. The verdict is the deliverable. Reaching one is
+a successful outcome even when the answer is unwelcome, and especially then.
 
 In dependency order, which is also cost order.
 
@@ -22,6 +24,8 @@ In dependency order, which is also cost order.
 | 3 | `spike/abi-crossing/` | Can one entry point be System V-faced over an MS-ABI core, through a signal? | `elfsysv1.dll`, and the `-mno-red-zone` policy. Run 2026-08-29: yes, and the red zone is lost to our own layer rather than to the host. |
 | 4 | `spike/versioned-libc/` | Does el8's `elfdeps` read a vendor-shaped `Requires` off a synthesized `libc.so.6`? | Nothing downstream, which is the point. Run 2026-08-29: yes, byte for byte. |
 | 5 | `spike/triple-fidelity/` | How many packages in the el8 set mishandle a nonstandard vendor field? | Nothing. It priced DR-0001 rather than gating it. Run 2026-08-29: one, `flac`. |
+| 6 | `spike/gs-thread-pointer/` | Does a thread pointer reached through `%gs` survive the switch that `%fs` did not? | The TLS model. Run 2026-08-29: yes, four carriers measured; DR-0003 took C3. |
+| 7 | `spike/redzone-delivery/` | Can delivery reserve the red zone before it builds the handler frame? | Whether `-mno-red-zone` can be retired. Run 2026-08-29: yes, a reserved delivery holds it and the far side survives; the cost is WP-43's to price. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
@@ -33,7 +37,20 @@ built to repair, which is the question worth answering before anything large is
 funded, and it came back yes. Spike 5 gated nothing in the end either: the
 triple was decided on 2026-08-29 without waiting for it, and the count it
 produced the same day is the size of the patch set that decision commits to.
-One package, well inside the threshold DR-0001 set in advance.
+One package, well inside the threshold DR-0001 set in advance. Spike 6 was the
+follow-on spike 1 forced: with `%fs` gone something had to carry the thread
+pointer, so it measured four `%gs` carriers against spike 1's own cases, found
+three that hold, and let DR-0003 choose on ownership rather than on persistence.
+Spike 7 is the follow-on spike 3 forced, and it ran on 2026-08-29: spike 3 caught
+our own delivery destroying the red zone, and spike 7 asked whether delivery can
+be made to reserve it. It can. A frame built 128 below the interrupted `%rsp`
+left the red zone whole across every delivery, the handler still ran and
+returned, and a value carried only in the red zone came back intact on the far
+side. That does not retire the `-mno-red-zone` flag on its own -- the flag stands
+as policy either way, and what a reserved delivery costs in Cygwin's real
+`sigdelayed` is unpriced -- but it establishes that an ELF-faithful repair at the
+delivery site is available for WP-43 to weigh against the flag rather than
+foreclosed.
 
 ## Spike 1, the thread pointer
 
@@ -234,10 +251,56 @@ build tree is deeper than an installed tree and a gcc bootstrap stacks stage
 directories on top, but a hundred characters of headroom absorbs that. Measured
 2026-08-20.
 
+## Spike 6, the %gs thread pointer
+
+Run 2026-08-29, and the answer is yes. Spike 1 took `%fs` away that afternoon
+and left the thread pointer without a carrier, so this measured four: a fixed
+`TlsSlots` index, the word below the stack base in Cygwin's `_my_tls` shape,
+`NtTib.ArbitraryUserPointer`, and the PE TLS directory. Three held identically
+across spike 1's twelve persistence cases -- 17.6 billion reads with none lost,
+through 45 million real context switches -- and each read a glibc-shaped block
+back correctly. Persistence did not choose between them; ownership and precedent
+did, and DR-0003 took carrier C3, the word below the stack base that Cygwin
+already keeps by this chain and the runtime owns. The access costs one extra
+load over a global, roughly a sixth of what emulated TLS costs, which is the
+comparison that matters once spike 1 has removed the native one.
+`spike/gs-thread-pointer/results-2026-08-29.txt` is the transcript and that
+spike's README reads it.
+
+## Spike 7, reserving the red zone
+
+Run 2026-08-29, and the answer is yes. Spike 3 found the red zone destroyed and
+named the layer: Cygwin's own signal delivery builds the handler's frame at the
+interrupted stack pointer and takes `%rsp-8` first, where Windows itself leaves
+the nearest 320 bytes alone. That left `-mno-red-zone` standing as policy and one
+question beneath it, whether delivery could instead reserve the 128 bytes before
+it builds, the way a Linux kernel does, and let the flag come off. This spike
+asked exactly that, without rebuilding `cygwin1.dll`: spike 3 already built the
+thread-hijack delivery it measured against, and this put a handler frame back on
+top of that hijack two ways -- at the interrupted `%rsp`, which had to clobber,
+and 128 below it, which must not -- and watched the red zone under each. The
+naive frame lost the word at offset 8 on every delivery, reproducing spike 3's
+finding and proving the model destroys the red zone where the real path does. The
+reserved frame left the 128 whole, nearest write at offset 136, on every
+delivery; the handler ran and returned each time; and a value carried only in the
+first red-zone word came back intact on the far side, while the same value broke
+under a naive delivery. It is a model of delivery rather than the real
+`sigdelayed`, in the way `spike/gs-thread-pointer/` measured a stand-in for
+`_my_tls`, and WP-43 re-measures the real path and prices what reserving costs
+there. What it gates is narrow: the yes lets a delivery-site repair that honors
+the red zone for compiled and hand-written code alike be weighed against the
+flag, rather than foreclosed; it does not retire the flag, which stands as policy
+until WP-43's record. By the discipline DR-0001 and DR-0003 followed that record
+is taken against this spike's transcript rather than ahead of it.
+`spike/redzone-delivery/README.md` carries the mechanism, the cases and the
+reading; `results-2026-08-29.txt` is the transcript.
+
 ## After the spikes
 
-Still unscheduled, but no longer waiting on a spike. All five have answered,
-and the recommended path survived the one that could have taken it away.
+No package waits on a spike. All seven have answered and the recommended path
+survived the one that could have taken it away; the seventh gated only whether a
+delivery-site red-zone repair is available to weigh against `-mno-red-zone`, and
+nothing starting now depends on which way that weighing goes.
 `ROADMAP.md` inventories the work and `IMPLEMENTATION-PLAN.md` cuts it into
 packages; the sketch below is the shape both of them fill in.
 
