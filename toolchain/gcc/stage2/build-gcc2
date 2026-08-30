@@ -87,8 +87,14 @@ mkdir -p "$build"
 # with its pid and a later invocation defers to it rather than corrupting
 # the objects under it.  A pid that is no longer alive is a finished or
 # killed slice, and the build resumes over it.
+#
+# Liveness is judged by ps, not kill -0.  Under Cygwin a dead slice's pid
+# can be recycled by an unrelated Windows process that kill -0 still sees,
+# and the stale pidfile then defers every future slice forever.  Our slices
+# are Cygwin processes; if ps does not list the pid, the slice is dead.
+alive() { ps -p "$1" 2>/dev/null | awk 'NR>1{ok=1} END{exit !ok}'; }
 pidfile=$build/.building
-if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+if [ -f "$pidfile" ] && alive "$(cat "$pidfile")"; then
   echo "stage2: build in progress (pid $(cat "$pidfile")); deferring"
   exit 0
 fi
