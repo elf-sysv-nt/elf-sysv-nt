@@ -37,6 +37,7 @@
 #include "../graph/elf_graph.h"
 #include "../version/elf_version.h"
 #include "../rdebug/rdebug.h"
+#include "../map/host_mem.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,9 +71,23 @@ extern "C" {
 #define DL_NAME_MAX     ELF_GRAPH_NAME_MAX
 #define DL_ERR_MAX      256
 
+/* Calling into a loaded object crosses an ABI boundary. The loader is compiled
+ * for the host side, whose C compiler uses the Microsoft x64 convention, and
+ * the object it calls into was compiled for the System V one -- different
+ * argument registers, a different set of callee-saved registers, a red zone on
+ * one side and none on the other. Every function pointer that points into a
+ * loaded ELF object therefore carries this attribute, and the compiler emits
+ * the shuffle. A pointer that lacks it is a silent wrong-register call, which
+ * is why the type is declared once here rather than at each call site. */
+#if defined(__CYGWIN__) || defined(_WIN32)
+#define ELFSYSV_SYSV_ABI __attribute__((sysv_abi))
+#else
+#define ELFSYSV_SYSV_ABI
+#endif
+
 /* An initializer or finalizer: DT_INIT and DT_FINI take the argc/argv/envp
  * triple on this platform, and so does an array entry. */
-typedef void (*dl_init_fn)(int argc, char **argv, char **envp);
+typedef void ELFSYSV_SYSV_ABI (*dl_init_fn)(int argc, char **argv, char **envp);
 
 /* One loaded object. A handle returned by dlopen is a pointer to one of these,
  * and the same pointer comes back for a second dlopen of the same file. */

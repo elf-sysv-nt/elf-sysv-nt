@@ -47,8 +47,11 @@ static void logc(char c)
 	}
 }
 
+/* The initializers carry the same ABI attribute a real object's do, so the
+ * synthetic case exercises the pointer type the loader actually calls through
+ * rather than a host-ABI stand-in that would hide a wrong-register call. */
 #define INITFN(letter, name) \
-	static void name(int argc, char **argv, char **envp) \
+	static void ELFSYSV_SYSV_ABI name(int argc, char **argv, char **envp) \
 	{ (void) argc; (void) argv; (void) envp; logc(letter); }
 
 INITFN('A', init_a) INITFN('B', init_b) INITFN('C', init_c) INITFN('D', init_d)

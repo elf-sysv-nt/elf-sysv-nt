@@ -281,6 +281,33 @@ static void unload(dl_state *st, dl_object *o)
 	 * surviving object's slot number never moves under it. */
 }
 
+/* The floor a dlopen'd object is placed at: clear of where a program and its
+ * startup libraries are placed, and clear of the host's own low allocations. */
+#define DL_PLACEMENT_FLOOR 0x40000000ULL
+
+/* A base above every mapping the loader currently holds. With the table empty
+ * this is the floor, so a plugin loaded and unloaded repeatedly is placed at
+ * the same address every time and the address space does not creep. */
+static uint64_t choose_base(const dl_state *st)
+{
+	uint64_t granule = elf_map_host_granule();
+	uint64_t base = DL_PLACEMENT_FLOOR;
+	unsigned i;
+
+	for (i = 0; i < st->obj_count; i++) {
+		const dl_object *o = &st->obj[i];
+		uint64_t end;
+		if (!o->in_use || !o->map.size)
+			continue;
+		end = o->map.base + o->map.size;
+		if (end > base)
+			base = end;
+	}
+	if (granule > 1)
+		base = (base + granule - 1) & ~(granule - 1);
+	return base;
+}
+
 /* Take one file into a fresh table slot: read it, parse it, place it, and
  * register it in the shared relocation scope. Nothing is relocated here and no
  * initializer runs; the caller does both once the whole group is in, so that a
@@ -316,13 +343,30 @@ static dl_object *load_one(dl_state *st, const char *path, int flags)
 		return NULL;
 	}
 
-	/* base_hint 0 lets the mapper choose a free base for an ET_DYN; an ET_EXEC
-	 * is honored at its own addresses and the hint is ignored. */
-	if (elf_map(image, image_size, &o->parsed, 0, &o->map, &mdiag)
-	    != elf_map_ok) {
-		dl_set_err(st, "dlopen", mdiag.msg);
-		unload(st, o);
-		return NULL;
+	/* The mapper places an ET_DYN where it is told and honours an ET_EXEC at
+	 * its own addresses. Choosing the where is the loader's, so a plugin lands
+	 * clear of everything already mapped; a refusal is retried a few granules
+	 * along, because the host may have something of its own at the address.
+	 * The choice is computed from the table each time rather than from a
+	 * running cursor, so ten thousand load-unload cycles reuse one region
+	 * instead of walking up the address space. */
+	{
+		uint64_t granule = elf_map_host_granule();
+		uint64_t base = choose_base(st);
+		unsigned attempt;
+		elf_map_err rc = elf_map_err_reserve;
+
+		for (attempt = 0; attempt < 64; attempt++) {
+			rc = elf_map(image, image_size, &o->parsed, base, &o->map, &mdiag);
+			if (rc != elf_map_err_reserve)
+				break;
+			base += granule;
+		}
+		if (rc != elf_map_ok) {
+			dl_set_err(st, "dlopen", mdiag.msg);
+			unload(st, o);
+			return NULL;
+		}
 	}
 
 	if (st->reloc.count >= ELF_RELOC_MAX_OBJ) {
