@@ -1,3 +1,4 @@
 # WP ids set aside from autonomous building (still undelivered,
 # just not built by the worker). Remove an id to release it.
-WP-15
+# (empty: nothing held — the worker may build any dependency-ready package,
+#  including WP-15, unattended.)
