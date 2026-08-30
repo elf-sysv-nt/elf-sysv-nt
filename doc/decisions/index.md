@@ -26,6 +26,9 @@ is a record nobody will find.
 | [0013](0013-version-map-companion-sources.md) | the version map's companion set spans glibc, libnsl and libxcrypt | accepted 2026-08-30 | none |
 | [0014](0014-at-pagesz-commit-granularity.md) | AT_PAGESZ reports the commit granularity, not the reservation one | accepted 2026-08-30 | none |
 | [0015](0015-variadic-rebuild-through-a-core-valist.md) | the variadic veneer rebuilds a Microsoft va_list and repasses through a va_list core | accepted 2026-08-30 | none |
+| [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
+| [0017](0017-version-node-objects-are-scaffold.md) | version-node identity objects are scaffold, not a fourth-bucket stub | accepted 2026-08-30 | none |
+| [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30 | none |
 
 ## What earns a record
 
