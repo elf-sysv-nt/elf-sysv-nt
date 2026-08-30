@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+#
+# kernel-headers -- lay el8's kernel uapi headers into the cross sysroot.
+#
+# The glibc headers vendored in veneer/include reach below themselves in
+# places -- bits/local_lim.h wants <linux/limits.h>, the socket and ioctl
+# surfaces want <asm/...> -- and on el8 those come from the kernel-headers
+# package, not from glibc.  This platform has no kernel, but the packages
+# above the floor were compiled against these constants and the veneer's
+# job is to honour the ones it forwards, so the headers a package reads
+# are el8's own, unchanged, per DR-0000's copy line.
+#
+# The package is fetched, not vendored (DR-0002): 927 headers is kernel
+# surface, checked here by pin and laid into the sysroot at build time.
+#
+# Run AFTER build-csu.  build-csu reseeds usr/include from veneer/include
+# and would sweep these files away; this script only adds.
+#
+# Usage:
+#   kernel-headers [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -c DIR, --cache=DIR    Where the fetched rpm is kept.
+#                          [default: src-cache beside this script]
+#   -n, --dry-run          Report and stop.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=kernel-headers
+here=$(cd "$(dirname "$0")" && pwd)
+
+REF_NVRA=kernel-headers-4.18.0-553.el8_10.x86_64
+REF_URL=https://dl.rockylinux.org/pub/rocky/8.10/BaseOS/x86_64/os/Packages/k/$REF_NVRA.rpm
+REF_RPM_SHA256=63c006d4afd10c77e0505b01bbef7cd1aa7f4250dac9abc84edc4c7ba71445f0
+
+prefix=${KERNEL_HEADERS_PREFIX:-$HOME/x-elfsysvnt}
+target=${KERNEL_HEADERS_TARGET:-x86_64-elfsysvnt-linux-gnu}
+cache=$here/src-cache
+dry=0
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -P|--prefix) prefix=$2; shift 2 ;;
+    -T|--target) target=$2; shift 2 ;;
+    -c|--cache)  cache=$2;  shift 2 ;;
+    -n|--dry-run) dry=1; shift ;;
+    *) echo "usage: kernel-headers [-P DIR] [-T TRIPLE] [-c DIR] [-n]" >&2; exit 2 ;;
+  esac
+done
+
+incdir=$prefix/$target/sys-root/usr/include
+[ -d "$incdir" ] || die "$incdir does not exist; run build-csu first"
+
+rpm=$cache/$REF_NVRA.rpm
+mkdir -p "$cache"
+if [ ! -f "$rpm" ]; then
+  echo "fetching $REF_NVRA.rpm"
+  curl -fsSL -o "$rpm" "$REF_URL" || die "fetch failed and no cached copy"
+fi
+got=$(sha256sum "$rpm" | cut -d' ' -f1)
+[ "$got" = "$REF_RPM_SHA256" ] || die "sha256 mismatch on $rpm: $got"
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+( cd "$work" && rpm2cpio "$rpm" | cpio -idmu --quiet ) || die "unpack failed"
+src=$work/usr/include
+[ -d "$src" ] || die "no usr/include in the package"
+
+count=$(cd "$src" && find . -type f -name '*.h' | wc -l | tr -d ' ')
+if [ "$dry" = 1 ]; then
+  echo "would install $count kernel headers from $REF_NVRA into $incdir"
+  exit 0
+fi
+
+( cd "$src" && find . -type f -name '*.h' -print ) | while IFS= read -r h; do
+  mkdir -p "$incdir/$(dirname "$h")"
+  cp -f "$src/$h" "$incdir/$h"
+  chmod 644 "$incdir/$h"
+done
+
+echo "$count kernel headers from $REF_NVRA under $incdir"
