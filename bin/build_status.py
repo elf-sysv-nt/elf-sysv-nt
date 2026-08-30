@@ -142,6 +142,16 @@ def delivered_count():
     return len(delivered_wps())
 
 
+def last_commit_age():
+    """Seconds since the newest commit on march, or None. The heartbeat commits
+    every ~5 min, so a large age means the worker task itself is not running."""
+    out = git(['log', '-1', '--format=%ct', 'march']).strip()
+    try:
+        return int(time.time()) - int(out)
+    except Exception:
+        return None
+
+
 def verdict(rows, lock_held):
     undone = undelivered_wps()
     if not undone:
@@ -154,7 +164,12 @@ def verdict(rows, lock_held):
     if lock_held:
         return 'worker holds the lock (starting or finishing %s); not stalled' % (nb or 'a package')
     if nb:
-        return 'STALLED — %s is buildable and the lock is free, but nothing is building' % nb
+        age = last_commit_age()
+        if age is not None and age > 900:      # >15 min = 3 missed heartbeats
+            return ('STALLED — %s is buildable but there has been no commit in %d min; '
+                    'the worker task may not be running' % (nb, age // 60))
+        return ('READY — %s is next; the worker starts it on its next run '
+                '(heartbeat every 5 min)' % nb)
     held = sorted(held_wps() & set(undone))
     tail = (' (held: %s; the rest wait on unmet dependencies)' % ' '.join(held)) if held \
            else ' (all waiting on unmet dependencies)'
