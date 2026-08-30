@@ -8,9 +8,12 @@
 # copies what they made into the sysroot's usr/lib64, beside WP-14's
 # startup files, then writes the unversioned dev names (libc.so, libm.so,
 # ...) as symlinks so `-lc' and `-lm' resolve at link time.  el8 ships a
-# few of those dev names as linker scripts rather than links; for stub
-# bodies the distinction buys nothing, and the veneer's real semantics
-# arrive through the forward map either way.
+# few of those dev names as linker scripts rather than links; for most the
+# distinction buys nothing, but libc.so is the exception: atexit lives in
+# libc_nonshared.a, never in libc.so.6, because it must capture the
+# registering module's own __dso_handle.  So this script compiles the
+# veneer's nonshared sliver, archives it, and writes libc.so as the same
+# GROUP script glibc uses.
 #
 # Usage:
 #   install-veneer [options]
@@ -88,4 +91,24 @@ for f in "$@"; do
   installed=$((installed+1))
 done
 
-echo "$installed libraries, libc.a, and their dev names under $libdir"
+# The static sliver, and the linker script that grafts it onto -lc.
+cc=$prefix/bin/$target-gcc
+ar=$prefix/bin/$target-ar
+[ -x "$cc" ] || die "no cross compiler at $cc"
+"$cc" -c -O2 -fPIC -o "$build/libc/nonshared.o" "$root/veneer/libc/nonshared.c" \
+  || die "cannot compile the nonshared sliver"
+rm -f "$libdir/libc_nonshared.a"
+"$ar" rcs "$libdir/libc_nonshared.a" "$build/libc/nonshared.o" \
+  || die "cannot archive libc_nonshared.a"
+chmod 644 "$libdir/libc_nonshared.a"
+
+rm -f "$libdir/libc.so"
+cat > "$libdir/libc.so" <<'EOF' || die "cannot write the libc.so linker script"
+/* GNU ld script -- see install-veneer.  atexit and at_quick_exit live in
+   the archive; everything else in the shared library. */
+OUTPUT_FORMAT(elf64-x86-64)
+GROUP ( libc.so.6 libc_nonshared.a )
+EOF
+chmod 644 "$libdir/libc.so"
+
+echo "$installed libraries, libc.a, libc_nonshared.a, and their dev names under $libdir"
