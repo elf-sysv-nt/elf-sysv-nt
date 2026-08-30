@@ -777,6 +777,40 @@ Done when: a plugin loaded and unloaded ten thousand times leaks nothing, and
 the unwinder finds `.eh_frame` through `dl_iterate_phdr` for an object that
 arrived after startup.
 
+Delivered 2026-08-30, under `loader/dl/`. `dl.c` holds the object table the
+earlier packages hang off and decides what to hand each of them: a `dlopen`
+resolves its closure through WP-33, loads it back to front so every leaf is in
+before what needs it, places each object above everything already mapped, and
+relocates the whole new group in one WP-34 pass. Relocation became incremental
+for it — an object is marked applied and skipped on a later pass, which is not
+an optimization but a correctness requirement, since RELR adds the bias into
+each slot it names and cannot be applied twice. `dl_init.c` is the order: a
+post-order walk over the dependency edges seeded in load order, `DT_PREINIT_ARRAY`
+then `DT_INIT` then `DT_INIT_ARRAY` with dependencies first, the recorded
+reverse on the way out, and a cycle broken at the edge that closes it.
+`dl_addr.c` answers what object and symbol an address is in and hands out each
+object's mapped program headers, which is the whole of the coupling to
+unwinding: `PT_GNU_EH_FRAME` is a program header, so nothing registers anything.
+
+Both halves of the done-when are measured in `loader/dl/t/`. A cross-linked
+plugin carrying a constructor, a destructor, an exported function, a relocated
+pointer and unwind tables is loaded and unloaded ten thousand times through the
+real `dlopen` and `dlclose`, with the file image, the table slot and the
+relocation-scope slot checked after every cycle rather than only at the end;
+and the unwinder's own walk finds `PT_GNU_EH_FRAME` in that freshly loaded
+object at an address whose first byte reads back as the `.eh_frame_hdr`
+version. The order itself is certified against a table the case wrote — a
+chain, a diamond, a cycle walked repeatedly for the same answer — because an
+order inferred from which constructors happened to run is not an order that was
+checked. Function pointers into a loaded object carry `sysv_abi`: the loader is
+compiled for the host's Microsoft x64 convention and the object it calls into is
+not, and a plain pointer there is a silent wrong-register call. The tie-break,
+the late module's TLS, and that boundary are recorded in DR-0025.
+
+Per-thread `dlerror` and link-map namespaces are deliberately absent; the first
+waits on WP-42's threads and the second is a change to the table rather than to
+this interface.
+
 ### WP-39 — the rendezvous
 
 Needs: WP-33.
