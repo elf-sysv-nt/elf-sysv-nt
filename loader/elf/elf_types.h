@@ -221,6 +221,8 @@ typedef struct {
 #define DT_FINI_ARRAYSZ 28
 #define DT_RUNPATH      29
 #define DT_FLAGS        30
+#define DT_PREINIT_ARRAY   32
+#define DT_PREINIT_ARRAYSZ 33
 #define DT_GNU_HASH     0x6ffffef5
 #define DT_RELACOUNT    0x6ffffff9
 #define DT_RELCOUNT     0x6ffffffa

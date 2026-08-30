@@ -35,6 +35,7 @@
 #include "../reloc/elf_reloc.h"
 #include "../lookup/elf_lookup.h"
 #include "../graph/elf_graph.h"
+#include "../version/elf_version.h"
 #include "../rdebug/rdebug.h"
 
 #ifdef __cplusplus
@@ -96,6 +97,7 @@ typedef struct dl_object {
 	elf_mapping       map;
 	elf_reloc_object *ro;          /* its slot in the shared relocation scope */
 	elf_lookup_object lo;          /* its symbol view, for WP-35 */
+	elf_version_info  vinfo;       /* its version tables, for WP-36 and dlvsym */
 	struct link_map   lm;          /* its node in WP-39's rendezvous map */
 
 	const Elf64_Phdr *phdr;        /* the mapped program headers */
@@ -145,7 +147,17 @@ typedef struct dl_state {
 	int  err_pending;
 
 	int  rdebug_wired;             /* the rendezvous is being kept current */
+
+	/* Loads and unloads since the state came up. An unwinder caches its
+	 * per-object lookup and re-reads it when either has moved; they count and
+	 * are never reset, so a cache comparison is a plain inequality. */
+	unsigned long long adds;
+	unsigned long long subs;
 } dl_state;
+
+/* Record an error for the next dl_error. Internal to the package, but shared
+ * across its translation units. */
+void dl_set_err(dl_state *st, const char *what, const char *detail);
 
 /* Bring a state up empty. host may be NULL, which installs dl_host_stdio(). */
 void dl_state_init(dl_state *st, const dl_host *host,
