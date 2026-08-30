@@ -1,0 +1,4 @@
+# Built by mkcollide.sh and the run driver; regenerated, not tracked.
+collide/
+lookup_test
+*.o

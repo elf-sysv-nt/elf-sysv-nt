@@ -638,6 +638,33 @@ the interposition rules behind `LD_PRELOAD`.
 Done when: the differential test in WP-T2 agrees with a real `ld.so` on
 resolution order for a graph with a deliberate three-way name collision.
 
+Delivered 2026-08-30, under `loader/lookup/`. `elf_hash.c` is the two hash
+tables and the per-object probe over them -- `.gnu.hash` with its Bloom filter
+and stolen-low-bit chain, `.hash` with its bucket chain, a linear fallback, and
+the visibility, type, and version filters a candidate must pass. `elf_lookup.c`
+is the scope model and the master lookup: a scope is an ordered list, the global
+scope is built as main object, then `LD_PRELOAD` interposers, then the
+breadth-first closure, and the search runs global, then the reference's local
+list, then an `RTLD_GLOBAL` `dlopen` list, applying glibc's observable binding
+rule -- the first global or GNU-unique definition wins outright, a weak is a
+fallback a later global still overrides, and with no global the first weak wins.
+Interposition is a consequence of that order rather than a rule of its own.
+Versioned lookup is WP-36 and enters through one seam, the `elf_version_matcher`
+WP-35 passes as none; DR-0019 records the load-bearing choices, including keeping
+WP-34's minimal scan as the relocation bootstrap rather than rewriting it. The
+done-when was met over the deliberate three-way collision: three objects define
+`collide()` returning distinct tags, two PIE roots differ only in the order they
+name two of them, and the third is reachable only through `LD_PRELOAD`. The
+object this loader binds the reference to is held against the object a real glibc
+`ld.so` binds it to, read from the loader's own `LD_DEBUG=bindings` report
+through WSL's Ubuntu 2.43; over the plain load order, the reversed load order,
+and the interposition the two name the same object -- `libone`, `libtwo`, and
+`libthree`. A unit test asserts the internals a differential cannot see. The
+comparison `ld.so` is newer than el8's 2.28 and a real vendor closure is the
+acceptance harness's, the same limit WP-33 carries; `loader/lookup/README.md`
+records that and why the binding is read from the loader's report rather than a
+freestanding image's exit status.
+
 ### WP-36 — the version matcher
 
 Needs: WP-35.
