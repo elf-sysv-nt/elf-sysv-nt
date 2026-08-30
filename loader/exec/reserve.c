@@ -77,6 +77,32 @@ win_err elf_window_reserve_in(void *proc, elf_window *w,
 	return win_ok;
 }
 
+win_err elf_window_adopt(elf_window *w, uint64_t base, uint64_t size)
+{
+	MEMORY_BASIC_INFORMATION m;
+	uint64_t g = granule(), lo, hi;
+
+	if (!w || !size)
+		return win_err_arg;
+
+	lo = base & ~(g - 1);
+	hi = (base + size + g - 1) & ~(g - 1);
+
+	if (!VirtualQuery((void *)(UINT_PTR) lo, &m, sizeof m))
+		return win_err_refused;
+	if (m.State != MEM_RESERVE)
+		return win_err_refused;
+	if ((uint64_t)(UINT_PTR) m.AllocationBase != lo)
+		return win_err_refused;
+	if ((uint64_t)(UINT_PTR) m.BaseAddress + m.RegionSize < hi)
+		return win_err_refused;
+
+	w->base = lo;
+	w->size = hi - lo;
+	w->held = 1;
+	return win_ok;
+}
+
 void elf_window_release(elf_window *w)
 {
 	if (!w)

@@ -98,6 +98,14 @@ win_err elf_window_reserve_in(void *proc, elf_window *w,
  * recoverable only by the caller giving up on the low addresses. */
 win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx);
 
+/* Adopt a window this process did not make. The stub's window was reserved
+ * into it by its parent, so there is nothing for the stub to reserve and
+ * everything for it to confirm: this checks that a single reservation actually
+ * covers base..base+size and records it if it does. A stub that was started
+ * without a parent to arm it -- by hand, or by a test -- gets win_err_refused
+ * and can decide whether it wants to try reserving for itself. */
+win_err elf_window_adopt(elf_window *w, uint64_t base, uint64_t size);
+
 /* Release the window and zero it. Safe on a zeroed or already released one. */
 void elf_window_release(elf_window *w);
 
