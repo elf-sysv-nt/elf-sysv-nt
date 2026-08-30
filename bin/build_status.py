@@ -246,6 +246,12 @@ def main():
     else:
         print('  (none)')
     print('verdict: %s' % verdict(rows, lock_held))
+    if rows:
+        print('logs (relative to project root):')
+        for name, st, wp in rows:
+            rel = 'a/build-logs/%s.log' % name
+            exists = os.path.isfile(os.path.join(REPO, 'a', 'build-logs', name + '.log'))
+            print('  %-22s %s%s' % (name, rel, '' if exists else '   (not yet created)'))
 
 
 if __name__ == '__main__':
