@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+#
+# build-gcc2 -- the bootstrap's second turn.
+#
+# Stage one was --without-headers, C only, no threads, no shared: a compiler
+# that trusts nothing because there was nothing to trust.  The sysroot now
+# carries the vendored el8 headers, the kernel uapi set, WP-14's startup
+# files and WP-53/54's libraries, so this configure reads a libc and builds
+# what stage one could not: shared libgcc, posix threads, C++, libstdc++.
+#
+# The source tree is stage one's, patches included; only the build tree is
+# new.  The script is resumable on purpose -- an unattended runner gets a
+# bounded slice of time, so if the build tree already has a Makefile the
+# configure is skipped and make continues where it stopped.  Run it again
+# until it says done.
+#
+# Usage:
+#   build-gcc2 [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Install here. [default: $HOME/x-elfsysvnt]
+#   -w DIR, --work=DIR     Source and build trees. [default: $prefix/../work]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
+#   -n, --dry-run          Print the configure line and stop.
+#   -v, --verbose          Stream the build rather than logging it.
+#
+# Each option is also settable as BUILD_GCC2_<OPTION>, and the option wins.
+#
+# Exit codes: 0 success (prints "stage2: done" when everything is installed),
+#             1 failure, 2 usage error.
+
+set -u
+
+prog=build-gcc2
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${BUILD_GCC2_PREFIX:-$HOME/x-elfsysvnt}
+work=${BUILD_GCC2_WORK:-}
+target=${BUILD_GCC2_TARGET:-x86_64-elfsysvnt-linux-gnu}
+jobs=${BUILD_GCC2_JOBS:-}
+dry=0
+verbose=0
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -P|--prefix) prefix=$2; shift 2 ;;
+    -w|--work)   work=$2;   shift 2 ;;
+    -T|--target) target=$2; shift 2 ;;
+    -j|--jobs)   jobs=$2;   shift 2 ;;
+    -n|--dry-run) dry=1; shift ;;
+    -v|--verbose) verbose=1; shift ;;
+    *) echo "usage: build-gcc2 [-P DIR] [-w DIR] [-T TRIPLE] [-j N] [-n] [-v]" >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$work" ] || work=$(cd "$prefix/.." && pwd)/work
+[ -n "$jobs" ] || jobs=$( (nproc || echo 4) 2>/dev/null )
+
+src=$work/src/gcc-13.3.0
+build=$work/build/gcc2
+sysroot=$prefix/$target/sys-root
+
+[ -d "$src" ]     || die "no gcc source at $src; run ../build-gcc (stage one) first"
+[ -d "$sysroot/usr/include/gnu" ] || die "sysroot headers missing; run build-csu"
+[ -f "$sysroot/usr/lib64/libc.so.6" ] || die "no libc.so.6 in the sysroot; run install-veneer"
+[ -f "$sysroot/usr/lib64/crt1.o" ]    || die "no crt1.o in the sysroot; run build-csu"
+
+configure_args="--target=$target --prefix=$prefix --with-sysroot=$sysroot \
+  --enable-languages=c,c++ --enable-shared --enable-threads=posix \
+  --disable-multilib --disable-bootstrap --disable-libsanitizer \
+  --disable-nls --with-gnu-as --with-gnu-ld"
+
+if [ "$dry" = 1 ]; then
+  echo "$src/configure $configure_args"
+  exit 0
+fi
+
+log=$work/build/gcc2-make.log
+mkdir -p "$build"
+
+run() { # step, make targets...
+  step=$1; shift
+  echo "stage2: $step"
+  if [ "$verbose" = 1 ]; then
+    ( cd "$build" && make -j"$jobs" "$@" ) || die "$step failed"
+  else
+    ( cd "$build" && make -j"$jobs" "$@" ) >> "$log" 2>&1 || die "$step failed; see $log"
+  fi
+}
+
+if [ ! -f "$build/Makefile" ]; then
+  echo "stage2: configure"
+  ( cd "$build" && eval "$src/configure $configure_args" ) \
+    > "$work/build/gcc2-configure.log" 2>&1 || die "configure failed; see gcc2-configure.log"
+fi
+
+run all-gcc            all-gcc
+run install-gcc        install-gcc
+run libgcc             all-target-libgcc
+run install-libgcc     install-target-libgcc
+run libstdc++          all-target-libstdc++-v3
+run install-libstdc++  install-target-libstdc++-v3
+
+echo "stage2: done"

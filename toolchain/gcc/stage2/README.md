@@ -12,13 +12,21 @@ stage-2 configure reads the sysroot before it reads anything else.
 
 Order of work:
 
-1. Vendor the full el8 glibc-headers set into `veneer/include/` from the
-   pinned reference (`glibc-headers-2.28-251.el8_10.40`, DR-0002), keeping
-   `gnu/stubs.h` as the one written exception.
-2. Populate the cross sysroot: veneer headers, kernel headers, WP-53's
-   `libc.so.6` and `libc.a`, WP-14's startup files.
-3. `build-gcc2`: configure against the sysroot, C and C++, shared, posix
-   threads; build gcc, libgcc (shared this time), libstdc++.
-4. `t/accept2.sh`: the done-when, including the cross-library throw.
+1. DONE — `veneer/include/vendor-headers` vendors all 417 headers of the
+   pinned `glibc-headers-2.28`, `gnu/stubs.h` the one written exception.
+2. DONE — the sysroot carries the veneer headers (`build-csu`, rewired),
+   el8's kernel uapi set (`../sysroot/kernel-headers`), and the nine veneer
+   libraries plus `libc.a` (`../sysroot/install-veneer`). A dynamic hello
+   links clean with the stage-1 compiler.
+3. IN PROGRESS — `build-gcc2` configures against the sysroot: C and C++,
+   shared, posix threads, libstdc++. It is resumable by design; the next
+   worker run executes `./build-gcc2` and reruns it until it prints
+   "stage2: done".
+4. TODO — `t/accept2.sh`: the done-when. The compiler compiles its own
+   source, and a C++ exception thrown across a shared library boundary is
+   caught on the other side. The second claim needs the loader to run the
+   result and may wait on the runtime being far enough along; if it cannot
+   run yet, the test links the pair and verifies the unwind tables and
+   PT_GNU_EH_FRAME instead, and says plainly which claim it measured.
 
 This file is replaced by the real README as the pieces land.
