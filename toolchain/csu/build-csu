@@ -20,7 +20,7 @@
 #   -T TRIPLE, --target=TRIPLE
 #                          [default: x86_64-elfsysvnt-linux-gnu]
 #   -H DIR, --headers=DIR  The header set to install.
-#                          [default: ../sysroot/include, beside this]
+#                          [default: veneer/include at the repository root]
 #   -n, --dry-run          Name what would be built; build nothing.
 #   -t, --terse            One key=value per line.
 #   -q, --quiet            Errors only.
@@ -42,7 +42,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 
 prefix=${BUILD_CSU_PREFIX:-$HOME/x-elfsysvnt}
 target=${BUILD_CSU_TARGET:-x86_64-elfsysvnt-linux-gnu}
-headers=${BUILD_CSU_HEADERS:-$here/../sysroot/include}
+# WP-50 delivered the real header set in veneer/include and WP-15 rewired
+# this default to consume it; toolchain/sysroot's three-file draft is gone.
+headers=${BUILD_CSU_HEADERS:-$here/../../veneer/include}
 dryrun=${BUILD_CSU_DRY_RUN:-0}
 terse=${BUILD_CSU_TERSE:-0}
 quiet=${BUILD_CSU_QUIET:-0}
