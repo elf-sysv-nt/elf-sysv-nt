@@ -750,6 +750,22 @@ Done when: all four TLS models resolve correctly in one program, and a
 Risk: the surplus is a tunable with a default, not a constant. Getting it wrong
 fails at run time inside a library the program did not know it would load.
 
+Delivered 2026-08-30, in `loader/tls/`. `elf_tls.c` sizes the static block from
+the initial `PT_TLS` set by the variant II rule WP-34 already uses, so the
+offsets it hands to a `TPOFF64` agree, and adds a surplus below the initial
+modules — a tunable defaulting to glibc's 1664 bytes — for late arrivals. The
+DTV is glibc's shape behind `tcbhead_t.dtv` at head offset `0x08`, and
+`__tls_get_addr` resolves general- and local-dynamic, returning a static
+module's own address and allocating a dynamic module's block lazily on first
+access; a generation counter bumped on every registration is how a thread
+created before a `dlopen` learns to grow its vector and resolve the new module.
+Teardown frees the per-module dynamic blocks and the DTV. TLS descriptors are
+not implemented, because WP-12's binutils refuses them at link, and the
+static-offset assignment for a late initial-exec module is left to WP-38's
+`dlopen`; DR-0024 records both the surplus default and those boundaries. The
+four models and the dlopen-into-a-prior-thread case are certified in
+`loader/tls/t/`, the second phase over the live `%gs` carrier.
+
 ### WP-38 — the dl surface
 
 Needs: WP-36, WP-37.
