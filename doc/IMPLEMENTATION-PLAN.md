@@ -446,6 +446,34 @@ span this package computes is what makes it bite. Whether el8 binaries carry
 the linker's 2 MB `max-page-size` default therefore decides how often it
 bites, and one `readelf` against a vendor binary still settles it.
 
+Delivered 2026-08-30, under `loader/map/`. `elf_map.c` reserves and commits the
+object's whole span as one region, copies each `PT_LOAD` to its runtime
+address, confirms the `.bss` tail arrived zeroed rather than assuming it, and
+applies protections in a second pass; `host_mem.c` reads the page size and
+allocation granularity from the host so nothing is hardcoded. `elf_map.h`
+carries the contract, `elf_map_protect_relro` is the hook WP-34 calls once it
+has written through the relro range, and `PT_GNU_STACK` is recorded for WP-40.
+The done-when target was met: the certification in `loader/map/t/` builds three
+static ELF specimens with the cross toolchain and maps each, reading
+`/proc/self/maps` to prove the runtime recorded every segment — the visibility
+WP-41 depends on — touching the pages with fault probes to prove the
+protections are real, and entering the image to prove it runs with `.bss` zero.
+The 64 KB-aligned and 2 MB-aligned specimens both map and run; a 4 KB-aligned
+one whose segments share a host granule and a second placement over an occupied
+span are both refused.
+
+The change the plan did not anticipate is that the placement goes through the
+runtime's `mmap` rather than `VirtualAlloc`, because a `fork` replays only what
+that bookkeeping recorded, and the host's mmap semantics then shape the package:
+there is no reserve-then-commit split to sub-commit into, so the span is one
+committed region, and a protection change snaps to the allocation granule, so an
+object placing two segments of unlike protection inside one granule cannot be
+honored and is refused. Both the arithmetic and this constraint were measured
+before the code was written and are recorded in
+`doc/decisions/0008-mmap-granule-protection.md`. The low-address ordering
+problem is sidestepped by mapping at a high base and left to WP-41 as the plan
+intended.
+
 ### WP-33 — the object graph
 
 Needs: WP-32.
