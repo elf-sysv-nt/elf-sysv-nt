@@ -1,0 +1,9 @@
+# Built by run.sh -k; regenerated, not tracked.
+*.o
+reloc_test
+relr_unit
+libgreet.so
+tlslib.so
+hello-lazy
+hello-now
+hello-relr

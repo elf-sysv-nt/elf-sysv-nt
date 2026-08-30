@@ -575,6 +575,39 @@ binding and `BIND_NOW`.
 Done when: a dynamically linked hello runs both ways, and an ifunc-dispatched
 `memcpy` selects the same implementation a real loader selects.
 
+Delivered 2026-08-30, under `loader/reloc/`. `elf_reloc.c` reads each mapped
+object's dynamic view — string and symbol tables, the hash it sizes the symbol
+count from, the `RELA`, `RELR`, and PLT relocation tables, the binding flags —
+and writes the computed values back through the image; `elf_reloc.h` carries the
+contract and `reloc_resolve.S` is the lazy resolver. The relocation set was
+measured against the pinned el8 glibc and companions rather than assumed: the
+engine computes `RELATIVE`, `JUMP_SLOT`, `GLOB_DAT`, `IRELATIVE`, `TPOFF64`,
+`64`, `COPY`, and `DTPMOD64` (the types those objects contain), plus `DTPOFF64`
+and `RELR`. `RELA` is used throughout, `IRELATIVE` resolvers run last over a
+relocated world, and both binding disciplines are carried — `BIND_NOW` resolves
+every PLT slot up front, lazy leaves the slot in the PLT until the first call
+trips the trampoline. Symbol resolution is the minimum a relocation needs, a
+first-definition scan of the scope in load order; the hashed lookup, scope and
+interposition rules, and versioning are WP-35 and WP-36, and `loader/reloc/`'s
+README draws that line.
+
+The done-when was met over cross-built dynamic specimens with no libc: a PIE
+that imports a function and a datum from a companion object, follows an internal
+relocated pointer, and calls an ifunc-dispatched `memcpy`. Walked by WP-33,
+mapped by WP-32, and relocated here, it runs both ways — linked lazy, its PLT
+slot points into the PLT before the run and at the callee after, so the resolver
+bound it; linked `BIND_NOW`, at the callee before the run — and the ifunc lands
+on the body the CPUID ERMS criterion (one of glibc `memcpy`'s own) selects on
+this CPU, the same body a real loader selects. Two of the delivered types the
+platform will not build from source are certified against real objects instead,
+recorded in DR-0016: `TPOFF64` against the pinned `libc.so.6`, whose eighteen
+`TPOFF64` relocations all land at their static-TLS offsets (the toolchain
+refuses `%fs` relocations at link, per WP-12 and DR-0003), and `RELR` over a
+constructed stream (this binutils packs `RELR` only against a glibc, and el8
+carries none). The lazy resolver crosses the System V–to–Microsoft ABI boundary
+DR-0000 describes; full TLS execution and the relocation of real glibc's whole
+closure are WP-40 and WP-41's.
+
 ### WP-35 — symbol lookup
 
 Needs: WP-34.
