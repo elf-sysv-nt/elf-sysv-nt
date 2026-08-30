@@ -1,0 +1,30 @@
+Rename gdb's defs.h include guard so the host string.h stays honest.
+
+This host's /usr/include/string.h hides its strsignal declaration
+whenever DEFS_H is defined -- a decades-old newlib workaround keyed on
+gdb's own include-guard name.  Modern gdb declares nothing that
+collides, but the kludge still fires: every gdb translation unit
+includes defs.h first, so strsignal is never declared and event-top.c
+fails to compile.  Renaming the guard to GDB_DEFS_H keeps the host
+header on its normal path.  Nothing else in the tree tests DEFS_H.
+
+--- a/gdb/defs.h
++++ b/gdb/defs.h
+@@ -18,8 +18,8 @@
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+ 
+-#ifndef DEFS_H
+-#define DEFS_H
++#ifndef GDB_DEFS_H
++#define GDB_DEFS_H
+ 
+ #ifdef GDBSERVER
+ #  error gdbserver should not include gdb/defs.h
+@@ -649,5 +649,5 @@
+ DEF_ENUM_FLAGS_TYPE (enum user_selected_what_flag, user_selected_what);
+ 
+ #include "utils.h"
+ 
+-#endif /* #ifndef DEFS_H */
++#endif /* #ifndef GDB_DEFS_H */
