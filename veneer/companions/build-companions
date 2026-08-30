@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# Build the eight companion libraries from the version map and the
+# classification, by running WP-53's build-libc once per soname.
+#
+# The companion set is read from veneer/version-map/libraries.tsv rather than
+# written here twice: every soname in that file except libc.so.6 is built.
+# That file is the one WP-51 extracted the map from, so a library cannot be in
+# the map without being buildable here, nor the other way round.
+#
+# Each library lands in its own subdirectory of the build root, because
+# build-libc reseeds its build directory on every run and eight libraries
+# sharing one directory would erase each other.
+#
+# Usage:
+#   build-companions [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -B DIR, --build=DIR    Build root; one subdirectory per soname.
+#                          [default: REPO/build/companions]
+#   -n, --dry-run          Name what would be built; build nothing.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Name every step as it runs.
+#   -h, --help             Print this message and exit.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-companions
+
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+
+prefix=${BUILD_COMPANIONS_PREFIX:-$HOME/x-elfsysvnt}
+target=${BUILD_COMPANIONS_TARGET:-x86_64-elfsysvnt-linux-gnu}
+build=${BUILD_COMPANIONS_BUILD:-$root/build/companions}
+dryrun=0
+terse=0
+quiet=0
+verbose=0
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-T|--target|-B|--build) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix)  prefix=$val ;;
+        -T|--target)  target=$val ;;
+        -B|--build)   build=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse)   terse=1 ;;
+        -q|--quiet)   quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -h|--help)    usage; exit 0 ;;
+        --)           break ;;
+        -?*)          usage_error "unknown option $opt" ;;
+        *)            usage_error "unexpected argument $opt" ;;
+    esac
+done
+
+libraries=$root/veneer/version-map/libraries.tsv
+[ -f "$libraries" ] || die "missing input: $libraries"
+buildlibc=$here/../libc/build-libc
+[ -x "$buildlibc" ] || die "missing WP-53's $buildlibc"
+
+sonames=$(awk -F'\t' '/^[^#]/ && $1 != "libc.so.6" { print $1 }' "$libraries")
+[ -n "$sonames" ] || die "no companion sonames in $libraries"
+
+if [ "$dryrun" = 1 ]; then
+    for soname in $sonames; do
+        stem=${soname%%.so.*}
+        printf '%s\n' "$build/$stem/$soname"
+    done
+    exit 0
+fi
+
+built=0
+for soname in $sonames; do
+    stem=${soname%%.so.*}
+    chat "building $soname"
+    "$buildlibc" -P "$prefix" -T "$target" -S "$soname" -B "$build/$stem" -q \
+        || die "build-libc failed for $soname"
+    [ -f "$build/$stem/$soname" ] || die "no $soname under $build/$stem"
+    built=$((built + 1))
+    if [ "$terse" = 1 ]; then
+        printf '%s=%s\n' "$soname" "$build/$stem/$soname"
+    fi
+done
+
+[ "$terse" = 1 ] && exit 0
+note "$built companion libraries under $build"
+exit 0
