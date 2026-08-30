@@ -25,6 +25,9 @@ veneer/t/ref-cache/
 # local file should contain.
 *local*
 !*local*.example.*
+# The vendored glibc headers are the other exception: locale.h and friends
+# carry "local" in the name and are history, not site config.
+!veneer/include/**/*local*
 
 # Logs belong in bug reports, not here. The *unredacted* guard also catches a
 # raw capture saved under some other extension.
