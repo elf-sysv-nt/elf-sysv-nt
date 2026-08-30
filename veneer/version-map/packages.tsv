@@ -1,0 +1,10 @@
+# The el8 binary packages the version map is extracted from, pinned by
+# checksum. Rocky Linux 8.10 (DR-0002); none of it is vendored into the
+# repository. glibc carries libc.so.6 and seven of the eight companions;
+# libnsl.so.1 is its own package at glibc's own build, and libcrypt.so.1 is
+# libxcrypt rather than glibc, which el8 built --disable-crypt.
+#
+# pkg	repo	location	sha256
+glibc	BaseOS/x86_64/os	Packages/g/glibc-2.28-251.el8_10.40.x86_64.rpm	f9ee0ed8611d1b4421ac5f9b377ac238377e47466aaaf075822b2d811f01bbdf
+libnsl	BaseOS/x86_64/os	Packages/l/libnsl-2.28-251.el8_10.40.x86_64.rpm	90780f74d83088d0d815b873939cab1c86cff601b93cec6e4584a9a9256758e9
+libxcrypt	BaseOS/x86_64/os	Packages/l/libxcrypt-4.1.1-6.el8.x86_64.rpm	da47347fe8c12a83da4b3dc141396172f82cde14530b7746b2c0882651f1a468

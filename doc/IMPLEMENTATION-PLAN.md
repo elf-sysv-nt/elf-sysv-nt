@@ -746,6 +746,21 @@ set matches what `readelf -V` prints for the vendor's `libc.so.6`.
 Several thousand symbol-to-node bindings maintained by hand would be wrong
 within a month, so this is generated or it is not trustworthy.
 
+Delivered 2026-08-30 in `veneer/version-map/`. The map is extracted from nine
+vendor binaries by a parser that reads `.dynsym`, `.gnu.version` and
+`.gnu.version_d` directly, and its 4024 symbol-to-node bindings and 77 version
+nodes are committed as `glibc-version-map.tsv` and `glibc-version-nodes.tsv`.
+`libc.so.6` carries the base node plus the 29-node ladder `GLIBC_2.2.5` through
+`GLIBC_2.28` and `GLIBC_PRIVATE`, the historical gaps at 2.19–2.21 included.
+The nine libraries come from three pinned el8 packages, not one: `glibc` carries
+seven, `libnsl` and `libxcrypt` the other two, since el8 built glibc
+`--disable-crypt` and `libcrypt.so.1` is libxcrypt with an `XCRYPT_2.0` node the
+map carries faithfully — DR-0013. `t/reproduce.sh` reruns the extraction, diffs
+it against the committed files, asserts the ladder equals `readelf -V`, checks
+`memcpy@@GLIBC_2.14`/`memcpy@GLIBC_2.2.5`, and confirms all 2358 of
+`libc.so.6`'s defined dynamic symbols match `readelf --dyn-syms` line for line.
+The vendor binaries are fetched and checksum-pinned per DR-0002, not vendored.
+
 ### WP-52 — the resolution classification
 
 Needs: WP-51.
