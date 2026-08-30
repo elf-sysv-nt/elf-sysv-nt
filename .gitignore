@@ -25,3 +25,7 @@ src-cache/
 # raw capture saved under some other extension.
 *.log
 *unredacted*
+
+# session-monitor run logs. The .smon marker opts this tree into monitoring;
+# the JSONL runs under it are per-run and local, never history.
+.smon/
