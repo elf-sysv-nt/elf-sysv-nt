@@ -31,20 +31,13 @@ static void set_why(elf_fork_state *fs, const char *fmt, ...)
 }
 
 void elf_fork_state_init(elf_fork_state *fs, dl_state *dl, elf_tls_state *tls,
-                         elfsysv_tcb_t *tcb,
                          const elf_fork_mem *mem, const elf_fork_lock *lock)
 {
 	memset(fs, 0, sizeof(*fs));
 	fs->dl = dl;
 	fs->tls = tls;
-	fs->tcb = tcb;
 	fs->mem = mem != NULL ? *mem : *elf_fork_mem_host();
 	fs->lock = lock != NULL ? *lock : *elf_fork_lock_pthread();
-}
-
-void elf_fork_bind_tcb(elf_fork_state *fs, elfsysv_tcb_t *tcb)
-{
-	fs->tcb = tcb;
 }
 
 int elf_fork_atfork(elf_fork_state *fs, void (*prepare)(void),
@@ -134,7 +127,8 @@ int elf_fork_region_drop(elf_fork_state *fs, uint64_t base)
 
 /* ---- the phases --------------------------------------------------------- */
 
-int elf_fork_prepare(elf_fork_state *fs, elf_fork_flavor flavor)
+int elf_fork_prepare(elf_fork_state *fs, elf_fork_flavor flavor,
+                     elfsysv_tcb_t *tcb)
 {
 	(void)flavor;
 
@@ -142,6 +136,10 @@ int elf_fork_prepare(elf_fork_state *fs, elf_fork_flavor flavor)
 		set_why(fs, "prepare called with a fork already armed");
 		return -1;
 	}
+
+	/* This thread's, for this fork. The previous fork's TCB is not this
+	 * thread's and may not exist any more. */
+	fs->tcb = tcb;
 
 	/* Reverse registration order: the handler registered last runs first, so a
 	 * library that registered after the one it depends on quiesces first. */

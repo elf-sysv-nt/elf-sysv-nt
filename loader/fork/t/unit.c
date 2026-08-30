@@ -91,20 +91,20 @@ static void c3(void) { note('c'); }
 static void test_ordering(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 
 	elf_fork_atfork(&fs, p1, c1, c1);
 	elf_fork_atfork(&fs, p2, c2, c2);
 	elf_fork_atfork(&fs, p3, c3, c3);
 
 	order_n = 0; lock_n = 0; lock_depth = 0;
-	ck(elf_fork_prepare(&fs, elf_fork_flavor_fork) == 0, "prepare returns 0");
+	ck(elf_fork_prepare(&fs, elf_fork_flavor_fork, NULL) == 0, "prepare returns 0");
 	order[order_n] = '\0';
 	ck(strcmp(order, "321") == 0, "prepare handlers run in reverse order");
 	ck(lock_depth == 1, "the loader lock is held across the fork");
 	ck(lock_n == 1 && lock_log[0] == 'A', "the lock is taken after the handlers");
 
-	ck(elf_fork_prepare(&fs, elf_fork_flavor_fork) == -1,
+	ck(elf_fork_prepare(&fs, elf_fork_flavor_fork, NULL) == -1,
 	   "a second prepare while armed is refused");
 
 	order_n = 0;
@@ -116,7 +116,7 @@ static void test_ordering(void)
 	/* The child side of the same fork: prepare again, then take the child
 	 * path, which must reinitialize rather than unlock. */
 	order_n = 0; lock_n = 0;
-	elf_fork_prepare(&fs, elf_fork_flavor_vfork);
+	elf_fork_prepare(&fs, elf_fork_flavor_vfork, NULL);
 	order_n = 0;
 	ck(elf_fork_child(&fs, NULL, 0) == 0, "the child crosses with no manifest");
 	order[order_n] = '\0';
@@ -129,7 +129,7 @@ static void test_ordering(void)
 static void test_atfork_bound(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 	for (int i = 0; i < ELF_FORK_ATFORK_MAX; i++)
 		ck(elf_fork_atfork(&fs, p1, NULL, NULL) == 0, "atfork accepts");
 	ck(elf_fork_atfork(&fs, p1, NULL, NULL) == -1,
@@ -142,7 +142,7 @@ static void test_atfork_bound(void)
 static void test_regions(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 
 	ck(elf_fork_region_add(&fs, 0x30000, 0x10000, elf_fork_region_reserve,
 	                       0, "third") == 0, "add third");
@@ -188,7 +188,7 @@ static void fill(elf_fork_state *fs, int n)
 static void test_manifest_roundtrip(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 	fill(&fs, 5);
 
 	unsigned char buf[4096];
@@ -210,7 +210,7 @@ static void test_manifest_roundtrip(void)
 
 	/* An empty manifest is a header and nothing else, and round trips. */
 	elf_fork_state e;
-	elf_fork_state_init(&e, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&e, NULL, NULL, &test_mem, &test_lock);
 	ck(elf_fork_manifest_pack(&e, buf, sizeof buf, &used) == 0, "pack empty");
 	ck(elf_fork_manifest_unpack(buf, used, out, why, sizeof why) == 0,
 	   "an empty manifest unpacks to zero regions");
@@ -223,7 +223,7 @@ static void test_manifest_roundtrip(void)
 static void test_manifest_refusals(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 	fill(&fs, 3);
 
 	unsigned char good[4096], buf[4096];
@@ -304,12 +304,12 @@ static void test_manifest_refusals(void)
 static void test_child_replay(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 	fill(&fs, 4);
 
 	unsigned char buf[4096];
 	size_t used = 0;
-	elf_fork_prepare(&fs, elf_fork_flavor_fork);
+	elf_fork_prepare(&fs, elf_fork_flavor_fork, NULL);
 	elf_fork_manifest_pack(&fs, buf, sizeof buf, &used);
 
 	mem_n = 0; mem_refuse_at = -1;
@@ -320,7 +320,7 @@ static void test_child_replay(void)
 
 	/* A host that refuses one reservation fails the child by name, and the
 	 * child handlers do not run against a loader that did not cross. */
-	elf_fork_prepare(&fs, elf_fork_flavor_fork);
+	elf_fork_prepare(&fs, elf_fork_flavor_fork, NULL);
 	mem_n = 0; mem_refuse_at = 2;
 	order_n = 0;
 	ck(elf_fork_child(&fs, buf, used) == -1, "a refused reservation fails");
@@ -329,7 +329,7 @@ static void test_child_replay(void)
 	mem_refuse_at = -1;
 
 	/* A manifest that will not parse fails before any host call. */
-	elf_fork_prepare(&fs, elf_fork_flavor_fork);
+	elf_fork_prepare(&fs, elf_fork_flavor_fork, NULL);
 	buf[0] = 0xff;
 	mem_n = 0;
 	ck(elf_fork_child(&fs, buf, used) == -1, "a bad manifest fails the child");
@@ -342,7 +342,7 @@ static void test_child_replay(void)
 static void test_audit(void)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, &test_mem, &test_lock);
+	elf_fork_state_init(&fs, NULL, NULL, &test_mem, &test_lock);
 	fill(&fs, 2);
 
 	elf_fork_audit a, b;

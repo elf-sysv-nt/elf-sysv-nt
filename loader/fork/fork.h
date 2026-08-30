@@ -173,7 +173,14 @@ typedef struct {
 typedef struct elf_fork_state {
 	dl_state      *dl;
 	elf_tls_state *tls;
-	elfsysv_tcb_t *tcb;      /* the calling thread's TCB, re-established in the child */
+
+	/* The forking thread's TCB, set by elf_fork_prepare and read by
+	 * elf_fork_child, which runs on the child's copy of that same thread. It
+	 * is not a property of the state: a process has one loader and one TLS
+	 * layout, but a TCB per thread, and a state that held one across the life
+	 * of the process would name a thread that had since exited. Storing it per
+	 * fork rather than per state is what keeps that from being possible. */
+	elfsysv_tcb_t *tcb;
 
 	elf_fork_mem   mem;
 	elf_fork_lock  lock;
@@ -198,11 +205,7 @@ typedef struct elf_fork_state {
 /* Bring a state up empty and bind it. mem may be NULL, which installs
  * elf_fork_mem_host(); lock may be NULL, which installs the pthread one. */
 void elf_fork_state_init(elf_fork_state *fs, dl_state *dl, elf_tls_state *tls,
-                         elfsysv_tcb_t *tcb,
                          const elf_fork_mem *mem, const elf_fork_lock *lock);
-
-/* Bind the TCB after the fact, for a thread that acquired one later. */
-void elf_fork_bind_tcb(elf_fork_state *fs, elfsysv_tcb_t *tcb);
 
 /* ---- pthread_atfork ----------------------------------------------------- */
 
@@ -264,12 +267,19 @@ int elf_fork_audit_diff(const elf_fork_audit *before, const elf_fork_audit *afte
 
 /* ---- the three phases --------------------------------------------------- */
 
-/* Before the host's fork, on the calling thread: run prepare handlers in
- * reverse registration order, take the loader lock, and take the audit. After
- * this returns the loader is quiescent and no other thread can enter dlopen.
- * Returns 0; -1 only when the state is already armed, which is a caller error
- * and not a condition to recover from. */
-int elf_fork_prepare(elf_fork_state *fs, elf_fork_flavor flavor);
+/* Before the host's fork, on the calling thread: record that thread's TCB (NULL
+ * for a thread with none), run prepare handlers in reverse registration order,
+ * take the loader lock, and take the audit. After this returns the loader is
+ * quiescent and no other thread can enter dlopen. Returns 0; -1 only when the
+ * state is already armed, which is a caller error and not a condition to
+ * recover from.
+ *
+ * The TCB is taken here rather than at state_init because it belongs to this
+ * thread and to this fork. A state that carried one from an earlier fork on a
+ * thread that has since exited would hand the child a freed TCB to
+ * re-establish from, which is a fault in the child and was found that way. */
+int elf_fork_prepare(elf_fork_state *fs, elf_fork_flavor flavor,
+                     elfsysv_tcb_t *tcb);
 
 /* In the parent, after the host's fork returns, whether it succeeded or not:
  * release the loader lock, then run parent handlers in registration order. */

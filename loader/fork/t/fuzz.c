@@ -70,7 +70,7 @@ static uint64_t rng(void)
 static size_t build_valid(unsigned char *buf, unsigned n)
 {
 	elf_fork_state fs;
-	elf_fork_state_init(&fs, NULL, NULL, NULL, NULL, NULL);
+	elf_fork_state_init(&fs, NULL, NULL, NULL, NULL);
 	for (unsigned i = 0; i < n; i++)
 		elf_fork_region_add(&fs, UINT64_C(0x100000) + (uint64_t)i * 0x20000,
 		                    0x10000, (i & 1) ? elf_fork_region_commit

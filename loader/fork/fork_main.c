@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	elf_fork_state_init(&fs, NULL, NULL, NULL, NULL, NULL);
+	elf_fork_state_init(&fs, NULL, NULL, NULL, NULL);
 	if (elf_fork_atfork(&fs, h_prepare, h_parent, h_child) != 0) {
 		fprintf(stderr, "elfsysv-fork: %s\n", fs.why);
 		return 1;
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 		return 1;
 
 	for (int i = 0; i < count; i++) {
-		if (elf_fork_prepare(&fs, flavor) != 0) {
+		if (elf_fork_prepare(&fs, flavor, NULL) != 0) {
 			fprintf(stderr, "elfsysv-fork: %s\n", fs.why);
 			return 1;
 		}
