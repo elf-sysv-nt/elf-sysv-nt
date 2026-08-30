@@ -13,7 +13,14 @@
 #include <pthread.h>
 
 #include "fork.h"
-#include "../elf/elf_types.h"   /* PF_R, PF_W, PF_X */
+
+/* The program header permission bits, at the format's values. A manifest
+ * region's prot field carries them, so a committed region comes back with the
+ * protection the segment in it had. WP-32 spells them out locally for the same
+ * reason: they belong to the format, not to a host header. */
+#define PF_X 1u
+#define PF_W 2u
+#define PF_R 4u
 
 #if defined(__CYGWIN__) || defined(_WIN32)
 #include <windows.h>
