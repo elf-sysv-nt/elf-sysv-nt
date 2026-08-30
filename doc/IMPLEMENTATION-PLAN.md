@@ -907,6 +907,47 @@ ahead of the runtime's own initialization, is where this points, and whether
 that is early enough is unmeasured. Measure it at the start of this package
 rather than discovering it in the middle.
 
+Delivered 2026-08-30, under `loader/exec/`. The measurement came first and both
+candidates lost. `t/reserve-when.sh` builds one probe four ways: arming from
+`main` is refused, which reproduces spike 2; a `.CRT$XLB` callback cannot be
+written at all, since Cygwin's runtime supplies no `_tls_used` and the image
+therefore carries no TLS directory; and a replacement image entry point — the
+earliest instruction the image owns — is refused with the initial thread's stack
+sitting at `0x400000`, put there by the kernel before any instruction ran, over
+a region `cygwin1.dll` had already begun chewing into small mappings. What is
+early enough is the parent: `VirtualAllocEx` into a child created suspended
+takes the whole `0x3FC00000` window and it is intact at the child's entry, and
+the fifth case is the control for the fourth, since the same reservation against
+a child built with the default stack reserve is refused every time. That is
+DR-0028, and it is why the stub is linked with a `0x100000` stack.
+
+The branch is `binfmt.c`, pure and fuzzed: one classifier over one read of the
+leading bytes, four verdicts in a written order, the `#!` line parsed to the
+kernel's corners, and the kernel's vector rebuild at each of at most four hops,
+with the limit doubling as the cycle detector. DR-0027. `dispatch.c` either
+takes the ELF case — starting the stub with the window already reserved in it —
+or hands the case back with the file and the rebuilt vector, so the host path
+and the ELF path cannot disagree about what a chain means. `stub.c` adopts the
+window, confirms Control Flow Guard and shadow stacks are off, and places and
+enters through WP-31, WP-32 and WP-40.
+
+Both halves of the done-when are measured in `loader/exec/t/`. A static ELF
+linked at `0x400000` runs from a Cygwin program through the branch and reports
+by leaving, seven bits for seven checks, so 127 is the only pass; a `#!` script
+still works, a two-hop chain comes out in the kernel's order, a cycle is refused
+by name, and a host image comes back as the host's. Two things were found by the
+specimen dying rather than by reasoning: the host's C library cannot be called
+while the ELF stack is in force, because Cygwin locates its per-thread state
+from the stack pointer, and a hand-written thunk's shadow space has to be
+counted for the stack it has rather than copied from a prologue that pushed an
+odd number of words.
+
+The exec obligations this package inherits rather than implements — descriptor
+inheritance and close-on-exec, the working directory, signal disposition, the
+environment — stay with the spawn path that already discharges them for the PE
+case. winsup is not in this tree, so the branch is certified through
+`elfsysv-exec`, a front end that calls it exactly as that spawn path will.
+
 ### WP-42 — fork
 
 Needs: WP-41.
