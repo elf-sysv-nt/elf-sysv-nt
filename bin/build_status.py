@@ -16,8 +16,10 @@ import os, re, time, subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # the worktree root
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]              # the main checkout (holds the lock)
-PLAN = os.path.join(ROOT, 'doc', 'IMPLEMENTATION-PLAN.md')
-LOCK = os.path.join(REPO, 'a', '.build-worker.lock')
+PLAN   = os.path.join(ROOT, 'doc', 'IMPLEMENTATION-PLAN.md')
+LOCK   = os.path.join(REPO, 'a', '.build-worker.lock')
+LEDGER = os.path.join(ROOT, 'doc', 'status', 'delivered.txt')  # tracked status, never the plan
+HOLD   = os.path.join(ROOT, 'doc', 'status', 'hold.txt')       # WPs set aside from autonomous build
 
 
 def git(args, cwd=ROOT):
@@ -80,18 +82,60 @@ def inflight():
     return out
 
 
+def _read_ids(path):
+    try:
+        return [l.strip() for l in open(path, encoding='utf-8', errors='replace')
+                if l.strip() and not l.lstrip().startswith('#')]
+    except Exception:
+        return []
+
+
 def delivered_wps():
-    """The set of WP ids the plan marks Delivered or Partial (for check marks)."""
+    """The set of delivered WP ids, from the git-side ledger a/delivered.txt.
+    Status lives in the ledger, never in the plan."""
+    return set(_read_ids(LEDGER))
+
+
+def held_wps():
+    """WP ids the operator set aside (a/build-hold.txt): not built autonomously,
+    but not delivered either."""
+    return set(_read_ids(HOLD))
+
+
+def plan_wps():
+    """[(wp_id, [needs])] for every WP in the plan, in plan order. Structure
+    only -- the plan is never read for status."""
     try:
         text = open(PLAN, encoding='utf-8', errors='replace').read()
     except Exception:
-        return set()
-    out = set()
-    parts = re.split(r'(?m)^### (WP-\d+)\b', text)
+        return []
+    parts = re.split(r'(?m)^### (WP-[0-9A-Za-z]+)\b', text)
+    out = []
     for i in range(1, len(parts), 2):
-        if re.search(r'(?m)^(Delivered|Partial)\b', parts[i + 1]):
-            out.add(parts[i])
+        body = parts[i + 1]
+        m = re.search(r'(?m)^Needs:\s*(.+?)\.?\s*$', body)
+        needs = re.findall(r'WP-[0-9A-Za-z]+', m.group(1)) if m else []
+        if m and re.search(r'\bnone\b', m.group(1), re.I):
+            needs = []
+        out.append((parts[i], needs))
     return out
+
+
+def undelivered_wps():
+    d = delivered_wps()
+    return [w for w, _ in plan_wps() if w not in d]
+
+
+def next_buildable():
+    """First plan WP (in order) that is undelivered, not held, and whose Needs
+    are all delivered. None when nothing is buildable right now."""
+    d, h = delivered_wps(), held_wps()
+    for w, needs in plan_wps():
+        if w in d or w in h:
+            continue
+        if all(n in d for n in needs):
+            return w
+    return None
 
 
 def delivered_count():
@@ -99,20 +143,31 @@ def delivered_count():
 
 
 def verdict(rows, lock_held):
+    undone = undelivered_wps()
+    if not undone:
+        return 'COMPLETE — every work package in the plan is delivered'
     if any('BUILDING' in s for _, s, _ in rows):
         return 'BUILDING — a package is compiling; not stalled'
     if any(s.startswith('committed') or s.startswith('STARTED') for _, s, _ in rows):
         return 'work committed and awaiting the worker; not stalled'
+    nb = next_buildable()
     if lock_held:
-        return 'worker holds the lock (starting or finishing a package); not stalled'
-    return 'STALLED — nothing building, nothing awaiting merge, lock free'
+        return 'worker holds the lock (starting or finishing %s); not stalled' % (nb or 'a package')
+    if nb:
+        return 'STALLED — %s is buildable and the lock is free, but nothing is building' % nb
+    held = sorted(held_wps() & set(undone))
+    tail = (' (held: %s; the rest wait on unmet dependencies)' % ' '.join(held)) if held \
+           else ' (all waiting on unmet dependencies)'
+    return 'BLOCKED — %d undelivered, none buildable right now%s' % (len(undone), tail)
 
 
 def main():
     rows = inflight()
     lock_held = os.path.isdir(LOCK)
     print('march tip: %s' % git(['log', '--oneline', '-1']).strip())
-    print('delivered markers: %d' % delivered_count())
+    print('delivered: %d of %d   undelivered: %d   next buildable: %s   held: %s'
+          % (delivered_count(), len(plan_wps()), len(undelivered_wps()),
+             next_buildable() or '-', ' '.join(sorted(held_wps())) or '-'))
     print('last commits:')
     for l in git(['log', '-4', '--date=relative', '--pretty=format:  %h  %ad  %s']).splitlines():
         print(l)
@@ -127,4 +182,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    if '--next' in sys.argv:
+        print(next_buildable() or '')       # empty line = nothing buildable now
+    else:
+        main()

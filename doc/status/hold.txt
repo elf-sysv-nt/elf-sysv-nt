@@ -1,0 +1,3 @@
+# WP ids set aside from autonomous building (still undelivered,
+# just not built by the worker). Remove an id to release it.
+WP-15
