@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+#
+# elf-install -- install the platform under a root, and configure it.
+#
+# The other installers here each place one layer: build-csu seeds the
+# sysroot, install-veneer puts the libc face beside it, kernel-headers lays
+# the uapi set below.  This one owns the machine end.  Given a payload list
+# of built files it puts them under a root, seeds the loader's search
+# configuration from the pristine templates beside this script, writes the
+# marker file config.guess falls back to where no compiler exists (the
+# obligation WP-11 left), and rebuilds the ldconfig cache.  It keeps a
+# manifest of every path it manages, and that manifest is its only memory:
+# a path managed by the last run and absent from this one is removed, not
+# left behind.
+#
+# Idempotent per AGENTS.md.  Run it twice, or ten times, and the root looks
+# as it does after one run.  Derived configuration is never edited in
+# place; each run rewrites it from the template and reapplies the managed
+# settings, so a hand edit or an injected stale value lasts exactly until
+# the next run.  Leftovers of an interrupted run -- half-written staging
+# files -- are reaped before anything else happens.
+#
+# Usage:
+#   elf-install [options]
+#   elf-install --exclusions
+#
+# Options:
+#   -R DIR, --root=DIR       Root to install under.  [default: /]
+#   -p FILE, --payload=FILE  Payload list, one entry per line: MODE SRC
+#                            DEST, whitespace-separated, DEST relative to
+#                            the root, # comments and blank lines ignored.
+#                            No payload means configuration only.
+#   -L DIR, --libdir=DIR     Library directory the loader searches,
+#                            relative to the root.  Repeatable.
+#                            [default: usr/lib64]
+#   -r STR, --revision=STR   Revision written to etc/elfsysvnt-release.
+#                            [default: git describe of this tree]
+#   -c CMD, --ldconfig=CMD   Cache rebuilder.  [default: elf-ldconfig,
+#                            skipped when not on PATH]
+#   -x, --exclusions         Print the endpoint-protection exclusion list
+#                            for this root and payload, then exit.
+#   -n, --dry-run            Report what would change and stop.
+#
+# Environment: ELF_INSTALL_ROOT, ELF_INSTALL_PAYLOAD, ELF_INSTALL_LDCONFIG.
+# Precedence: option, environment, built-in default.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=elf-install
+here=$(cd "$(dirname "$0")" && pwd)
+
+die()  { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+warn() { printf '%s: %s\n' "$prog" "$*" >&2; }
+
+usage() {
+  echo "usage: elf-install [-R DIR] [-p FILE] [-L DIR]... [-r STR] [-c CMD] [-x] [-n]" >&2
+  exit 2
+}
+
+root=${ELF_INSTALL_ROOT:-/}
+payload=${ELF_INSTALL_PAYLOAD:-}
+ldconfig=${ELF_INSTALL_LDCONFIG:-elf-ldconfig}
+revision=
+dry=0
+excl=0
+libdirs=()
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -R|--root)     root=$2;     shift 2 ;;
+    -p|--payload)  payload=$2;  shift 2 ;;
+    -L|--libdir)   libdirs+=("$2"); shift 2 ;;
+    -r|--revision) revision=$2; shift 2 ;;
+    -c|--ldconfig) ldconfig=$2; shift 2 ;;
+    -x|--exclusions) excl=1; shift ;;
+    -n|--dry-run)  dry=1; shift ;;
+    *) usage ;;
+  esac
+done
+[ ${#libdirs[@]} -gt 0 ] || libdirs=(usr/lib64)
+[ -n "$revision" ] || revision=$(git -C "$here" describe --always --dirty 2>/dev/null || echo unknown)
+[ -d "$root" ] || die "root $root does not exist"
+
+# Every path the manifest or the payload names must stay under the root,
+# because the orphan pass deletes what the manifest says.  A stale manifest
+# is exactly the kind of hostile input AGENTS.md warns about: refuse the
+# absolute, the empty, and anything climbing through dot or dot-dot.
+ok_rel() {
+  case $1 in ''|/*) return 1 ;; esac
+  case /$1/ in */../*|*/./*|*//*) return 1 ;; esac
+  return 0
+}
+
+manifest_rel=etc/elfsysvnt/manifest
+state=$root/etc/elfsysvnt
+manifest=$root/$manifest_rel
+
+# The exclusion list is derived from the same inputs as the install, so it
+# never drifts from what actually lands on the machine.  Executables from
+# the payload plus every library directory: the loader self-maps anonymous
+# executable memory, which endpoint protection reads as malware-shaped,
+# permanently (DR-0000 and AGENTS.md both carry the warning).
+if [ $excl = 1 ]; then
+  echo "# elf-install endpoint-protection exclusions for root $root"
+  echo "# The loader maps anonymous executable memory by design; exclude"
+  echo "# these paths in the endpoint-protection console before first use."
+  if [ -n "$payload" ] && [ -r "$payload" ]; then
+    while read -r mode src dst; do
+      case $mode in ''|'#'*) continue ;; esac
+      case $mode in 7*) echo "$root/$dst" ;; esac
+    done < "$payload"
+  fi
+  for d in "${libdirs[@]}"; do echo "$root/$d"; done
+  exit 0
+fi
+
+# --- 1. reap ---------------------------------------------------------------
+# An interrupted run leaves *.elf-install-tmp staging files and nothing
+# else, because every write lands whole through a rename.  Sweep them
+# first so this run starts from a clean floor whatever the last one did.
+if [ $dry = 0 ]; then
+  find "$root" -name '*.elf-install-tmp' -type f -exec rm -f {} + 2>/dev/null
+fi
+
+# --- 2. remember -----------------------------------------------------------
+old=()
+if [ -r "$manifest" ]; then
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if ok_rel "$line"; then old+=("$line")
+    else warn "manifest entry refused, not removing: $line"; fi
+  done < "$manifest"
+fi
+
+new=()
+
+# Land one file whole: copy to a staging name beside the destination, set
+# the mode, rename into place.  The reap pass owns any staging file a
+# crash strands here.
+place() { # MODE SRC DEST(rel)
+  ok_rel "$3" || die "payload destination escapes the root: $3"
+  [ -r "$2" ] || die "payload source missing: $2"
+  new+=("$3")
+  if [ $dry = 1 ]; then echo "install $3 (mode $1)"; return; fi
+  mkdir -p "$root/$(dirname "$3")"
+  cp "$2" "$root/$3.elf-install-tmp"
+  chmod "$1" "$root/$3.elf-install-tmp"
+  mv -f "$root/$3.elf-install-tmp" "$root/$3"
+}
+
+# Seed one derived file: pristine template first, managed settings from
+# stdin after, through the same stage-and-rename path.  Never an edit of
+# what is already there.
+seed() { # TEMPLATE-or-"-" DEST(rel)
+  local tpl=$1 dst=$2
+  ok_rel "$dst" || die "derived destination escapes the root: $dst"
+  new+=("$dst")
+  if [ $dry = 1 ]; then echo "seed $dst"; cat >/dev/null; return; fi
+  mkdir -p "$root/$(dirname "$dst")"
+  { [ "$tpl" != - ] && cat "$tpl"; cat; } > "$root/$dst.elf-install-tmp"
+  chmod 644 "$root/$dst.elf-install-tmp"
+  mv -f "$root/$dst.elf-install-tmp" "$root/$dst"
+}
+
+# --- 3. payload ------------------------------------------------------------
+if [ -n "$payload" ]; then
+  [ -r "$payload" ] || die "payload list unreadable: $payload"
+  lineno=0
+  while read -r mode src dst; do
+    lineno=$((lineno+1))
+    case $mode in ''|'#'*) continue ;; esac
+    [ -n "$dst" ] || die "$payload:$lineno: want MODE SRC DEST"
+    case $mode in [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;; *)
+      die "$payload:$lineno: bad mode $mode" ;; esac
+    place "$mode" "$src" "$dst"
+  done < "$payload"
+fi
+
+# --- 4. derived configuration ---------------------------------------------
+# el8's shape: ld.so.conf holds one include line, the real directories live
+# in a drop-in under ld.so.conf.d.  The drop-in's directory lines are the
+# managed settings, reapplied over the template on every run.
+seed "$here/templates/ld.so.conf" etc/ld.so.conf </dev/null
+
+dirlines=$(for d in "${libdirs[@]}"; do echo "/$d"; done)
+seed "$here/templates/elfsysvnt.conf" etc/ld.so.conf.d/elfsysvnt.conf <<EOF
+$dirlines
+EOF
+
+# The marker config.guess reads where no compiler exists.  Its content is
+# informational; its presence is the interface.
+seed - etc/elfsysvnt-release <<EOF
+elfsysvnt release $revision
+triple: x86_64-elfsysvnt-linux-gnu
+EOF
+
+# --- 5. the cache ----------------------------------------------------------
+# The conf just written names directories as the running system will see
+# them, absolute from /.  This run may target a scratch root, so the tool
+# is pointed at the root-prefixed directories directly rather than through
+# -f; at root=/ the two spell the same paths.
+if command -v "$ldconfig" >/dev/null 2>&1; then
+  scan=()
+  for d in "${libdirs[@]}"; do [ -d "$root/$d" ] && scan+=("$root/$d"); done
+  new+=(etc/ld.so.cache)
+  if [ $dry = 1 ]; then echo "rebuild etc/ld.so.cache"
+  else
+    "$ldconfig" -o "$root/etc/ld.so.cache.elf-install-tmp" ${scan[@]+"${scan[@]}"} \
+      || die "$ldconfig failed"
+    mv -f "$root/etc/ld.so.cache.elf-install-tmp" "$root/etc/ld.so.cache"
+  fi
+else
+  warn "$ldconfig not found; cache not rebuilt"
+fi
+
+# --- 6. orphans ------------------------------------------------------------
+# What the last run managed and this one does not is removed, then any
+# directory emptied by the removal is pruned back toward the root.  This
+# is the half of idempotency that mere re-copying never buys.
+for o in ${old[@]+"${old[@]}"}; do
+  keep=0
+  for n in ${new[@]+"${new[@]}"}; do [ "$o" = "$n" ] && { keep=1; break; }; done
+  [ $keep = 1 ] && continue
+  if [ $dry = 1 ]; then echo "remove $o"; continue; fi
+  rm -f "$root/$o"
+  d=$(dirname "$o")
+  while [ "$d" != . ]; do
+    rmdir "$root/$d" 2>/dev/null || break
+    d=$(dirname "$d")
+  done
+done
+
+# --- 7. the manifest -------------------------------------------------------
+if [ $dry = 1 ]; then
+  echo "write $manifest_rel (${#new[@]} entries)"
+  exit 0
+fi
+mkdir -p "$state"
+printf '%s\n' ${new[@]+"${new[@]}"} | sort -u > "$manifest.elf-install-tmp"
+mv -f "$manifest.elf-install-tmp" "$manifest"
