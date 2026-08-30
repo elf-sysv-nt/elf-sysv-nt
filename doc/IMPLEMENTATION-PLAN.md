@@ -1055,6 +1055,25 @@ Done when: `memcpy@GLIBC_2.2.5` and `memcpy@@GLIBC_2.14` both live in the object
 and bind independently, and spike 4's `elfdeps` result reproduces against the
 real library rather than against the synthesized one.
 
+Delivered 2026-08-30, in `veneer/libc/`. `build-libc` turns WP-51's map and
+WP-52's classification into `libc.so.6`: 2329 exported symbols over the
+29-node `GLIBC_2.x` ladder, each at the node el8's own library assigns it, plus
+the 29 version-node identity objects the linker emits from the version script
+rather than we from the assembly — DR-0017's distinction, which showed up first
+as a duplicate-definition link error. The generated version script names every
+symbol under its node instead of declaring the nodes and leaving the assignment
+to `.symver`; the shorter script links successfully and silently drops three
+quarters of the surface, which is DR-0026. `libc.a` comes out of the same pass
+under bare names, since an archive has no version table to hold a compat
+binding. The bodies are stubs; `libc-forward.tsv` records the `elfsysv1.dll`
+export each entry is to reach. `t/run-tests.sh` builds the library and makes
+seven checks against the linked file: both `memcpy` bindings present at two
+addresses, the whole export set equal to the map, the emitted node tree equal
+to the vendor's node list name and parent, and the rpm provides equal to spike
+4's recorded 30 lines — reimplemented from the file format rather than rerun,
+which needed a network and an el8 host. A fuzz pass over 2977 mutants checks
+the reader refuses rather than crashes.
+
 ### WP-54 — the companion libraries
 
 Needs: WP-53.
