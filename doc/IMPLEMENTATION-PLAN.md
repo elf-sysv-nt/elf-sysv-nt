@@ -721,6 +721,22 @@ this a derivative either way, so the reason to write from the specification
 stands; the licence is named correctly here because DR-0004 turns on the
 difference. Budget review time rather than coding time.
 
+Delivered 2026-08-30 in `loader/version/`. It plugs into WP-35's
+`elf_version_matcher` seam and adds the two answers: `elf_version_match` binds a
+reference to the definition its version names, preferring the default `@@` over
+the non-default `@` and falling a versioned reference back to the unversioned
+base but never to a differently-named node; `elf_version_check_needed` refuses a
+load on the first absent non-weak requirement with `ld.so`'s exact message and
+tolerates an absent weak one. A node's verdaux predecessors are walked, so
+`GLIBC_2.28` satisfies a requirement for `GLIBC_2.14`. Written from the generic
+ABI and Drepper, not glibc's LGPL resolver (DR-0000, DR-0004); the load-bearing
+readings are DR-0023. `loader/version/t/` holds it to fifteen checks over
+version tables laid out as an object carries them — the done-condition binding
+(`@GLIBC_2.14` over `GLIBC_2.2.5`) and the refusal on a removed node among them.
+The unit form suits it because the matcher reads a table's layout rather than a
+build, and WP-51 already showed the real vendor tables parse as `readelf -V`
+reads them.
+
 ### WP-37 — TLS in the loader
 
 Needs: WP-30, WP-34.
