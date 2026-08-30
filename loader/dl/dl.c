@@ -281,40 +281,20 @@ static void unload(dl_state *st, dl_object *o)
 	 * surviving object's slot number never moves under it. */
 }
 
-void *dl_open(dl_state *st, const char *path, int flags)
+/* Take one file into a fresh table slot: read it, parse it, place it, and
+ * register it in the shared relocation scope. Nothing is relocated here and no
+ * initializer runs; the caller does both once the whole group is in, so that a
+ * dependency and its dependent are relocated against each other in one pass.
+ * Returns NULL with the error set, having released whatever it had taken. */
+static dl_object *load_one(dl_state *st, const char *path, int flags)
 {
-	dl_object *o = NULL;
+	dl_object *o;
 	elf_reloc_object *ro;
 	elf_reloc_diag rdiag;
 	elf_map_diag mdiag;
 	elf_diag pdiag;
 	unsigned char *image = NULL;
 	size_t image_size = 0;
-	unsigned order[DL_MAX_OBJECTS];
-	unsigned n;
-	uint64_t base_hint;
-
-	if (!st) return NULL;
-	if (!path || !*path) {
-		dl_set_err(st, "dlopen", "no filename");
-		return NULL;
-	}
-
-	/* An object already loaded is the same object: one more reference, no
-	 * second mapping, and no initializer run a second time. */
-	o = find_loaded(st, path);
-	if (o) {
-		if (!(flags & RTLD_NOLOAD) || 1) {
-			o->refcount++;
-			if (flags & RTLD_GLOBAL)
-				o->global = 1;
-			if (flags & RTLD_NODELETE)
-				o->nodelete = 1;
-		}
-		return o;
-	}
-	if (flags & RTLD_NOLOAD)
-		return NULL;   /* not loaded, and the caller asked not to load it */
 
 	if (st->host.read(st->host.ctx, path, &image, &image_size) != 0) {
 		dl_set_err(st, "dlopen", "cannot open shared object file");
@@ -336,11 +316,9 @@ void *dl_open(dl_state *st, const char *path, int flags)
 		return NULL;
 	}
 
-	/* Place it above everything already mapped so a plugin never collides with
-	 * the world it is joining; the mapper honours an ET_EXEC's own addresses
-	 * and ignores the hint. */
-	base_hint = 0;
-	if (elf_map(image, image_size, &o->parsed, base_hint, &o->map, &mdiag)
+	/* base_hint 0 lets the mapper choose a free base for an ET_DYN; an ET_EXEC
+	 * is honored at its own addresses and the hint is ignored. */
+	if (elf_map(image, image_size, &o->parsed, 0, &o->map, &mdiag)
 	    != elf_map_ok) {
 		dl_set_err(st, "dlopen", mdiag.msg);
 		unload(st, o);
@@ -353,6 +331,7 @@ void *dl_open(dl_state *st, const char *path, int flags)
 		return NULL;
 	}
 	ro = &st->reloc.obj[st->reloc.count];
+	snprintf(o->path, sizeof o->path, "%s", path);
 	if (elf_reloc_add(&st->reloc, &o->map, &o->parsed, o->path, &rdiag)
 	    != elf_reloc_ok) {
 		dl_set_err(st, "dlopen", rdiag.msg);
@@ -360,7 +339,7 @@ void *dl_open(dl_state *st, const char *path, int flags)
 		return NULL;
 	}
 	o->ro = ro;
-	o->ro->late = 1;                  /* not part of the static TLS block */
+	o->ro->late = 1;              /* after startup: not in the static TLS block */
 	if (flags & RTLD_NOW)
 		o->ro->bind_now = 1;
 
@@ -368,35 +347,123 @@ void *dl_open(dl_state *st, const char *path, int flags)
 	set_views(o);
 	set_lookup(o);
 
-	/* Relocate. The scope holds everything loaded, so the new object resolves
-	 * against the world; the incremental mark keeps the world from being
-	 * relocated a second time. */
-	if (elf_reloc_apply(&st->reloc, &rdiag) != elf_reloc_ok) {
-		dl_set_err(st, "dlopen", rdiag.msg);
-		unload(st, o);
-		return NULL;
-	}
-
 	o->refcount = 1;
-	o->global = (flags & RTLD_GLOBAL) ? 1 : 0;
-	o->nodelete = (flags & RTLD_NODELETE) ? 1 : 0;
-
 	o->lm.l_addr = o->map.load_bias;
 	o->lm.l_name = o->path;
 	o->lm.l_ld = (Elf64_Dyn *) o->dyn;
-	if (st->rdebug_wired) {
-		rdebug_map_change_begin(RT_ADD);
-		rdebug_map_add(&o->lm);
-		rdebug_map_change_end();
+	return o;
+}
+
+void *dl_open(dl_state *st, const char *path, int flags)
+{
+	dl_object *o = NULL;
+	elf_graph g;
+	elf_reloc_diag rdiag;
+	unsigned slot_of[ELF_SCOPE_MAX];
+	unsigned fresh[DL_MAX_OBJECTS];
+	unsigned order[DL_MAX_OBJECTS];
+	unsigned nfresh = 0, n, i;
+
+	if (!st) return NULL;
+	if (!path || !*path) {
+		dl_set_err(st, "dlopen", "no filename");
+		return NULL;
 	}
 
-	st->adds++;
+	/* An object already loaded is the same object: one more reference, no
+	 * second mapping, and no initializer run a second time. */
+	o = find_loaded(st, path);
+	if (o) {
+		o->refcount++;
+		if (flags & RTLD_GLOBAL)
+			o->global = 1;
+		if (flags & RTLD_NODELETE)
+			o->nodelete = 1;
+		return o;
+	}
+	if (flags & RTLD_NOLOAD)
+		return NULL;   /* not loaded, and the caller asked not to load it */
 
-	/* Initializers, dependencies first. */
-	n = dl_init_order(st, &o->slot, 1, order, DL_MAX_OBJECTS);
+	/* WP-33 resolves the closure: the object, everything its DT_NEEDED names
+	 * reach, and the file each name resolved to, in load order. */
+	memset(&g, 0, sizeof g);
+	if (elf_graph_build(path, &st->search, &g) != 0 || g.error) {
+		dl_set_err(st, "dlopen", g.errmsg[0] ? g.errmsg : "cannot walk the object graph");
+		elf_graph_free(&g);
+		return NULL;
+	}
+	if (g.missing_count > 0) {
+		for (i = 0; i < g.count; i++)
+			if (!g.obj[i].found) {
+				dl_set_err(st, "dlopen", g.obj[i].name);
+				break;
+			}
+		elf_graph_free(&g);
+		return NULL;
+	}
+	if (g.count > ELF_SCOPE_MAX) {
+		dl_set_err(st, "dlopen", "the dependency closure is too large");
+		elf_graph_free(&g);
+		return NULL;
+	}
+
+	/* Dependencies before dependents. The graph is breadth-first from the
+	 * root, so walking it backwards puts every leaf in before anything that
+	 * needs it, and an object already loaded is joined rather than reloaded. */
+	for (i = g.count; i-- > 0; ) {
+		dl_object *e = find_loaded(st, g.obj[i].path);
+		if (!e) {
+			e = load_one(st, g.obj[i].path, flags);
+			if (!e)
+				goto fail;
+			fresh[nfresh++] = e->slot;
+		} else if (i > 0) {
+			e->refcount++;    /* a dependency this load now holds too */
+		}
+		slot_of[i] = e->slot;
+	}
+
+	/* The edges, taken from the graph: each node names the object that first
+	 * introduced it. They are what initialization order is computed over and
+	 * what a handle's own search scope is built from. */
+	for (i = 0; i < g.count; i++)
+		if (g.obj[i].parent >= 0)
+			dl_add_dep(&st->obj[slot_of[(unsigned) g.obj[i].parent]],
+			           slot_of[i]);
+
+	/* Relocate. The scope holds everything loaded, so the new objects resolve
+	 * against the world and against each other; the incremental mark keeps the
+	 * world from being relocated a second time. */
+	if (elf_reloc_apply(&st->reloc, &rdiag) != elf_reloc_ok) {
+		dl_set_err(st, "dlopen", rdiag.msg);
+		goto fail;
+	}
+
+	o = &st->obj[slot_of[0]];
+	o->global = (flags & RTLD_GLOBAL) ? 1 : 0;
+	o->nodelete = (flags & RTLD_NODELETE) ? 1 : 0;
+
+	/* Announce each new object to a debugger, in load order. */
+	if (st->rdebug_wired && nfresh > 0) {
+		rdebug_map_change_begin(RT_ADD);
+		for (i = nfresh; i-- > 0; )
+			rdebug_map_add(&st->obj[fresh[i]].lm);
+		rdebug_map_change_end();
+	}
+	st->adds += nfresh;
+
+	/* Initializers over what is new, dependencies first. */
+	n = dl_init_order(st, fresh, nfresh, order, DL_MAX_OBJECTS);
 	dl_run_init(st, order, n);
 
+	elf_graph_free(&g);
 	return o;
+
+fail:
+	while (nfresh > 0)
+		unload(st, &st->obj[fresh[--nfresh]]);
+	elf_graph_free(&g);
+	return NULL;
 }
 
 int dl_close(dl_state *st, void *handle)
@@ -422,8 +489,22 @@ int dl_close(dl_state *st, void *handle)
 		rdebug_map_change_end();
 	}
 
-	unload(st, o);
-	st->subs++;
+	/* The load took a reference on each dependency it brought in or joined;
+	 * releasing the object releases those too, which is what makes a plugin
+	 * and its private libraries go away together. The list is copied first,
+	 * because unload clears it. */
+	{
+		unsigned dep[DL_MAX_DEPS];
+		unsigned ndep = o->dep_count, i;
+		memcpy(dep, o->dep, ndep * sizeof dep[0]);
+
+		unload(st, o);
+		st->subs++;
+
+		for (i = 0; i < ndep; i++)
+			if (dep[i] < DL_MAX_OBJECTS && st->obj[dep[i]].in_use)
+				dl_close(st, &st->obj[dep[i]]);
+	}
 	return 0;
 }
 
