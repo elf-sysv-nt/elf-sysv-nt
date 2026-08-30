@@ -45,6 +45,7 @@ is a record nobody will find.
 | [0032](0032-the-companion-set-is-eight-libraries.md) | the companion set is the eight libraries DT_NEEDED reaches, no more | accepted 2026-08-30 | none |
 | [0033](0033-an-elf-core-from-the-runtime.md) | a fatal signal leaves an ELF core, written by the runtime | accepted 2026-08-30 | none |
 | [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30 | none |
+| [0035](0035-ci-is-the-pre-merge-gate.md) | CI is a pre-merge gate on the pinned root, not a hosted service | accepted 2026-08-30 | none |
 
 ## What earns a record
 
