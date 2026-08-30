@@ -78,7 +78,10 @@ def main():
     for h, b in new_secs:
         title = STAMP.sub('', h)
         old_b, old_ts = old_map.get(title, (None, None))
-        ts = NOW if (old_b is None or old_b != b) else (old_ts or NOW)
+        if 'Live worktrees' in title:
+            ts = NOW                       # the live section is live: always stamp now
+        else:
+            ts = NOW if (old_b is None or old_b != b) else (old_ts or NOW)
         rebuilt.append('%s  \u00b7  updated %s' % (title, ts))
         rebuilt.append(b)
     out = '\n'.join(rebuilt)
