@@ -814,6 +814,23 @@ That fourth bucket is the honest inventory of what this platform does not have.
 It is the most useful document the project will produce for anyone deciding
 whether to depend on it.
 
+Delivered 2026-08-30 in `veneer/classification/`. `classify.py` matches the
+4024-row version map against the runtime's export surface
+(`runtime/exports/cygwin-exports.tsv`) and partitions it: 353 forward under
+another name, 1614 under the same name, 192 need a shim, and 1797 have nothing
+behind them. The 68 version-node identity objects carry a fifth disposition,
+`scaffold`, rather than being mis-filed as failing stubs — DR-0017. The 192
+shims are the semantic calls no name match can make; each is flagged for review
+and read from a curated `semantic-review.tsv`, grounded in the divergence
+classes DR-0000 names (struct layouts, constant values, errno numbers), not
+guessed. The fourth bucket is published as `doc/what-the-veneer-lacks.md`, which
+separates glibc's own internals (`_IO_`, `__` helpers, `_dl_`) from the public
+interfaces a package will actually miss — the Linux-only `epoll`/`inotify`/
+`statx`/`memfd_create` family, Sun RPC, GNU argp, `backtrace`, and the `_FloatN`
+math surface. `t/reproduce.sh` reruns the classification, asserts the partition
+covers the map one-to-one with nothing unclassified, checks every shim is
+flagged, and confirms the published document still states the generated counts.
+
 ### WP-53 — libc.so.6
 
 Needs: WP-52, WP-36.
