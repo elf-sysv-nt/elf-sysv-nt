@@ -1,0 +1,6 @@
+# Built by run.sh with --keep; regenerated, not tracked.
+specimen
+unit_test
+image_test
+built-auxv.txt
+linux-auxv-fresh.txt
