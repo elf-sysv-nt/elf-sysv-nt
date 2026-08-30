@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+#
+# vendor-headers -- drop el8's glibc header set into veneer/include, verbatim.
+#
+# DR-0000's copy line governs this tree: above the floor el8's own files are
+# used unchanged, headers included.  WP-50 vendored the six files features.h
+# pulls in and deferred the rest of the surface to WP-15; this script vendors
+# the rest.  Every file comes byte-for-byte from the pinned reference package,
+# with one exception: gnu/stubs.h is the veneer's own answer (see its header
+# comment) and is never overwritten.
+#
+# The reference is fetched, not stored (DR-0002).  The pin below names the
+# package, and the sha256 is what a refetch is verified against.  The cache
+# directory is shared with veneer/t/ftm-diff.sh.
+#
+# Usage:
+#   vendor-headers [-c DIR] [-n]
+#
+# Options:
+#   -c DIR   Cache directory. [default: ../t/ref-cache beside this script]
+#   -n       Report what would be copied and stop.
+#
+# Output: the headers, and MANIFEST.tsv -- one "path<TAB>sha256" per vendored
+# file, sorted, so byte-identity is checkable offline against the commit.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+REF_NVRA=glibc-headers-2.28-251.el8_10.40.x86_64
+REF_URL=https://dl.rockylinux.org/pub/rocky/8.10/BaseOS/x86_64/os/Packages/g/$REF_NVRA.rpm
+REF_RPM_SHA256=137c4b4bb4074fca3c51bb64f81b193557efd5f0e4aab9dafa88049c136b78da
+
+cache=$here/../t/ref-cache
+dry=0
+while getopts c:n opt; do
+  case $opt in
+    c) cache=$OPTARG ;;
+    n) dry=1 ;;
+    *) echo "usage: vendor-headers [-c DIR] [-n]" >&2; exit 2 ;;
+  esac
+done
+
+fail() { echo "vendor-headers: $*" >&2; exit 1; }
+
+rpm=$cache/$REF_NVRA.rpm
+mkdir -p "$cache"
+if [ ! -f "$rpm" ]; then
+  echo "fetching $REF_NVRA.rpm"
+  curl -fsSL -o "$rpm" "$REF_URL" || fail "fetch failed and no cached copy"
+fi
+got=$(sha256sum "$rpm" | cut -d' ' -f1)
+[ "$got" = "$REF_RPM_SHA256" ] || fail "sha256 mismatch on $rpm: $got"
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+( cd "$work" && rpm2cpio "$rpm" | cpio -idm --quiet ) || fail "unpack failed"
+src=$work/usr/include
+[ -d "$src" ] || fail "no usr/include in the package"
+
+count=$(cd "$src" && find . -type f | wc -l)
+if [ "$dry" = 1 ]; then
+  echo "would vendor $count files from $REF_NVRA (gnu/stubs.h excepted)"
+  exit 0
+fi
+
+# Copy everything except the one exception.  Our stubs.h is preserved; the
+# vendor's is left behind in the temp tree.
+rm -f "$src/gnu/stubs.h"
+( cd "$src" && find . -type d -exec mkdir -p "$here/{}" \; )
+( cd "$src" && find . -type f -exec cp -f {} "$here/{}" \; ) || fail "copy failed"
+( cd "$src" && find . -type f -exec chmod 644 "$here/{}" \; )
+
+# The manifest covers exactly the vendored set, sorted, paths relative to
+# this directory.  gnu/stubs.h is absent from it on purpose: it is not
+# vendored and ftm-diff.sh checks it separately.
+( cd "$src" && find . -type f | sed 's|^\./||' | sort | \
+  while read -r f; do
+    printf '%s\t%s\n' "$f" "$(sha256sum "$here/$f" | cut -d' ' -f1)"
+  done ) > "$here/MANIFEST.tsv"
+
+vendored=$(wc -l < "$here/MANIFEST.tsv")
+echo "vendored $vendored files from $REF_NVRA (gnu/stubs.h excepted)"
