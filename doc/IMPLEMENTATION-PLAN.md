@@ -961,6 +961,59 @@ haunts Cygwin's `fork` is confirmed absent rather than assumed absent.
 
 `posix_spawn` and `vfork` take the same path and get the same test.
 
+Delivered 2026-08-30, under `loader/fork/`. Cygwin's fork carries everything the
+loader keeps in its own writable data, so the object table, the search
+configuration, the module table and the rendezvous arrive in the child by the
+copy. Three things do not, and the package is the three, with DR-0029 recording
+why each is what it is.
+
+Address space the loader took outside the host's bookkeeping is not replayed --
+WP-32 maps through the host's mmap so that it is, but WP-41's window is a bare
+reservation and nothing records it. So the loader keeps a manifest, the parent
+packs it, and the child replays it before anything else runs. `manifest.c` is
+parsed as hostile input and fuzzed against a guard page under the
+undefined-behaviour sanitizer, with the output array between canaries and every
+acceptance re-derived from the bytes: 200000 cases, no crash and nothing written
+outside the array.
+
+The loader lock is the one that bites, and the bracket is POSIX's in both
+halves. Prepare handlers run in the reverse of registration and then the lock is
+taken, so it is the innermost thing held across the call; the parent releases
+and runs its handlers in order; the child initializes over the lock rather than
+unlocking it, because its only thread is a copy of the thread that took it
+rather than that thread. The thread pointer follows: DR-0003's carrier is keyed
+to NtTib.StackBase and the child's initial thread has a different one, so
+WP-30's `elfsysv_tp_reestablish` is called here and only here.
+
+What crossed is compared rather than asserted. The audit reduces the state to
+one record -- every object's bias, dynamic section and mapping, the search
+configuration, the static TLS layout, this thread's whole DTV slot by slot, the
+`r_debug` structure and its address, and the loader's own code address -- and the
+child diffs it and names the first field that moved. A child that does not match
+is refused and its handlers do not run.
+
+Both halves of the done-when are measured in `loader/fork/t/`. A second thread
+loops through the real `dl_open` and `dl_close` of a cross-linked plugin, holding
+the loader lock and sleeping inside it, while the main thread forks; the child
+calls `dlsym` and calls into the object across the ABI boundary and reports six
+bits, so 63 is the only pass, and a child that deadlocked is killed by its own
+watchdog and comes back as a signal rather than a status. The rebase failure mode
+is confirmed absent rather than assumed absent by having every child report the
+loader's code address and the base of `cygwin1.dll`; over the runs taken neither
+moved. `vfork` and `posix_spawn` run the same phases through the same front end.
+
+One defect was found by the certification rather than by reasoning, and it is the
+kind only a real fork finds: the forking thread's TCB was a field of the fork
+state, so a stage that forked from the main thread after an earlier stage had
+forked from a managed thread since joined handed the child a freed TCB to
+re-establish from. It is an argument to the prepare call now.
+
+The bracket is applied by the callers rather than by `dl_open` itself, since
+WP-38 delivered a single-threaded surface and deferred the per-thread carrier
+here; moving it inside the `dl` entry points is identified and not done, and
+DR-0029 carries it.
+
+
 ### WP-43 — signals
 
 Needs: WP-42, WP-23.
