@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+#
+# Build libc.so.6 and libc.a from the version map and the classification.
+#
+# generate.py turns WP-51's map and WP-52's classification into one assembly
+# source and one linker version script; the assembler and the linker turn those
+# into the versioned .dynsym and the .gnu.version_d ladder. Nothing about the
+# symbol set is written by hand here, and nothing is patched afterwards.
+#
+# The shared object is the trunk the veneer hangs from. Its bodies are stubs
+# for now: every entry is a `ret`, and the forward map records which
+# elfsysv1.dll export each one is to reach. What is real, and what the rest of
+# the tree depends on, is the surface: the soname, the node ladder, and the
+# symbol-to-node assignment, all of them el8's own.
+#
+# libc.a carries the same symbols under their bare names, since an archive has
+# no version table to put them in and a static link resolves by name alone.
+#
+# Usage:
+#   build-libc [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -S NAME, --soname=NAME The library to build. [default: libc.so.6]
+#   -B DIR, --build=DIR    Where the objects land. [default: REPO/build/libc]
+#   -n, --dry-run          Name what would be built; build nothing.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Name every step as it runs.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_LIBC_<OPTION>, and the option wins.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-libc
+release='build-libc 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+
+prefix=${BUILD_LIBC_PREFIX:-$HOME/x-elfsysvnt}
+target=${BUILD_LIBC_TARGET:-x86_64-elfsysvnt-linux-gnu}
+soname=${BUILD_LIBC_SONAME:-libc.so.6}
+build=${BUILD_LIBC_BUILD:-$root/build/libc}
+dryrun=${BUILD_LIBC_DRY_RUN:-0}
+terse=${BUILD_LIBC_TERSE:-0}
+quiet=${BUILD_LIBC_QUIET:-0}
+verbose=${BUILD_LIBC_VERBOSE:-0}
+debug=${BUILD_LIBC_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-T|--target|-S|--soname|-B|--build) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix)  prefix=$val ;;
+        -T|--target)  target=$val ;;
+        -S|--soname)  soname=$val ;;
+        -B|--build)   build=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse)   terse=1 ;;
+        -q|--quiet)   quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug)   debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help)    usage; exit 0 ;;
+        --)           break ;;
+        -?*)          usage_error "unknown option $opt" ;;
+        *)            usage_error "unexpected argument $opt" ;;
+    esac
+done
+[ "$debug" = 1 ] && set -x
+
+as=$prefix/bin/$target-as
+ld=$prefix/bin/$target-ld
+ar=$prefix/bin/$target-ar
+for t in "$as" "$ld" "$ar"; do
+    command -v "$t" >/dev/null 2>&1 || [ -x "$t" ] \
+        || die "no $t; WP-12's binutils is not installed under $prefix"
+done
+command -v python3 >/dev/null 2>&1 || die 'no python3 on PATH'
+
+map=$root/veneer/version-map/glibc-version-map.tsv
+nodes=$root/veneer/version-map/glibc-version-nodes.tsv
+cls=$root/veneer/classification/classification.tsv
+for f in "$map" "$nodes" "$cls"; do
+    [ -f "$f" ] || die "missing input: $f"
+done
+
+stem=${soname%%.so.*}
+out=$build/$soname
+asm=$build/$stem-symbols.s
+obj=$build/$stem-symbols.o
+vs=$build/$stem.map
+fwd=$build/$stem-forward.tsv
+archive=$build/$stem.a
+
+if [ "$dryrun" = 1 ]; then
+    printf '%s\n' "$asm" "$vs" "$fwd" "$obj" "$out" "$archive"
+    exit 0
+fi
+
+# Reseeded rather than added to: a stale object from an earlier symbol set
+# links without complaint and is indistinguishable from a current one.
+rm -rf "$build" || die "cannot clear $build"
+mkdir -p "$build" || die "cannot create $build"
+
+chat "generating from $(basename "$map") and $(basename "$cls")"
+python3 "$here/generate.py" --soname "$soname" \
+    --map "$map" --nodes "$nodes" --classification "$cls" \
+    --asm "$asm" --version-script "$vs" --forward-map "$fwd" \
+    --static-asm "$build/$stem-static.s" \
+    2>"$build/generate.log" || { cat "$build/generate.log" >&2
+        die 'generate.py failed'; }
+[ "$verbose" = 1 ] && cat "$build/generate.log" >&2
+
+chat "assembling $(basename "$asm")"
+"$as" --64 -o "$obj" "$asm" || die 'assembly failed'
+
+chat "linking $soname"
+"$ld" -shared -soname "$soname" --version-script "$vs" -o "$out" "$obj" \
+    || die 'link failed'
+
+chat "assembling and archiving $(basename "$archive")"
+"$as" --64 -o "$build/$stem-static.o" "$build/$stem-static.s" \
+    || die 'static assembly failed'
+rm -f "$archive"
+"$ar" rcs "$archive" "$build/$stem-static.o" || die 'ar failed'
+
+# The two places the library names itself must agree: DT_SONAME and the base
+# .gnu.version_d node. Spike 4 measured what happens when they do not, and the
+# answer was that every version provide is written against the wrong name and
+# satisfies nothing. Checked here so a bad build never leaves this script.
+python3 "$here/provides.py" "$out" --check-soname "$soname" \
+    >"$build/$stem-provides.txt" || die 'soname and base verdef node disagree'
+
+nsym=$(wc -l < "$fwd" | tr -d ' ')
+nprov=$(wc -l < "$build/$stem-provides.txt" | tr -d ' ')
+nnode=$((nprov - 1))
+
+if [ "$terse" = 1 ]; then
+    printf 'soname=%s\n' "$soname"
+    printf 'shared=%s\n' "$out"
+    printf 'archive=%s\n' "$archive"
+    printf 'symbols=%s\n' "$nsym"
+    printf 'nodes=%s\n' "$nnode"
+    printf 'provides=%s\n' "$nprov"
+    exit 0
+fi
+
+note "$soname: $nsym mapped symbols over $nnode version nodes"
+note "provides: $nprov lines in $build/$stem-provides.txt"
+note "archive: $archive"
+exit 0
