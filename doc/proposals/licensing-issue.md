@@ -111,3 +111,23 @@ Whether any code in the tree today is already derivative of something copyleft.
 The spike probes and the tooling were written here, the patches are derivative
 of their targets by construction, and nothing has been lifted, but that is an
 author's recollection rather than an audit.
+
+## Resolution — F5 closed (2026-08-30)
+
+On 2026-08-30 the operator, as the holder of the risk this docket describes,
+directed that the licensing gate be considered complete for the design-gaps
+adoption (finding F5 of `doc/design-gaps/proposal.md`). This is the dated,
+operator-signed acceptance that finding asked for: F5 required either an
+engagement noted with the questions as put or an explicit, dated decision to
+proceed signed by the risk-holder, and this is the latter.
+
+What this closes is the gate, not the questions. Items 1 through 6 above remain
+the operator's to pursue with counsel on the operator's own timing, and
+recording them keeps its value; DR-0004 is reopened by a new record if and when
+counsel's answers require it, under the append-only rule. What changes is only
+that the licensing questions stop being an unscheduled blocker on the work — the
+adoption and the worker proceed.
+
+No agent drafted or altered licence text in producing this record, per DR-0004.
+
+— Philip Dye, operator
