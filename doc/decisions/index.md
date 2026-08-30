@@ -35,6 +35,7 @@ is a record nobody will find.
 | [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
 | [0023](0023-version-match-rule.md) | the version matcher reproduces glibc's observable rule, from the spec | accepted 2026-08-30 | none |
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
+| [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30 | none |
 
 ## What earns a record
 
