@@ -432,12 +432,13 @@ static elf_reloc_err apply_rela_table(elf_reloc_object *o, const Elf64_Rela *tab
 static void assign_static_tls(elf_reloc_scope *s)
 {
 	unsigned i;
-	uint64_t running = 0, modid = 1;
+	uint64_t running = s->tls_static_size;
+	uint64_t modid = s->tls_modid_next ? s->tls_modid_next : 1;
 	for (i = 0; i < s->count; i++) {
 		elf_reloc_object *o = &s->obj[i];
 		const elf_parsed *p = o->parsed;
 		uint64_t align, size;
-		if (!o->has_tls)
+		if (!o->has_tls || o->applied || o->late || !p)
 			continue;
 		align = p->tls_align ? p->tls_align : 1;
 		size = p->tls_memsz;
@@ -448,6 +449,7 @@ static void assign_static_tls(elf_reloc_scope *s)
 		o->tls_tpoff = -(int64_t) running;   /* block start, below the tp */
 	}
 	s->tls_static_size = running;
+	s->tls_modid_next = modid;
 }
 
 elf_reloc_err elf_reloc_apply(elf_reloc_scope *s, elf_reloc_diag *diag)
@@ -464,6 +466,12 @@ elf_reloc_err elf_reloc_apply(elf_reloc_scope *s, elf_reloc_diag *diag)
 
 	for (i = 0; i < s->count; i++) {
 		elf_reloc_object *o = &s->obj[i];
+
+		/* Already relocated, or a released slot: still a resolution source
+		 * for the objects below, but never relocated a second time. RELR in
+		 * particular adds the bias into each slot and is not idempotent. */
+		if (o->applied || !o->map)
+			continue;
 
 		if (o->relr)
 			apply_relr(o);
@@ -512,15 +520,31 @@ elf_reloc_err elf_reloc_apply(elf_reloc_scope *s, elf_reloc_diag *diag)
 		*where = run_ifunc(o->bias + (uint64_t) rl->r_addend);
 	}
 
-	/* Freeze each object's relro now that every write through it is done. */
+	/* Freeze each object's relro now that every write through it is done, and
+	 * mark it applied so a later call over a grown scope passes it by. */
 	for (i = 0; i < s->count; i++) {
 		elf_map_diag md;
-		if (elf_map_protect_relro(s->obj[i].map, &md) != elf_map_ok)
+		elf_reloc_object *o = &s->obj[i];
+		if (o->applied || !o->map)
+			continue;
+		if (elf_map_protect_relro(o->map, &md) != elf_map_ok)
 			return fail(diag, elf_reloc_err_relro, "PT_GNU_RELRO",
-			            s->obj[i].name, md.msg);
+			            o->name, md.msg);
+		o->applied = 1;
 	}
 
 	return elf_reloc_ok;
+}
+
+void elf_reloc_drop(elf_reloc_scope *s, elf_reloc_object *o)
+{
+	if (!s || !o || o < s->obj || o >= s->obj + ELF_RELOC_MAX_OBJ)
+		return;
+	memset(o, 0, sizeof *o);
+	/* Give the slot back only when it is the last one; see the header for why
+	 * an out-of-order release leaves the slot in place. */
+	if (s->count > 0 && o == &s->obj[s->count - 1])
+		s->count--;
 }
 
 /* Apply one object's self-contained relocations only. */

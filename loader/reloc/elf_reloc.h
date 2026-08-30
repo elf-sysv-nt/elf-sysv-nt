@@ -134,15 +134,29 @@ typedef struct elf_reloc_object {
 	uint64_t tls_modid;           /* 1-based module id in the scope */
 	int64_t  tls_tpoff;           /* offset of this module's block from the tp */
 
+	/* Incremental state, for a scope that grows after startup (WP-38). An
+	 * object is applied exactly once: elf_reloc_apply skips one already
+	 * marked, so a later call over a grown scope relocates only what is new
+	 * while still resolving against everything present. `late` marks an
+	 * object that arrived after the static TLS block was sized -- a dlopen --
+	 * so it is left out of the static layout and its TLS is WP-37's dynamic
+	 * path instead. Both are set by the engine and by the dl surface; a
+	 * caller that builds one scope and applies it once never sees either. */
+	int      applied;
+	int      late;
+
 	struct elf_reloc_scope *scope;  /* back-pointer, for the lazy fixup */
 } elf_reloc_object;
 
 /* The scope: the objects to relocate, in load order. obj[0] is the root, and
- * that order is the resolution order a first-definition search walks. */
+ * that order is the resolution order a first-definition search walks. A slot
+ * released by elf_reloc_drop is zeroed and carries no symtab, so resolution
+ * passes over it. */
 typedef struct elf_reloc_scope {
 	elf_reloc_object obj[ELF_RELOC_MAX_OBJ];
 	unsigned         count;
 	uint64_t         tls_static_size;  /* running total as modules are added */
+	uint64_t         tls_modid_next;   /* next static module id; 0 = 1 */
 } elf_reloc_scope;
 
 /* Reset a scope to empty. */
@@ -164,6 +178,15 @@ elf_reloc_err elf_reloc_add(elf_reloc_scope *s, elf_mapping *m,
  * elf_reloc_ok with the graph fully wired, or a nonzero code with diag naming
  * the object and field at fault. */
 elf_reloc_err elf_reloc_apply(elf_reloc_scope *s, elf_reloc_diag *diag);
+
+/* Release one object's slot from the scope. The object must already be unmapped
+ * by its owner; this only removes it as a resolution source and, when it is the
+ * most recently added slot, gives the slot back so a scope that sees many
+ * dlopen/dlclose cycles does not exhaust ELF_RELOC_MAX_OBJ. A slot released out
+ * of order is zeroed but retained, because the stable address of a slot is the
+ * cookie a lazy PLT carries in GOT[1] and compacting the array would invalidate
+ * every cookie behind it. Safe on a NULL or already-released object. */
+void elf_reloc_drop(elf_reloc_scope *s, elf_reloc_object *o);
 
 /* Apply only the relocations an object can satisfy against itself, without a
  * resolved scope and without running any code: RELATIVE, RELR, and the static
