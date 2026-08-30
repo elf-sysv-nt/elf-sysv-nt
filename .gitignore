@@ -34,3 +34,8 @@ veneer/t/ref-cache/
 # session-monitor run logs. The .smon marker opts this tree into monitoring;
 # the JSONL runs under it are per-run and local, never history.
 .smon/
+
+# doc/Next-Steps.md is a generated dashboard, rewritten every worker run from
+# git truth. It is not tracked -- its history was pure churn. Regenerate it with
+# bin/refresh-next-steps.py; the tracked source of truth is doc/status/.
+doc/Next-Steps.md
