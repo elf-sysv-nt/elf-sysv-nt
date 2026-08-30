@@ -1,0 +1,74 @@
+# Semantic-review queue for WP-52 bucket 3 (needs a shim because semantics differ).
+#
+# Each row moves a symbol the mechanical name rules would call a same-name
+# forward, a reserved-name alias, or a bare stub into bucket 3, because a
+# runtime export does exist but the Linux ABI the veneer must present and the
+# Cygwin ABI behind it disagree on struct layout, constant values, or numbering.
+# These are the calls that "cannot be made mechanically" (WP-52 brief): every
+# row here is FLAGGED FOR REVIEW, not an asserted shim design. A human confirms
+# the divergence and the wrapper before WP-53 emits it. The list is a first-pass
+# seed grounded in the divergence classes DR-0000 names (errno values, signal
+# numbers, struct layouts); it is not exhaustive and is expected to grow as
+# WP-53 implementation surfaces more.
+#
+# Format: symbol<TAB>reason. Comments and blank lines ignored.
+#
+# --- stat / mknod: the _STAT_VER indirection and struct stat layout ---
+__xstat	struct stat layout differs (Linux vs Cygwin); _STAT_VER shim over cygwin stat
+__fxstat	struct stat layout differs; shim over cygwin fstat
+__lxstat	struct stat layout differs; shim over cygwin lstat
+__fxstatat	struct stat layout differs; shim over cygwin fstatat
+__xstat64	struct stat layout differs; shim over cygwin stat
+__fxstat64	struct stat layout differs; shim over cygwin fstat
+__lxstat64	struct stat layout differs; shim over cygwin lstat
+__fxstatat64	struct stat layout differs; shim over cygwin fstatat
+__xmknod	dev_t/mode encoding differs; shim over cygwin mknod
+__xmknodat	dev_t/mode encoding differs; shim over cygwin mknodat
+# --- directory streams: struct dirent (d_off, d_type, d_reclen) ---
+readdir	struct dirent layout differs (d_off/d_type); shim over cygwin readdir
+readdir_r	struct dirent layout differs; shim over cygwin readdir_r
+scandir	struct dirent layout differs; shim over cygwin scandir
+getdirentries	struct dirent layout differs; shim over cygwin directory read
+# --- non-local jumps: jmp_buf / sigjmp_buf layout and size ---
+setjmp	jmp_buf layout differs (Linux vs Cygwin); shim
+_setjmp	jmp_buf layout differs; shim
+__sigsetjmp	sigjmp_buf layout differs; shim over cygwin sigsetjmp
+longjmp	jmp_buf layout differs; shim
+_longjmp	jmp_buf layout differs; shim
+siglongjmp	sigjmp_buf / sigset layout differs; shim
+# --- signals: sigset_t, struct sigaction, siginfo_t, and signal numbers ---
+sigaction	struct sigaction / sigset_t layout and signal numbers differ; shim
+signal	signal numbers differ; shim over cygwin signal
+__sysv_signal	SysV signal semantics and numbers differ; shim over cygwin signal
+sysv_signal	SysV signal semantics and numbers differ; shim over cygwin signal
+sigprocmask	sigset_t layout and signal numbers differ; shim
+sigsuspend	sigset_t layout differs; shim
+sigpending	sigset_t layout differs; shim
+sigqueue	siginfo_t / sigval layout differs; shim
+sigtimedwait	sigset_t / siginfo_t layout differs; shim
+sigwaitinfo	siginfo_t layout differs; shim
+sigaltstack	stack_t / SS_* values differ; shim
+pthread_sigmask	sigset_t layout and signal numbers differ; shim
+sigemptyset	sigset_t layout differs; shim
+sigfillset	sigset_t layout differs; shim
+sigaddset	sigset_t layout and signal numbers differ; shim
+sigdelset	sigset_t layout and signal numbers differ; shim
+sigismember	sigset_t layout and signal numbers differ; shim
+# --- errno: the numeric values differ (DR-0000) ---
+errno	errno numeric values differ (DR-0000); value-translation shim over cygwin __errno
+__errno_location	errno numeric values differ; translated pointer shim over cygwin __errno
+# --- glob: glob_t layout and GLOB_* flag values ---
+glob	glob_t layout and GLOB_* flag values differ; shim over cygwin glob
+globfree	glob_t layout differs; shim over cygwin globfree
+# --- fcntl / open / ioctl: command and flag constant values, arg structs ---
+ioctl	ioctl request numbers and argument structs differ; shim
+fcntl	F_* command and O_* flag values and struct flock layout differ; shim
+open	O_* flag values differ; shim over cygwin open
+openat	O_* flag values differ; shim over cygwin openat
+# --- resource and filesystem limits: struct layouts and *_* constant values ---
+getrlimit	struct rlimit / RLIMIT_* values differ; shim
+setrlimit	struct rlimit / RLIMIT_* values differ; shim
+statfs	struct statfs layout differs; shim
+fstatfs	struct statfs layout differs; shim
+statvfs	struct statvfs / ST_* flag values differ; shim
+fstatvfs	struct statvfs / ST_* flag values differ; shim
