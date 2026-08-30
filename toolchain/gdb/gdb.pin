@@ -1,0 +1,14 @@
+# The gdb release this project builds, pinned by checksum.
+#
+# 13.2 rather than the newest. gdb 14 raised its build floor to a C++17
+# compiler no older than GCC 9, and the host here builds with GCC 7.4; 13.2
+# is the newest release that floor admits. Nothing consumed here moved
+# between 13 and 14 -- `solib-svr4` and the `r_debug` walk are decades
+# settled -- so the cost of waiting is small. Revisit when the host compiler
+# moves.
+#
+# Checked against the sha256 the GNU mirrors publish for this file.
+
+version	13.2
+url	https://ftp.gnu.org/gnu/gdb/gdb-13.2.tar.xz
+sha256	fd5bebb7be1833abdb6e023c2f498a354498281df9d05523d8915babeb893f0a
