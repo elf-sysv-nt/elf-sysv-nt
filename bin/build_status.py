@@ -46,22 +46,41 @@ def recent_files(path, secs=360):
     return n
 
 
-def build_log_age(branch):
-    """Seconds since the branch's build log under a/build-logs/ was written,
-    or None. Long builds run outside the worktree (nohup into the log), so the
-    log is the only sign the package is still compiling."""
+FAIL_RE = re.compile(r'^(make(\[\d+\])?: \*\*\* .* Error \d+'
+                     r'|configure: error:'
+                     r'|\S+: make failed\b)')
+
+
+def newest_log(branch):
+    """Path of the branch's newest build log under a/build-logs/, or None.
+    Long builds run outside the worktree (nohup into the log), so the log is
+    the only sign the package is still compiling -- or that it broke."""
     m = re.match(r'wp(\d+)', branch)
     if not m:
         return None
-    newest = None
+    best, best_t = None, None
     for p in glob.glob(os.path.join(REPO, 'a', 'build-logs', 'wp%s-*.log' % m.group(1))):
         try:
             t = os.path.getmtime(p)
-            if newest is None or t > newest:
-                newest = t
         except OSError:
-            pass
-    return None if newest is None else time.time() - newest
+            continue
+        if best_t is None or t > best_t:
+            best, best_t = p, t
+    return best
+
+
+def log_failed(path, lines=15):
+    """True when the log's last lines carry a fatal make/configure error.
+    A build that died stops appending, so the error stays at the tail; a
+    build that is still running has fresh compile output there instead."""
+    try:
+        with open(path, 'rb') as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 8192))
+            tail = f.read().decode(errors='replace').splitlines()[-lines:]
+    except OSError:
+        return False
+    return any(FAIL_RE.match(l) for l in tail)
 
 
 def inflight():
@@ -87,8 +106,16 @@ def inflight():
         log = [l for l in git(['log', '--oneline', mtip + '..HEAD'], wt).splitlines() if l.strip()]
         scaffold_only = len(log) == 1 and 'scaffold' in log[0].lower()
         r = recent_files(wt)
-        age = build_log_age(name)
-        if age is not None and age < 360:
+        lp = newest_log(name)
+        age = None
+        if lp:
+            try:
+                age = time.time() - os.path.getmtime(lp)
+            except OSError:
+                lp = None
+        if lp and log_failed(lp):
+            st = 'FAILED (%s, %s commit(s))' % (os.path.basename(lp), ahead)
+        elif age is not None and age < 360:
             st = 'BUILDING (log written %ds ago, %s commit(s))' % (int(age), ahead)
         elif r > 0:
             st = 'BUILDING (%s files/6m, %s commit(s))' % (r, ahead)
@@ -177,6 +204,10 @@ def verdict(rows, lock_held):
     undone = undelivered_wps()
     if not undone:
         return 'COMPLETE — every work package in the plan is delivered'
+    failed = [n for n, s, _ in rows if s.startswith('FAILED')]
+    if failed:
+        return ('BUILD FAILED — %s broke; see a/build-logs/ '
+                '(the worker retries it on its next run)' % ' '.join(failed))
     if any('BUILDING' in s for _, s, _ in rows):
         return 'BUILDING — a package is compiling; not stalled'
     if any(s.startswith('committed') or s.startswith('STARTED') for _, s, _ in rows):
