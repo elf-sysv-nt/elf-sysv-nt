@@ -318,6 +318,25 @@ from the import list rather than written by hand.
 Done when: no direct call from the System V side to `ntdll` or `kernel32`
 survives an audit of the link map.
 
+Delivered 2026-08-30, in `runtime/imports/`. The import list is cut from the
+built `cygwin1.dll` DR-0007 names -- Cygwin 3.6.10, pinned by SHA-256 in the
+reproduce test -- with `objdump -p`, since the imports live in the binary's
+import table and not in `cygwin.din`. `extract-imports.sh` writes 370 rows
+across two DLLs, 238 from KERNEL32 and 132 from ntdll, and `gen-wrappers.sh`
+turns each into one `ms_abi` forwarding thunk in `wrappers.gen.c`. Each thunk
+tail-jumps through the import's address slot and repacks nothing, so it is
+correct at any arity; DR-0009 records why the System V to MS translation lands
+at the caller's site rather than in the wrapper, which is what lets the whole
+set be generated without the 370 signatures. `t/reproduce.sh` is the
+certification: it pins the DLL, reproduces the inventory and the wrappers byte
+for byte, compiles the wrappers and checks every thunk is a frameless tail
+jump, and runs `audit-imports.sh`, the link-map audit -- it reads each object's
+undefined symbols and fails any object but the wrappers unit that names an
+import, and against the wrappers object alone it confirms they are the sole
+namer of the 370 slots. No import is variadic, so WP-24 inherits nothing to
+unpack from the down-call side; the generator refuses a variadic import rather
+than forwarding one, against the day a later base adds one.
+
 ### WP-22 — the host-facing core
 
 Needs: WP-21.
