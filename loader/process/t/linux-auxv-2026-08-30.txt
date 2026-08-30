@@ -1,0 +1,52 @@
+# Captured 2026-08-30 by capture-linux-auxv under WSL
+# Reproducible in its keys and their order, not in the values.
+
+== auxv a real Linux kernel built (from /proc/self/auxv)
+
+    AT_SYSINFO_EHDR:       0x746ba5761000
+    AT_MINSIGSTKSZ:        0x6f0
+    AT_HWCAP:              0x178bfbff
+    AT_PAGESZ:             0x1000
+    AT_CLKTCK:             0x64
+    AT_PHDR:               0x400040
+    AT_PHENT:              0x38
+    AT_PHNUM:              0xf
+    AT_BASE:               0x746ba5763000
+    AT_FLAGS:              0x0
+    AT_ENTRY:              0x673890
+    AT_UID:                0x3e8
+    AT_EUID:               0x3e8
+    AT_GID:                0x3e8
+    AT_EGID:               0x3e8
+    AT_SECURE:             0x0
+    AT_RANDOM:             0x7ffd2f966229
+    AT_HWCAP2:             0x2
+    AT_EXECFN:             0x7ffd2f966feb
+    AT_PLATFORM:           0x7ffd2f966239
+    AT_RSEQ_FEATURE_SIZE:  0x1c
+    AT_RSEQ_ALIGN:         0x20
+    AT_NULL:               0x0
+
+linuxkey=AT_SYSINFO_EHDR
+linuxkey=AT_MINSIGSTKSZ
+linuxkey=AT_HWCAP
+linuxkey=AT_PAGESZ
+linuxkey=AT_CLKTCK
+linuxkey=AT_PHDR
+linuxkey=AT_PHENT
+linuxkey=AT_PHNUM
+linuxkey=AT_BASE
+linuxkey=AT_FLAGS
+linuxkey=AT_ENTRY
+linuxkey=AT_UID
+linuxkey=AT_EUID
+linuxkey=AT_GID
+linuxkey=AT_EGID
+linuxkey=AT_SECURE
+linuxkey=AT_RANDOM
+linuxkey=AT_HWCAP2
+linuxkey=AT_EXECFN
+linuxkey=AT_PLATFORM
+linuxkey=AT_RSEQ_FEATURE_SIZE
+linuxkey=AT_RSEQ_ALIGN
+linuxkey=AT_NULL

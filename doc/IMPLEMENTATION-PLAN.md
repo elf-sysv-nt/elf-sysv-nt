@@ -586,6 +586,27 @@ Done when: the auxv a real Linux kernel builds and the auxv we build differ only
 in the entries that describe the platform, and `AT_SYSINFO_EHDR`'s absence is
 tolerated by every consumer in the set.
 
+Delivered 2026-08-30, under `loader/process/`. `process_image.c` builds the
+stack as pure layout over a caller-owned buffer: the pointer targets at the
+top, then the vector with `argc` at a 16-byte-aligned `%rsp`, the auxv emitted
+in the kernel's relative order for the entries carried. It makes no host call —
+the platform identity arrives through `proc_image_params`, so the same code is
+certified against a real Linux auxv with no host in the loop, and only
+`AT_PHDR`, `AT_PHENT`, `AT_PHNUM`, and `AT_ENTRY` are read from the image
+itself. The `%rdx` atexit value is echoed for the entry trampoline to place.
+
+The differential is measured, not argued. `t/dump_auxv.py` reads a real
+kernel's auxv from `/proc/self/auxv` under Linux (WSL here), and
+`t/differential.sh` holds our key set against it: against a current kernel the
+only differences are `AT_SYSINFO_EHDR` (no vDSO, the load-bearing absence),
+`AT_MINSIGSTKSZ`, and the two `AT_RSEQ_*` entries, all newer than the target
+world, with no key present in ours that the kernel does not emit. The image
+test maps a static ELF through WP-32, builds the stack, enters it on the real
+psABI stack through a spike-2-style trampoline, and reads `argc`, `argv[0]`,
+`envp`, and the auxv back off it, asserting the alignment and `%rdx` contract
+as the entered image saw them. `AT_PAGESZ` reports the 4 KB commit granularity
+rather than the 64 KB reservation one, recorded in DR-0014.
+
 There is no vDSO here, so anything that would have gone through one goes through
 the runtime. A consumer treating the missing entry as fatal is a bug worth
 finding in this package rather than in month nine.
