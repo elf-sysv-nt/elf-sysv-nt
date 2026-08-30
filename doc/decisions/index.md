@@ -10,6 +10,7 @@ is a record nobody will find.
 
 | # | Decision | Status | Proposal |
 |---|---|---|---|
+| [0000](0000-the-cygwin-refaced-floor.md) | The floor is Cygwin re-faced; el8's userland builds unchanged above a glibc-ABI veneer that is not glibc | inception 2026-08-20 | none |
 | [0001](0001-target-triple.md) | The target triple is `x86_64-elfsysvnt-linux-gnu` | accepted 2026-08-29 | 0001 |
 | [0002](0002-el8-source-acquisition.md) | el8 source comes from Rocky 8.10 and lives outside the repository | accepted 2026-08-29 | 0001 |
 | [0003](0003-tls-model.md) | The TLS model is a runtime-owned thread pointer through `%gs`, carrier C3 | accepted 2026-08-29 | 0002 |
