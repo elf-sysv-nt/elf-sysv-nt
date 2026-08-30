@@ -1,0 +1,104 @@
+WP-41: where the low window has to be reserved from
+host: CYGWIN_NT-10.0 3.0.7(0.338/5/3)  cc: 7.4.0  run: 2026-08-30T18:20:24Z
+
+-- late: arm from main, after the CRT
+    when_route=late
+    when_hook_ran=1
+    when_hook_reserved=0
+    when_base=0x400000
+    when_size=0x3fc00000
+    when_got_base=0x0
+    when_got_size=0x0
+    when_span_4m=0
+    when_span_full=0
+    when_stack_base=0x100000000
+    when_stack_limit=0xffffb000
+    when_stack_at_window=0
+    when_at_base=free - 0x400000 for 0x200000
+    when_module_base=0x100400000
+    when_result=refused
+    ok        late: when_result=refused
+    ok        late: when_span_4m=0
+
+-- tls: arm from a .CRT$XLB callback
+    measured  tls: does not link on this toolchain
+              /tmp/ccjxlU0r.o:when.c:(.rdata+0x308): undefined reference to `_tls_used'
+              /usr/lib/gcc/x86_64-pc-cygwin/7.4.0/../../../../x86_64-pc-cygwin/bin/ld: /tmp/wp41when.qStSQJ/when-tls.exe: unable to fill in DataDictionary[9] because __tls_used is missing
+              /usr/lib/gcc/x86_64-pc-cygwin/7.4.0/../../../../x86_64-pc-cygwin/bin/ld: final link failed: Symbol needs debug section which does not exist
+              collect2: error: ld returned 1 exit status
+              Cygwin's runtime supplies no _tls_used, so the PE has
+              no TLS directory and there is no callback slot at all.
+
+-- entry: arm from a replacement image entry point
+    when_route=entry
+    when_hook_ran=1
+    when_hook_reserved=0
+    when_base=0x400000
+    when_size=0x3fc00000
+    when_got_base=0x0
+    when_got_size=0x0
+    when_span_4m=0
+    when_span_full=0
+    when_stack_base=0x600000
+    when_stack_limit=0x5f9000
+    when_stack_at_window=1
+    when_at_base=reserve private 0x400000 for 0x1f6000
+    when_module_base=0x100400000
+    when_result=refused
+    ok        entry: when_result=refused
+    ok        entry: when_span_4m=0
+    ok        entry: when_stack_at_window=1
+
+-- parent: reserve through VirtualAllocEx into a suspended child
+    parent_reserve_attempted=1
+    parent_reserved=1
+    parent_base=0x400000
+    parent_size=0x3fc00000
+    parent_error=0
+    when_route=parent
+    when_hook_ran=1
+    when_hook_reserved=0
+    when_base=0x400000
+    when_size=0x3fc00000
+    when_got_base=0x0
+    when_got_size=0x0
+    when_span_4m=0
+    when_span_full=0
+    when_stack_base=0x160000
+    when_stack_limit=0x159000
+    when_stack_at_window=0
+    when_at_base=reserve private 0x400000 for 0x3fc00000
+    when_module_base=0x100400000
+    when_result=reserved
+    ok        parent: parent_reserved=1
+    ok        parent: when_result=reserved
+    ok        parent: when_stack_at_window=0
+
+-- parent, default stack: the same reservation with the stack in the way
+    parent_reserve_attempted=1
+    parent_reserved=0
+    parent_base=0x400000
+    parent_size=0x3fc00000
+    parent_error=487
+    when_route=bigstack
+    when_hook_ran=1
+    when_hook_reserved=0
+    when_base=0x400000
+    when_size=0x3fc00000
+    when_got_base=0x0
+    when_got_size=0x0
+    when_span_4m=0
+    when_span_full=0
+    when_stack_base=0x600000
+    when_stack_limit=0x5f9000
+    when_stack_at_window=1
+    when_at_base=reserve private 0x400000 for 0x1f6000
+    when_module_base=0x100400000
+    when_result=refused
+    ok        bigstack: parent_reserved=0
+    ok        bigstack: when_stack_at_window=1
+
+verdict: neither hook inside the image is early enough. The window is
+reserved by the parent into a suspended child, and the stub is linked
+with a 0x100000 stack reserve so the kernel places the initial
+stack below the window rather than in it.
