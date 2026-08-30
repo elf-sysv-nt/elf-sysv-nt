@@ -352,6 +352,31 @@ with unwind information the host recognizes. One missed callback leaks the
 convention out the bottom, and the symptom is corruption rather than a link
 error.
 
+Partial 2026-08-30, in `runtime/core/`. Certified: the six host-facing entry
+points -- `DllMain`, thread start, APC, PE TLS callback, vectored exception
+handler, and the signal landing -- as `ms_abi` functions that reach System V
+code one frame down and return, each carrying SEH unwind data the host's own
+`RtlLookupFunctionEntry` recognizes. The done-condition is met at stand-in
+width: a null store beneath a `sysv_abi` frame, and directly in one, reaches
+Cygwin as SIGSEGV and returns through `siglongjmp`, and the callee-saved set
+each convention promises survives the crossing in both directions, checked
+against hand-written poison in `t/probe.S` with leaky controls that light every
+bit. DR-0012 records the load-bearing finding spike 3 left open: gcc emits
+host-recognized unwind data for `ms_abi` frames and none for `sysv_abi` ones, so
+the entry point is the seam and no host unwinder walks a System V frame.
+`t/run.sh` builds with the host `x86_64-pc-cygwin` gcc, confirms the `.pdata`
+and the `-mno-red-zone` policy (DR-0006), and runs the nine-case crossing test
+to verdict yes.
+
+Deferred, because a full runtime does not yet exist: `DllMain` fired by the
+loader as a linked DLL's entry and the PE TLS callback fired from the DLL's TLS
+directory are WP-41's, so only their shape, convention and unwind are certified
+here; the System V to MS trampolines for pointers the ELF world hands down are
+WP-23's, and their seam is marked in `core.h` rather than filled; the signal
+frame's `siginfo_t`/`ucontext_t` layout and the red-zone reservation at the
+delivery site are WP-43's. The entry-point bodies are stand-ins that make the
+crossing observable, not the runtime work they will front.
+
 ### WP-23 — the callback trampolines
 
 Needs: WP-22.
