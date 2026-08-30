@@ -8,6 +8,7 @@
  * chain that closes on itself, an ELF this host cannot enter.
  */
 #include "../binfmt.h"
+#include "../dispatch.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -265,6 +266,38 @@ static void test_depth_boundary(void)
 	}
 }
 
+/* The host's command-line quoting. Two things are checked on every case: the
+ * bytes produced, and that the length reported when sizing with no buffer
+ * equals the length written with one. The second is not pedantry -- the first
+ * version of this function sized by walking with its store disabled, and with
+ * the store went the increment that advanced through the argument, so sizing
+ * never returned at all. A caller that sizes then fills has to be given the
+ * same answer twice. */
+static void quoted_is(const char *arg, const char *want)
+{
+	char got[256];
+	size_t sized = exec_quote_arg(arg, NULL, 0);
+	size_t wrote = exec_quote_arg(arg, got, sizeof got);
+	char what[160];
+
+	snprintf(what, sizeof what, "quoting %s", arg);
+	ck(what, wrote == sized && !strcmp(got, want));
+}
+
+static void test_quoting(void)
+{
+	quoted_is("plain", "\"plain\"");
+	quoted_is("has space", "\"has space\"");
+	quoted_is("", "\"\"");
+	quoted_is("C:\\tmp\\stub.exe", "\"C:\\tmp\\stub.exe\"");
+	/* A backslash only escapes when a quote follows it, so a run before a
+	 * quote doubles and a run anywhere else does not. */
+	quoted_is("say \"hi\"", "\"say \\\"hi\\\"\"");
+	quoted_is("back\\\\slash", "\"back\\\\slash\"");
+	quoted_is("trailing\\", "\"trailing\\\\\"");
+	quoted_is("odd\\\"", "\"odd\\\\\\\"\"");
+}
+
 int main(void)
 {
 	printf("  WP-41 unit: the branch and the chain\n");
@@ -272,6 +305,7 @@ int main(void)
 	test_shebang();
 	test_resolve();
 	test_depth_boundary();
+	test_quoting();
 	if (failures)
 		printf("  %d check(s) failed\n", failures);
 	else

@@ -17,8 +17,14 @@
  * the initial stack, which is why this is linked with a smaller stack reserve
  * than the toolchain's default -- see ELF_STUB_STACK_RESERVE.
  *
+ * The arguments after the file are the program's own argument vector, argv[0]
+ * first, because the file being run and the name it runs under are not the
+ * same thing: a `#!' chain routinely leaves the script's path in argv[0] while
+ * the file entered is the interpreter's. Given no arguments at all, the path
+ * stands as argv[0], which is what a hand-typed run wants.
+ *
  * Usage:
- *   elfsysv-stub [options] ELF [ARG]...
+ *   elfsysv-stub [options] ELF [ARGV0 [ARG]...]
  *
  * Options:
  *   -s N, --stack=N     Bytes for the image's stack. [default: 0x800000]
@@ -227,6 +233,7 @@ int main(int argc, char **argv)
 	char why[256] = "";
 	win_err werr;
 	const char *path;
+	char *const *prog_argv;
 	int i;
 
 	for (i = 1; i < argc; i++) {
@@ -260,6 +267,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	path = argv[i];
+	prog_argv = (i + 1 < argc) ? argv + i + 1 : argv + i;
 
 	if (!mitigations_ok(why, sizeof why))
 		return refuse("%s", why);
@@ -334,7 +342,7 @@ int main(int argc, char **argv)
 	pr.random16 = random16;
 
 	memset(&ldiag, 0, sizeof ldiag);
-	lerr = proc_build_stack(&pl.mapping, &parsed, argv + i, environ, &pr,
+	lerr = proc_build_stack(&pl.mapping, &parsed, prog_argv, environ, &pr,
 				(uint64_t) (UINT_PTR) elf_terminate,
 				stack, stack + opt.stack, &layout, &ldiag);
 	if (lerr != proc_ok)
