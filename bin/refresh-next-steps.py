@@ -18,7 +18,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_status
 
 ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NS    = os.path.join(ROOT, 'doc', 'Next-Steps.md')
+# The dashboard is a gitignored, generated file written into the MAIN checkout
+# (what the user opens). It is never committed -- regenerating it each run is the
+# heartbeat, and there is nothing to commit.
+NS    = os.path.join(build_status.REPO, 'doc', 'Next-Steps.md')
 NOW   = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 CHECK = '\u2713'
 STAMP = re.compile(r'\s*\u00b7\s*updated \d{4}-\d\d-\d\d \d\d:\d\d\s*$')
