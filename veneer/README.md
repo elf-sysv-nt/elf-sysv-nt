@@ -96,10 +96,10 @@ appears in the diff contract.
 
 ## What is deferred
 
-- The rest of the C library header surface. `stdio.h`, `string.h`, `unistd.h`
-  and the several hundred other headers a real package includes are not here.
-  They are later work, and most of them are mechanical once the library they
-  declare exists.
+- ~~The rest of the C library header surface.~~ Done in WP-15: all 417 headers
+  of the pinned `glibc-headers-2.28` are vendored here verbatim by
+  `include/vendor-headers`, `gnu/stubs.h` still the sole exception, with a
+  sha256 per file in `include/MANIFEST.tsv`.
 - The library side of the exit criterion. "One answer rather than two" needs a
   library to link, which is WP-53. This delivery certifies the header side in
   isolation.
@@ -108,14 +108,10 @@ appears in the diff contract.
 - `__USE_FORTIFY_LEVEL` above what the arithmetic selects. The macro is
   resolved identically to el8, but the fortified entry points it gates are part
   of the library and header surface that is still deferred.
-- Wiring the toolchain sysroot to this set. `toolchain/sysroot/include/` holds
-  the WP-14 bootstrap draft of these three files, written before there was a
-  vendor header to diff against and now superseded by this certified set. That
-  draft is left as WP-14 delivered it; regenerating the sysroot from
-  `veneer/include/` is a WP-14/WP-15 follow-up (the sysroot build is idempotent
-  and reseeded from a template, so it is a one-line source change there, not a
-  rewrite). Until then the certified set is `veneer/include/` and the draft is
-  understood to be behind it.
+- ~~Wiring the toolchain sysroot to this set.~~ Done in WP-15:
+  `toolchain/csu/build-csu` now seeds the sysroot from `veneer/include/` and
+  the three-file draft under `toolchain/sysroot/include/` is deleted rather
+  than left to drift.
 
 ## Not verified
 
