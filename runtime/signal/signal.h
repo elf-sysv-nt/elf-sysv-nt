@@ -283,6 +283,12 @@ typedef struct {
 	elfsysv_stack_t altstack;
 	uint64_t cookie;		/* frame authenticator, see below    */
 	int initialized;
+	/* Set to build the frame at the interrupted stack pointer instead of
+	 * below the reservation -- the construction DR-0006 rejected. It
+	 * exists so the repair has a control arm: a measurement that cannot
+	 * show the damage when the repair is switched off is not measuring the
+	 * repair. Nothing but the certification sets it. */
+	int measure_no_reserve;
 } elfsysv_sigstate_t;
 
 /* Disposition of one delivery attempt. */
@@ -351,7 +357,33 @@ int elf_sigframe_check(const elfsysv_sigstate_t *st, uintptr_t frame,
 #define ELFSYSV_EFLAGS_MASK 0x00050DD5u
 #define ELFSYSV_EFLAGS_FIXED 0x00000202u
 
+/* ---- a delivery in flight ----------------------------------------------
+ *
+ * The record the sending thread fills and the receiving thread consumes. It is
+ * not on either thread's stack: the sender cannot write the receiver's stack
+ * without taking the receiver's guard-page fault, and the receiver has not
+ * started yet.
+ */
+typedef struct {
+	elfsysv_sigctx_t ctx;		/* the interrupted register file     */
+	elfsysv_sigstate_t *st;
+	elfsysv_siginfo_t info;
+	int signo;
+	int has_info;
+	elf_sig_placement_t where;	/* filled by the receiving thread    */
+	volatile int disposition;	/* -1 until the receiver decides     */
+	unsigned char fxsave[512] __attribute__((aligned(64)));
+} elfsysv_sig_pending_t;
+
 /* ---- the asm halves ---------------------------------------------------- */
+
+/* Entered by the hijack on the target thread, with r11 pointing at the pending
+ * record. Builds the frame and enters the handler; does not return. */
+extern void elfsysv_sig_enter(void);
+
+/* What elfsysv_sig_enter calls once it is on a stack of its own. */
+ELF_SYSV void elfsysv_sig_enter_c(elfsysv_sig_pending_t *p)
+	__attribute__((noreturn));
 
 /* The address a handler returns to. Placed in the frame's pretcode word. */
 extern void elfsysv_sig_return_tramp(void);

@@ -15,13 +15,18 @@
 extern "C" {
 #endif
 
-/* Suspend `hthread`, build a frame in it for `signo`, and resume it into the
- * handler. Returns 0 when the host calls all succeeded, whatever the
- * disposition, and -1 when one of them did not. */
+/* Suspend `hthread`, hand it a pending delivery for `signo`, and resume it into
+ * the trampoline that builds the frame. Returns 0 when the host calls all
+ * succeeded and -1 when one of them did not.
+ *
+ * The disposition is not known when this returns: the target decides it. `p`
+ * must outlive the delivery -- it is read by the other thread -- and its
+ * `disposition` field goes from -1 to an elf_sig_disposition_t when the target
+ * has decided. The caller owns the record and one is needed per delivery in
+ * flight. */
 int elfsysv_sig_hijack(void *hthread, elfsysv_sigstate_t *st, int signo,
 		       const elfsysv_siginfo_t *info,
-		       elf_sig_placement_t *where,
-		       elf_sig_disposition_t *disp);
+		       elfsysv_sig_pending_t *p);
 
 /* The stack pointer of a suspended thread, for a caller that wants to know
  * where the red zone is before it delivers. Zero on failure. */

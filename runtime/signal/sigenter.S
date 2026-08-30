@@ -89,6 +89,33 @@ PROC(elfsysv_sig_restore)
 	iretq
 ENDPROC(elfsysv_sig_restore)
 
+/* void elfsysv_sig_enter(void) -- entered by the hijack with r11 pointing at
+ * the pending delivery, running on the interrupted thread's own stack.
+ *
+ * The frame cannot be built by the thread that sends the signal. A Windows
+ * stack is reserved and grows by faulting on a guard page, and that fault is
+ * only a stack extension for the thread the stack belongs to: a write from
+ * another thread reaches the same page and takes an unhandled guard-page
+ * exception. So the hijack only points the target here, and the target builds
+ * its own frame. This is the trampoline the work package is named for, and its
+ * shape is Cygwin's: the delivering thread rewrites a register file, and the
+ * receiving thread does the work.
+ *
+ * The gap below is stepped one page at a time. Moving the stack pointer past a
+ * guard page without touching it leaves the page below unmapped, so a large
+ * subtract followed by a push is how a stack fails to grow. */
+PROC(elfsysv_sig_enter)
+	PROLOGUE_END
+	subq	$4096, %rsp
+	movq	$0, (%rsp)
+	subq	$4096, %rsp
+	movq	$0, (%rsp)
+	andq	$-16, %rsp
+	movq	%r11, %rdi
+	call	elfsysv_sig_enter_c
+	ud2
+ENDPROC(elfsysv_sig_enter)
+
 /* The handler's return address. rsp is one word above the frame here, because
  * the handler's own ret popped the pretcode word this address was written
  * into. Step rsp below the frame before the call so the pushed return address

@@ -53,39 +53,17 @@ static void ctx_from_host(const CONTEXT *c, elfsysv_sigctx_t *s)
 	s->fxsave = &c->FltSave;
 }
 
-static void ctx_to_host(const elfsysv_sigctx_t *s, CONTEXT *c)
-{
-	c->Rax = s->rax;
-	c->Rbx = s->rbx;
-	c->Rcx = s->rcx;
-	c->Rdx = s->rdx;
-	c->Rsi = s->rsi;
-	c->Rdi = s->rdi;
-	c->Rbp = s->rbp;
-	c->Rsp = s->rsp;
-	c->R8 = s->r8;
-	c->R9 = s->r9;
-	c->R10 = s->r10;
-	c->R11 = s->r11;
-	c->R12 = s->r12;
-	c->R13 = s->r13;
-	c->R14 = s->r14;
-	c->R15 = s->r15;
-	c->Rip = s->rip;
-	c->EFlags = (DWORD)s->rflags;
-	/* Selectors and the floating-point image go back as they came. A
-	 * delivery does not change which segment a thread runs in, and the
-	 * handler's own FPU state starts from whatever the host left. */
-}
+/* There is no translation back. The delivery does not rewrite the register
+ * file from outside: it redirects the thread to the trampoline and lets the
+ * thread do it, so the only two fields that go back to the host are the
+ * instruction pointer and the register carrying the pending record. Everything
+ * else the target restores for itself from the copy taken here. */
 
 int elfsysv_sig_hijack(void *hthread, elfsysv_sigstate_t *st, int signo,
 		       const elfsysv_siginfo_t *info,
-		       elf_sig_placement_t *where,
-		       elf_sig_disposition_t *disp)
+		       elfsysv_sig_pending_t *p)
 {
 	CONTEXT c __attribute__((aligned(16)));
-	elfsysv_sigctx_t s;
-	elf_sig_disposition_t d;
 
 	memset(&c, 0, sizeof(c));
 	c.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS |
@@ -99,17 +77,24 @@ int elfsysv_sig_hijack(void *hthread, elfsysv_sigstate_t *st, int signo,
 		return -1;
 	}
 
-	ctx_from_host(&c, &s);
-	d = elf_sig_deliver(st, signo, info, &s, where);
-	if (disp)
-		*disp = d;
-
-	if (d != ELF_SIG_DELIVERED) {
-		ResumeThread((HANDLE)hthread);
-		return 0;
+	memset(p, 0, sizeof(*p));
+	ctx_from_host(&c, &p->ctx);
+	memcpy(p->fxsave, &c.FltSave, sizeof(p->fxsave));
+	p->ctx.fxsave = p->fxsave;
+	p->st = st;
+	p->signo = signo;
+	if (info) {
+		p->info = *info;
+		p->has_info = 1;
 	}
+	p->disposition = -1;
 
-	ctx_to_host(&s, &c);
+	/* The target builds its own frame. All that changes here is where it
+	 * resumes and which register carries the record; everything else in
+	 * the file is preserved in the record and restored from it. */
+	c.Rip = (DWORD64)(uintptr_t)elfsysv_sig_enter;
+	c.R11 = (DWORD64)(uintptr_t)p;
+
 	if (!SetThreadContext((HANDLE)hthread, &c)) {
 		ResumeThread((HANDLE)hthread);
 		return -1;

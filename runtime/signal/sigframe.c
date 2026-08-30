@@ -251,7 +251,7 @@ int elf_sig_place(const elfsysv_sigstate_t *st, const elfsysv_sigaction_t *sa,
 		floor = (uintptr_t)st->altstack.ss_sp;
 		sp = floor + st->altstack.ss_size;
 		on_alt = 1;
-	} else {
+	} else if (!st->measure_no_reserve) {
 		/* DR-0006. The reserved bytes are skipped before anything is
 		 * subtracted, which is the whole of the repair. */
 		sp -= ELFSYSV_REDZONE;
@@ -348,6 +348,15 @@ void elf_sig_build(const elfsysv_sigstate_t *st, int signo,
 	f->info.si_signo = signo;
 
 	f->pretcode = (uint64_t)(uintptr_t)elfsysv_sig_return_tramp;
+
+	/* The control arm writes the word Cygwin's sigdelayed writes with its
+	 * first instruction, at the interrupted stack pointer minus eight.
+	 * Without it the naive placement still misses the reserved bytes by
+	 * whatever the alignment left over, and a control that does no damage
+	 * proves nothing about a probe that sees none. */
+	if (st->measure_no_reserve && !where->on_altstack)
+		*(uint64_t *)(where->top - 8) =
+			(uint64_t)(uintptr_t)elfsysv_sig_return_tramp;
 
 	/* Enter the handler. A Linux delivery arrives with rax zero, the three
 	 * System V argument registers loaded, and rsp at the frame; a handler

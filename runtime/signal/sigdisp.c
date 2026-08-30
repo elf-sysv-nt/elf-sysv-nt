@@ -208,6 +208,22 @@ elf_sig_disposition_t elf_sig_deliver(elfsysv_sigstate_t *st, int signo,
 	return ELF_SIG_DELIVERED;
 }
 
+/* The receiving half of a hijack. Runs on the target thread, below its own
+ * interrupted stack pointer, with the register file the sender captured. */
+ELF_SYSV void elfsysv_sig_enter_c(elfsysv_sig_pending_t *p)
+{
+	elf_sig_disposition_t d;
+
+	p->ctx.fxsave = p->fxsave;
+	d = elf_sig_deliver(p->st, p->signo, p->has_info ? &p->info : NULL,
+			    &p->ctx, &p->where);
+	p->disposition = (int)d;
+
+	/* Delivered: the file now enters the handler. Anything else: the file
+	 * is untouched and the thread goes back to what it was doing. */
+	elfsysv_sig_resume(&p->ctx);
+}
+
 /* The return. Reached from the trampoline with the frame address; installs the
  * saved state and does not come back. */
 ELF_SYSV int elfsysv_sigreturn(uintptr_t frame)
