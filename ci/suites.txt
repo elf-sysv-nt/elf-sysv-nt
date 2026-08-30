@@ -1,0 +1,4 @@
+# Suite registry for ci/gate.sh. One executable per line, repo-relative.
+# Each is run as: <suite> -n <count> [-q] and must exit non-zero on any
+# failure, a fuzz crash included. Blank lines and # comments are skipped.
+loader/elf/t/run.sh

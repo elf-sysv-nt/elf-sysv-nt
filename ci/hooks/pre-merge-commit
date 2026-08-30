@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# Runs the merge gate before git creates a merge commit. A non-zero exit
+# here aborts the merge, which is how a new fuzz crash blocks one. Wired
+# into a checkout by ci/install.sh (git config core.hooksPath ci/hooks);
+# a deliberate bypass is git merge --no-verify, and it should stay
+# deliberate.
+
+top=$(git rev-parse --show-toplevel) || exit 2
+exec "$top/ci/gate.sh" -q
