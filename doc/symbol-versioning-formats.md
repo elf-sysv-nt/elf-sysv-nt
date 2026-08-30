@@ -251,10 +251,19 @@ configure probe for `--version-script` passes on this platform and produces an
 unversioned library, so a package whose build system adapts on that answer is
 silently wrong, and the linker will never say so.
 
-One stage 0.5 admission: a PE dependency generator. It satisfies all four
-clauses of the rule in `doc/stage-model.md`, since stage 1 cannot be compared
-correctly without it, no index package supplies it, it would be ours with the
-source committed here, and its absence gets papered over per package otherwise.
+One stage 0.5 admission, now superseded: a PE dependency generator. It
+satisfied all four clauses of the rule in `doc/stage-model.md` when the
+output format was PE, since stage 1 could not be compared correctly without
+it, no index package supplied it, it would have been ours with the source
+committed here, and its absence would have been papered over per package
+otherwise. It belonged to the PE route, and the project did not take that
+route. On the ELF route there is nothing to generate: WP-62 ran el8's own
+`elfdeps` over this tree's built libc and a freshly linked consumer and it
+answered byte for byte -- `libc.so.6(GLIBC_2.2.5)(64bit)` among 58 provides
+and beside the soname requires -- with `file` reporting ELF and `elf.attr`'s
+magic gate matching on the way in (`toolchain/rpm/surface/`). The admission
+is left in place rather than deleted so a reader following the old reasoning
+finds where it ended.
 
 ## Sources
 

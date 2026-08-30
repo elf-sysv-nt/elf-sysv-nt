@@ -101,6 +101,11 @@ later. `elf-ldconfig` builds one: it scans directories, reads each shared
 object's `DT_SONAME` through WP-31, and writes the cache atomically so a reader
 never sees a half-written file. A soname found twice keeps the file from the
 directory named last, so precedence among directories is the caller's to set.
+Since WP-62 its `-f` file is read in el8's `ld.so.conf` shape -- directories,
+`#` comments, and an `include` directive whose glob is resolved against the
+including file's own directory when relative, exactly how el8's one-line
+`include ld.so.conf.d/*.conf` expects -- with a depth cap so a file that
+includes itself terminates instead of recursing.
 
 ## The tools
 
