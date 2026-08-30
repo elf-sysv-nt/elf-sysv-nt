@@ -15,6 +15,11 @@ build/
 upstream/
 src-cache/
 
+# The veneer's feature-test test caches the one vendor features.h it diffs
+# against here, fetched at a pinned version and checksummed. Per DR-0002 the
+# vendor header is not vendored into history.
+veneer/t/ref-cache/
+
 # Per-site or local config: anything with "local" in the name stays out.
 # Committed example templates are the exception, since they show what the
 # local file should contain.

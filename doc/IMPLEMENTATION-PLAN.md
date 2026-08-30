@@ -670,6 +670,24 @@ answer rather than two.
 First in this phase and early in the program overall, because WP-14 needs it and
 because a header set can be written before anything implements it.
 
+Delivered 2026-08-30 in `veneer/include/`, the header half of the exit
+criterion. The half that needs a library to link is WP-53's; the half that does
+not is the feature-test-macro plumbing, and it is certified. `features.h`
+reproduces el8's glibc 2.28 arithmetic verbatim (DR-0010) and `veneer/t/ftm-diff`
+diffs its `__USE_*` resolution against the vendor header
+(`glibc-headers-2.28-251.el8_10.40`, fetched and pinned per DR-0002) over 43
+input sets — the default, strict-ANSI at each C standard, every POSIX and X/Open
+level, the ISO C source macros, the large-file and at-file switches, the
+reentrancy synonyms, the deprecated BSD/SVID aliases, the fortify levels, and
+C++ at three standards. All 43 match, with `__GLIBC__` 2 and `__GLIBC_MINOR__`
+28. The WP-14 draft of the same three files in `toolchain/sysroot/include/` is
+superseded; it diverged on the untested combinations (DR-0010 lists them), which
+is what a paraphrase does and what this delivery replaces with a copy.
+
+Deferred: the rest of the C library header surface, `gnu/stubs.h` content
+(WP-52's), and rewiring the toolchain sysroot to consume `veneer/include/`
+(a WP-14/WP-15 follow-up).
+
 ### WP-51 — the version map
 
 Needs: WP-20, WP-50.
