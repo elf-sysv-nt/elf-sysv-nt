@@ -39,6 +39,7 @@ is a record nobody will find.
 | [0026](0026-the-version-script-names-every-symbol.md) | the generated version script names every symbol, not just the nodes | accepted 2026-08-30 | none |
 | [0027](0027-the-exec-branch-and-the-interpreter-limit.md) | one classifier for the exec branch, and a four-hop interpreter limit | accepted 2026-08-30 | none |
 | [0028](0028-the-low-window-is-reserved-by-the-parent.md) | the low window is reserved by the parent, into a suspended stub | accepted 2026-08-30 | none |
+| [0029](0029-what-crosses-the-fork-and-how-it-is-checked.md) | what crosses the fork, and how the child knows | accepted 2026-08-30 | none |
 
 ## What earns a record
 
