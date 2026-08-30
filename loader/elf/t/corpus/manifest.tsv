@@ -1,0 +1,25 @@
+baseline-good.elf	accept	ok	
+static-nodyn.elf	accept	ok	
+minimal-dynamic.elf	accept	ok	
+trunc-ehdr.elf	reject	size	e_ident
+bad-magic.elf	reject	magic	EI_MAG
+class-elf32.elf	reject	magic	EI_CLASS
+machine-not-x86.elf	reject	magic	e_machine
+type-rel.elf	reject	header	e_type
+phoff-out-of-range.elf	reject	phdr	e_phoff
+phnum-implausible.elf	reject	phdr	e_phoff
+phentsize-wrong.elf	reject	header	e_phentsize
+load-filesz-past-eof.elf	reject	phdr	p_offset
+load-zero-memsz.elf	reject	phdr	PT_LOAD.p_memsz
+load-filesz-gt-memsz.elf	reject	phdr	PT_LOAD.p_filesz
+load-overlap.elf	reject	overlap	PT_LOAD.p_vaddr
+dynamic-no-null.elf	reject	dynamic	DT_NULL
+needed-past-strtab.elf	reject	strtab	DT_NEEDED
+strtab-not-backed.elf	reject	strtab	DT_STRTAB
+strsz-missing.elf	reject	strtab	DT_STRSZ
+syment-wrong.elf	reject	symtab	DT_SYMENT
+versym-not-backed.elf	reject	version	DT_VERSYM
+verdef-chain-loop.elf	reject	version	vd_next
+verdef-name-past-strtab.elf	reject	version	vda_name
+verneed-chain-loop.elf	reject	version	vn_next
+verneed-name-past-strtab.elf	reject	version	vna_name
