@@ -29,6 +29,10 @@ is a record nobody will find.
 | [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
 | [0017](0017-version-node-objects-are-scaffold.md) | version-node identity objects are scaffold, not a fourth-bucket stub | accepted 2026-08-30 | none |
 | [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30 | none |
+| [0019](0019-symbol-lookup-engine-and-versioning-seam.md) | symbol lookup is a separate engine, and versioning enters through one seam | accepted 2026-08-30 | none |
+| [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30 | none |
+| [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30 | none |
+| [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
 
 ## What earns a record
 
