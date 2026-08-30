@@ -377,6 +377,9 @@ frame's `siginfo_t`/`ucontext_t` layout and the red-zone reservation at the
 delivery site are WP-43's. The entry-point bodies are stand-ins that make the
 crossing observable, not the runtime work they will front.
 
+Delivered 2026-08-30. `runtime/core/t/run.sh` verdict yes, nine cases,
+zero failures; the deferred items above remain with WP-23, WP-41 and WP-43.
+
 ### WP-23 — the callback trampolines
 
 Needs: WP-22.
