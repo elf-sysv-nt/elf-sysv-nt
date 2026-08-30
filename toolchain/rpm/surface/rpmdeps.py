@@ -10,11 +10,12 @@ diff it against the real generator running over the same files.
 
 The shape, measured by spike 4 and read off the vendor source:
 
-  --provides   One line per .gnu.version_d aux NAME on every non-base entry,
-               in file order -- a node with a parent contributes two lines,
-               which is why el8's libc offers 58 lines off 29 nodes. The name
-               left of the parenthesis is the BASE verdef node, not
-               DT_SONAME. `<soname>()(64bit)` comes last, from DT_SONAME,
+  --provides   One line per .gnu.version_d aux entry on every non-base
+               entry, in file order, every line carrying the entry's own
+               node name -- a node with a parent comes out twice, which is
+               why el8's libc offers 58 lines off 29 nodes. The name left
+               of the parenthesis is the BASE verdef node, not DT_SONAME.
+               `<soname>()(64bit)` comes last, from DT_SONAME,
                because the dynamic section follows .gnu.version_d in the file.
 
   --requires   One line per .gnu.version_r aux entry in file order, then
@@ -78,8 +79,13 @@ def rpm_provides(elf):
             for name, flags, parents in entries:
                 if flags & P.VER_FLG_BASE:
                     continue
-                for aux in [name] + parents:
-                    lines.append("%s(%s)%s" % (base[0], aux, MARKER))
+                # One line PER AUX ENTRY, all carrying the entry's own name:
+                # processVerDef reads soname anew on every aux, so a node
+                # with a parent comes out twice, not once beside its parent.
+                # el8's libc offers 58 lines off 29 nodes this way, and the
+                # doubling is the vendor's, reproduced on purpose.
+                for _ in range(1 + len(parents)):
+                    lines.append("%s(%s)%s" % (base[0], name, MARKER))
     try:
         soname = elf.soname()
     except P.ElfError:
