@@ -48,12 +48,16 @@
  * A down-call into the ELF/System V world. At one function's width this is a
  * direct typed call: the compiler emits the MS-to-System-V argument shuffle at
  * the call site from the sysv_abi prototype, exactly as spike 3 measured the
- * callee-saved sets surviving it. When WP-23 exists, an entry point that must
- * forward an arbitrary caller-supplied pointer rather than call a known runtime
- * function routes through its trampoline instead; that attachment point is
- * ELFSYSV_WP23_SEAM.
+ * callee-saved sets surviving it. The other direction -- an entry point that
+ * must forward an arbitrary caller-supplied pointer *down* to Windows rather
+ * than call a known runtime function -- routes through WP-23's trampoline, and
+ * this seam is where it attaches. WP-23 fills it: callback.h carries the
+ * trampolines and their registration, and defining ELFSYSV_WP23_FILLED is how a
+ * unit that includes callback.h can assert at compile time that the seam is
+ * filled rather than merely marked. ELFSYSV_WP23_SEAM itself stays an inert
+ * marker so no existing reference to it changes meaning.
  */
-#define ELFSYSV_WP23_SEAM /* handed to WP-23; see README "The trampoline seam" */
+#define ELFSYSV_WP23_SEAM /* filled by WP-23 in callback.{h,c}; #include "callback.h" */
 
 /* ---- the System V cores the entry points reach one frame down ---------- */
 /* Stand-ins for real runtime bodies, which do not exist until the loader and

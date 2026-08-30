@@ -25,13 +25,15 @@ This is Windows calling in. Every entry point here receives a Microsoft x64
 call and reaches System V code one frame down. The opposite direction -- a
 System V function pointer the ELF world hands *down* to Windows, a `qsort`
 comparator or a thread start routine written in the ELF world -- is WP-23's
-callback trampoline. Where an entry point would need to forward such a pointer
-rather than call a known runtime function, the attachment point is marked
-`ELFSYSV_WP23_SEAM` in `core.h` and left for WP-23. At one function's width the
+callback trampoline, delivered in `callback.c` and documented under "The
+callback trampolines" below. Where an entry point would need to forward such a
+pointer rather than call a known runtime function, the attachment point is
+marked `ELFSYSV_WP23_SEAM` in `core.h`, now filled. At one function's width the
 down-call from an entry point to a known System V body is a direct typed call,
 and the compiler emits the correct convention thunk at the call site, exactly as
-spike 3 measured the callee-saved sets surviving; nothing here needs WP-23's
-generalised trampoline yet, and nothing here pretends to deliver it.
+spike 3 measured the callee-saved sets surviving; the trampoline is what an
+entry point reaches for instead when the pointer is one a caller supplied rather
+than one this unit names.
 
 ## The entry points
 
@@ -120,6 +122,42 @@ actually in force -- that a `sysv_abi` leaf built with it adjusts `%rsp` where
 the same leaf without it keeps its locals below `%rsp` -- so the policy cannot
 go silently missing.
 
+## The callback trampolines
+
+`callback.c` fills the seam `core.h` marks. It is the direction this package
+otherwise defers: a function pointer the ELF world writes in System V and hands
+*down* to Windows, which then calls it Microsoft x64. A `qsort` comparator given
+to a host `qsort`, a thread start routine given to `CreateThread`, an exception
+filter given to `AddVectoredExceptionHandler` -- each is a System V body an
+MS-ABI caller reaches, and the convention has to be bridged at the pointer.
+
+The leak this prevents is the one spike 3 called the direction the design was
+nervous about, and it runs opposite to the entry points'. `%rsi`, `%rdi` and
+`%xmm6`-`%xmm15` are callee-saved to a Microsoft caller and volatile to a System
+V callee: the caller expects them intact after the call, the callee is entitled
+to have used them as scratch, and a raw pointer handed across satisfies neither
+at once. The symptom is the Windows caller's own registers quietly changing, not
+a crash.
+
+Each trampoline is one `ms_abi` function whose body calls through a slot typed
+`sysv_abi`. That one fact is the mechanism: from the slot's `sysv_abi` type the
+compiler emits the crossing at the call -- the argument shuffle from Microsoft's
+registers to System V's, and the save and restore of `%rsi`, `%rdi` and
+`%xmm6`-`%xmm15` around it -- the same crossing spike 3 measured holding and the
+mirror of DR-0009's down-call wrapper. The generated prologue carries `.seh_`
+directives, so the trampoline frame is one the host's own unwinder can walk to
+and stop at, which is the role DR-0012 reserves for it: the one place SEH and the
+ELF world's DWARF meet, and it knows to stop.
+
+The slot is a mutable pointer read at the call, because the seam forwards a
+caller-supplied target rather than a symbol this unit names. There is one slot
+per shape and no runtime code generation: a distinct pointer per live callback
+would need a distinct compiled entry, and manufacturing entries at run time is
+the self-mapped executable memory DR-0000 records the platform cannot ship. One
+live callback per shape is the boundary that follows, recorded in DR-0020.
+`elfsysv_cb_set_comparator`, `_set_threadproc` and `_set_exfilter` bind a target
+and hand back the `ms_abi` pointer a host API is given.
+
 ## What is certified, and what is not
 
 Certified, at the width a runtime that does not exist allows:
@@ -137,6 +175,12 @@ Certified, at the width a runtime that does not exist allows:
     returns, and the crossing holds afterwards.
   - The `-mno-red-zone` policy changes code generation here, so DR-0006's
     scaffolding is in force rather than nominal.
+  - The down-hand callback trampolines (WP-23): a comparator, a thread start
+    routine and an exception filter each survive a round trip called Microsoft
+    x64 through their trampoline with the full Microsoft callee-saved set intact
+    and their arguments delivered to the System V side, the trampolines carry
+    host-recognized unwind data, and the controls light so the check can fail.
+    Documented under "The callback trampolines"; certified by `t/callback-run.sh`.
 
 Not reached, and waiting on the rest of the runtime:
 
@@ -147,8 +191,9 @@ Not reached, and waiting on the rest of the runtime:
   - `elfsysv_tls_callback` fired from the DLL's PE TLS directory. The directory
     exists only once the DLL does (WP-41); the callback's ABI and unwind are
     certified, its registration and firing are not.
-  - The System V to Microsoft trampolines for pointers the ELF world hands down
-    (WP-23). The seam is marked; the trampoline is not built.
+  - A trampoline for more than one live callback of a shape at once. The fixed
+    compiled trampolines hold one target per shape (DR-0020); a per-instance
+    trampoline would need runtime-manufactured code, which DR-0000 forecloses.
   - The signal frame's `siginfo_t`/`ucontext_t` layout, extended state, and the
     red-zone reservation at the delivery site (WP-43).
   - `RtlUnwindEx` walking a `sysv_abi` frame and C++ exceptions crossing the
@@ -173,6 +218,18 @@ check a convention would emit the very thunk being measured, so the register
 probes poison the callee-saved set themselves and read it back themselves, and
 the two leaky targets destroy every register their convention must preserve so
 the check proves it can fail before it is believed when it passes.
+
+The callback trampolines have their own driver, `./t/callback-run.sh`, built the
+same way and to the same discipline: it confirms `callback.o` carries
+`.pdata`/`.xdata`, confirms `-mno-red-zone`, and runs `callback_test` (from
+`t/callback_test.c`, `t/callback_probe.S` and `callback.c`; `--terse` prints the
+summary a document quotes). `t/callback_probe.S` is hand-written for the same
+reason as `t/probe.S`: its `cb_ms_probe` stands in for Windows, poisoning the
+full Microsoft callee-saved set before calling the trampoline and reading it back
+after; the three System V callbacks it drives destroy the scratch set on purpose
+so a leak is real; and a de-bracketed trampoline and a total-leak callee are the
+controls that light the check before a dark mask from the real trampoline is
+believed.
 
 ## Not verified
 

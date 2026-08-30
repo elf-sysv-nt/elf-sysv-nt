@@ -385,6 +385,26 @@ Windows as a function pointer.
 Done when: a `qsort` comparator, a thread start routine, and an exception filter
 each survive a round trip with their callee-saved registers intact.
 
+Delivered 2026-08-30, in `runtime/core/`, filling the `ELFSYSV_WP23_SEAM` WP-22
+marked. `callback.c` carries one `ms_abi` trampoline per callback shape, each
+reaching its System V target through a mutable slot; from the slot's `sysv_abi`
+type the compiler emits the Microsoft-to-System-V crossing at the call -- the
+argument shuffle and the save and restore of `%rsi`, `%rdi` and `%xmm6`-`%xmm15`,
+the set a Microsoft caller keeps and a System V callee scratches, the direction
+spike 3 named as the one the design was nervous about. The generated prologue
+carries the `.seh_` records the host recognizes, so the trampoline is the frame
+the host's unwinder walks to and stops at, the role DR-0012 reserves for it.
+`t/callback-run.sh` builds with the host `x86_64-pc-cygwin` gcc, confirms the
+`.pdata` and the `-mno-red-zone` policy, and runs the crossing test: a
+comparator, a thread start routine and an exception filter each survive a round
+trip called Microsoft x64 with the full Microsoft callee-saved set intact and
+their arguments delivered, checked against hand-written poison in
+`t/callback_probe.S`; a de-bracketed trampoline leaks exactly `%rsi`, `%rdi` and
+`%xmm6`-`%xmm15` and a total-leak callee lights every bit, so the check is known
+able to fail. DR-0020 records that the trampolines are a fixed compiled set with
+one live target per shape and no run-time code generation, which DR-0000
+forecloses.
+
 ### WP-24 — varargs
 
 Needs: WP-21.
