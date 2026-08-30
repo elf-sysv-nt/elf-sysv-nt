@@ -128,8 +128,8 @@ hostlibs=$work/hostlibs
 configure_args="--target=$target
 --prefix=$prefix
 --with-sysroot=$sysroot
---with-gmp=$hostlibs
---with-mpfr=$hostlibs
+--with-libgmp-prefix=$hostlibs
+--with-libmpfr-prefix=$hostlibs
 --with-python=no
 --without-guile
 --disable-nls
