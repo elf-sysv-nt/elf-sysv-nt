@@ -1,6 +1,6 @@
 # DR-0023 — the version matcher reproduces glibc's observable rule, from the spec
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-36 implementation, a defensible reading under the non-reserved
 decision policy in AGENTS.md; the operator may ratify or reopen

@@ -1,6 +1,6 @@
 # DR-0019 — symbol lookup is a separate engine, and versioning enters through one seam
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the implementing agent, for WP-35
 Proposal: none; recorded with the work it governs, as WP-33's and WP-34's

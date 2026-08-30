@@ -7,7 +7,7 @@
 > `gnu/stubs.h` the sole justified exception. This record is kept as the
 > live-at-the-time reasoning; DR-0000 governs.
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-50 implementation, a defensible call under the non-reserved
 decision policy in AGENTS.md; the operator may ratify or reopen

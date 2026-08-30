@@ -1,6 +1,6 @@
 # DR-0033 — a fatal signal leaves an ELF core, written by the runtime
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-61
 Proposal: none; taken while writing WP-61

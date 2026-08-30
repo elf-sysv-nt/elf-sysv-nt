@@ -1,6 +1,6 @@
 # DR-0027 — one classifier for the exec branch, and a four-hop interpreter limit
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the loader track, WP-41
 

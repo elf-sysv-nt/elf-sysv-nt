@@ -1,6 +1,6 @@
 # DR-0026 — the generated version script names every symbol
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-53 agent, on a measurement rather than a preference
 Proposal: none; taken when WP-53 first linked libc.so.6

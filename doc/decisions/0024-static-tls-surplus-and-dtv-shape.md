@@ -1,6 +1,6 @@
 # DR-0024 — the loader's static-TLS surplus and DTV shape, reproduced from the spec
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-37 implementation, a defensible reading under the non-reserved
 decision policy in AGENTS.md; the operator may ratify or reopen

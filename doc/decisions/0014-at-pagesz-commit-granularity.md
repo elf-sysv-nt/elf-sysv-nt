@@ -1,6 +1,6 @@
 # DR-0014 — AT_PAGESZ reports the commit granularity, not the reservation one
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-40 agent, on a defensible call the operator may revisit
 Proposal: none; taken when WP-40 built the auxv

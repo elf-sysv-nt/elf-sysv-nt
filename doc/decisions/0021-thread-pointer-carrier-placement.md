@@ -1,6 +1,6 @@
 # DR-0021 -- the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-30's implementer; the re-measurement DR-0003 delegated, not one of the reserved three
 Proposal: none; taken while building WP-30 against the real _my_tls

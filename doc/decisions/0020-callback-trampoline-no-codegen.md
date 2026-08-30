@@ -1,6 +1,6 @@
 # DR-0020 -- callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-23's implementer; a defensible call, not one of the reserved three
 Proposal: none; taken while building WP-23's callback trampolines

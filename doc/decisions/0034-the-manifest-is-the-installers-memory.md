@@ -1,6 +1,6 @@
 # DR-0034 — the installer's only memory is a manifest under the root
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: taken in implementation of WP-63, within AGENTS.md's stated
 idempotency policy

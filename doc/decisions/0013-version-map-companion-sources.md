@@ -1,6 +1,6 @@
 # DR-0013 — the version map's companion set spans glibc, libnsl and libxcrypt
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-51 implementation, a defensible call under the non-reserved
 decision policy in AGENTS.md; the operator may ratify or reopen

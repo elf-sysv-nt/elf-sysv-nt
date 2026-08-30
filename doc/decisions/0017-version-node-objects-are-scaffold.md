@@ -1,6 +1,6 @@
 # DR-0017 — version-node identity objects are scaffold, not a fourth-bucket stub
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-52 agent, on a defensible call the operator may revisit
 Proposal: none; taken when WP-52 partitioned the version map

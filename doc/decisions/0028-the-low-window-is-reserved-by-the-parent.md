@@ -1,6 +1,6 @@
 # DR-0028 — the low window is reserved by the parent, into a suspended stub
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the loader track, WP-41
 

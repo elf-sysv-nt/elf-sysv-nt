@@ -1,6 +1,6 @@
 # DR-0016 — relocation types the platform will not emit are certified against vendor objects
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-34 author, against the delivered toolchain and the pinned el8
 objects

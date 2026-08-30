@@ -1,6 +1,6 @@
 # DR-0008 — segment mapping goes through the runtime's mmap, at its granule
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-32 agent, on a defensible call the operator may revisit
 Proposal: none; taken when WP-32 met the host's mmap semantics

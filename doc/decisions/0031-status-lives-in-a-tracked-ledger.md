@@ -1,6 +1,6 @@
 # DR-0031 — build status lives in a tracked ledger; the plan is spec, and the worker is driven from it
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the autonomous build worker and bin/build_status.py
 Proposal: none; taken while repairing a false stop

@@ -1,6 +1,6 @@
 # DR-0030 — the receiving thread builds the frame, and the return is an iretq
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-43, against measurements in `runtime/signal/t/`
 Proposal: none; taken while writing WP-43

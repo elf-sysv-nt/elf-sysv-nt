@@ -1,6 +1,6 @@
 # DR-0029: what crosses the fork, and how the child knows
 
-Accepted 2026-08-30. Supersedes nothing.
+Accepted 2026-08-30. Supersedes nothing.  ·  ratified 2026-08-30 (DR-0036)
 
 ## Context
 

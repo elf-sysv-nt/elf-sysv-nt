@@ -1,6 +1,6 @@
 # DR-0018 — the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the operator
 Proposal: none; taken as WP-25 built the counter DR-0007 deferred

@@ -1,6 +1,6 @@
 # DR-0022 — the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the loader track, WP-39
 

@@ -1,6 +1,6 @@
 # DR-0011 — the loader's cache is this project's own format, not glibc's
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-33 agent, on a defensible call the operator may revisit
 Proposal: none; taken when WP-33 needed a cache to search

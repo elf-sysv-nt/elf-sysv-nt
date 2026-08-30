@@ -1,6 +1,6 @@
 # DR-0012 -- host-facing entry points are ms_abi with compiler unwind data; System V frames carry none
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-22's implementer; a defensible call, not one of the reserved three
 Proposal: none; taken while building WP-22's host-facing core against a measurement

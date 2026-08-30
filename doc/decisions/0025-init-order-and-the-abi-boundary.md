@@ -1,6 +1,6 @@
 # DR-0025 — initialization order, the cycle tie-break, and calling into a loaded object
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the loader track, WP-38
 

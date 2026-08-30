@@ -1,6 +1,8 @@
-# The companion set is eight libraries
+# DR-0032 — the companion set is eight libraries
 
-2026-08-30. WP-54.
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
+Date: 2026-08-30
+Deciding: WP-54
 
 ## The question
 

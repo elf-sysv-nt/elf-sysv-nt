@@ -1,6 +1,6 @@
 # DR-0009 -- the down-call wrapper is a signature-agnostic ms_abi tail jump
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: WP-21's implementer; a defensible call, not one of the reserved three
 Proposal: none; taken while building WP-21's generated wrappers

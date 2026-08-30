@@ -1,6 +1,6 @@
 # DR-0035 — CI is a pre-merge gate on the pinned root, not a hosted service
 
-Status: accepted
+Status: accepted  ·  ratified 2026-08-30 (DR-0036)
 Date: 2026-08-30
 Deciding: the WP-T1 author, applying the plan's done-when to the
 repository as it actually runs
