@@ -36,6 +36,7 @@ is a record nobody will find.
 | [0023](0023-version-match-rule.md) | the version matcher reproduces glibc's observable rule, from the spec | accepted 2026-08-30 | none |
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
 | [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30 | none |
+| [0026](0026-the-version-script-names-every-symbol.md) | the generated version script names every symbol, not just the nodes | accepted 2026-08-30 | none |
 
 ## What earns a record
 
