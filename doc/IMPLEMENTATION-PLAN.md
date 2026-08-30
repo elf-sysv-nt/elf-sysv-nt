@@ -394,6 +394,21 @@ This package is first in the loader because it is the only one that reads
 attacker-shaped input from its first line. Everything after it may assume its
 output is structurally sound, and that assumption is worth buying properly.
 
+Delivered 2026-08-30, under `loader/elf/`. The parser is `elf_parse.c` with its
+own ELF definitions in `elf_types.h`, producing the validated view described in
+`elf_parse.h` and `loader/elf/README.md`: header, program headers, and the
+dynamic section, with every table reached through them translated to a
+bounds-checked file offset and every version chain walked in full for loops and
+range. The done-when target was met on the pinned RHEL-8.10 toolchain, where
+the WP-T1 fuzz target ran a hundred million cases in one run (100,000,000
+cases, 4,348,839 accepted and 95,651,161 rejected, in about seven minutes)
+without a crash, undefined behaviour, a rejection missing its field, or an
+acceptance that violated the invariants. That toolchain's gcc 7.4 ships no
+AddressSanitizer runtime, so memory safety was enforced with a guard page after
+each image and with
+`-fsanitize=undefined -fsanitize-undefined-trap-on-error`, which needs no
+runtime library; `loader/elf/README.md` records the substitution.
+
 ### WP-32 — segment mapping
 
 Needs: WP-31.
