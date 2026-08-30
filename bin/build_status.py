@@ -30,9 +30,13 @@ def git(args, cwd=ROOT):
         return ''
 
 
-def recent_files(path, secs=360):
-    """Count files under path modified within the last `secs` seconds, skipping .git."""
-    cutoff, n = time.time() - secs, 0
+def recent_files(path, cutoff):
+    """Count files under path with mtime strictly after `cutoff` (epoch secs),
+    skipping .git. Callers pass the later of the branch's last-commit time and a
+    recency floor, so a fresh `git worktree add` (which stamps every checked-out
+    file with the current time, but always before the scaffold commit) does not
+    read as build activity."""
+    n = 0
     for root, dirs, files in os.walk(path):
         if '.git' in root.replace('\\', '/').split('/'):
             dirs[:] = []
@@ -105,7 +109,9 @@ def inflight():
         ahead = git(['rev-list', '--count', 'HEAD', '^march'], wt).strip() or '0'
         log = [l for l in git(['log', '--oneline', mtip + '..HEAD'], wt).splitlines() if l.strip()]
         scaffold_only = len(log) == 1 and 'scaffold' in log[0].lower()
-        r = recent_files(wt)
+        tipct = git(['log', '-1', '--format=%ct'], wt).strip()
+        cutoff = max(int(tipct), time.time() - 900) if tipct.isdigit() else time.time() - 900
+        r = recent_files(wt, cutoff)
         lp = newest_log(name)
         age = None
         if lp:
@@ -118,7 +124,7 @@ def inflight():
         elif age is not None and age < 360:
             st = 'BUILDING (log written %ds ago, %s commit(s))' % (int(age), ahead)
         elif r > 0:
-            st = 'BUILDING (%s files/6m, %s commit(s))' % (r, ahead)
+            st = 'BUILDING (%s files since last commit, %s commit(s))' % (r, ahead)
         elif scaffold_only:
             st = 'STARTED (scaffold only, not built)'
         elif int(ahead) > 0:
