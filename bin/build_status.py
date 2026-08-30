@@ -12,7 +12,7 @@ Two consumers share this one definition:
 Read-only: it never writes or commits. Locate it by its own path, so it works
 from any working directory.
 """
-import os, re, time, subprocess
+import glob, os, re, time, subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # the worktree root
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]              # the main checkout (holds the lock)
@@ -46,6 +46,24 @@ def recent_files(path, secs=360):
     return n
 
 
+def build_log_age(branch):
+    """Seconds since the branch's build log under a/build-logs/ was written,
+    or None. Long builds run outside the worktree (nohup into the log), so the
+    log is the only sign the package is still compiling."""
+    m = re.match(r'wp(\d+)', branch)
+    if not m:
+        return None
+    newest = None
+    for p in glob.glob(os.path.join(REPO, 'a', 'build-logs', 'wp%s-*.log' % m.group(1))):
+        try:
+            t = os.path.getmtime(p)
+            if newest is None or t > newest:
+                newest = t
+        except OSError:
+            pass
+    return None if newest is None else time.time() - newest
+
+
 def inflight():
     """[(branch_name, state, wp_id)] for each WP branch not yet merged to march."""
     mtip = git(['rev-parse', 'march']).strip()
@@ -69,7 +87,10 @@ def inflight():
         log = [l for l in git(['log', '--oneline', mtip + '..HEAD'], wt).splitlines() if l.strip()]
         scaffold_only = len(log) == 1 and 'scaffold' in log[0].lower()
         r = recent_files(wt)
-        if r > 0:
+        age = build_log_age(name)
+        if age is not None and age < 360:
+            st = 'BUILDING (log written %ds ago, %s commit(s))' % (int(age), ahead)
+        elif r > 0:
             st = 'BUILDING (%s files/6m, %s commit(s))' % (r, ahead)
         elif scaffold_only:
             st = 'STARTED (scaffold only, not built)'
