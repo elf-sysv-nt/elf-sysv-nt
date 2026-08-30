@@ -52,6 +52,18 @@ extern "C" {
 /* The psABI reservation. The one constant this package exists to respect. */
 #define ELFSYSV_REDZONE 128
 
+/*
+ * Everything that crosses between this package's assembly and its C, and
+ * everything the ELF world calls or is called by, is System V. That is not the
+ * host compiler's default: gcc targeting x86_64-pc-cygwin emits and expects
+ * the Microsoft convention, so a handler pointer or a trampoline entry that
+ * does not say System V is compiled to read its arguments from the wrong
+ * registers. WP-23 met the same seam from the other side and DR-0009 named it;
+ * here it is written on every declaration that touches the assembly. Under the
+ * cross compiler the attribute is what the target already does.
+ */
+#define ELF_SYSV __attribute__((sysv_abi))
+
 /* Linux's _NSIG. Signal numbers run 1..64 and the mask is 64 bits wide. */
 #define ELFSYSV_NSIG 64
 
@@ -344,15 +356,17 @@ int elf_sigframe_check(const elfsysv_sigstate_t *st, uintptr_t frame,
 extern void elfsysv_sig_return_tramp(void);
 
 /* Restore a register file and iretq into it. Does not return. */
-extern void elfsysv_sig_restore(const elfsysv_greg_t *gregs) __attribute__((noreturn));
+extern ELF_SYSV void elfsysv_sig_restore(const elfsysv_greg_t *gregs)
+	__attribute__((noreturn));
 
 /* Resume a register file the way SetThreadContext would, for tests that drive
  * a delivery without a host thread. Does not return. */
-extern void elfsysv_sig_resume(const elfsysv_sigctx_t *ctx) __attribute__((noreturn));
+extern ELF_SYSV void elfsysv_sig_resume(const elfsysv_sigctx_t *ctx)
+	__attribute__((noreturn));
 
 /* Called by the return trampoline with the frame address. Does not return
  * unless the frame is refused, in which case it returns the refusal. */
-int elfsysv_sigreturn(uintptr_t frame);
+ELF_SYSV int elfsysv_sigreturn(uintptr_t frame);
 
 /* The state the trampoline finds its way back to. One per thread. */
 extern __thread elfsysv_sigstate_t *elfsysv_sig_current;

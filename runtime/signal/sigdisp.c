@@ -210,7 +210,7 @@ elf_sig_disposition_t elf_sig_deliver(elfsysv_sigstate_t *st, int signo,
 
 /* The return. Reached from the trampoline with the frame address; installs the
  * saved state and does not come back. */
-int elfsysv_sigreturn(uintptr_t frame)
+ELF_SYSV int elfsysv_sigreturn(uintptr_t frame)
 {
 	elfsysv_sigstate_t *st = elfsysv_sig_current;
 	char why[ELF_SIG_WHY_MAX];
