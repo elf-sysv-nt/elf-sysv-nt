@@ -1,0 +1,4 @@
+# Built by run.sh -k; regenerated, not tracked.
+*.o
+tls_test
+tls_test.exe
