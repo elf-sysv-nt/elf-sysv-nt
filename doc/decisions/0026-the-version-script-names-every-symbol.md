@@ -1,4 +1,4 @@
-# DR-0025 — the generated version script names every symbol
+# DR-0026 — the generated version script names every symbol
 
 Status: accepted
 Date: 2026-08-30

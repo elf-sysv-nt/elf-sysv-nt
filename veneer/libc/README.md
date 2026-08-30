@@ -14,7 +14,7 @@ its node by a `.symver`, a linker version script naming every symbol under its
 node, and `libc-forward.tsv`, which pairs each `symbol@node` with the WP-52
 bucket and the `elfsysv1.dll` export it is to reach. The assembler and the
 linker turn those into the versioned `.dynsym` and the `.gnu.version_d` ladder.
-The two-file arrangement is DR-0025; the short version is that a `.symver`
+The two-file arrangement is DR-0026; the short version is that a `.symver`
 alone does not keep a symbol exported.
 
 `libc.a` comes out of the same pass, carrying the same symbols under their bare
