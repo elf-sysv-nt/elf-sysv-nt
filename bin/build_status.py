@@ -15,7 +15,9 @@ from any working directory.
 import os, re, time, subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # the worktree root
+REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]              # the main checkout (holds the lock)
 PLAN = os.path.join(ROOT, 'doc', 'IMPLEMENTATION-PLAN.md')
+LOCK = os.path.join(REPO, 'a', '.build-worker.lock')
 
 
 def git(args, cwd=ROOT):
@@ -108,7 +110,7 @@ def verdict(rows, lock_held):
 
 def main():
     rows = inflight()
-    lock_held = os.path.isdir(os.path.join(ROOT, 'a', '.build-worker.lock'))
+    lock_held = os.path.isdir(LOCK)
     print('march tip: %s' % git(['log', '--oneline', '-1']).strip())
     print('delivered markers: %d' % delivered_count())
     print('last commits:')
