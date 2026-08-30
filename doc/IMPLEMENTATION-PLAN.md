@@ -375,6 +375,24 @@ argument. Every variadic export walks its own list with
 `__builtin_sysv_va_start` and passes the values on one at a time, so this
 package is real work rather than a wrapper.
 
+Delivered 2026-08-30, in `runtime/varargs/`. Each variadic entry walks its own
+System V `va_list` and rebuilds a Microsoft one, then repasses through the
+core's `va_list`-taking form -- there is no `...` callee to splat a run-time
+list into, so the repass targets `vfprintf`/`vsnprintf`/`vfscanf`, named in
+`core.h`, which DR-0015 records. For the `printf` and `scanf` families the
+rebuild is driven by the format, in `sv2ms.c`, because only the format recovers
+whether an argument came from the integer or the floating register file; the
+prototype-driven variadics (exec, `open`, `fcntl`, the IPC ctls) walk their
+fixed signatures instead. `variadic-exports.tsv` enumerates the surface -- 68
+exports, 54 format-driven and 14 prototype-driven, derived by signature and
+certified against WP-20's inventory since the `.din` does not mark them -- and
+`gen-veneer.sh` writes one `sysv_abi` entry per format-driven export from it.
+`t/reproduce.sh` is the certification: the set is consistent, the veneer
+reproduces byte for byte, the bridge and entries compile clean, and the
+runnable test passes -- a sixteen-argument `printf` reproducing glibc 2.35's
+output exactly, and a `vfprintf` reached through a System V `va_list` formatting
+through a Microsoft-ABI callee.
+
 ### WP-25 — the compatibility counter
 
 Needs: WP-22.
