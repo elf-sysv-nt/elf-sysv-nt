@@ -465,6 +465,24 @@ Done when: a thread reads its own TCB correctly after a hundred thousand
 context switches under load, and after a `fork`, and after a signal delivered
 mid-computation.
 
+Delivered 2026-08-30, in `runtime/tls/`. `tp.c` establishes the pointer at
+thread creation through carrier C3 — `gs:[NtTib.StackBase]` then a fixed offset
+into a stack the runtime allocates and owns — and the TCB is the psABI variant
+II shape asserted at compile time. `t/tls_test.c` reads a distinct TCB back
+through the carrier after the kernel's own count of context switches clears a
+hundred thousand with zero mismatches across two threads per processor, after a
+`fork`, and after a signal delivered mid-computation on both the thread's own
+stack and an alternate signal stack. `measure/` is the re-measurement DR-0003
+required: `CYGTLS_PADSIZE` is `0x3200` not the stand-in's page, the reservation
+near `StackBase` is Cygwin's live signal state, and the alternate signal stack
+leaves `NtTib.StackBase` unmoved so the chain holds through delivery. DR-0021
+records the placement that follows — the carrier is the floor of a runtime-owned
+stack, not a blind offset below `StackBase` — without reopening DR-0003.
+Deferred to WP-37: sizing the static block from `PT_TLS`, the dtv,
+`__tls_get_addr`, and teardown. Deferred to the forked `elfsysv1.dll`: moving
+the carrier into a reserved field of the runtime's own `_cygtls`, the offset
+then measured against `sizeof(_cygtls)`.
+
 Risk: this package waited on spike 1 and then on a person, and both have
 answered. Spike 1 took `%fs` away on 2026-08-29; DR-0003 settled the
 replacement the same day as carrier C3 of `spike/gs-thread-pointer/`, a

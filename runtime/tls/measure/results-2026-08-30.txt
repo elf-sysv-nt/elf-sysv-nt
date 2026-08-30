@@ -1,0 +1,69 @@
+
+WP-30 re-measurement of the real Cygwin _my_tls
+
+host        ins-15
+kernel      CYGWIN_NT-10.0 3.0.7(0.338/5/3) x86_64
+windows     10.0.26200.9168
+compiler    gcc (GCC) 7.4.0
+date        2026-08-30T14:59:02Z
+
+--- remeasure-my-tls: padding constant, geometry, altstack ---
+cygtls_padsize=12800
+cygtls_padsize_hex=0x3200
+main.stackbase=0x100000000
+main.stacklimit=0xffffb000
+main.rsp=0xffffcb70
+main.cygtls_base=0xffffce00
+main.owned_gap=656
+altstack.installed=1
+altstack.buf=0x100407000..0x100417000
+altstack.stackbase=0x100000000
+altstack.stacklimit=0xffffb000
+altstack.rsp=0x100416e98
+altstack.cygtls_base=0xffffce00
+altstack.owned_gap=0
+altstack.base_moved=0
+altstack.rsp_on_altbuf=1
+thread.stackbase=0xffe00000
+thread.stacklimit=0xffdf0000
+thread.rsp=0xffdfcd10
+thread.cygtls_base=0xffdfce00
+thread.owned_gap=240
+altstack.installed=1
+altstack.buf=0x100407000..0x100417000
+altstack.stackbase=0xffe00000
+altstack.stacklimit=0xffdf0000
+altstack.rsp=0x100416e98
+altstack.cygtls_base=0xffdfce00
+altstack.owned_gap=0
+altstack.base_moved=0
+altstack.rsp_on_altbuf=1
+fork_child.stackbase=0x100000000
+fork_child.stacklimit=0xffffc000
+fork_child.rsp=0xffffcb70
+fork_child.cygtls_base=0xffffce00
+fork_child.owned_gap=656
+
+--- map-cygtls: used and unused words of the reservation ---
+main.padsize=12800
+main.safe_words_below_base=1
+main.safe_bytes_below_base=8
+main.first_used_word_off=0x8
+thread.padsize=12800
+thread.safe_words_below_base=628
+thread.safe_bytes_below_base=5024
+thread.first_used_word_off=0x13a0
+
+--- owned-stack: a runtime-owned stack carries the word safely ---
+alloc=0x6fffffc0000..0x70000000000
+stackbase=0x70000000000 in_alloc=1
+stacklimit=0x6fffffc0000 rsp=0x6ffffffccf0 pad=12800
+carrier=0x6fffffc0010 below_cygtls=1 above_alloc_lo=1 far_below_rsp=1
+carrier_write=ok readback=0xc0ffee
+child.stackbase=0x70000000000 same=1 carrier=0xc0ffee
+alloc=0x6fffffc0000..0x70000000000
+stackbase=0x70000000000 in_alloc=1
+stacklimit=0x6fffffc0000 rsp=0x6ffffffccf0 pad=12800
+carrier=0x6fffffc0010 below_cygtls=1 above_alloc_lo=1 far_below_rsp=1
+carrier_write=ok readback=0xc0ffee
+fork_from_thread=ok
