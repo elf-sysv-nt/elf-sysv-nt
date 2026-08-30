@@ -222,9 +222,10 @@ static uint64_t cookie_of(const elfsysv_sigstate_t *st, uint64_t frame,
 	return h | 1;			/* never zero, so zeroed bytes fail  */
 }
 
-uint64_t elf_sig_frame_cookie(const elfsysv_sigstate_t *st, uintptr_t frame)
+uint64_t elf_sig_frame_cookie(const elfsysv_sigstate_t *st, uintptr_t frame,
+			      uint64_t top)
 {
-	return cookie_of(st, (uint64_t)frame, 0);
+	return cookie_of(st, (uint64_t)frame, top);
 }
 
 /* ---- placement --------------------------------------------------------- */
@@ -442,6 +443,11 @@ int elf_sigframe_check(const elfsysv_sigstate_t *st, uintptr_t frame,
 			if (xs < 576 || ext < xs +
 					      ELFSYSV_FP_XSTATE_MAGIC2_SIZE)
 				return refuse(why, "xstate sizes disagree");
+			/* An xsave area is a multiple of eight bytes and the
+			 * trailing magic sits at its end, so a size that is
+			 * not is refused before it is used to address. */
+			if (xs & 0x7)
+				return refuse(why, "xstate size is not a multiple of eight");
 			if (top - a < ext)
 				return refuse(why, "xstate runs past the top");
 			if (fp->sw_reserved.xstate_bv &
@@ -449,7 +455,8 @@ int elf_sigframe_check(const elfsysv_sigstate_t *st, uintptr_t frame,
 				return refuse(why,
 					      "xstate names a component this "
 					      "machine does not have");
-			uint32_t m2 = *(const uint32_t *)((const char *)fp + xs);
+			uint32_t m2;
+			memcpy(&m2, (const char *)fp + xs, sizeof(m2));
 			if (m2 != ELFSYSV_FP_XSTATE_MAGIC2)
 				return refuse(why, "xstate trailing magic is absent");
 		}

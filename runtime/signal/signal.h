@@ -337,7 +337,8 @@ uint64_t elf_sig_xstate_mask(void);
 
 /* The authenticator over a placed frame. Not a substitute for validation: it
  * is the cheap first question, and elf_sigframe_check asks the rest. */
-uint64_t elf_sig_frame_cookie(const elfsysv_sigstate_t *st, uintptr_t frame);
+uint64_t elf_sig_frame_cookie(const elfsysv_sigstate_t *st, uintptr_t frame,
+			      uint64_t top);
 
 /* Read a frame back the way sigreturn must: as bytes a handler could have
  * rewritten. `len` is what is readable from `frame` upward; `why` takes a
