@@ -195,10 +195,11 @@ stage() {
 }
 
 # GMP and MPFR for the build host, static, from the trees gcc's
-# contrib/download_prerequisites already fetched and verified into
-# $work/src. Idempotent: an installed archive is not rebuilt.
-gmpsrc=$(ls -d "$work"/src/gmp-*/ 2>/dev/null | head -1)
-mpfrsrc=$(ls -d "$work"/src/mpfr-*/ 2>/dev/null | head -1)
+# contrib/download_prerequisites already fetched and verified -- into the
+# gcc source tree itself, which is where that script puts them, not the
+# top of $work/src. Idempotent: an installed archive is not rebuilt.
+gmpsrc=$(ls -d "$work"/src/gcc-*/gmp-*/ "$work"/src/gmp-*/ 2>/dev/null | head -1)
+mpfrsrc=$(ls -d "$work"/src/gcc-*/mpfr-*/ "$work"/src/mpfr-*/ 2>/dev/null | head -1)
 
 if [ ! -f "$hostlibs/lib/libgmp.a" ]; then
     [ -n "$gmpsrc" ] || die "no gmp source under $work/src; run build-gcc first"
