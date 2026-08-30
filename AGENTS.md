@@ -122,6 +122,24 @@ the same day and its transcript is kept on the same terms.
 append-only: reversing one means a new record pointing back, never an edit to
 the old.
 
+A decision record an implementing agent takes carries `Status: provisional`
+until the operator ratifies it. Ratification is cheap by design: one sweep
+record settles many, and reopening any of them is the same new-record
+mechanism. A record taken through `doc/decision-ladder.md` names the tier that
+discriminated, which is the line a ratification pass reads first; where the
+ladder reaches tier 8 without deciding, the entry parks with its survivors
+named rather than proceeding on a guess. The reserved decisions and the
+operator's own records are not provisional; the sweep in DR-0036 settled the
+agent records taken before the convention existed.
+
+A certification run against a substitute for the thing it certifies — a newer
+glibc standing in for el8's 2.28, a WSL userland for a real el8 one — is
+permitted and creates a row in `doc/substitutions.md`: what was substituted for
+what, where, and what burns it down. The row closes when the certification
+reruns against the real target and matches, or when its divergence is written
+down as justified. A certification that hides its substitution rather than
+recording it is the failure this rule exists to prevent.
+
 ## Where autonomy stops
 
 Run a spike through to its stated verdict without asking permission along the
