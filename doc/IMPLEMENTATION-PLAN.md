@@ -1038,6 +1038,37 @@ reserving delivery against Cygwin's real `sigdelayed` rather than spike 7's
 model, read the number against DR-0006's bands, and write the record that
 retires the flag or reopens the direction.
 
+Delivered 2026-08-30, in `runtime/signal/`. The frame is Linux's `rt_sigframe`
+with the offsets a compiled handler computes for itself asserted rather than
+described, an `fxsave` image with an `xsave` area above it carrying the magic
+at both ends, and a placement that subtracts the psABI's 128 bytes before it
+subtracts anything else. That is DR-0006 executed at the delivery site.
+
+Two things the writing found, and DR-0030 records both. The frame cannot be
+built by the thread that sends the signal: a Windows stack grows by faulting on
+a guard page, and that fault is a stack extension only for the thread that owns
+the stack, so the sender's write into the target takes an unhandled violation
+in the sender. The hijack therefore only redirects the target into a trampoline
+and the target builds its own frame, which is Cygwin's own shape. And the
+return is a same-privilege `iretq`, because `setcontext`'s push-and-ret writes
+at the destination stack pointer minus eight, which is the first word of the
+red zone this package exists to keep.
+
+The measurement DR-0006 sent here was taken against a control arm rather than
+against Cygwin's `sigdelayed`, because an ELF process no longer goes through
+`sigdelayed` at all. Over 500 deliveries per arm, a hand-written leaf whose
+accumulator lives only in its red zone folded correctly with the reservation on
+and broke with it off, and the reservation's cost ranged from -23% to +16% of a
+delivery across runs -- below the noise of a path that costs three system calls
+and a thread suspension. The control arm is the part that matters: it is what
+`spike/cygwin-from-source` lacked when its own measurement silently watched the
+wrong bytes.
+
+What is not here: deferring a delivery that lands inside `cygwin1.dll`, the
+per-thread split of the blocked mask and alternate stack, and the down-call
+wrapper that will consult the `SA_RESTART` decision. DR-0030's Not verified
+section carries all three.
+
 ---
 
 ## Phase 5 — the veneer
