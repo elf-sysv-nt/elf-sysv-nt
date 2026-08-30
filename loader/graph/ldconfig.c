@@ -16,8 +16,12 @@
  * Options:
  *   -o, --output FILE   write the cache here (env ELFSYSV_LDSO_CACHE)
  *                       [default: ./ld.so.cache]
- *   -f, --conf FILE     read newline-separated directories from FILE, scanned
- *                       before any DIR arguments
+ *   -f, --conf FILE     read directories from FILE, scanned before any DIR
+ *                       arguments. The file is el8's ld.so.conf shape: one
+ *                       directory per line, blank lines and # comments
+ *                       ignored, and `include GLOB` reading further files,
+ *                       a relative pattern resolved against the including
+ *                       file's own directory (WP-62)
  *   -p, --print         read the --output cache and print its entries, exit
  *   -n, --dry-run       scan and report, but do not write the cache
  *   -v, --verbose       name each object as it is recorded
@@ -30,6 +34,7 @@
 #include "../elf/elf_parse.h"
 
 #include <dirent.h>
+#include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +45,7 @@ static const char *usage =
 "\n"
 "Options:\n"
 "  -o, --output FILE   cache to write (env ELFSYSV_LDSO_CACHE) [default: ./ld.so.cache]\n"
-"  -f, --conf FILE     read newline-separated directories from FILE\n"
+"  -f, --conf FILE     read directories from FILE (ld.so.conf shape; include GLOB)\n"
 "  -p, --print         read the cache and print its entries, then exit\n"
 "  -n, --dry-run       scan and report, but do not write\n"
 "  -v, --verbose       name each object as it is recorded\n"
@@ -127,10 +132,21 @@ static int print_cache(const char *path)
 	return 0;
 }
 
-/* Read newline-separated directories from a config file and scan each. Blank
- * lines and lines beginning with '#' are ignored. */
-static long scan_conf(ldso_cache_builder *b, const char *conf, int verbose)
+/* Read one configuration file in el8's ld.so.conf shape and scan what it
+ * names. A line is a directory, blank, a '#' comment, or `include GLOB`;
+ * an included pattern without a leading '/' is resolved against the
+ * including file's own directory, which is how el8's one-line
+ * `include ld.so.conf.d/*.conf` reads, and matches are read in glob's
+ * sorted order. The depth cap refuses a file that includes itself rather
+ * than following it forever. */
+static long scan_conf_depth(ldso_cache_builder *b, const char *conf,
+                            int verbose, int depth)
 {
+	if (depth > 8) {
+		fprintf(stderr, "elf-ldconfig: %s: includes nested deeper than 8\n",
+		        conf);
+		return 0;
+	}
 	FILE *f = fopen(conf, "r");
 	if (!f) { fprintf(stderr, "elf-ldconfig: cannot open %s\n", conf); return 0; }
 	long total = 0; char line[4096];
@@ -141,12 +157,45 @@ static long scan_conf(ldso_cache_builder *b, const char *conf, int verbose)
 		while (l && (s[l-1] == '\n' || s[l-1] == '\r' ||
 		             s[l-1] == ' ' || s[l-1] == '\t')) s[--l] = 0;
 		if (!*s || *s == '#') continue;
+		if (!strncmp(s, "include", 7) && (s[7] == ' ' || s[7] == '\t')) {
+			char *pat = s + 8;
+			while (*pat == ' ' || *pat == '\t') pat++;
+			if (!*pat) continue;
+			char full[4096];
+			if (*pat != '/') {
+				const char *slash = strrchr(conf, '/');
+				int dl = slash ? (int)(slash - conf) : 1;
+				const char *dir = slash ? conf : ".";
+				int k = snprintf(full, sizeof full, "%.*s/%s",
+				                 dl, dir, pat);
+				if (k < 0 || (size_t)k >= sizeof full) continue;
+			} else {
+				int k = snprintf(full, sizeof full, "%s", pat);
+				if (k < 0 || (size_t)k >= sizeof full) continue;
+			}
+			glob_t g;
+			if (glob(full, 0, NULL, &g) == 0) {
+				for (size_t i = 0; i < g.gl_pathc; i++) {
+					long n = scan_conf_depth(b, g.gl_pathv[i],
+					                         verbose, depth + 1);
+					if (n < 0) { globfree(&g); fclose(f); return -1; }
+					total += n;
+				}
+				globfree(&g);
+			}
+			continue;
+		}
 		long n = scan_dir(b, s, verbose);
 		if (n < 0) { fclose(f); return -1; }
 		total += n;
 	}
 	fclose(f);
 	return total;
+}
+
+static long scan_conf(ldso_cache_builder *b, const char *conf, int verbose)
+{
+	return scan_conf_depth(b, conf, verbose, 0);
 }
 
 int main(int argc, char **argv)

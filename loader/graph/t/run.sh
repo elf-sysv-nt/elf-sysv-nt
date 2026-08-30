@@ -67,7 +67,7 @@ ldd_bin=$bin/elf-ldd
 srcs="$graph/elf_graph.c $graph/ldso_cache.c $elf/elf_parse.c"
 
 smon_session build wp33-object-graph
-smon_plan graphs build-tools build-test cache unit differential
+smon_plan graphs build-tools build-test cache conf unit differential
 
 rc=0
 
@@ -99,6 +99,34 @@ if smon_cmd "$ldconfig_bin" -o "$cache" "$graphs/cacheonly/hidden"; then
 	smon_step_ok cache
 else
 	smon_step_fail cache $?; rc=1
+fi
+
+# WP-62: the search-path configuration in el8's shape. A conf file naming one
+# directory and including conf.d/*.conf by a relative pattern must reach the
+# objects in both directories, and a file that includes itself must terminate
+# at the depth cap rather than recurse forever.
+smon_step_start conf
+confdir=$bin/conf
+mkdir -p "$confdir/conf.d" "$confdir/a" "$confdir/b"
+so_a=$(find "$graphs" -name 'lib*.so*' -type f | sort | head -1)
+so_b=$(find "$graphs" -name 'lib*.so*' -type f | sort | tail -1)
+cp "$so_a" "$confdir/a/" && cp "$so_b" "$confdir/b/"
+printf '# comment\n\n%s\ninclude conf.d/*.conf\n' "$confdir/a" \
+	> "$confdir/ld.so.conf"
+printf '%s\n' "$confdir/b" > "$confdir/conf.d/dirs.conf"
+printf 'include loop.conf\n' > "$confdir/conf.d/loop.conf"
+conf_ok=1
+smon_cmd "$ldconfig_bin" -o "$confdir/cache" -f "$confdir/ld.so.conf" \
+	2>/dev/null || conf_ok=0
+if [ "$conf_ok" = 1 ]; then
+	listing=$("$ldconfig_bin" -o "$confdir/cache" -p) || conf_ok=0
+	printf '%s\n' "$listing" | grep -q "$confdir/a/" || conf_ok=0
+	printf '%s\n' "$listing" | grep -q "$confdir/b/" || conf_ok=0
+fi
+if [ "$conf_ok" = 1 ]; then
+	smon_step_ok conf
+else
+	smon_step_fail conf 1; rc=1
 fi
 
 smon_step_start unit
