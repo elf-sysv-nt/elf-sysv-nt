@@ -300,6 +300,16 @@ WP-21 and WP-51 read this one list rather than each keeping its own.
 Two objects reading two copies of an export list drift, and the drift shows up
 as a symbol that resolves at build time and is absent at run time.
 
+Delivered 2026-08-30, in `runtime/exports/`. The named ref is DR-0007's: Cygwin
+3.6.10, `newlib-cygwin` `b11613e47`. `extract-exports.sh` parses `cygwin.din`
+into 1767 rows — name, data-or-function, signal-frame class, alias target — and
+`t/reproduce.sh` pins the ref and diffs a fresh extraction against the committed
+`cygwin-exports.tsv`, which is the byte-for-byte guarantee the criterion asks
+for. Two `.din` forms the first cut missed and the strict parser caught:
+`glob_pattern_p` carries no annotation and is recorded as `none` rather than
+guessed, and an alias `=` may be attached to the name; both are handled and
+noted in the README so WP-21 is not surprised by them.
+
 ### WP-21 — the down-call wrappers
 
 Needs: WP-20.
