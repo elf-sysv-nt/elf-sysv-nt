@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+#
+# Build gdb for the triple.
+#
+# There is no port, for the same reason binutils had none: DR-0001 put the
+# project's name in the vendor field, and every configuration gdb matches on
+# is written `x86_64-*-linux-*`, so the canonical triple lands on the
+# ordinary x86_64 GNU/Linux target -- `solib-svr4`, the `r_debug` walk, the
+# Linux osabi -- with no patch. t/accept.sh checks the result is that target
+# rather than merely a successful configure.
+#
+# gdb needs GMP and MPFR on the build host and this host carries neither, so
+# the script builds both static from the tarballs the gcc bootstrap already
+# fetched, into $work/hostlibs, once. That step is idempotent: an installed
+# libgmp.a is not rebuilt.
+#
+# The gdb build tree is kept between runs rather than reseeded. This build
+# runs long on this host and an unattended runner gets a bounded slice of
+# time, so like the second gcc turn the configure is skipped when a Makefile
+# is already there and make continues where it stopped. Clear $work/build/gdb
+# by hand to force a reseed.
+#
+# Usage:
+#   build-gdb [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Install here. [default: $HOME/x-elfsysvnt]
+#   -w DIR, --work=DIR     Source and build trees. [default: $prefix/../work]
+#   -p FILE, --pin=FILE    The release pin. [default: beside this one]
+#   -T TRIPLE, --target=TRIPLE
+#                          The triple is doc/target-definition.md's;
+#                          change it there rather than here.
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
+#   -n, --dry-run          Print the configure line and stop.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Stream the build rather than logging it.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_GDB_<OPTION>, and the option wins
+# over the variable.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-gdb
+release='build-gdb 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${BUILD_GDB_PREFIX:-$HOME/x-elfsysvnt}
+work=${BUILD_GDB_WORK:-}
+pin=${BUILD_GDB_PIN:-$here/gdb.pin}
+target=${BUILD_GDB_TARGET:-x86_64-elfsysvnt-linux-gnu}
+jobs=${BUILD_GDB_JOBS:-}
+dryrun=${BUILD_GDB_DRY_RUN:-0}
+terse=${BUILD_GDB_TERSE:-0}
+quiet=${BUILD_GDB_QUIET:-0}
+verbose=${BUILD_GDB_VERBOSE:-0}
+debug=${BUILD_GDB_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-w|--work|-p|--pin|-T|--target|-j|--jobs) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -w|--work) work=$val ;;
+        -p|--pin) pin=$val ;;
+        -T|--target) target=$val ;;
+        -j|--jobs) jobs=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -r "$pin" ] || die "cannot read the pin: $pin"
+[ -n "$work" ] || work=$(dirname "$prefix")/work
+[ -n "$jobs" ] || jobs=$(nproc 2>/dev/null || echo 4)
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+
+pinfield() { awk -v k="$1" '$1 == k { print $2; exit }' "$pin"; }
+
+version=$(pinfield version)
+url=$(pinfield url)
+want=$(pinfield sha256)
+[ -n "$version" ] && [ -n "$url" ] && [ -n "$want" ] ||
+    die "the pin is missing version, url or sha256"
+
+sysroot=$prefix/$target/sys-root
+tarball=$work/src/$(basename "$url")
+srcdir=$work/src/gdb-$version
+builddir=$work/build/gdb
+hostlibs=$work/hostlibs
+
+configure_args="--target=$target
+--prefix=$prefix
+--with-sysroot=$sysroot
+--with-gmp=$hostlibs
+--with-mpfr=$hostlibs
+--with-python=no
+--without-guile
+--disable-nls
+--disable-werror
+--disable-sim
+--disable-gdbserver
+--disable-unit-tests"
+
+if [ "$dryrun" = 1 ]; then
+    printf '%s/configure' "$srcdir"
+    printf ' %s' $configure_args
+    printf '\n'
+    exit 0
+fi
+
+mkdir -p "$work/src" "$work/build" || die "cannot create $work"
+
+if [ -f "$tarball" ] && [ "$(sha256sum "$tarball" | cut -d' ' -f1)" = "$want" ]; then
+    chat "have $(basename "$tarball")"
+else
+    rm -f "$tarball"
+    chat "fetching gdb $version"
+    curl -fsSL --retry 3 --retry-delay 2 -o "$tarball" "$url" ||
+        die "cannot fetch $url"
+    got=$(sha256sum "$tarball" | cut -d' ' -f1)
+    [ "$got" = "$want" ] || die "checksum: got $got, pin says $want"
+fi
+
+# The source tree is unpacked once and kept, exactly as binutils' is:
+# nothing writes into it, and proving that on every run would be slow.
+if [ ! -d "$srcdir" ]; then
+    chat "unpacking"
+    ( cd "$work/src" && tar xf "$tarball" ) || die "cannot unpack $tarball"
+fi
+
+applied=$srcdir/.elfsysvnt-patches
+touch "$applied"
+for p in "$here"/patches/*.patch; do
+    [ -e "$p" ] || break
+    name=$(basename "$p")
+    if grep -qxF "$name" "$applied"; then
+        chat "already applied: $name"
+        continue
+    fi
+    chat "applying $name"
+    ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
+        die "$name did not apply to gdb $version"
+    printf '%s\n' "$name" >> "$applied"
+done
+
+stage() {
+    what=$1; shift
+    log=$work/build/gdb-$what.log
+    chat "$what"
+    if [ "$verbose" = 1 ]; then
+        "$@" 2>&1 | tee "$log"
+        rc=${PIPESTATUS[0]}
+    else
+        "$@" > "$log" 2>&1
+        rc=$?
+    fi
+    [ "$rc" = 0 ] || die "$what failed, see $log"
+}
+
+# GMP and MPFR for the build host, static, from the trees gcc's
+# contrib/download_prerequisites already fetched and verified into
+# $work/src. Idempotent: an installed archive is not rebuilt.
+gmpsrc=$(ls -d "$work"/src/gmp-*/ 2>/dev/null | head -1)
+mpfrsrc=$(ls -d "$work"/src/mpfr-*/ 2>/dev/null | head -1)
+
+if [ ! -f "$hostlibs/lib/libgmp.a" ]; then
+    [ -n "$gmpsrc" ] || die "no gmp source under $work/src; run build-gcc first"
+    rm -rf "$work/build/gmp-host"
+    mkdir -p "$work/build/gmp-host" || die "cannot create gmp-host"
+    cd "$work/build/gmp-host" || die "cannot enter gmp-host"
+    stage gmp-configure "${gmpsrc%/}/configure" --prefix="$hostlibs" \
+        --disable-shared --enable-static
+    stage gmp-make make -j"$jobs"
+    stage gmp-install make install
+fi
+
+if [ ! -f "$hostlibs/lib/libmpfr.a" ]; then
+    [ -n "$mpfrsrc" ] || die "no mpfr source under $work/src; run build-gcc first"
+    rm -rf "$work/build/mpfr-host"
+    mkdir -p "$work/build/mpfr-host" || die "cannot create mpfr-host"
+    cd "$work/build/mpfr-host" || die "cannot enter mpfr-host"
+    stage mpfr-configure "${mpfrsrc%/}/configure" --prefix="$hostlibs" \
+        --with-gmp="$hostlibs" --disable-shared --enable-static
+    stage mpfr-make make -j"$jobs"
+    stage mpfr-install make install
+fi
+
+# The gdb tree itself: configure once, then make until it finishes. The
+# kept Makefile is what makes a rerun a continuation rather than a restart.
+mkdir -p "$builddir" || die "cannot create $builddir"
+cd "$builddir" || die "cannot enter $builddir"
+
+if [ ! -f "$builddir/Makefile" ]; then
+    stage configure "$srcdir/configure" $configure_args
+else
+    chat "Makefile present, continuing the build"
+fi
+
+stage make make -j"$jobs"
+stage install make install
+
+[ -x "$prefix/bin/$target-gdb" ] || [ -x "$prefix/bin/$target-gdb.exe" ] ||
+    die "install left no $target-gdb"
+
+if [ "$terse" = 1 ]; then
+    printf 'version=%s\ntarget=%s\nprefix=%s\nsysroot=%s\n' \
+        "$version" "$target" "$prefix" "$sysroot"
+else
+    note "gdb $version for $target installed under $prefix"
+    note "now run t/accept.sh -P $prefix"
+fi
+
+printf '%s: done\n' "$prog"
+exit 0
