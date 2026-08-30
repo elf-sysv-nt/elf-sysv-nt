@@ -1,0 +1,8 @@
+# Built by mkgraph.sh and the run driver; regenerated, not tracked.
+graph/
+graphs/
+*.cache
+graph_test
+elf-ldd
+elf-ldconfig
+*.o

@@ -502,6 +502,27 @@ system path, and `ldconfig` with a cache format.
 Done when: `ldd` on a vendor binary lists the same objects in the same order a
 real `ld.so` lists them.
 
+Delivered 2026-08-30, under `loader/graph/`. `elf_graph.c` walks the graph
+breadth-first, `DT_SONAME` as identity, resolving each `DT_NEEDED` against
+`DT_RPATH`, `LD_LIBRARY_PATH`, `DT_RUNPATH`, the cache, and the default
+directories in that order — with `DT_RPATH` searched before `LD_LIBRARY_PATH`
+and inherited down the loader chain while `DT_RUNPATH` is searched after it and
+not inherited, the two differences that fall out of the one rule that an object
+carrying a runpath contributes no rpath to its dependents. `DT_RPATH` and
+`DT_RUNPATH` are read back out of WP-31's already-validated dynamic array rather
+than by changing the parser. `ldso_cache.c` is the cache reader and builder, its
+format this project's own (DR-0011), and `ldconfig.c` and `elf_ldd.c` are the
+tools. The done-when was met differently than its wording anticipated: rather
+than one vendor binary, the certification in `loader/graph/t/` builds a battery
+of graphs with the cross toolchain — a diamond, an RPATH-versus-`LD_LIBRARY_PATH`
+precedence pair, a `DT_RUNPATH` inheritance pair, an `$ORIGIN` lookup, a
+cache-only name, and a missing dependency — and compares `elf-ldd`'s order
+against a real glibc `ld.so` (Ubuntu's 2.43, through WSL) over every one; all
+seven match object for object, and a unit test asserts the internals a
+differential cannot see. The comparison `ld.so` is newer than el8's 2.28 and a
+real vendor closure is left to the acceptance harness; `loader/graph/README.md`
+records both limits.
+
 ### WP-34 — relocation
 
 Needs: WP-33.
