@@ -1,5 +1,12 @@
 # DR-0010 — the veneer's features.h is el8's arithmetic, copied not paraphrased
 
+> Superseded in framing by DR-0000. The question was never how faithfully to
+> re-author `features.h` but that it must not be re-authored at all — it is
+> el8's header, vendored verbatim. WP-50's redo on 2026-08-30 replaced the
+> re-authored headers with el8's own `glibc-headers-2.28`, byte-identical, with
+> `gnu/stubs.h` the sole justified exception. This record is kept as the
+> live-at-the-time reasoning; DR-0000 governs.
+
 Status: accepted
 Date: 2026-08-30
 Deciding: WP-50 implementation, a defensible call under the non-reserved

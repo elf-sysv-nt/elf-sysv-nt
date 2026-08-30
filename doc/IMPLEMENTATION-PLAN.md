@@ -908,9 +908,18 @@ C++ at three standards. All 43 match, with `__GLIBC__` 2 and `__GLIBC_MINOR__`
 superseded; it diverged on the untested combinations (DR-0010 lists them), which
 is what a paraphrase does and what this delivery replaces with a copy.
 
-Deferred: the rest of the C library header surface, `gnu/stubs.h` content
-(WP-52's), and rewiring the toolchain sysroot to consume `veneer/include/`
-(a WP-14/WP-15 follow-up).
+Deferred: the rest of the C library header surface, and rewiring the toolchain
+sysroot to consume `veneer/include/` (a WP-14/WP-15 follow-up).
+
+Redone 2026-08-30 to comply with DR-0000. The re-authored `features.h` was the
+drift DR-0000 names: above the floor, el8's files are used unchanged, headers
+included. The header set is now el8's own `glibc-headers-2.28`, vendored
+verbatim — `features.h`, `stdc-predef.h`, `sys/cdefs.h`, `bits/wordsize.h` and
+`bits/long-double.h` are byte-identical to the vendor's, and `gnu/stubs.h` is
+the sole justified exception, rewritten to name the interfaces the veneer does
+not provide (WP-52's fourth bucket). `veneer/t/ftm-diff.sh` now certifies
+byte-identity against the pinned vendor headers rather than diffing re-authored
+arithmetic. DR-0010's copy-versus-paraphrase framing is superseded by DR-0000.
 
 ### WP-51 — the version map
 

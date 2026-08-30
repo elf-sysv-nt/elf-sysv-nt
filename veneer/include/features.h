@@ -1,46 +1,119 @@
-/* Feature test macros for the veneer, resolving as el8's glibc 2.28 resolves.
-   Copyright (C) 1991-2018 Free Software Foundation, Inc.
-   Copyright (C) 2026 Philip Dye (veneer identity and framing).
+/* Copyright (C) 1991-2018 Free Software Foundation, Inc.
+   This file is part of the GNU C Library.
 
-   This file is part of the elf-sysv-nt veneer.  The feature-test-macro engine
-   below is taken, arithmetic for arithmetic, from the GNU C Library's
-   <features.h> as el8 ships it (glibc-headers-2.28-251.el8_10.40), because a
-   package that probes the headers and then links the library has to get one
-   answer rather than two, and the only reliable way to give glibc's answer to
-   every combination of input macros -- not merely the combinations someone
-   remembered to test -- is to run glibc's own selection logic.  What is ours
-   rather than glibc's is the version this file reports and the two-line note
-   below on what that version means; the __USE_* arithmetic is glibc's and is
-   kept verbatim so that veneer/t/ftm-diff certifies it against the vendor
-   header it was taken from.
+   The GNU C Library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
 
-   The GNU C Library is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by the
-   Free Software Foundation; either version 2.1 of the License, or (at your
-   option) any later version.  This veneer is LGPLv3-or-later (DR-0004); 2.1+
-   and 3+ combine, and the derivation is recorded in veneer/README.md and
-   doc/decisions/0008-veneer-header-provenance.md.
+   The GNU C Library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
 
-   The version reported here is el8's, 2.28, and that is a claim about the
-   interface a package may name rather than about what stands behind any of it.
-   What stands behind a given symbol at 2.28 is WP-52's four buckets, one of
-   which is symbols that have nothing behind them at all.  A package reading
-   __GLIBC_MINOR__ here learns which interfaces it may name, not which of them
-   work; the honest inventory of the second thing is WP-52's to publish.  */
+   You should have received a copy of the GNU Lesser General Public
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_FEATURES_H
 #define	_FEATURES_H	1
 
-/* These are defined by the user (or the compiler) to specify the desired
-   environment; the accumulation rules are glibc's.  See the vendor header for
-   the full commentary -- it is not reproduced here because copying prose adds
-   nothing the vendor file does not already say, while the arithmetic below has
-   to be identical and so is copied exactly.
+/* These are defined by the user (or the compiler)
+   to specify the desired environment:
 
-   The one difference a reader should know before trusting the comments in the
-   vendor file: this platform has no kernel under it, so a __USE_* macro that
-   the vendor documents as "define kernel thing X" here means "name interface X
-   at its 2.28 shape"; whether X is implemented is WP-52's classification.  */
+   __STRICT_ANSI__	ISO Standard C.
+   _ISOC99_SOURCE	Extensions to ISO C89 from ISO C99.
+   _ISOC11_SOURCE	Extensions to ISO C99 from ISO C11.
+   __STDC_WANT_LIB_EXT2__
+			Extensions to ISO C99 from TR 27431-2:2010.
+   __STDC_WANT_IEC_60559_BFP_EXT__
+			Extensions to ISO C11 from TS 18661-1:2014.
+   __STDC_WANT_IEC_60559_FUNCS_EXT__
+			Extensions to ISO C11 from TS 18661-4:2015.
+   __STDC_WANT_IEC_60559_TYPES_EXT__
+			Extensions to ISO C11 from TS 18661-3:2015.
+
+   _POSIX_SOURCE	IEEE Std 1003.1.
+   _POSIX_C_SOURCE	If ==1, like _POSIX_SOURCE; if >=2 add IEEE Std 1003.2;
+			if >=199309L, add IEEE Std 1003.1b-1993;
+			if >=199506L, add IEEE Std 1003.1c-1995;
+			if >=200112L, all of IEEE 1003.1-2004
+			if >=200809L, all of IEEE 1003.1-2008
+   _XOPEN_SOURCE	Includes POSIX and XPG things.  Set to 500 if
+			Single Unix conformance is wanted, to 600 for the
+			sixth revision, to 700 for the seventh revision.
+   _XOPEN_SOURCE_EXTENDED XPG things and X/Open Unix extensions.
+   _LARGEFILE_SOURCE	Some more functions for correct standard I/O.
+   _LARGEFILE64_SOURCE	Additional functionality from LFS for large files.
+   _FILE_OFFSET_BITS=N	Select default filesystem interface.
+   _ATFILE_SOURCE	Additional *at interfaces.
+   _GNU_SOURCE		All of the above, plus GNU extensions.
+   _DEFAULT_SOURCE	The default set of features (taking precedence over
+			__STRICT_ANSI__).
+
+   _FORTIFY_SOURCE	Add security hardening to many library functions.
+			Set to 1 or 2; 2 performs stricter checks than 1.
+
+   _REENTRANT, _THREAD_SAFE
+			Obsolete; equivalent to _POSIX_C_SOURCE=199506L.
+
+   The `-ansi' switch to the GNU C compiler, and standards conformance
+   options such as `-std=c99', define __STRICT_ANSI__.  If none of
+   these are defined, or if _DEFAULT_SOURCE is defined, the default is
+   to have _POSIX_SOURCE set to one and _POSIX_C_SOURCE set to
+   200809L, as well as enabling miscellaneous functions from BSD and
+   SVID.  If more than one of these are defined, they accumulate.  For
+   example __STRICT_ANSI__, _POSIX_SOURCE and _POSIX_C_SOURCE together
+   give you ISO C, 1003.1, and 1003.2, but nothing else.
+
+   These are defined by this file and are used by the
+   header files to decide what to declare or define:
+
+   __GLIBC_USE (F)	Define things from feature set F.  This is defined
+			to 1 or 0; the subsequent macros are either defined
+			or undefined, and those tests should be moved to
+			__GLIBC_USE.
+   __USE_ISOC11		Define ISO C11 things.
+   __USE_ISOC99		Define ISO C99 things.
+   __USE_ISOC95		Define ISO C90 AMD1 (C95) things.
+   __USE_ISOCXX11	Define ISO C++11 things.
+   __USE_POSIX		Define IEEE Std 1003.1 things.
+   __USE_POSIX2		Define IEEE Std 1003.2 things.
+   __USE_POSIX199309	Define IEEE Std 1003.1, and .1b things.
+   __USE_POSIX199506	Define IEEE Std 1003.1, .1b, .1c and .1i things.
+   __USE_XOPEN		Define XPG things.
+   __USE_XOPEN_EXTENDED	Define X/Open Unix things.
+   __USE_UNIX98		Define Single Unix V2 things.
+   __USE_XOPEN2K        Define XPG6 things.
+   __USE_XOPEN2KXSI     Define XPG6 XSI things.
+   __USE_XOPEN2K8       Define XPG7 things.
+   __USE_XOPEN2K8XSI    Define XPG7 XSI things.
+   __USE_LARGEFILE	Define correct standard I/O things.
+   __USE_LARGEFILE64	Define LFS things with separate names.
+   __USE_FILE_OFFSET64	Define 64bit interface as default.
+   __USE_MISC		Define things from 4.3BSD or System V Unix.
+   __USE_ATFILE		Define *at interfaces and AT_* constants for them.
+   __USE_GNU		Define GNU extensions.
+   __USE_FORTIFY_LEVEL	Additional security measures used, according to level.
+
+   The macros `__GNU_LIBRARY__', `__GLIBC__', and `__GLIBC_MINOR__' are
+   defined by this file unconditionally.  `__GNU_LIBRARY__' is provided
+   only for compatibility.  All new code should use the other symbols
+   to test for features.
+
+   All macros listed above as possibly being defined by this file are
+   explicitly undefined if they are not explicitly defined.
+   Feature-test macros that are not defined by the user or compiler
+   but are implied by the other feature-test macros defined (or by the
+   lack of any definitions) are defined by the file.
+
+   ISO C feature test macros depend on the definition of the macro
+   when an affected header is included, not when the first system
+   header is included, and so they are handled in
+   <bits/libc-header-start.h>, which does not have a multiple include
+   guard.  Feature test macros that can be handled from the first
+   system header included are handled here.  */
+
 
 /* Undefine everything, so we get a clean slate.  */
 #undef	__USE_ISOC11
@@ -68,12 +141,19 @@
 #undef	__KERNEL_STRICT_NAMES
 #undef	__GLIBC_USE_DEPRECATED_GETS
 
-/* Suppress kernel-name space pollution unless user expressedly asks for it.  */
+/* Suppress kernel-name space pollution unless user expressedly asks
+   for it.  */
 #ifndef _LOOSE_KERNEL_NAMES
 # define __KERNEL_STRICT_NAMES
 #endif
 
-/* Convenience macro to test the version of gcc.  */
+/* Convenience macro to test the version of gcc.
+   Use like this:
+   #if __GNUC_PREREQ (2,8)
+   ... code requiring gcc 2.8 or later ...
+   #endif
+   Note: only works for GCC 2.0 and later, because __GNUC_MINOR__ was
+   added in 2.0.  */
 #if defined __GNUC__ && defined __GNUC_MINOR__
 # define __GNUC_PREREQ(maj, min) \
 	((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
@@ -81,7 +161,10 @@
 # define __GNUC_PREREQ(maj, min) 0
 #endif
 
-/* Similarly for clang.  */
+/* Similarly for clang.  Features added to GCC after version 4.2 may
+   or may not also be available in clang, and clang's definitions of
+   __GNUC(_MINOR)__ are fixed at 4 and 2 respectively.  Not all such
+   features can be queried via __has_extension/__has_feature.  */
 #if defined __clang_major__ && defined __clang_minor__
 # define __glibc_clang_prereq(maj, min) \
   ((__clang_major__ << 16) + __clang_minor__ >= ((maj) << 16) + (min))
@@ -92,7 +175,10 @@
 /* Whether to use feature set F.  */
 #define __GLIBC_USE(F)	__GLIBC_USE_ ## F
 
-/* _BSD_SOURCE and _SVID_SOURCE are deprecated aliases for _DEFAULT_SOURCE.  */
+/* _BSD_SOURCE and _SVID_SOURCE are deprecated aliases for
+   _DEFAULT_SOURCE.  If _DEFAULT_SOURCE is present we do not
+   issue a warning; the expectation is that the source is being
+   transitioned to use the new macro.  */
 #if (defined _BSD_SOURCE || defined _SVID_SOURCE) \
     && !defined _DEFAULT_SOURCE
 # warning "_BSD_SOURCE and _SVID_SOURCE are deprecated, use _DEFAULT_SOURCE"
@@ -196,8 +282,11 @@
 #endif
 
 /* Some C libraries once required _REENTRANT and/or _THREAD_SAFE to be
-   defined in all multithreaded code.  We treat them as compatibility
-   synonyms for _POSIX_C_SOURCE=199506L, never lowering the level.  */
+   defined in all multithreaded code.  GNU libc has not required this
+   for many years.  We now treat them as compatibility synonyms for
+   _POSIX_C_SOURCE=199506L, which is the earliest level of POSIX with
+   comprehensive support for multithreaded code.  Using them never
+   lowers the selected level of POSIX conformance, only raises it.  */
 #if ((!defined _POSIX_C_SOURCE || (_POSIX_C_SOURCE - 0) < 199506L) \
      && (defined _REENTRANT || defined _THREAD_SAFE))
 # define _POSIX_SOURCE   1
@@ -312,7 +401,10 @@
 # define __USE_FORTIFY_LEVEL 0
 #endif
 
-/* The function 'gets' existed in C89, but is impossible to use safely.  */
+/* The function 'gets' existed in C89, but is impossible to use
+   safely.  It has been removed from ISO C11 and ISO C++14.  Note: for
+   compatibility with various implementations of <cstdio>, this test
+   must consider only the value of __cplusplus when compiling C++.  */
 #if defined __cplusplus ? __cplusplus >= 201402L : defined __USE_ISOC11
 # define __GLIBC_USE_DEPRECATED_GETS 0
 #else
@@ -324,23 +416,21 @@
 #include <stdc-predef.h>
 
 /* This macro indicates that the installed library is the GNU C Library.
-   For historic reasons the value now is 6 and this will stay from now on.  */
+   For historic reasons the value now is 6 and this will stay from now
+   on.  The use of this variable is deprecated.  Use __GLIBC__ and
+   __GLIBC_MINOR__ now (see below) when you want to test for a specific
+   GNU C library version and use the values in <gnu/lib-names.h> to get
+   the sonames of the shared libraries.  */
 #undef  __GNU_LIBRARY__
 #define __GNU_LIBRARY__ 6
 
-/* Major and minor version number of the GNU C library package.  el8 ships
-   glibc 2.28 and this tree veneers onto its symbol set node for node, so a
-   package that gates on the pair gets the vendor's own answer.  */
+/* Major and minor version number of the GNU C library package.  Use
+   these macros to test for features in specific releases.  */
 #define	__GLIBC__	2
 #define	__GLIBC_MINOR__	28
 
 #define __GLIBC_PREREQ(maj, min) \
 	((__GLIBC__ << 16) + __GLIBC_MINOR__ >= ((maj) << 16) + (min))
-
-/* Not glibc's, and asked at a different time than the compiler's
-   __ELFSYSVNT__.  This one lets source know at preprocess time which
-   platform's headers it is reading; config.guess does not see it.  */
-#define	__ELFSYSVNT_HEADERS__	1
 
 /* This is here only because every header file already includes this one.  */
 #ifndef __ASSEMBLER__
@@ -364,10 +454,12 @@
 # define __USE_EXTERN_INLINES	1
 #endif
 
-/* Which of the named interfaces are actually present.  glibc generates this
-   per configuration; here it is generated from WP-52's classification, and
-   the fourth bucket -- symbols with nothing behind them -- is what makes it
-   worth having rather than empty.  */
+
+/* This is here only because every header file already includes this one.
+   Get the definitions of all the appropriate `__stub_FUNCTION' symbols.
+   <gnu/stubs.h> contains `#define __stub_FUNCTION' when FUNCTION is a stub
+   that will always return failure (and set errno to ENOSYS).  */
 #include <gnu/stubs.h>
+
 
 #endif	/* features.h  */
