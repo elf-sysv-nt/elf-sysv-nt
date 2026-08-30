@@ -691,6 +691,25 @@ breakpoint in one that arrived through `dlopen`.
 Early rather than late, and deliberately so. The alternative is debugging a
 world no tool can see, which taxes every package after this one.
 
+Delivered 2026-08-30, under `loader/rdebug/`. `rdebug.c` maintains one
+`_r_debug` structure and a doubly linked `link_map` list hung off it, with every
+change bracketed by an `r_state` transition and a call to `_dl_debug_state`, the
+breakpoint function whose address it publishes in `r_brk`. The rendezvous is
+found through the root object's `DT_DEBUG` entry rather than a fixed address
+(DR-0022), which the runtime's mapped-anywhere nature requires, and the list is
+WP-33's walked graph lifted node for node in load order. The done-when names a
+gdb built for the triple, which does not exist yet — that is WP-60 — so the live
+check is deferred there and not faked. What is certified in `loader/rdebug/t/`
+instead is the whole of what such a gdb consumes: `r_debug` and `link_map` are
+held byte-for-byte to the SVr4/gdb layout by `offsetof` and again by a raw-byte
+walk through gdb's literal offsets; the list is walkable exactly as `solib-svr4`
+walks it; `r_brk` names `_dl_debug_state`; `r_state` and the chain move correctly
+through a startup population, a `dlopen` add and a `dlclose` remove; and end to
+end, a real program cross-linked against a real shared library is walked by
+WP-33, lifted into the rendezvous, and both objects are read back through
+`r_map` in load order — the loader announcing a second object. The link-map
+shape and the `DT_DEBUG` discovery are recorded in DR-0022.
+
 ---
 
 ## Phase 4 — process integration
