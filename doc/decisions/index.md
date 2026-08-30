@@ -44,6 +44,7 @@ is a record nobody will find.
 | [0031](0031-status-lives-in-a-tracked-ledger.md) | build status is a tracked ledger and the worker is driven from the plan | accepted 2026-08-30 | none |
 | [0032](0032-the-companion-set-is-eight-libraries.md) | the companion set is the eight libraries DT_NEEDED reaches, no more | accepted 2026-08-30 | none |
 | [0033](0033-an-elf-core-from-the-runtime.md) | a fatal signal leaves an ELF core, written by the runtime | accepted 2026-08-30 | none |
+| [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30 | none |
 
 ## What earns a record
 
