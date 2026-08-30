@@ -430,6 +430,28 @@ Cygwin's rule is inherited down to the digit in the name, so the counter starts
 at the first release rather than at the first break. Retrofitting one after the
 fact means guessing which of the existing binaries predate which change.
 
+Delivered 2026-08-30, under `runtime/version/`. The counters, the stamp a
+program carries, and the runtime's own stamp are in `elfsysv-version.h`, re-facing
+Cygwin's `CYGWIN_VERSION_API_MAJOR`/`_MINOR`, `CYGWIN_VERSION_DLL_IDENTIFIER`,
+and the `per_process` fields its crt0 writes, read against `newlib-cygwin`
+b11613e47. The load check is `compat.c`/`compat.h`, re-facing
+`check_sanity_and_sync` (`dcrt0.cc`) in its order — the stamp-size backup, the
+generation digit, then the counter — and returning a verdict with a diagnostic
+rather than aborting, so the caller reports and exits cleanly. Two departures
+from Cygwin are recorded in DR-0018: the refusal reads the combined
+`major * 1000 + minor` rather than the major alone, because every additive change
+lands in the minor and a program built after one needs a runtime that has it; and
+the pair starts at `0.1`, the first release, with `CHANGELOG.md` as the changelog
+discipline and the `0.1` baseline. The done-condition was met on the host
+toolchain, where `t/run.sh` builds and runs `t/compat_test.c`: a program stamped
+`0.3` runs against a runtime stamped `0.5`, a program stamped `0.7` is refused
+against it with a diagnostic naming both versions, and the equal, major-axis,
+wrong-generation, and stamp-size cases each reach their expected verdict, eleven
+cases with no failure. The counter is built and run on the host gcc, as WP-22's
+crossing was, because the verdict has to run; `compat.c` is plain integer and
+string comparison and links into the runtime unchanged, and cross-compiles once
+the veneer headers (WP-50) are in the cross sysroot, which `README.md` records.
+
 ---
 
 ## Phase 3 — TLS and the loader
