@@ -82,6 +82,19 @@ fi
 log=$work/build/gcc2-make.log
 mkdir -p "$build"
 
+# One build at a time.  The unattended runner overlaps itself -- a slice of
+# make can outlive the run that started it -- so a live build marks the tree
+# with its pid and a later invocation defers to it rather than corrupting
+# the objects under it.  A pid that is no longer alive is a finished or
+# killed slice, and the build resumes over it.
+pidfile=$build/.building
+if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+  echo "stage2: build in progress (pid $(cat "$pidfile")); deferring"
+  exit 0
+fi
+echo $$ > "$pidfile"
+trap 'rm -f "$pidfile"' EXIT
+
 run() { # step, make targets...
   step=$1; shift
   echo "stage2: $step"
