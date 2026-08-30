@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# install-veneer -- put the veneer's libraries where the linker looks.
+#
+# WP-53 builds libc.so.6 and libc.a; WP-54 builds the eight companions an
+# el8 binary names beside them.  Both build into REPO/build and neither
+# installs, so this script closes the gap: it runs the two builders and
+# copies what they made into the sysroot's usr/lib64, beside WP-14's
+# startup files, then writes the unversioned dev names (libc.so, libm.so,
+# ...) as symlinks so `-lc' and `-lm' resolve at link time.  el8 ships a
+# few of those dev names as linker scripts rather than links; for stub
+# bodies the distinction buys nothing, and the veneer's real semantics
+# arrive through the forward map either way.
+#
+# Usage:
+#   install-veneer [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -B DIR, --build=DIR    The build root the builders used.
+#                          [default: REPO/build]
+#   -s, --skip-build       Install what is already built; build nothing.
+#   -n, --dry-run          Report and stop.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=install-veneer
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+
+prefix=${INSTALL_VENEER_PREFIX:-$HOME/x-elfsysvnt}
+target=${INSTALL_VENEER_TARGET:-x86_64-elfsysvnt-linux-gnu}
+build=${INSTALL_VENEER_BUILD:-$root/build}
+skip=0
+dry=0
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -P|--prefix) prefix=$2; shift 2 ;;
+    -T|--target) target=$2; shift 2 ;;
+    -B|--build)  build=$2;  shift 2 ;;
+    -s|--skip-build) skip=1; shift ;;
+    -n|--dry-run) dry=1; shift ;;
+    *) echo "usage: install-veneer [-P DIR] [-T TRIPLE] [-B DIR] [-s] [-n]" >&2; exit 2 ;;
+  esac
+done
+
+libdir=$prefix/$target/sys-root/usr/lib64
+[ -d "$libdir" ] || die "$libdir does not exist; run build-csu first"
+
+if [ "$skip" = 0 ] && [ "$dry" = 0 ]; then
+  "$root/veneer/libc/build-libc" -P "$prefix" -B "$build/libc" -q \
+    || die "build-libc failed"
+  "$root/veneer/companions/build-companions" -P "$prefix" -B "$build/companions" -q \
+    || die "build-companions failed"
+fi
+
+# The versioned names, exactly as an el8 loader would want them.
+set -- "$build/libc/libc.so.6" "$build"/companions/*/lib*.so.*
+[ -f "$1" ] || die "nothing built under $build; run without -s first"
+
+if [ "$dry" = 1 ]; then
+  for f in "$@" "$build/libc/libc.a"; do echo "$f -> $libdir/"; done
+  exit 0
+fi
+
+for f in "$@"; do
+  [ -f "$f" ] || die "missing $f"
+  cp -f "$f" "$libdir/" || die "cannot copy $f"
+  chmod 644 "$libdir/$(basename "$f")"
+done
+cp -f "$build/libc/libc.a" "$libdir/" || die "cannot copy libc.a"
+chmod 644 "$libdir/libc.a"
+
+# Dev names: strip the version suffix of each installed soname.
+installed=0
+for f in "$@"; do
+  so=$(basename "$f")
+  dev=${so%%.so.*}.so
+  ln -sf "$so" "$libdir/$dev" || die "cannot link $dev"
+  installed=$((installed+1))
+done
+
+echo "$installed libraries, libc.a, and their dev names under $libdir"
