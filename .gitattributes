@@ -1,0 +1,7 @@
+# Append-mostly logs: keep both sides' added lines on a merge instead of
+# conflicting on unrelated additions (proposal 0005). bin/normalize-logs sorts
+# and de-duplicates them after the merge, so order and duplicates do not leak.
+doc/decisions/index.md    merge=union
+doc/status/delivered.txt  merge=union
+doc/status/hold.txt       merge=union
+a/build-blockers.log      merge=union

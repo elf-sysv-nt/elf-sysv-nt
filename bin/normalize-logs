@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+#
+# Tidy the union-merged append-logs (proposal 0005): sort the decisions index by
+# record number, and de-duplicate the ledger, hold list and blocker log that a
+# union merge may have left with repeated or out-of-order lines. Idempotent.
+#
+# Usage:
+#   normalize-logs [-C DIR] [-q]
+#
+import os, re, sys
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, '.git')):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def sort_index(path):
+    if not os.path.isfile(path):
+        return
+    lines = open(path, encoding='utf-8').read().split('\n')
+    rows = [(i, l) for i, l in enumerate(lines) if re.match(r'\| \[\d{4}\]\(', l)]
+    if not rows:
+        return
+    positions = [i for i, _ in rows]
+    ordered = sorted((l for _, l in rows), key=lambda l: re.search(r'\[(\d{4})\]', l).group(1))
+    for pos, row in zip(positions, ordered):
+        lines[pos] = row
+    open(path, 'w', encoding='utf-8').write('\n'.join(lines))
+
+
+def dedup(path):
+    if not os.path.isfile(path):
+        return
+    seen, out = set(), []
+    for l in open(path, encoding='utf-8').read().split('\n'):
+        key = l.strip()
+        if key and not key.startswith('#') and key in seen:
+            continue          # drop a repeated data line a union merge left
+        if key and not key.startswith('#'):
+            seen.add(key)
+        out.append(l)
+    open(path, 'w', encoding='utf-8').write('\n'.join(out))
+
+
+def main(argv):
+    directory, quiet = None, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-C', '--directory'):
+            i += 1; directory = argv[i]
+        elif a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-h', '--help'):
+            print('Usage: normalize-logs [-C DIR] [-q]'); return 0
+        i += 1
+    root = repo_root(directory or '.')
+    sort_index(os.path.join(root, 'doc', 'decisions', 'index.md'))
+    for rel in ('doc/status/delivered.txt', 'doc/status/hold.txt', 'a/build-blockers.log'):
+        dedup(os.path.join(root, rel))
+    if not quiet:
+        print('normalize-logs: index sorted, ledger/hold/blockers de-duplicated')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#
+# Land the current session branch onto the trunk (march), then fast-forward main
+# (proposal 0005). Serialized by the integration lock so two lands never race;
+# binds any XXXX decision-record placeholders to real numbers; normalizes the
+# union-merged append-logs; runs the doc-refs gate; prunes the worktree.
+#
+# Usage:
+#   session-land [-q]        run from inside the session worktree.
+#
+set -u
+prog=session-land
+here=$(cd "$(dirname "$0")/.." && pwd)
+repo=${here%%/a/wt/*}
+[ -d "$repo/.git" ] || repo=$here
+integ="$repo/a/wt/integration"
+lock="$repo/a/.integration.lock"
+
+branch=$(git -C "$here" symbolic-ref --short HEAD 2>/dev/null)
+case "$branch" in
+    ''|march|main) echo "$prog: not on a session branch (HEAD=$branch)" >&2; exit 2;;
+esac
+
+now=$(date +%s)
+if mkdir "$lock" 2>/dev/null; then echo $now > "$lock/ts"; else
+    ts=$(cat "$lock/ts" 2>/dev/null || echo 0)
+    if [ $((now-ts)) -gt 10800 ]; then rm -rf "$lock"; mkdir "$lock"; echo $now > "$lock/ts";
+    else echo "$prog: LOCKED, another land is in progress" >&2; exit 1; fi
+fi
+cleanup() { rm -rf "$lock"; }
+trap cleanup EXIT
+
+git -C "$integ" merge --no-edit "$branch" || {
+    echo "$prog: merge conflict; resolve on $branch and rerun" >&2; exit 1; }
+
+# bind decision-record placeholders now, inside the lock
+for f in "$integ"/doc/decisions/XXXX-*.md; do
+    [ -e "$f" ] || continue
+    n=$(cd "$integ" && python3 bin/allocate-id dr "doc/decisions/$(basename "$f")")
+    echo "$prog: bound $(basename "$f") -> DR-$n" >&2
+done
+
+python3 "$integ/bin/normalize-logs" -q -C "$integ"
+git -C "$integ" add -A doc/decisions doc/status a/build-blockers.log 2>/dev/null
+git -C "$integ" diff --cached --quiet || \
+    git -C "$integ" commit --no-verify -q -m "chore(land): bind ids and normalize logs"
+
+python3 "$integ/bin/check-doc-refs" -q -C "$integ" || {
+    echo "$prog: doc-refs gate failed on the merged tree" >&2; exit 1; }
+
+git -C "$repo" merge --ff-only march || { echo "$prog: main could not fast-forward" >&2; exit 1; }
+
+cd "$repo"
+git worktree remove --force "$here"
+git -C "$repo" branch -D "$branch" >/dev/null
+echo "$prog: landed $branch -> march; main fast-forwarded to $(git -C "$repo" rev-parse --short march)"

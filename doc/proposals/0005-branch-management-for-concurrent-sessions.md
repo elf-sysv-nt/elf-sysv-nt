@@ -1,6 +1,6 @@
 # Proposal 0005 — branch management for concurrent sessions
 
-Status: raised
+Status: accepted 2026-08-30 (DR-0039); mechanism applied
 Author: Philip Dye
 Date: 2026-08-30
 Analysed against: aa7692c on `main`

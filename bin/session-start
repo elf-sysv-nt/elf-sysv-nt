@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# Start an isolated session: a branch <kind>/<slug> cut from the trunk (march),
+# in its own worktree (proposal 0005). Prints the worktree path.
+#
+# Usage:
+#   session-start <kind>/<slug>      e.g. wp/exec-dispatch, op/licensing, spike/foo
+#
+set -u
+prog=session-start
+[ $# -ge 1 ] || { echo "usage: $prog <kind>/<slug>" >&2; exit 2; }
+case "$1" in -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0;; esac
+branch=$1
+case "$branch" in
+    */*) ;;
+    *) echo "$prog: branch must be <kind>/<slug>, e.g. op/licensing" >&2; exit 2;;
+esac
+slug=${branch##*/}
+
+here=$(cd "$(dirname "$0")/.." && pwd)     # this worktree's root
+repo=${here%%/a/wt/*}                       # the main checkout that owns a/wt
+[ -d "$repo/.git" ] || repo=$here           # fallback: the checkout is the repo
+
+wt="$repo/a/wt/$(date +%Y%m%d-%H%M)-$slug"
+if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    echo "$prog: branch $branch already exists" >&2; exit 1
+fi
+git -C "$repo" worktree add -b "$branch" "$wt" march >&2 || exit 1
+echo "$wt"

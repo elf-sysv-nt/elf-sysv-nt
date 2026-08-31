@@ -49,6 +49,7 @@ is a record nobody will find.
 | [0036](0036-ratification-sweep-0008-0035.md) | ratification sweep: DR-0008 through DR-0035 pass the decision ladder and are ratified | accepted 2026-08-30 | proposal F7 |
 | [0037](0037-the-linking-exception-carries-forward.md) | the linking exception carries forward with the modified library, as accepted practice | accepted 2026-08-30 | licensing docket items 1 and 2 |
 | [0038](0038-the-build-environment-is-the-primary-root.md) | the build and certification environment is the primary Cygwin root (3.6.10); supersedes DR-0035 on the CI root | accepted 2026-08-30 | none |
+| [0039](0039-one-trunk-sessions-land-from-worktrees.md) | one merge-only trunk; every session lands from its own worktree via session-start/session-land | accepted 2026-08-30 | proposal 0005 |
 
 ## What earns a record
 

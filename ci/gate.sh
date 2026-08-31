@@ -8,9 +8,10 @@
 # hosted service, the repository lives on one machine, and merges happen
 # here or not at all.
 #
-# The gate insists on the pinned verification root (Cygwin 3.0.7, the
-# rhel root) because a pass anywhere else certifies nothing. The gate's
-# own tests relax that with --allow-unpinned.
+# The gate insists on the pinned verification root (Cygwin 3.6.10, the
+# primary root) because a pass anywhere else certifies nothing. The gate's
+# own tests relax that with --allow-unpinned. (Re-pinned from 3.0.7/rhel by
+# DR-0038: the build environment is the primary root.)
 #
 # Usage:
 #   gate.sh [options]
@@ -56,11 +57,11 @@ done
 
 release=$(uname -r)
 case $release in
-	3.0.7*) ;;
+	3.6.10*) ;;
 	*)
 		if [ "$allow_unpinned" != 1 ]; then
-			printf '%s: this is Cygwin %s, not the pinned 3.0.7 root a pass certifies against.\n' "$prog" "$release" >&2
-			printf '%s: run the merge from the rhel root, or bypass deliberately with git merge --no-verify.\n' "$prog" >&2
+			printf '%s: this is Cygwin %s, not the pinned 3.6.10 root a pass certifies against.\n' "$prog" "$release" >&2
+			printf '%s: run the merge from the primary root, or bypass deliberately with git merge --no-verify.\n' "$prog" >&2
 			exit 2
 		fi
 		[ "$quiet" = 1 ] || printf '%s: warning: unpinned root (Cygwin %s); this run certifies nothing.\n' "$prog" "$release"
