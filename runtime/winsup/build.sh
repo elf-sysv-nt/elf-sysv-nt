@@ -24,7 +24,7 @@ git -C "$src" merge-base --is-ancestor $pin HEAD || {
 cd "$build"
 if [ ! -f Makefile ]; then
   "$src/configure" --prefix="$build/install" --disable-doc \
-    CFLAGS="-g -O2 -mno-red-zone" CXXFLAGS="-g -O2 -mno-red-zone" LDFLAGS="-L$deps" \
+    CFLAGS="-g -O2 -mno-red-zone" CXXFLAGS="-g -O2 -mno-red-zone" LDFLAGS="-L$deps" LDFLAGS_FOR_TARGET="-L$deps" \
     2>&1 | tee -a "$log"
 fi
 make -j"$(nproc)" 2>&1 | tee -a "$log"

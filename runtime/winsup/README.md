@@ -37,3 +37,9 @@ is committed.
   `a/build/wp26-repro`, then a section compare of the two DLLs — `.text`
   and `.data` must match; `.rdata` may embed paths and is reported only.
   It logs to `a/build-logs/wp26-repro.log`.
+- The first repro run failed at `dumper.exe`: the first build had gained
+  its `-lzstd` from a hand edit to the generated utils Makefile, which no
+  fresh build repeats. Recorded fix: pass `LDFLAGS_FOR_TARGET=-L$deps` at
+  configure so winsup's own `AC_CHECK_LIB([zstd])` finds the stub and puts
+  `-lzstd` into `BFD_LIBS` itself. Both `build.sh` and `repro.sh` now pass
+  it, and `repro.sh` creates the stub for itself.

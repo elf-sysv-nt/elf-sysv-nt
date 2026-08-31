@@ -19,13 +19,15 @@ rel=x86_64-pc-cygwin/winsup/cygwin/new-cygwin1.dll
 
 mkdir -p "$build" "$repo/a/build-logs"
 deps=$repo/a/build/deps/lib
+mkdir -p "$deps"
+ln -sf /usr/bin/cygzstd-1.dll "$deps/cygzstd.dll"
 git -C "$src" merge-base --is-ancestor $pin HEAD
 
 cd "$build"
 if [ ! -f Makefile ]; then
   "$src/configure" --prefix="$build/install" --disable-doc \
     CFLAGS="-g -O2 -mno-red-zone" CXXFLAGS="-g -O2 -mno-red-zone" \
-    LDFLAGS="-L$deps" 2>&1 | tee -a "$log"
+    LDFLAGS="-L$deps" LDFLAGS_FOR_TARGET="-L$deps" 2>&1 | tee -a "$log"
 fi
 make -j"$(nproc)" 2>&1 | tee -a "$log"
 
