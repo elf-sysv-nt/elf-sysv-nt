@@ -36,8 +36,8 @@ optreset DATA
 program_invocation_name DATA
 program_invocation_short_name DATA
 reent_data DATA
-sys_errlist DATA
-sys_nerr DATA
+sys_errlist = _sys_errlist DATA
+sys_nerr = _sys_nerr DATA
 sys_sigabbrev DATA
 sys_siglist DATA
 __assert = __face___assert NOSIGFE

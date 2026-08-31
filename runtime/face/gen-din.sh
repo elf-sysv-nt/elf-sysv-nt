@@ -60,7 +60,15 @@ gen() {
     {
       name = $1; disp = $2; fence = $3; target = $4
       mark = (fence == "none" || fence == "-") ? "" : " " fence
-      if (disp == "data") { print name " DATA"; next }
+      if (disp == "data") {
+        # an aliased object keeps its alias (sys_nerr = _sys_nerr DATA);
+        # dropping it exports a name the DLL never defines
+        if (target != "" && target != "-" && target != name)
+          print name " = " target " DATA"
+        else
+          print name " DATA"
+        next
+      }
       c = cls[name]
       if (disp == "sv2ms" && c == "data") { print name " DATA"; next }
       if (disp == "sv2ms" && c == "asis") {
