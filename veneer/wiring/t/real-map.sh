@@ -554,3 +554,32 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-system.o" "$tmp/wire-system.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-system.o" | grep -q 'uname@@GLIBC_2.2.5'
 fi
+
+# The committed math wiring re-derives byte-identical as well.
+# Thirty-four rows, all thunks, none shims: the classification family
+# (isnan, isinf, finite, and the deprecated leading-underscore spellings
+# el8 still exports) with their f/l twins, copysign, frexp, ldexp, modf
+# and scalbn with theirs -- every one forward-same or forward-alias at
+# GLIBC_2.2.5. A classification returns a boolean and the rest split or
+# scale a value in place, so nothing here carries a struct; everything
+# crosses as a tail jump. complex.h and fenv.h declare nothing this
+# forward map wires, so the slice's rows are math.h's alone.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice math \
+    --table "$tmp/wire-math.gen.c" \
+    --thunks "$tmp/wire-math.gen.s" \
+    --shims "$tmp/wire-math.shims.tsv" >/dev/null
+cmp ../wire-math.gen.c "$tmp/wire-math.gen.c"
+cmp ../wire-math.gen.s "$tmp/wire-math.gen.s"
+cmp ../wire-math.shims.tsv "$tmp/wire-math.shims.tsv"
+grep -q '"copysign"' "$tmp/wire-math.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-math.gen.c")" = 34
+test "$(grep -vc '^#' "$tmp/wire-math.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-math-table.o" "$tmp/wire-math.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-math.o" "$tmp/wire-math.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-math.o" | grep -q 'copysign@@GLIBC_2.2.5'
+fi
+
+echo 'real-map: math ok'
