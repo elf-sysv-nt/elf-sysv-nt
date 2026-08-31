@@ -70,7 +70,14 @@ got=$(sha256sum "$rpm" | cut -d' ' -f1)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-( cd "$work" && rpm2cpio "$rpm" | cpio -idmu --quiet ) || die "unpack failed"
+if command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1; then
+  ( cd "$work" && rpm2cpio "$rpm" | cpio -idmu --quiet ) || die "unpack failed"
+else
+  # No rpm2cpio/cpio on this root; rpmx.py is the pure-python unpacker
+  # veneer/version-map already carries for exactly this case.
+  python3 "$here/../../veneer/version-map/rpmx.py" "$rpm" "$work" \
+    usr/include || die "unpack failed"
+fi
 src=$work/usr/include
 [ -d "$src" ] || die "no usr/include in the package"
 
