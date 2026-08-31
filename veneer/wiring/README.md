@@ -553,5 +553,20 @@ sizes do not line up with the writer's. Exercised end to end with
 both sides on el8: one case, match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
 
-The system slice is next (WIP): uname, sysinfo, and the get_*_pages /
-get_nprocs* family off sys/utsname.h and sys/sysinfo.h.
+The system slice is six rows, all thunks, none shims, generated and
+committed as `wire-system.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical -- counts included, the empty shims file among them --
+by `t/real-map.sh`. The rows are uname and the get_nprocs / get_*_pages
+family off sys/utsname.h and sys/sysinfo.h, every one forward-same at
+GLIBC_2.2.5; a struct copy or a scalar count means the same thing on
+both sides of the bound table, so everything crosses as a tail jump.
+One diff case covers the six calls through invariants rather than raw
+values, since a hostname, kernel release, memory size and CPU count
+differ between the reference machine and wherever the case runs: the
+uname fields all read non-empty, sysinfo succeeds with uptime
+non-negative and free memory no greater than total, and the two ways
+of asking after CPUs and pages -- get_nprocs against get_nprocs_conf,
+get_avphys_pages against get_phys_pages -- keep their bounding
+relationship. Exercised end to end with both sides on el8: one case,
+match; judging the wired veneer awaits the runtime the earlier slices
+wait on.

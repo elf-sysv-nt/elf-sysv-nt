@@ -531,3 +531,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-io.o" "$tmp/wire-io.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-io.o" | grep -q 'readv@@GLIBC_2.2.5'
 fi
+
+# The committed system wiring re-derives byte-identical as well. Six
+# rows, all thunks, none shims: uname, sysinfo, and the get_nprocs /
+# get_*_pages family off sys/utsname.h and sys/sysinfo.h, every one
+# forward-same at GLIBC_2.2.5. Their observable behaviour is a struct
+# copy or a scalar count, so everything crosses as a tail jump.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice system \
+    --table "$tmp/wire-system.gen.c" \
+    --thunks "$tmp/wire-system.gen.s" \
+    --shims "$tmp/wire-system.shims.tsv" >/dev/null
+cmp ../wire-system.gen.c "$tmp/wire-system.gen.c"
+cmp ../wire-system.gen.s "$tmp/wire-system.gen.s"
+cmp ../wire-system.shims.tsv "$tmp/wire-system.shims.tsv"
+grep -q '"uname"' "$tmp/wire-system.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-system.gen.c")" = 6
+test "$(grep -vc '^#' "$tmp/wire-system.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-system-table.o" "$tmp/wire-system.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-system.o" "$tmp/wire-system.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-system.o" | grep -q 'uname@@GLIBC_2.2.5'
+fi
