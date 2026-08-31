@@ -33,6 +33,7 @@ In dependency order, which is also cost order.
 | 9 | `spike/vendor-image-shape/` | What shape are el8's own binaries — OSABI, ABI-tag, `PT_LOAD` alignment, SONAME? | WP-10's four compiled-in target values. Run 2026-08-29: measured against 41 el8 ELF files. |
 | 10 | `spike/ld-tls-relaxation/` | Does the linker emit `%fs`-relative code on its own? | The binutils TLS-relaxation policy in WP-12. Run 2026-08-29: yes, so WP-12 refuses those relocations rather than rewriting them. |
 | 11 | `spike/cygwin-from-source/` | Can this machine build `cygwin1.dll`, and does a reserving delivery hold the red zone? | WP-26's from-source build and the red-zone reservation. Run 2026-08-29: both recorded, the prerequisites and the reservation captured. |
+| 12 | `spike/demand-census/` | How many el8 packages need a symbol the classification can only stub? | WP-56's slice order and its named acceptance package. Infrastructure landed 2026-08-31; the run over the 4855-name worklist is in progress. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
