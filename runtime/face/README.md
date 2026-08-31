@@ -187,8 +187,20 @@ Planned order of work, one milestone per commit:
       body; the words are per thread; unaligned and disagreeing probes
       refuse, so a wrong offset cannot latch silently.
    2. The per-thread split of the blocked mask and alternate stack that
-      DR-0030 deferred — remaining, with the state reached through the
-      carrier's TCB rather than one process-wide record.
+      DR-0030 deferred — done, in two halves. The signal package now
+      resolves every mask and altstack access through a per-thread
+      record (`elf_sig_tls`), asked of an installable provider with the
+      old process-wide fields serving as the fallback, so the certified
+      single-thread path is unchanged; `elf_sig_tls_init` gives a new
+      thread the creator's mask minus the unblockable bits and no
+      alternate stack, and the WP-43 unit certification drives the seam
+      with two records behind a switchable provider. `sigtls.c` is the
+      faced runtime's provider: the record hangs on the named `sigtls`
+      slot of the TCB head, found through the carrier, with
+      establishment layered on the carrier's launch — TCB first, record
+      second, both before the body. `t/sigtls.sh` certifies resolution,
+      establishment order, inheritance, independence and the fallback
+      against fabricated TCBs on harness-owned stacks, no DLL required.
 
 Landing also waits on the Done-when's last clause: a static ELF through
 WP-41's branch calling a real export and returning.
