@@ -77,6 +77,32 @@ the operator in DR-0003: a runtime-owned thread pointer through `%gs`, carrier
 C3, measured by `spike/gs-thread-pointer/`. WP-30's interface was unaffected
 throughout, and its body may now be written against that model.
 
+### Planned spikes (F4)
+
+Three censuses are cut but not yet run. Their bands are written before the
+numbers exist, per the DR-0001 discipline, and are recorded in full in
+`doc/design-gaps/proposal.md`. They run on one shared el8 corpus fetch and land
+as `milestones.md` rows when they run; because they need that fetch and a
+judgement on the bands, they are run deliberately rather than swept up by the
+autonomous worker.
+
+Spike 12, the demand census: how many el8 packages need a symbol the
+classification cannot yet stand behind, and — as the useful by-product — the
+demand ranking WP-56's slices are ordered by. Bands: under 10% of packages
+touching bucket 4 is the tail already planned; 10% to 40% is WP-56 proceeding
+with a published compatibility statement; over 40% is a program-level review.
+
+Spike 13, the site census: over the same corpus, the shares of `%fs` TLS sites
+that are read-modify-write, that carry a `lock` prefix, and that are the
+self-pointer form, and the count of raw `syscall` instructions outside glibc's
+own objects — the count proposal 0003 declared no longer optional, and the price
+on DR-0005's raw-syscall bound.
+
+Spike 14, build throughput: one mid-size autotools package built end to end
+under the pinned root against the same build on el8, timed, with fork count and
+peak commit recorded beside the wall clock. It gates whether a performance pass
+is owed before the mass rebuild rather than during it.
+
 ---
 
 ## Phase 1 — target definition and toolchain
@@ -271,6 +297,10 @@ is the other, and it has not been run over the el8 set: the source dump spike 5
 used is gone from this machine and refetching 2893 packages is hours. The tool
 is verified against a constructed tree and against `flac`, which is to say it
 works and has not yet been pointed at the thing it exists for.
+
+Completion (F4): the `asm-ledger` run over the el8 set is scheduled with spike 13,
+which fetches the same corpus; the two run together, and the ledger they produce
+is the named residue of both the red-zone flag and DR-0012's unwind rule.
 
 Two of those Needs lines point forward into phase 5, and that is the ordinary
 libc bootstrap cycle rather than a mistake in the graph. WP-50 is a header set,
