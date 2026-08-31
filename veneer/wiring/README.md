@@ -486,3 +486,27 @@ line-relative and stopping dot at the break, the empty pattern, and
 a match-by-match scan through rm_eo). Exercised end to end with both
 sides on el8: four cases, all match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The syslog slice matches regex for size: 5 rows, all thunks, no
+shims, generated and committed as `wire-syslog.gen.c` / `.gen.s` /
+`.shims.tsv` and pinned byte-identical — counts included — by
+`t/real-map.sh`. The rows are the syslog.h five — openlog, syslog,
+closelog, setlogmask, vsyslog — every one forward-same at
+GLIBC_2.2.5; the format string and the mask value mean the same
+thing on both sides of the bound table, so everything crosses as a
+tail jump. Four diff cases lean on LOG_PERROR with stderr routed
+onto stdout to make the message copy observable: the setlogmask
+contract (the initial all-priorities mask, LOG_MASK and LOG_UPTO's
+bit patterns, every call returning the mask it replaced, zero as a
+read-back that changes nothing), the copied text (the ident prefix,
+printf conversions, %m expanding the errno at the call, and exactly
+one newline-terminated line whether or not the format supplied one),
+the mask gating emission (a dropped priority produces nothing at
+all, facility bits play no part in the masking, widening readmits),
+and the connection's identity (openlog re-tagging across closelog,
+LOG_PERROR riding through it, and vsyslog through a variadic wrapper
+printing exactly what the direct call prints — while closelog's
+reset of the tag to the program name, which differs between the two
+sides' binaries, is deliberately left unprinted). Exercised end to
+end with both sides on el8: four cases, all match; judging the wired
+veneer awaits the runtime the earlier slices wait on.
