@@ -109,3 +109,25 @@ if command -v "$XCC" >/dev/null 2>&1; then
 fi
 
 echo 'real-map: ok'
+
+# The committed filesystem wiring re-derives byte-identical as well.
+# This is the first slice with a real shim worklist: the stat family
+# and friends cross with layout-bearing structs, so their rows land in
+# the shims file rather than as thunks, and the counts are pinned.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice filesystem \
+    --table "$tmp/wire-filesystem.gen.c" \
+    --thunks "$tmp/wire-filesystem.gen.s" \
+    --shims "$tmp/wire-filesystem.shims.tsv" >/dev/null
+cmp ../wire-filesystem.gen.c "$tmp/wire-filesystem.gen.c"
+cmp ../wire-filesystem.gen.s "$tmp/wire-filesystem.gen.s"
+cmp ../wire-filesystem.shims.tsv "$tmp/wire-filesystem.shims.tsv"
+grep -q '"mkdir"' "$tmp/wire-filesystem.gen.c"
+grep -q '^__xstat	' "$tmp/wire-filesystem.shims.tsv"
+test "$(grep -vc '^#' "$tmp/wire-filesystem.shims.tsv")" = 36
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-filesystem-table.o" "$tmp/wire-filesystem.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-filesystem.o" "$tmp/wire-filesystem.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-filesystem.o" | grep -q 'mkdir@@GLIBC_2.2.5'
+fi
