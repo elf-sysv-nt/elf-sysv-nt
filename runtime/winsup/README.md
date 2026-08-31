@@ -30,4 +30,10 @@ is committed.
   the DR-0021 reserved carrier field to _cygtls"). Two `static_assert`s
   after the class guard that it stays last and that the struct still fits
   `__CYGTLS_PADSIZE__`, so its distance below `StackBase` is the build
-  constant `__CYGTLS_PADSIZE__ - sizeof (_cygtls) + 8`.
+  constant `__CYGTLS_PADSIZE__ - sizeof (_cygtls) + 8`. From the DLL's
+  debug info that is `12800 - 5344 + 8 = 7464`, and `runtime/tls/measure`'s
+  3.6.10 rerun confirms the slot from the other side (see its README).
+- `repro.sh` answers the reproducibility clause: a second clean build under
+  `a/build/wp26-repro`, then a section compare of the two DLLs — `.text`
+  and `.data` must match; `.rdata` may embed paths and is reported only.
+  It logs to `a/build-logs/wp26-repro.log`.
