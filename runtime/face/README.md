@@ -42,9 +42,20 @@ Planned order of work, one milestone per commit:
       bodies of arity 0, 4, 6, and 10 called from a System V caller —
       that every argument and return crosses exactly, at Microsoft stack
       alignment.
-   3. The fp and aggr faces, compiled from their recorded prototypes; the
-      unlisted disposition read from Cygwin's own declarations; and the
-      `.def`/`.din` seam that puts all the faces on the DLL.
+   3. The typed faces — done. A float, double, _Complex, or by-value
+      aggregate anywhere in the signature changes which registers the two
+      conventions use, so each fp (307) and aggr (10) face is a C thunk
+      compiled from its recorded prototype: a `sysv_abi` function over a
+      Microsoft body reached through an `__asm__` label bound to the
+      face-table target. `gen-typed-faces.sh` emits `typed-faces.gen.c`;
+      `t/typed-face.sh` certifies reproduction, exact coverage of both
+      classes in order, that the unit compiles clean against the host
+      headers, and — driving the same emission over fabricated tables —
+      that doubles past both register files, mixed signatures, floats,
+      long doubles, complex values, and structs and unions in every
+      passing class cross exactly.
+   4. The unlisted disposition read from Cygwin's own declarations, and
+      the `.def`/`.din` seam that puts all the faces on the DLL.
 3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
 4. `DllMain` and the PE TLS callback fired by the host's own loader.
 5. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
