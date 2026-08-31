@@ -326,3 +326,26 @@ armed, read delivers as exactly one expiration, and a zeroed settime
 disarms back to nothing. Exercised end to end with both sides on el8:
 four cases, all match; judging the wired veneer awaits the runtime the
 earlier slices wait on.
+
+The terminal slice wires 30 rows, 29 thunks and 1 shim, generated and
+committed as `wire-terminal.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. The termios
+surface and the utmp/utmpx record walkers cross as thunks; ioctl is
+the one shim, its request codes a translation rather than a jump. The
+pty helpers the slice map also claims — openpty, forkpty, login and
+kin — live in libutil on el8, so the forward map never carries them
+and they are not this slice's rows; the getut*_r variants and the
+getutmp pair stay stubs. Four diff cases cover the cf* family over a
+zeroed termios (speed setters round-tripping through the getters,
+cfsetspeed feeding both directions, cfmakeraw's edits as flag facts,
+a made-up speed refused EINVAL), the tc* control surface refusing a
+pipe with ENOTTY call by call and EBADF once the descriptor is gone,
+the utmp and utmpx records over private files named through utmpname
+and utmpxname — written, found again by id and by line after a
+rewind, missed when nothing matches, and updwtmp growing a wtmp file
+by exactly one record — and ioctl observed over a pipe: FIONREAD
+counting what sits unread, FIONBIO's edit showing up in the fcntl
+flags, FIOCLEX setting close-on-exec, a terminal request answering
+ENOTTY and a closed descriptor EBADF. Exercised end to end with both
+sides on el8: four cases, all match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
