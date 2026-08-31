@@ -112,3 +112,17 @@ not-a-terminal answers (isatty, ttyname, tcgetpgrp on a pipe) with
 confstr and pathconf. Exercised end to end with both sides on el8: six
 cases, all match; judging the wired veneer awaits the same runtime the
 earlier slices wait on.
+
+The stdlib slice is stdlib.h and inttypes.h minus what malloc.h claims:
+97 rows, all thunks, no shims, generated and committed as
+`wire-stdlib.gen.c` / `.gen.s` / `.shims.tsv` and pinned byte-identical
+by `t/real-map.sh`. Six diff cases cover the strto*/ato* conversions
+with endptr and ERANGE, the environment (setenv's clobber flag, putenv,
+secure_getenv, clearenv), qsort with qsort_r and bsearch plus the
+abs/div families, every seeded generator (rand, rand_r, random with
+initstate/setstate, the *48 family), temp names with realpath and
+canonicalize_file_name plus system, rpmatch, getsubopt and the C-locale
+multibyte no-ops, and leaving — on_exit order and quick_exit skipping
+it, observed through fork and wait. Exercised end to end with both
+sides on el8: six cases, all match; judging the wired veneer awaits the
+runtime the earlier slices wait on.
