@@ -40,7 +40,13 @@ extern void elfsysv_leaky_sysv(uint64_t);
 
 /* The System V shapes of the exports this test calls. */
 typedef uint64_t (__attribute__((sysv_abi)) *strlen_fn)(const char *);
-typedef long     (__attribute__((sysv_abi)) *labs_fn)(long);
+/* int64_t, not long: the System V ABI the face presents is LP64, so its `long`
+ * is 64 bits, while a Windows-compiled caller's `long` is 32. Declaring the
+ * argument `long` here passed a 32-bit value into a 64-bit register slot whose
+ * upper half was undefined -- which a Cygwin-gcc harness happened to
+ * sign-extend and a native one did not, so the sole-runtime harness read a
+ * garbage argument. Matching the ABI width fixes it for both. */
+typedef int64_t  (__attribute__((sysv_abi)) *labs_fn)(int64_t);
 typedef int      (__attribute__((sysv_abi)) *memcmp_fn)(const void *,
 							const void *, uint64_t);
 typedef double   (__attribute__((sysv_abi)) *atan2_fn)(double, double);

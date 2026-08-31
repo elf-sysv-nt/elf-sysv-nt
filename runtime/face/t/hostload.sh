@@ -24,6 +24,19 @@ trap 'rm -rf "$tmp"' EXIT
 
 cflags="-std=gnu11 -O1 -g -Wall -Wextra"
 
+# Built native (mingw), not against cygwin1.dll: hostload loads the faced DLL as
+# the sole Cygwin runtime of its process, the shape the product ships. As a
+# Cygwin program it held a second runtime, and the faced DLL's init then ran the
+# fork-style cygheap copy against the first one and logged
+# "child_copy: cygheap read copy failed ... Win32 error 299". hostload.c uses no
+# Cygwin service, so native is a clean move. (sole-runtime-crossing proposal.)
+cc=x86_64-w64-mingw32-gcc
+if ! command -v "$cc" >/dev/null 2>&1; then
+  say "SKIP: no $cc; the host-loader test not built"
+  say "verdict: yes"
+  exit 0
+fi
+
 # the control DLL: a DllMain that declines
 cat > "$tmp/control.c" <<'EOF'
 #define WIN32_LEAN_AND_MEAN
@@ -34,10 +47,10 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
 	return FALSE;
 }
 EOF
-gcc $cflags -shared -o "$tmp/control.dll" "$tmp/control.c" \
+"$cc" $cflags -shared -o "$tmp/control.dll" "$tmp/control.c" \
   || { bad "control DLL does not build"; }
 
-gcc $cflags -o "$tmp/hostload.exe" "$here/hostload.c" \
+"$cc" $cflags -o "$tmp/hostload.exe" "$here/hostload.c" \
   || { bad "hostload.c does not build"; }
 
 if [ "$fail" != 0 ]; then say "verdict: no"; exit 1; fi
@@ -56,10 +69,12 @@ else
   bad "the faced DLL has no PE TLS data directory"
 fi
 
-# the loader fires both
-if env -u ELFSYSV_TLS_OBSERVED "$tmp/hostload.exe" \
+# the loader fires both. Launched through cmd per the standing practice, with
+# the observation variable cleared in the environment cmd inherits, so the
+# process comes up with a parent that is not itself Cygwin.
+if env -u ELFSYSV_TLS_OBSERVED cmd /c "$(cygpath -w "$tmp/hostload.exe")" \
      "$(cygpath -w "$dll")" "$(cygpath -w "$tmp/control.dll")" \
-     > "$tmp/hostload.out" 2>&1; then
+     > "$tmp/hostload.out" 2>&1 && grep -q '0 failures' "$tmp/hostload.out"; then
   say "ok: DllMain and the TLS callback fire from the host's loader"
   tail -1 "$tmp/hostload.out" | sed 's/^/     /'
 else
