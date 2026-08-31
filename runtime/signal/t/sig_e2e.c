@@ -54,6 +54,39 @@
 
 extern ELF_SYSV void sig_redzone_spin(volatile int *stop, uint64_t *out);
 
+/* Bounds of the leaf, from spin.S. A worker whose RIP is in [begin, end) is
+ * back in the loop; anywhere else it is still inside a delivery. */
+extern char sig_redzone_spin_end[];
+
+/* elfsysv_sig_enter, _return_tramp, _restore and _resume come from signal.h;
+ * their addresses place a stuck worker's RIP against the delivery machinery. */
+
+/* The worker's RIP through a suspend/resume, or 0 on a host-call failure.
+ * Reads and changes nothing, so it is safe while the worker is mid-delivery. */
+static uintptr_t worker_rip(HANDLE h)
+{
+	CONTEXT c;
+	uintptr_t rip;
+	int ok;
+
+	memset(&c, 0, sizeof c);
+	c.ContextFlags = CONTEXT_CONTROL;
+	if (SuspendThread(h) == (DWORD)-1)
+		return 0;
+	ok = GetThreadContext(h, &c);
+	rip = (uintptr_t)c.Rip;
+	ResumeThread(h);
+	return ok ? rip : 0;
+}
+
+/* 1 if the worker is executing inside the leaf, 0 if not. */
+static int worker_in_spin(HANDLE h)
+{
+	uintptr_t rip = worker_rip(h);
+	return (rip >= (uintptr_t)(void *)sig_redzone_spin &&
+		rip < (uintptr_t)(void *)sig_redzone_spin_end) ? 1 : 0;
+}
+
 static volatile int stop_flag;
 static uint64_t spin_out[2];
 static HANDLE worker_handle;
@@ -167,19 +200,22 @@ static int run_arm(int no_reserve, long events, int alt, struct arm_result *r)
 
 	static elfsysv_sig_pending_t pending;
 
-	double t0 = now_seconds();
+	r->seconds = 0.0;
 	for (long i = 0; i < events; i++) {
+		double t0 = now_seconds();
 		if (elfsysv_sig_hijack(worker_handle, &state, 10, NULL,
 				       &pending) != 0) {
 			printf("sig_e2e: a host call in the hijack failed\n");
 			break;
 		}
-		/* The target decides, so wait for it before reusing the
-		 * record. A delivery that never decides is a hang, and the
-		 * bound turns it into a reported failure. */
+		/* disposition is the receiver's DECISION, not the completion
+		 * of the delivery: it is set in elfsysv_sig_enter_c before the
+		 * handler runs and before sigreturn restores the thread. Wait
+		 * for it, then price the delivery here. */
 		long spins = 0;
 		while (pending.disposition < 0 && spins++ < 20000000)
 			Sleep(0);
+		r->seconds += now_seconds() - t0;
 		if (pending.disposition < 0) {
 			printf("sig_e2e: a delivery never reached the "
 			       "target\n");
@@ -191,8 +227,62 @@ static int run_arm(int no_reserve, long events, int alt, struct arm_result *r)
 			r->last_place = pending.where;
 		} else
 			r->refused++;
+
+		/* Do NOT reuse the record or re-hijack until the delivery has
+		 * actually finished — the worker back in the leaf, past the
+		 * handler and sigreturn. disposition fires while the worker is
+		 * still inside elfsysv_sig_resume reading this same record, so
+		 * re-hijacking on it alone lets the next SetThreadContext and
+		 * memset race the in-flight restore; at 20000 events that
+		 * corruption kills the process about two runs in three. Real
+		 * delivery is serialized by the signal mask this test drives
+		 * with SA_NODEFER, so the test must serialize it here instead.
+		 * This gate is outside the timed section above, so it does not
+		 * enter the reservation cost. */
+		double gate_t0 = now_seconds();
+		while (worker_in_spin(worker_handle) != 1) {
+			/* Generous by design: a delivery is tens of
+			 * microseconds, so tens of seconds is only ever a
+			 * worker that is not coming back, never one that is
+			 * merely slow under load. A false STUCK would make the
+			 * suite flaky on a busy machine; a real one still
+			 * reports here with the RIP that places it. */
+			if (now_seconds() - gate_t0 > 30.0) {
+				uintptr_t rip = worker_rip(worker_handle);
+				fprintf(stderr,
+					"# STUCK after delivery %ld: worker rip "
+					"%p; enter=%p tramp=%p resume=%p "
+					"restore=%p spin=[%p,%p) handler=%p\n",
+					i, (void *)rip,
+					(void *)elfsysv_sig_enter,
+					(void *)elfsysv_sig_return_tramp,
+					(void *)elfsysv_sig_resume,
+					(void *)elfsysv_sig_restore,
+					(void *)sig_redzone_spin,
+					(void *)sig_redzone_spin_end,
+					(void *)handler);
+				printf("sig_e2e: the worker did not return to "
+				       "the leaf after a delivery\n");
+				r->refused++;
+				goto loop_done;
+			}
+			Sleep(0);
+		}
+
+		/* Let the target run free before the next interrupt. Without
+		 * this the check above suspends and resumes the worker, and
+		 * the next hijack's suspend catches it a few instructions on,
+		 * so every delivery would land at the same point in the loop —
+		 * which defeats the control arm, since a fixed landing can
+		 * consistently miss or heal the clobber. A short, varying
+		 * free-run spreads the landings back across the loop the way
+		 * an unsynchronised delivery does. It is outside the timed
+		 * section, so it does not enter the cost. */
+		int freerun = (int)(i & 15) + 1;
+		while (freerun--)
+			SwitchToThread();
 	}
-	r->seconds = now_seconds() - t0;
+loop_done:
 	fprintf(stderr, "# arm loop done, delivered=%ld\n", r->delivered);
 
 	stop_flag = 1;

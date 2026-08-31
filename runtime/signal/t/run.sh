@@ -55,7 +55,14 @@ root=$sig/../..                          # the tree
 keep=0
 quiet=0
 cases=200000
-events=500
+# The control arm proves the probe watches the red zone by delivering with the
+# reservation off and requiring the fold to break. Whether a given delivery
+# lands in the damaging window is probabilistic, so the count has to be high
+# enough that "the control did not break" means a real defect, not variance:
+# at 500 the break is occasionally missed, at 20000 it is reliable across
+# dozens of runs. sig_e2e is not in the merge gate, so the runtime is spent on
+# a certification that is run deliberately, not on every merge.
+events=20000
 
 usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
 fail() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }

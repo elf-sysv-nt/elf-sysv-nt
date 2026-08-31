@@ -48,6 +48,11 @@ PROC(sig_redzone_spin)
 	movq	%rax, (%rsi)
 	movq	%r10, 8(%rsi)
 	ret
+/* A bound the harness reads to tell "back in the loop" from "still in a
+ * delivery": a global label at the end of the leaf, no instruction of its
+ * own, so the specimen it measures is byte-for-byte unchanged. */
+	.globl sig_redzone_spin_end
+sig_redzone_spin_end:
 ENDPROC(sig_redzone_spin)
 
 #ifdef __ELF__

@@ -106,9 +106,54 @@ a defect in the probe harness (its own thread suspend/resume juggling) or in
 the delivery path itself is the WP-43 redo question, and it can reach DR-0006
 and the signal design, so it is the operator's rather than the worker's.
 
-WP-43 stays held. The hold's reason is upgraded from "measure the cost" to
-"the delivery probe kills its own process about two runs in three at
-n=20000, mostly on the reserving path; root-cause before certifying." The
-run.sh guard and the probe isolation land now regardless, because a
+The run.sh guard and the probe isolation land regardless, because a
 certification suite that can pass on a silent death is a hole whether or not
 WP-43 is held.
+
+## Root cause, and the fix — 2026-08-31
+
+The self-kill is the harness re-entering a delivery before the previous one
+finishes. It is not in the delivery path DR-0006 built; it is in how the test
+drives it, and the design is untouched.
+
+`elfsysv_sig_enter_c` sets `p->disposition` — the receiver's *decision* — and
+then calls `elfsysv_sig_resume(&p->ctx)` to run the handler and, through the
+trampoline, `elfsysv_sigreturn`. `disposition` is documented as exactly that,
+a decision: `signal.h` calls it "-1 until the receiver decides" and
+`sig_host.h` says it "goes from -1 to an elf_sig_disposition_t when the target
+decides." The test read it as *completion*. Its loop waited only for
+`disposition >= 0`, then immediately re-hijacked the worker and `memset` the
+one shared `pending` record for the next delivery — while the worker was still
+inside `elfsysv_sig_resume` reading that same record and still owed a handler
+run and a `sigreturn`. The next `SetThreadContext` and `memset` then raced the
+in-flight restore. At n=500 the window rarely closes badly; at n=20000 it
+compounds to a hard process kill about two runs in three, most often caught on
+the reserving arm because that arm does the most work between decision and
+return. Real delivery never has this problem: the signal is masked through the
+handler and unmasked by `sigreturn`, so the next one cannot start early. The
+test drives with `SA_NODEFER` and bypasses that serialization, so it has to
+supply the serialization itself.
+
+The fix is in the harness alone. After each delivery the main thread waits
+until the worker's RIP is back inside the leaf — past the handler and
+`sigreturn` — before it reuses the record or hijacks again, reading the RIP
+through a suspend/resume that changes nothing. A short, varying free-run
+follows, so the next interrupt lands at a spread of points in the loop rather
+than clustering at the one the RIP check leaves it near; without it the control
+arm stops breaking, because a fixed landing can consistently heal the clobber.
+The completion wait sits outside the timed section, so it does not enter the
+reservation cost. The leaf gains one thing, a global label `sig_redzone_spin_end`
+bounding it for the RIP check — no instruction, so the specimen it measures is
+byte-for-byte unchanged. `t/spin.S`, `t/sig_e2e.c` and the `events` default in
+`t/run.sh` carry the change; the last rises to 20000 so the probabilistic
+control break is reliable rather than occasionally missed.
+
+Measured after the fix: eighty `sig_e2e -n 20000` runs, zero silent deaths
+(was about two in three), the control breaking the red zone every time, and
+`t/run.sh` green five for five. A rare gate time-out under heavy concurrent
+load, seen once before the wait had a wall-clock bound, no longer hangs: the
+gate now gives up after thirty seconds and prints the stuck RIP against the
+delivery symbols, so the instrument fails loud instead of silent. The
+reservation-cost transcript is regenerated on the trustworthy instrument in
+`t/reservation-cost-2026-08-31.txt`; reading its number against DR-0006's
+bands, and lifting the hold, remain the operator's per that record.
