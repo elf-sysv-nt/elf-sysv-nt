@@ -72,14 +72,17 @@ stdio, posix, stdlib, filesystem, on down 26 slices.
 The string slice's wiring is generated and committed —
 `wire-string.gen.c` / `.gen.s` / `.shims.tsv`, 47 rows wired, one shim
 (`__errno_location`) — and `t/real-map.sh` pins it byte-identical to its
-inputs. Three diff cases cover the mem*, str*, and tokenizing families;
+inputs. Five diff cases cover the mem*, str*, tokenizing, errno, and
+argz/envz families;
 writing them caught the crt ending main through `_exit`, which dropped
 buffered stdout on redirection, fixed in the startup files by the
 main-returns-through-exit decision. The pinned rocky8 image carries no
 compiler, so `diff-slice.sh` grew a reference fallback: compile with the
 candidate's own compiler, which targets el8's glibc, and run the binary
 on the image, where the real ld.so and libc supply the behaviour under
-test. Exercised end to end with both sides on el8: three cases, all
-match. Judging the candidate side awaits the runtime that loads the
-wired veneer; the errno.h/argz.h cases wait on `linux/errno.h`, which
-the header set does not carry yet.
+test. Exercised end to end with both sides on el8: five cases, all
+match. The errno and argz cases were waiting on `linux/errno.h`; the
+el8 kernel headers are laid into the sysroot now
+(`toolchain/sysroot/kernel-headers`, taught to unpack with `rpmx.py`
+where the root has no cpio). Judging the candidate side awaits the
+runtime that loads the wired veneer.
