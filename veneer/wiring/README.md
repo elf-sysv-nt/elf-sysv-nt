@@ -57,8 +57,7 @@ when every case prints the same lines on both sides. The compiler,
 runner, and reference are injectable; `t/run-tests.sh` uses that to
 prove host-only that identical sides pass and a garbled candidate is
 reported as a divergence, so the harness is trusted before any slice
-is judged by it. No slice cases written yet — they arrive with the
-first slice.
+is judged by it. The first cases live under `diff/string/`.
 
 ## Status
 
@@ -68,5 +67,19 @@ The census (spike 12) is complete: 4855 packages probed, none in error,
 summary, and the slice order the ranking cuts. The order puts string
 first, then the unassigned internals (`__cxa_finalize`,
 `__stack_chk_fail` and kin, the most-demanded bindings of all), then
-stdio, posix, stdlib, filesystem, on down 26 slices. The first slice's
-wiring begins through `gen-wire.py`. No slice differentials run yet.
+stdio, posix, stdlib, filesystem, on down 26 slices.
+
+The string slice's wiring is generated and committed —
+`wire-string.gen.c` / `.gen.s` / `.shims.tsv`, 47 rows wired, one shim
+(`__errno_location`) — and `t/real-map.sh` pins it byte-identical to its
+inputs. Three diff cases cover the mem*, str*, and tokenizing families;
+writing them caught the crt ending main through `_exit`, which dropped
+buffered stdout on redirection, fixed in the startup files by the
+main-returns-through-exit decision. The pinned rocky8 image carries no
+compiler, so `diff-slice.sh` grew a reference fallback: compile with the
+candidate's own compiler, which targets el8's glibc, and run the binary
+on the image, where the real ld.so and libc supply the behaviour under
+test. Exercised end to end with both sides on el8: three cases, all
+match. Judging the candidate side awaits the runtime that loads the
+wired veneer; the errno.h/argz.h cases wait on `linux/errno.h`, which
+the header set does not carry yet.
