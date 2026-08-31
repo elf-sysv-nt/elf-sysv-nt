@@ -403,3 +403,33 @@ comparison, `__assert` — whose arguments are ours to pin — compared
 message and all, and NDEBUG compiling the failure away). Exercised
 end to end with both sides on el8: four cases, all match; judging
 the wired veneer awaits the runtime the earlier slices wait on.
+
+
+The threads slice wires 42 rows, 41 thunks and 1 shim, generated and
+committed as `wire-threads.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. These are the
+libc-resident pthread subset — the attribute object, the mutex and
+condition protocols with the condition rows doubled across their two
+version nodes, identity, the scheduling pair, the cancellation
+switches — and the C11 quartet (thrd_current, thrd_equal, thrd_sleep,
+thrd_yield); the rest of the pthread surface lives in libpthread on
+el8, so the forward map never carries it. `__sigsetjmp` is the one
+shim, attributed here because el8's pthread.h declares it for the
+cleanup macros and outranks setjmp.h; its jmp_buf translation is the
+runtime slice's kin and its behaviour is already under that slice's
+sigmask case. Four diff cases cover the attribute object (documented
+defaults through every getter, each setter read back, the bad detach
+state EINVAL and the process scope ENOTSUP), identity with the mutex
+protocol and the cancellation switches (pthread_self through
+pthread_equal and a copy, a fresh and a static mutex through
+lock/unlock/destroy, getschedparam answering SCHED_OTHER at priority
+0 and accepting itself back, each switch handing back the state it
+replaces and refusing a made-up value), the condition variable's
+waiter-free protocol (signal and broadcast with nobody to find, a
+timedwait past its deadline handing the mutex back with ETIMEDOUT
+and the mutex relocking after), and the C11 quartet (thrd_equal over
+the current thread and a copy, a short full sleep answering 0 with
+the remainder untouched and time observably advanced, thrd_yield
+returning at all). Exercised end to end with both sides on el8: four
+cases, all match; judging the wired veneer awaits the runtime the
+earlier slices wait on.
