@@ -123,7 +123,24 @@ Planned order of work, one milestone per commit:
    keeping this milestone about the face. The sigfe-fenced surface and
    the variadic veneer against the DLL need its runtime brought up
    beneath a real process, which is milestones 6-8's work.
-6. `DllMain` and the PE TLS callback fired by the host's own loader.
+6. `DllMain` and the PE TLS callback fired by the host's own loader — done.
+   The DLL had no PE TLS directory to fire, so `tlsdir.c` gives it one:
+   `_tls_used`, the symbol the linker publishes as the image's TLS data
+   directory entry, naming a callback that records its firings through an
+   observation seam a plain PE process can read (one environment variable,
+   written with kernel32 alone, since the callback can run before
+   `dll_entry` has prepared the DLL's own libc). The DLL links with
+   `--gc-sections` and the loader is the unit's only referent, so the
+   directory lives in named sections the vendor's linker script now keeps
+   (commit `13b29ae8a` there). `t/hostload.sh` certifies it: the image
+   carries a nonzero TLS data directory; LoadLibrary succeeds only after
+   the DLL's own `dll_entry` ran and returned TRUE, with a leaky control —
+   a DLL whose `DllMain` answers FALSE must fail to load with
+   ERROR_DLL_INIT_FAILED — proving the verdict is DllMain's; and the
+   observation seam counts one process attach at load, then a thread's
+   attach and detach after a thread runs. Process detach stays out of
+   scope: the runtime beneath the face is Cygwin, which does not support
+   unload.
 7. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
 8. Thread creation establishing the DR-0021 carrier; per-thread blocked
    mask and alternate stack split that DR-0030 deferred.

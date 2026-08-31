@@ -32,6 +32,7 @@ gcc $cflags -c "$here/typed-faces.gen.c" -o "$out/typed-faces.o"
 gcc $cflags -c "$here/cores.c" -o "$out/cores.o"
 gcc $cflags -c "$here/nonformat-cores.c" -o "$out/nonformat-cores.o"
 gcc $cflags -c "$here/../varargs/sv2ms.c" -o "$out/sv2ms.o"
+gcc $cflags -c "$here/tlsdir.c" -o "$out/tlsdir.o"
 
 say "== nonformat entries compiled onto the __face_ prefix =="
 # the same rename the generated veneer gets, driven by the enumeration's
@@ -56,7 +57,7 @@ done
 
 face_ofiles="$out/int-faces.o $out/typed-faces.o $out/cores.o"
 face_ofiles="$face_ofiles $out/nonformat-cores.o $out/nonformat-faced.o"
-face_ofiles="$face_ofiles $out/veneer-faced.o $out/sv2ms.o"
+face_ofiles="$face_ofiles $out/veneer-faced.o $out/sv2ms.o $out/tlsdir.o"
 
 say "== relink: face.din on the DLL =="
 cd "$build"
