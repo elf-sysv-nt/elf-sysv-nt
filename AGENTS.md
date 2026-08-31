@@ -8,8 +8,11 @@ builds against it with its object format, its symbol versioning, and its
 loader semantics intact.
 
 Read `doc/elf-technical-breakdown.md` for the design and `doc/milestones.md`
-for the order of work. Nothing has been built, and both documents are
-proposals that may be wrong. `doc/ROADMAP.md` inventories what has to be
+for the order of work. What has been built is tracked in
+`doc/status/delivered.txt` and reported by `bin/build_status.py`, which
+`bin/refresh-next-steps.py` renders as the `Next-Steps.md` dashboard; both
+documents here are the plan rather than the record of progress, and may be
+wrong about anything not yet built. `doc/ROADMAP.md` inventories what has to be
 written once the spikes have answered, and `doc/IMPLEMENTATION-PLAN.md` cuts
 that inventory into work packages; both are written along the recommended path
 and name the branch where a spike could send the program elsewhere.
@@ -30,8 +33,11 @@ read the spike as licence to assume the whole runtime survives re-facing.
 The red zone is ours to break, not Windows'. Spike 3 measured the host leaving
 the reserved 128 bytes alone under preemption, thread hijacking and its own
 exception dispatch, and Cygwin's signal delivery taking `%rsp-8` on every
-delivery. `-mno-red-zone` throughout stands as the policy; whether the delivery
-path is also repaired is an open decision, below.
+delivery. The delivery path is now repaired: DR-0006 settled the direction and
+WP-43 built it, DR-0030 recording the shape, so delivery reserves the 128 bytes
+before it builds the handler frame. `-mno-red-zone` throughout stays the compile
+policy, the scaffold DR-0006 named, carried until the repair covers every
+package.
 
 Cygwin binaries are backward compatible only. Nothing built against a newer
 `cygwin1.dll` runs on an older one, so borrowing a binary from a newer tree is
@@ -111,11 +117,12 @@ be re-measured rather than believed. Rerunning the script has to regenerate the
 transcript, so a spike whose script no longer runs is a defect in the same way
 a failing test is.
 
-The five spikes in `doc/milestones.md` are the gates that stood before the
-reserved decisions; all five ran on 2026-08-29 and have their verdicts.
-`spike/gs-thread-pointer/` is a sixth, a follow-on to spike 1's no: it measured
-the `%gs` carriers that replace the refuted `%fs` base and fed DR-0003. It ran
-the same day and its transcript is kept on the same terms.
+The first five spikes in `doc/milestones.md` are the gates that stood before the
+reserved decisions; all five ran on 2026-08-29 and have their verdicts. Six more
+followed as the work and then the design-gaps review surfaced them —
+`spike/gs-thread-pointer/` the sixth, a follow-on to spike 1's no that measured
+the `%gs` carriers replacing the refuted `%fs` base and fed DR-0003 — and
+`doc/milestones.md` now records all eleven, each kept on the same terms.
 
 `doc/decisions/` holds one settlement per file with an index beside them, and
 `doc/proposals/` holds the change that produced each. A decision record is
