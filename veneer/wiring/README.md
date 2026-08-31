@@ -165,3 +165,27 @@ setting errno, mlock, munlock), and the allocator's introspection
 load, never as raw counters. Exercised end to end with both sides on
 el8: five cases, all match; judging the wired veneer awaits the same
 runtime.
+
+The sockets slice is all thunks too: 66 rows, generated and committed
+as `wire-sockets.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical by `t/real-map.sh`. The sockaddr family crosses by
+pointer and length, laid out the same on both sides, and the flag
+translation the mmap family taught us belongs downstream of the bind
+here too, so the shim worklist is empty for now. Seven diff cases
+cover byte order with address text (htons round-trips, inet_aton's
+classful and hex forms, inet_ntop/pton over v4, v6 and the v4-mapped
+compression), socketpair with the message calls (MSG_PEEK, vectored
+sendmsg/recvmsg, half-close read as EOF and written as EPIPE), a
+loopback TCP conversation (bind to an ephemeral port, accept4 with
+SOCK_CLOEXEC observed through fcntl, both ends agreeing on who is who
+through the name calls), datagrams (sender identification, message
+boundaries held across two sends, a connected UDP socket, EAGAIN
+under MSG_DONTWAIT), resolver-free name resolution (getaddrinfo under
+AI_NUMERICHOST both families, getnameinfo turning it back, EAI_NONAME
+and the error strings), the services and protocols databases against
+the well-known entries, and socket options as round-trips and
+refusals (SO_REUSEADDR, SO_LINGER, ENOTCONN, EBADF), with every
+refusal's call sequenced before its printf per the stdio lesson.
+Exercised end to end with both sides on el8: seven cases, all match;
+judging the wired veneer awaits the runtime the earlier slices wait
+on.
