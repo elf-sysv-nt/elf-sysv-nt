@@ -66,6 +66,27 @@ below `StackBase` in memory Cygwin owns. What this cannot measure is the forked
 of the reserved field inside it, measured against `sizeof(_cygtls)` rather than
 against the stack, is the piece the forked runtime finishes.
 
+## The verdict, 2026-08-31 — the 3.6.10 rerun
+
+Taken on the same kernel under the primary root, Cygwin 3.6.10, gcc 14.4.0,
+recorded in `results-2026-08-31.txt`. This is the rerun WP-26's Done-when
+names: the forked `_cygtls` now exists inside the built `elfsysv1.dll`, so the
+chain DR-0003 opened closes against the real 3.6.10 block rather than 3.0.7's.
+
+The shape travels unchanged. `CYGTLS_PADSIZE` is still `12800`, `0x3200`;
+`altstack.base_moved = 0` on every thread; and the owned-stack mechanism
+carries the word at its floor with fork intact. Nothing 3.6.10 changed
+disturbs DR-0021.
+
+The piece only the forked runtime could supply is now measured from the DLL's
+own debug info: `sizeof (_cygtls) = 5344` and `elfsysv_carrier` sits at offset
+`5336` — the last eight bytes, as the build-time `static_assert`s on the
+vendor tree demand. Its slot below `StackBase` is therefore the constant
+`12800 - 5344 + 8 = 7464`, and `map-cygtls` confirms it from the other side:
+on a fresh thread the untouched region below `StackBase` extends exactly
+`7464` bytes (`first_used_word_off = 0x1d28`). The reserved field's slot is
+the first word Cygwin's own state never reaches — measured, not asserted.
+
 ## Reproducing it
 
     ./measure.sh -o results-$(date +%F).txt
