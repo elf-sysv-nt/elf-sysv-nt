@@ -20,3 +20,8 @@ is committed.
   removed from bfd.h. Fixed on the vendor tree as commit `6fd9f5718`
   ("Cygwin: dumper: use bool for the removed bfd_boolean") on top of
   the re-badge commit `77121154e` over the pin `b11613e47`.
+- The toplevel build now completes; `elfsysv1.dll` is the export name
+  and `runtime/winsup/t/smoke-hello.sh` proves a hello runs against it
+  from a native (cmd.exe) parent. Spawned from a Cygwin parent the
+  child-info handshake collides: bash passes its cygheap and the badge
+  reads it and dies. Handshake separation is re-face work, deferred.
