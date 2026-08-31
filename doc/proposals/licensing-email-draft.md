@@ -18,15 +18,29 @@ question is about licensing.
 
 The repository is LGPLv3-or-later, on the reasoning that a re-faced rebuild of
 winsup is a modified version of the Cygwin library and inherits its licence. I
-believe that part is settled.
+believe that part is settled. For the full picture: the tree also vendors
+glibc 2.28's installed headers byte-identical (LGPL-2.1-or-later, notices
+intact) and carries export and import inventories cut from Cygwin 3.6.10,
+though neither bears on the question below.
 
 The open question is the linking exception. As published at
 https://cygwin.com/licensing.html, it permits linking libcygwin.a, crt0.o and
-gcrt0.o with independent modules, and defines an independent module as one not
-itself based on the Cygwin library. A modified version of the library is
-therefore not a beneficiary of the exception, and my reading is that receiving
-code under terms that carry an additional permission (GPLv3 section 7) does not
-by itself confer the right to re-grant that permission to my own users.
+gcrt0.o with independent modules and conveying the resulting executable under
+terms of your choice, an independent module being one not itself based on the
+Cygwin library.
+
+My understanding going in was that a modified version of the library remains a
+beneficiary: under GPLv3 section 7 an additional permission travels with the
+work unless a conveyor removes it, and nothing in the exception's text
+terminates it on modification. The project only makes sense on that reading.
+It has since been brought into question on two textual points. First, the
+grant names libcygwin.a, crt0.o and gcrt0.o, and a re-faced rebuild ships
+artifacts under other names; whether those words mean the Cygwin library in
+whatever form it takes downstream, or those artifacts alone, changes
+everything. Second, section 7 lets a conveyor remove additional permissions
+but add them only on material of the conveyor's own copyright, so if the
+original grant does not stretch to the renamed artifacts, I cannot repair the
+gap with wording of my own.
 
 That matters here because the exception is what lets GPLv2-only programs link
 Cygwin at all, and running a GPLv2-only userland is the point of the project.
@@ -35,13 +49,13 @@ link cygwin1.dll but not this one.
 
 Three questions:
 
-1. Is my reading correct that the exception, as written, neither covers a
-   modified Cygwin library nor authorizes it to extend an equivalent exception
-   to its own users?
+1. Does the exception, as the copyright holder intends it, follow a modified
+   version of the library — so that executables linking a re-faced rebuild
+   are conveyed under it the way executables linking cygwin1.dll are?
 
-2. Has Red Hat, as copyright holder, ever granted permission for a derived
-   work to carry the exception forward, or is there a process for requesting
-   it?
+2. If it does not follow automatically, has Red Hat ever granted a derived
+   work permission to carry the exception forward, or is there a process for
+   requesting it?
 
 3. If this is a question for Red Hat legal rather than this list, whom should
    I contact?
