@@ -14,7 +14,7 @@ linker emitting `%fs` code unasked, and an eleventh that built Cygwin from
 source. All eleven have run, and one of them took the recommended path off the
 table, which is what a spike is for.
 
-Each has a directory under `spike/` and one question it answers, yes or no for
+Each has a directory under `spike/` and one question it answers, yes or no fo
 most and a count for the fifth. The verdict is the deliverable. Reaching one is
 a successful outcome even when the answer is unwelcome, and especially then.
 
@@ -52,14 +52,14 @@ Spike 7 is the follow-on spike 3 forced, and it ran on 2026-08-29: spike 3 caugh
 our own delivery destroying the red zone, and spike 7 asked whether delivery can
 be made to reserve it. It can. A frame built 128 below the interrupted `%rsp`
 left the red zone whole across every delivery, the handler still ran and
-returned, and a value carried only in the red zone came back intact on the far
+returned, and a value carried only in the red zone came back intact on the fa
 side. That does not retire the `-mno-red-zone` flag on its own -- the flag stands
 as policy either way, and what a reserved delivery costs in Cygwin's real
 `sigdelayed` is unpriced -- but it establishes that an ELF-faithful repair at the
 delivery site is available for WP-43 to weigh against the flag rather than
 foreclosed.
 
-## Spike 1, the thread pointer
+## Spike 1, the thread pointe
 
 Run 2026-08-29, and the answer is no. `WRFSBASE` is available on this host and
 a base written with it addresses `%fs:0` correctly, so the failure is not at
@@ -122,7 +122,7 @@ and a Cygwin runtime allocates before `main`.
 So the question moves from whether to when, and it lands on WP-41: a non-PIE
 image's span has to be reserved before the runtime under the stub warms up.
 Whether a PE TLS callback or an image entry point is early enough is not
-measured here, and it should be measured before that package is written rather
+measured here, and it should be measured before that package is written rathe
 than discovered inside it. `spike/map-and-jump/results-2026-08-29.txt` is the
 transcript and that spike's README reads it.
 
@@ -135,7 +135,7 @@ The crossing holds in both directions at one function's width. A System V
 caller passed six integers, eight doubles and two stack arguments into a
 `sysv_abi` entry point that then made five descents into Microsoft x64 --
 `GetCurrentThreadId`, `VirtualQuery`, `QueryPerformanceCounter`, the runtime's
-`snprintf`, `Sleep` -- and returned with every System V callee-saved register
+`snprintf`, `Sleep` -- and returned with every System V callee-saved registe
 intact. Going the other way, a Microsoft caller reached System V code with all
 eight callee-saved GPRs and all ten callee-saved XMM registers intact, which is
 the direction that could leak, because `%rsi`, `%rdi` and `%xmm6` through
@@ -166,9 +166,19 @@ it as open.
 README reads it, along with what a one-function measurement does not reach:
 unwind data, `DllMain`, and the runtime actually rebuilt.
 
+Re-verified 2026-08-31 on the primary root, after the environment moved
+(DR-0038) and the verdict briefly read `no` there: the flip was gcc 14 eliding
+the null-store specimen, not the host, and with the specimen repaired every
+crossing case passes under 3.6.10 too. `results-2026-08-31.txt` is that
+transcript. It also reads the red zone differently, because the Cygwin unde
+it is different: 3.6.10's stock delivery leaves the reserved 128 bytes alone
+where 3.0.7 took `%rsp-8`. The paragraphs above describe 3.0.7; DR-0006 was
+decided on that measurement, and reading the new one against it is the
+operator's. The spike README's re-verification section carries the detail.
+
 ## Spike 4, the payoff
 
-Run 2026-08-29, and the answer is yes. This is the spike that asks whether
+Run 2026-08-29, and the answer is yes. This is the spike that asks whethe
 building the thing repairs what it was built to repair, and the sharpest form
 of that question is a string: does rpm write `libc.so.6(GLIBC_2.2.5)(64bit)`
 when it is pointed at a library we made up.
@@ -215,12 +225,12 @@ load-bearing fields is thereby a lie, which DR-0005 settles and
 Linux kernel ABI bounded at raw syscall dispatch, which this project satisfies
 by rebuild instead.
 
-Buildroot has shipped `x86_64-buildroot-linux-gnu` on the same grounds for over
+Buildroot has shipped `x86_64-buildroot-linux-gnu` on the same grounds for ove
 a decade, and crosstool-NG ships `unknown` in that slot, so neither the shape
 nor the length is novel.
 
 What the vendor costs is the open question. A package that matches `*-linux-gnu`
-is unaffected; one that matches the literal `*-pc-linux-gnu` or
+is unaffected; one that matches the literal `*-pc-linux-gnu` o
 `*-unknown-linux-gnu` misses, silently, and takes a configure branch nobody
 intended. Such packages exist. How many is the size of the patch set the
 decision commits to, and guessing at it is precisely the habit these spikes
@@ -264,7 +274,7 @@ build tree is deeper than an installed tree and a gcc bootstrap stacks stage
 directories on top, but a hundred characters of headroom absorbs that. Measured
 2026-08-20.
 
-## Spike 6, the %gs thread pointer
+## Spike 6, the %gs thread pointe
 
 Run 2026-08-29, and the answer is yes. Spike 1 took `%fs` away that afternoon
 and left the thread pointer without a carrier, so this measured four: a fixed
@@ -298,7 +308,7 @@ reserved frame left the 128 whole, nearest write at offset 136, on every
 delivery; the handler ran and returned each time; and a value carried only in the
 first red-zone word came back intact on the far side, while the same value broke
 under a naive delivery. It is a model of delivery rather than the real
-`sigdelayed`, in the way `spike/gs-thread-pointer/` measured a stand-in for
+`sigdelayed`, in the way `spike/gs-thread-pointer/` measured a stand-in fo
 `_my_tls`, and WP-43 re-measures the real path and prices what reserving costs
 there. What it gates is narrow: the yes lets a delivery-site repair that honors
 the red zone for compiled and hand-written code alike be weighed against the
@@ -373,7 +383,7 @@ cut into a work package.
 ## After the spikes
 
 No package waits on a spike. All eight have run and the recommended path
-survived the one that could have taken it away; the seventh gated only whether
+survived the one that could have taken it away; the seventh gated only whethe
 a delivery-site red-zone repair is available to weigh against `-mno-red-zone`,
 and the eighth gated only what a load-time rewriter for vendor binaries is
 allowed to be, which is phase 3's question at the earliest. Nothing starting
@@ -383,8 +393,8 @@ packages; the sketch below is the shape both of them fill in.
 
 The target triple wanted deciding before the first package was built, and it
 was, on 2026-08-29. The TLS model wanted deciding on the same footing, and it
-was, the same day: spike 1 came back no that afternoon, the gs-thread-pointer
-spike measured the replacements, and the operator settled DR-0003 on carrier
+was, the same day: spike 1 came back no that afternoon, the gs-thread-pointe
+spike measured the replacements, and the operator settled DR-0003 on carrie
 C3 — a runtime-owned thread pointer through `%gs`. The toolchain can now be
 configured around a named thread pointer. The toolchain follows, which is
 otherwise routine
