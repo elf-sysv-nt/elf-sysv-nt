@@ -409,3 +409,27 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-threads.o" "$tmp/wire-threads.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-threads.o" | grep -q 'pthread_self@@GLIBC_2.2.5'
 fi
+
+# The committed wchar wiring re-derives byte-identical as well. All 87
+# rows are thunks and none are shims: the wide-character surface is
+# value-preserving end to end — wchar_t is 4 bytes on both sides, the
+# conversion states are opaque, and nothing in wchar.h or uchar.h
+# carries an errno-bearing structure of its own — so every row crosses
+# as a tail jump.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice wchar \
+    --table "$tmp/wire-wchar.gen.c" \
+    --thunks "$tmp/wire-wchar.gen.s" \
+    --shims "$tmp/wire-wchar.shims.tsv" >/dev/null
+cmp ../wire-wchar.gen.c "$tmp/wire-wchar.gen.c"
+cmp ../wire-wchar.gen.s "$tmp/wire-wchar.gen.s"
+cmp ../wire-wchar.shims.tsv "$tmp/wire-wchar.shims.tsv"
+grep -q '"mbrtowc"' "$tmp/wire-wchar.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-wchar.gen.c")" = 87
+test "$(grep -vc '^#' "$tmp/wire-wchar.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-wchar-table.o" "$tmp/wire-wchar.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-wchar.o" "$tmp/wire-wchar.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-wchar.o" | grep -q 'wcrtomb@@GLIBC_2.2.5'
+fi
