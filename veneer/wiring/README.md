@@ -42,6 +42,19 @@ bind loop: at load the runtime resolves every export name through a
 callback and fills the slots; unresolved rows stay null and are counted.
 The mechanism and its alternatives are the bound-table decision record.
 
+## The differential
+
+`diff-slice.sh <slice>` is the per-slice bar: each case under
+`diff/<slice>/*.c` prints observable behaviour, the reference side runs
+it on the pinned el8 image over WSL (the WP-T2 environment), the
+candidate side runs it through the wired veneer, and the slice passes
+when every case prints the same lines on both sides. The compiler,
+runner, and reference are injectable; `t/run-tests.sh` uses that to
+prove host-only that identical sides pass and a garbled candidate is
+reported as a divergence, so the harness is trusted before any slice
+is judged by it. No slice cases written yet — they arrive with the
+first slice.
+
 ## Status
 
 The census (spike 12) is running in the background over the 4855-package
