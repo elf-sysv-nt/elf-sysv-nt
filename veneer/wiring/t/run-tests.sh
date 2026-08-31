@@ -31,4 +31,23 @@ diff -u ../xlat-core.gen.h "$tmp/xlat-core.gen.h"
     test-xlat.c ../xlat-core.gen.c
 "$tmp/test-xlat"
 
+python3 ../gen-wire.py --forward-map fixture-forward.tsv     --slice-map fixture-wire-slices.tsv --slice files     --table "$tmp/wire-files.gen.c" --thunks "$tmp/wire-files.gen.s"     --shims "$tmp/wire-files.shims.tsv" 2>/dev/null
+"${CC:-gcc}" -Wall -Wextra -Werror -I.. -o "$tmp/test-wire"     test-wire.c ../wire.c "$tmp/wire-files.gen.c"
+"$tmp/test-wire"
+# the shim worklist carries frob_shim and its table index, nothing else
+grep -q "^frob_shim	GLIBC_2.2.5	default	-	3$" "$tmp/wire-files.shims.tsv"
+test "$(grep -cv '^#' "$tmp/wire-files.shims.tsv")" = 1
+# the thunks assemble for the triple and carry the versioned names,
+# when the cross toolchain is present
+XAS="${XCC:-x86_64-elfsysvnt-linux-gnu-gcc}"
+if command -v "$XAS" >/dev/null 2>&1; then
+    "$XAS" -c -o "$tmp/wire-files.o" "$tmp/wire-files.gen.s"
+    xnm="${XAS%gcc}nm"
+    "$xnm" "$tmp/wire-files.o" | grep -q 'frob_open@@GLIBC_2.2.5'
+    "$xnm" "$tmp/wire-files.o" | grep -q 'frob_open@GLIBC_2.0'
+    "$xnm" "$tmp/wire-files.o" | grep -q 'frob_alias@@GLIBC_2.2.5'
+    "$xnm" "$tmp/wire-files.o" | grep -q "frob_weak@@GLIBC_2.2.5"
+    ! "$xnm" "$tmp/wire-files.o" | grep -q frob_shim
+fi
+
 echo ok

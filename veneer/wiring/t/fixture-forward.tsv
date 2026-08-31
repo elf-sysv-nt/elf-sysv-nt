@@ -1,0 +1,9 @@
+frob_open	GLIBC_2.2.5	default	func	global	2	forward-same	frob_open
+frob_open	GLIBC_2.0	compat	func	global	2	forward-same	frob_open_old
+frob_alias	GLIBC_2.2.5	default	func	global	1	forward-alias	real_target
+frob_shim	GLIBC_2.2.5	default	func	global	3	shim	-
+frob_weak	GLIBC_2.2.5	default	func	weak	2	forward-same	frob_weak
+frob_stub	GLIBC_2.2.5	default	func	global	4	stub	-
+frob_obj	GLIBC_2.2.5	default	object	global	2	forward-same	frob_obj
+other_fn	GLIBC_2.2.5	default	func	global	2	forward-same	other_fn
+GLIBC_2.0	GLIBC_2.0	default	object	global	scaffold	scaffold	-

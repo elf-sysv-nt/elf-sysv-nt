@@ -1,0 +1,7 @@
+frob_open	files	fixture.h
+frob_alias	files	fixture.h
+frob_shim	files	fixture.h
+frob_weak	files	fixture.h
+frob_stub	files	fixture.h
+frob_obj	files	fixture.h
+other_fn	memory	fixture2.h
