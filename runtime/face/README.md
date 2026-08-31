@@ -86,8 +86,24 @@ Planned order of work, one milestone per commit:
       (1716 faced, 39 DATA, 12 asis), fence preservation, and that the
       vendor's own gendef consumes the file, wrapping exactly the 1000
       SIGFE-fenced faces in sigfe stubs.
-3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
-4. `DllMain` and the PE TLS callback fired by the host's own loader.
-5. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
-6. Thread creation establishing the DR-0021 carrier; per-thread blocked
+3. The faced DLL build — in progress. The vendor tree now takes the din
+   and extra link objects from the make command line (`DIN_FILE`,
+   `FACE_OFILES`, commit `5c96baaa8` there), so the face goes on without
+   that tree carrying generated files. `cores.c` binds core.h inside the
+   DLL: twenty-one one-to-one forwards to DLL-internal names, four
+   written bodies for what Cygwin keeps static (verror, verror_at_line,
+   vsetproctitle) or lacks (vsiprintf); `t/cores.sh` certifies the
+   surface and that every reference resolves in the WP-26 DLL.
+   `build.sh` compiles the faces, generates the veneer entries directly
+   onto the `__face_` prefix (dodging the host headers' Microsoft
+   prototypes), and relinks through the seam. The link now stops at the
+   twelve nonformat variadic entries WP-24 enumerated but did not write
+   (`spawnlp` is the first sigfe reference to fail): nonformat.c worked
+   `open` and `execl` as the pattern and left the rest, and its
+   fixed-arity `__core_*` back ends need their own binding like
+   cores.c. That is the next milestone.
+5. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
+6. `DllMain` and the PE TLS callback fired by the host's own loader.
+7. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
+8. Thread creation establishing the DR-0021 carrier; per-thread blocked
    mask and alternate stack split that DR-0030 deferred.
