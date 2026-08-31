@@ -1,4 +1,4 @@
-# DR-XXXX — the wiring crosses through a load-time bound table
+# DR-0049 — the wiring crosses through a load-time bound table
 
 Accepted 2026-08-31. Made on the WP-56 branch.
 

@@ -1,4 +1,4 @@
-# DR-XXXX — main returns through exit, not _exit
+# DR-0048 — main returns through exit, not _exit
 
 ## Context
 

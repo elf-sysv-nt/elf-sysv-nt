@@ -58,6 +58,8 @@ is a record nobody will find.
 | [0045](0045-the-runtime-crossing-for-a-static-elf.md) | The runtime crossing for a static ELF | accepted 2026-08-31 | none |
 | [0046](0046-unlisted-face-disposition.md) | The unlisted faces resolve from Cygwin's own tree, and the PE protocol keeps its face | accepted 2026-08-31 | none |
 | [0047](0047-an-alias-is-as-strict-as-its-target.md) | an alias is never classified less strictly than its target | accepted 2026-08-31 | none |
+| [0048](0048-main-returns-through-exit.md) | main returns through exit, not _exit | accepted 2026-08-31 | none |
+| [0049](0049-wiring-crosses-a-bound-table.md) | the wiring crosses through a load-time bound table | accepted 2026-08-31 | none |
 
 ## What earns a record
 
