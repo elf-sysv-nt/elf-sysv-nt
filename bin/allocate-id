@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+#
+# Allocate the next free serial id at land time, not at creation, so two sessions
+# can never draw the same number (proposal 0005). Run inside the integration lock
+# by bin/session-land.
+#
+# Usage:
+#   allocate-id dr [FILE]        next decision-record number; if FILE (an
+#                                XXXX-<slug>.md placeholder) is given, rename it to
+#                                <NNNN>-<slug>.md, bind DR-XXXX in its body, and
+#                                insert its index row.
+#   allocate-id issue DIR        next NNNN under DIR (e.g. loader/map/issue).
+#
+import os, re, sys, glob, subprocess, datetime
+
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, '.git')):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def highest(dirpath):
+    n = 0
+    for f in glob.glob(os.path.join(dirpath, '[0-9][0-9][0-9][0-9]-*')):
+        m = re.match(r'(\d{4})', os.path.basename(f))
+        if m:
+            n = max(n, int(m.group(1)))
+    return n
+
+
+def alloc_dr(root, placeholder):
+    dd = os.path.join(root, 'doc', 'decisions')
+    num = '%04d' % (highest(dd) + 1)
+    if not placeholder:
+        print(num)
+        return 0
+    base = os.path.basename(placeholder)
+    slug = re.sub(r'^(XXXX|\d{4})-', '', base)
+    newbase = '%s-%s' % (num, slug)
+    newpath = os.path.join(dd, newbase)
+    subprocess.run(['git', '-C', root, 'mv', placeholder, newpath], check=True)
+    text = open(newpath, encoding='utf-8').read()
+    text = text.replace('DR-XXXX', 'DR-' + num)
+    title_m = re.search(r'(?m)^#\s*DR-%s\s*[-—]\s*(.+)$' % num, text)
+    title = title_m.group(1).strip() if title_m else slug[:-3]
+    open(newpath, 'w', encoding='utf-8').write(text)
+    idx = os.path.join(dd, 'index.md')
+    lines = open(idx, encoding='utf-8').read().split('\n')
+    row = '| [%s](%s) | %s | accepted %s | none |' % (
+        num, newbase, title, datetime.date.today().isoformat())
+    at = max(i for i, l in enumerate(lines) if l.startswith('| [00'))
+    lines.insert(at + 1, row)
+    open(idx, 'w', encoding='utf-8').write('\n'.join(lines))
+    print(num)
+    return 0
+
+
+def main(argv):
+    if not argv or argv[0] in ('-h', '--help'):
+        print(__doc__.strip().split('\n\n')[1]); return 0
+    root = repo_root('.')
+    kind = argv[0]
+    if kind == 'dr':
+        return alloc_dr(root, argv[1] if len(argv) > 1 else None)
+    if kind == 'issue':
+        if len(argv) < 2:
+            sys.stderr.write('allocate-id issue: needs a directory\n'); return 2
+        print('%04d' % (highest(os.path.join(root, argv[1])) + 1))
+        return 0
+    sys.stderr.write('allocate-id: unknown kind %s\n' % kind); return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

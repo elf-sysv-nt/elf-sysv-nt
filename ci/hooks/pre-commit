@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Trunk guard (proposal 0005): refuse a direct commit to the trunk. The trunk
+# (march, and its published pointer main) receives merges and fast-forwards
+# only; a plain commit onto it is what makes the branches diverge. A merge
+# commit is allowed (MERGE_HEAD is present); a fast-forward makes no commit and
+# never reaches this hook.
+#
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+case "$branch" in
+    march|main)
+        if [ ! -f "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
+            echo "pre-commit: refusing a direct commit to the trunk ($branch)." >&2
+            echo "  Start a session:  bin/session-start <kind>/<slug>" >&2
+            echo "  then land it:     bin/session-land" >&2
+            echo "  (override, rarely: git commit --no-verify)" >&2
+            exit 1
+        fi ;;
+esac
+exit 0
