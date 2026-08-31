@@ -65,3 +65,9 @@ The measurement is done; the redo is not, and is not this spike's to do. WP-32
 stays held under `loader/map/issue/0001` until the operator lifts it. This
 issue is answered on its measurement obligation and can close when that redo
 lands.
+
+## Closed, 2026-08-31
+
+The redo landed: `loader/map`'s reserve now discriminates by the hint as
+measured here, and its suite passes whole on the primary root. The closure
+record is `loader/map/issue/0001`. This issue is closed.
