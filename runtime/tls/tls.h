@@ -77,7 +77,12 @@ typedef struct elfsysv_tcbhead {
 	uintptr_t sysinfo;		/* 0x20                                */
 	uintptr_t stack_guard;		/* 0x28 __stack_chk_guard              */
 	uintptr_t pointer_guard;	/* 0x30 __pointer_chk_guard            */
-	uintptr_t reserved[3];		/* 0x38.. to a 0x50 head, glibc-shaped */
+	void *sigtls;			/* 0x38 the thread's signal record
+					 * (elfsysv_sigtls_t), hung here by
+					 * whoever creates the thread; NULL
+					 * until then, and NULL means the
+					 * signal package's fallback serves */
+	uintptr_t reserved[2];		/* 0x40.. to a 0x50 head, glibc-shaped */
 } elfsysv_tcbhead_t;
 
 /*
