@@ -25,13 +25,13 @@ and the dependency order remains the only ordering claim the plan makes.
 
 ## Phase 0 — the spikes
 
-`milestones.md` is the governing document for these five and it is not restated
+`milestones.md` is the governing document for the spikes and it is not restated
 here. What belongs in a plan is the rule around them: run one through to its
 stated verdict without asking, then stop at the boundary and report, rather than
 beginning the work the answer implies.
 
-All five are done, all on 2026-08-29. Spike 3 did not want spike 2's stub in
-the end: the crossing is measurable inside one process with two hand-written
+The five gating spikes are done, all on 2026-08-29, with six more run since and
+three planned above. Spike 3 did not want spike 2's stub in the end: the crossing is measurable inside one process with two hand-written
 callers, and carrying an ELF image into it would have added a variable without
 adding a question.
 

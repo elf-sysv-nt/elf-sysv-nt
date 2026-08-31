@@ -152,7 +152,7 @@ operator under `AGENTS.md` and is not settled here.
 **The widest part of the gap, and where the two designs part.** Above TLS, an
 ELF binary's demands on the OS stop being incidental and become the whole Linux
 system-call interface. There are two bridges across it, and the choice was
-already made in `rhelcyg-8.10`'s `doc/plan-rpm-userland.md`, which rejected the
+already made in `rhelcyg-8.10`'s `plan-rpm-userland.md`, which rejected the
 syscall route once before this project existed; this layer records why.
 
 The first bridge, call it design (a), translates. Catch or rewrite every
@@ -444,8 +444,8 @@ designs, `symbol-versioning-formats.md` for the record this work fences,
 `IMPLEMENTATION-PLAN.md` for what the layers above become once the spikes have
 answered.
 
-In `rhelcyg-8.10`, the first consumer: `doc/plan-rpm-userland.md`,
-`doc/stage-model.md`.
+In `rhelcyg-8.10`, the first consumer: `plan-rpm-userland.md`,
+`stage-model.md`.
 
 ## Not verified
 

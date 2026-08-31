@@ -21,7 +21,7 @@ maps the image itself never asks that loader for anything: Windows sees a
 PE host stub, and the ELF file is data. Every piece of the design exists in
 prior art. No one has assembled it at production scale. Of its two
 variants, one is priced out by the same syscall wall
-`rhelcyg-8.10`'s `doc/plan-rpm-userland.md` already recorded, and the other
+`rhelcyg-8.10`'s `plan-rpm-userland.md` already recorded, and the other
 is expensive in engineering-years rather than impossible; the affordable one
 repairs nearly everything the record lists as permanent cost, versioned
 Provides and Requires included. Whether that is worth a multi-year runway is a
@@ -92,7 +92,7 @@ Design (a) runs unmodified el8 binaries. That requires the Linux kernel
 ABI in user space: binary translation for syscall sites, fork, clone,
 futex, FS-based TLS, /proc, signal semantics. It is flinux's grave, and
 el8's glibc 2.28 exercises far more of that surface than the busybox-class
-binaries flinux managed. `rhelcyg-8.10`'s `doc/plan-rpm-userland.md` rejected
+binaries flinux managed. `rhelcyg-8.10`'s `plan-rpm-userland.md` rejected
 the syscall route once already; (a) is that rejection ignored. Priced out.
 
 Design (b) makes ELF this tree's native object format with our runtime
@@ -267,7 +267,7 @@ Mechanism references
 
 In-tree: `symbol-versioning-formats.md`, `elf-technical-breakdown.md`.
 
-In `rhelcyg-8.10`: `doc/plan-rpm-userland.md`, `doc/stage-model.md`, the two
+In `rhelcyg-8.10`: `plan-rpm-userland.md`, `stage-model.md`, the two
 `spike/*/results-2026-08-19.txt` transcripts, and the working notes on image
 format and symbol versioning that prompted this survey.
 

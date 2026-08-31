@@ -2,11 +2,12 @@
 
 Everything that has to be written before an el8 userland builds against this
 tree, in the order the pieces depend on one another. It is a scope document
-rather than a status one. Nothing below records what is finished, because
-nothing is, and because scope and progress rot at different rates; a file that
-carries both goes stale at the faster of the two.
+rather than a status one. Nothing below records what is finished — the tracked
+ledger `doc/status/delivered.txt` and `bin/build_status.py` do that — because
+scope and progress rot at different rates; a file that carries both goes stale at
+the faster of the two.
 
-`milestones.md` holds the five spikes and stops at their verdicts.
+`milestones.md` holds the spikes and stops at their verdicts.
 `elf-technical-breakdown.md` says why each layer exists and where its material
 comes from. This one says what the layer contains, and what condition it has to
 satisfy before anything is allowed to lean on it. The reasoning is not repeated

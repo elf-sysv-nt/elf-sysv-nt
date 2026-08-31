@@ -3,3 +3,4 @@
 # failure, a fuzz crash included. Blank lines and # comments are skipped.
 loader/elf/t/run.sh
 ci/t/run.sh
+bin/check-doc-refs

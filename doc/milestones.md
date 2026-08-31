@@ -8,8 +8,11 @@ month one. Five were planned. Four of them gate something, the fifth prices a
 naming decision that has since been taken without it, and the work added three
 more as it went: a sixth that settled what `%fs` could not provide, a seventh
 that priced whether the red zone can survive delivery, and an eighth that WP-12
-turned up. All eight have run, and one of them took the recommended path off
-the table, which is what a spike is for.
+turned up. Three more had run without a row until the design-gaps review
+numbered them: a ninth that read el8's own binary shape, a tenth that caught the
+linker emitting `%fs` code unasked, and an eleventh that built Cygwin from
+source. All eleven have run, and one of them took the recommended path off the
+table, which is what a spike is for.
 
 Each has a directory under `spike/` and one question it answers, yes or no for
 most and a count for the fifth. The verdict is the deliverable. Reaching one is
@@ -27,6 +30,9 @@ In dependency order, which is also cost order.
 | 6 | `spike/gs-thread-pointer/` | Does a thread pointer reached through `%gs` survive the switch that `%fs` did not? | The TLS model. Run 2026-08-29: yes, four carriers measured; DR-0003 took C3. |
 | 7 | `spike/redzone-delivery/` | Can delivery reserve the red zone before it builds the handler frame? | Whether `-mno-red-zone` can be retired. Run 2026-08-29: yes, a reserved delivery holds it and the far side survives; the cost is WP-43's to price. |
 | 8 | `spike/fs-base-fault/` | What does an access through a zeroed `%fs` base do, and can a handler resume from it? | Whether a load-time TLS rewriter for vendor binaries may be a heuristic. Run 2026-08-29: it faults and a handler resumes, over the data-movement forms and not the arithmetic ones. |
+| 9 | `spike/vendor-image-shape/` | What shape are el8's own binaries — OSABI, ABI-tag, `PT_LOAD` alignment, SONAME? | WP-10's four compiled-in target values. Run 2026-08-29: measured against 41 el8 ELF files. |
+| 10 | `spike/ld-tls-relaxation/` | Does the linker emit `%fs`-relative code on its own? | The binutils TLS-relaxation policy in WP-12. Run 2026-08-29: yes, so WP-12 refuses those relocations rather than rewriting them. |
+| 11 | `spike/cygwin-from-source/` | Can this machine build `cygwin1.dll`, and does a reserving delivery hold the red zone? | WP-26's from-source build and the red-zone reservation. Run 2026-08-29: both recorded, the prerequisites and the reservation captured. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,

@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+#
+# Turn the same-change documentation convention into something that either
+# passes or does not, so it cannot rot silently again (design-gaps F6).
+#
+# It checks three things and exits non-zero on the first violation:
+#   1. Every doc/, bin/, spike/ or ci/ path cited from within doc/ and AGENTS.md
+#      resolves to a file or directory that exists. A generated, git-ignored
+#      target (doc/Next-Steps.md) is skipped, since it is not in a fresh clone.
+#   2. Every directory under spike/ has a row in doc/milestones.md, and every
+#      spike path that milestones.md cites is a directory that exists. Planned
+#      spikes with neither a directory nor a row are intentionally out of scope
+#      until they run.
+#   3. The decision records keep proposal 0001's index bijection: every
+#      doc/decisions/NNNN-*.md has exactly one index row, and every index row
+#      points to a file that exists.
+#
+# Prose is not exempt here the way it is for check-target-definition: a broken
+# path in a design document is a broken path wherever it sits.
+#
+# Usage:
+#   check-doc-refs [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every reference examined.
+#   -V, --version            Print version and exit.
+#   -h, --help               This help.
+#
+# Exit: 0 all references resolve, 1 a violation, 2 a usage error.
+
+import os, re, sys, subprocess
+
+VERSION = 'check-doc-refs 1.0'
+TOPDIRS = ('doc/', 'bin/', 'spike/', 'ci/')
+PATH_OK = re.compile(r'^[A-Za-z0-9_./-]+$')       # no spaces, globs, or <>
+
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.isdir(os.path.join(d, '.git')) or os.path.isfile(os.path.join(d, '.git')):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def is_ignored(root, rel):
+    try:
+        return subprocess.call(['git', '-C', root, 'check-ignore', '-q', rel],
+                               stderr=subprocess.DEVNULL) == 0
+    except Exception:
+        return False
+
+
+def citing_files(root):
+    out = []
+    for name in ('AGENTS.md',):
+        p = os.path.join(root, name)
+        if os.path.isfile(p):
+            out.append(p)
+    for dirpath, dirs, files in os.walk(os.path.join(root, 'doc')):
+        if '.git' in dirpath.split(os.sep):
+            continue
+        for f in files:
+            if f.endswith('.md'):
+                out.append(os.path.join(dirpath, f))
+    return out
+
+
+def refs_in(path, root):
+    """Yield (rel_path_cited) for repo-path citations in one file."""
+    text = open(path, encoding='utf-8', errors='replace').read()
+    cands = set(re.findall(r'`([^`]+)`', text))
+    for m in re.finditer(r'\]\(([^)]+)\)', text):     # markdown link targets
+        t = m.group(1).strip()
+        if t.startswith(('http://', 'https://', 'mailto:', '#')):
+            continue
+        # resolve relative to the citing file's directory
+        base = os.path.dirname(path)
+        rel = os.path.relpath(os.path.normpath(os.path.join(base, t.split('#')[0])), root)
+        cands.add(rel.replace('\\', '/'))
+    for c in cands:
+        c = c.split('#')[0].strip().rstrip('/')
+        if not c or not PATH_OK.match(c):
+            continue
+        if c.startswith(TOPDIRS):
+            yield c
+
+
+def check_paths(root, verbose):
+    n, bad = 0, []
+    for f in citing_files(root):
+        for rel in refs_in(f, root):
+            n += 1
+            if verbose:
+                print('  ref %s -> %s' % (os.path.relpath(f, root), rel))
+            if os.path.exists(os.path.join(root, rel)):
+                continue
+            if is_ignored(root, rel):
+                continue                              # generated, e.g. doc/Next-Steps.md
+            base = os.path.basename(rel)
+            parent = os.path.join(root, os.path.dirname(rel))
+            if re.match(r'\d{4}$', base) and os.path.isdir(parent) and \
+               any(x.startswith(base + '-') or x.startswith(base + '.') for x in os.listdir(parent)):
+                continue                              # NNNN shorthand for NNNN-*.md
+            bad.append('%s: cites %s, which does not exist' % (os.path.relpath(f, root), rel))
+    return n, bad
+
+
+def check_spikes(root):
+    sp = os.path.join(root, 'spike')
+    if not os.path.isdir(sp):
+        return 0, []
+    dirs = set(d for d in os.listdir(sp) if os.path.isdir(os.path.join(sp, d)))
+    mtext = ''
+    mp = os.path.join(root, 'doc', 'milestones.md')
+    if os.path.isfile(mp):
+        mtext = open(mp, encoding='utf-8', errors='replace').read()
+    rows = set(re.findall(r'spike/([A-Za-z0-9_-]+)/', mtext))
+    bad = []
+    for d in sorted(dirs):
+        if d not in rows:
+            bad.append('spike/%s/ has no row in doc/milestones.md' % d)
+    for r in sorted(rows):
+        if r not in dirs:
+            bad.append('doc/milestones.md cites spike/%s/, which is not a directory' % r)
+    return len(dirs), bad
+
+
+def check_decisions(root):
+    dd = os.path.join(root, 'doc', 'decisions')
+    if not os.path.isdir(dd):
+        return 0, []
+    files = {}
+    for f in os.listdir(dd):
+        m = re.match(r'(\d{4})-.*\.md$', f)
+        if m:
+            files[m.group(1)] = f
+    idx = os.path.join(dd, 'index.md')
+    itext = open(idx, encoding='utf-8', errors='replace').read() if os.path.isfile(idx) else ''
+    rows = re.findall(r'\[(\d{4})\]\(([^)]+)\)', itext)
+    row_nums = [n for n, _ in rows]
+    bad = []
+    for num, fname in sorted(files.items()):
+        c = row_nums.count(num)
+        if c == 0:
+            bad.append('doc/decisions/%s has no index row' % fname)
+        elif c > 1:
+            bad.append('DR-%s has %d index rows' % (num, c))
+    for num, target in rows:
+        if not os.path.isfile(os.path.join(dd, target)):
+            bad.append('index row %s points at %s, which does not exist' % (num, target))
+    return len(files), bad
+
+
+def main(argv):
+    directory, quiet, verbose = None, False, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-h', '--help'):
+            print('Usage: check-doc-refs [-C DIR] [-q] [-v] [-V] [-h]\n'
+                  'Verify that doc citations, spike directories, and the\n'
+                  'decisions index all resolve. Exit 1 on the first violation.')
+            return 0
+        elif a in ('-V', '--version'):
+            print(VERSION); return 0
+        elif a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-v', '--verbose'):
+            verbose = True
+        elif a in ('-C', '--directory'):
+            i += 1; directory = argv[i]
+        elif a.startswith('--directory='):
+            directory = a.split('=', 1)[1]
+        elif a in ('-n', '--count'):
+            i += 1                                    # accept and ignore: not a fuzzable suite
+        elif a.startswith('--count='):
+            pass
+        else:
+            sys.stderr.write('check-doc-refs: unknown option %s\n' % a); return 2
+        i += 1
+
+    root = repo_root(directory or '.')
+    total = 0
+    problems = []
+    for label, fn in (('paths', check_paths), ('spikes', check_spikes), ('decisions', check_decisions)):
+        if label == 'paths':
+            n, bad = fn(root, verbose)
+        else:
+            n, bad = fn(root)
+        total += n
+        problems.extend(bad)
+
+    if problems:
+        for p in problems:
+            sys.stderr.write('FAIL %s\n' % p)
+        sys.stderr.write('check-doc-refs: %d reference(s) checked, %d problem(s)\n' % (total, len(problems)))
+        return 1
+    if not quiet:
+        print('check-doc-refs: %d reference(s) checked, all resolve' % total)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

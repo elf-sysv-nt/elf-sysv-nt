@@ -1,7 +1,7 @@
 # Symbol versioning, and whether another image format could carry it
 
 Surveyed 2026-08-20 in `rhelcyg-8.10`, against the open item in that
-repository's `doc/stage-model.md`, and copied here the same day. This is the
+repository's `stage-model.md`, and copied here the same day. This is the
 record this project exists to fence, and the sections about rpm, the fidelity
 test and the stage model are that repository's concern rather than this one's.
 Read it for the format findings, which are why ELF is worth the price.
@@ -240,7 +240,7 @@ alternative format exists on Windows; therefore versioned `Provides` and
 `Requires` cannot be generated or satisfied, and the metadata gate compares
 module-level dependencies only.
 
-One closure, in `doc/plan-rpm-userland.md` beside the syscall rejection. glibc
+One closure, in `plan-rpm-userland.md` beside the syscall rejection. glibc
 is out for the same reason and by consequence: it ships
 `ld-linux-x86-64.so.2`, which is the ELF dynamic loader, so closing ELF closes
 glibc. The C library is newlib plus Cygwin, permanently, and `glibc`,
@@ -252,7 +252,7 @@ unversioned library, so a package whose build system adapts on that answer is
 silently wrong, and the linker will never say so.
 
 One stage 0.5 admission, now superseded: a PE dependency generator. It
-satisfied all four clauses of the rule in `doc/stage-model.md` when the
+satisfied all four clauses of the rule in `stage-model.md` when the
 output format was PE, since stage 1 could not be compared correctly without
 it, no index package supplied it, it would have been ours with the source
 committed here, and its absence would have been papered over per package
