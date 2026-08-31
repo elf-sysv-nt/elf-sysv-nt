@@ -1,1 +1,0 @@
-Signal slice in progress.
