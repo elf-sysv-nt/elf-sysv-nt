@@ -28,6 +28,9 @@ veneer/t/ref-cache/
 # The vendored glibc headers are the other exception: locale.h and friends
 # carry "local" in the name and are history, not site config.
 !veneer/include/**/*local*
+# So does WP-56's locale slice under the wiring: its generated files and
+# diff cases are history too.
+!veneer/wiring/**/*locale*
 
 # Logs belong in bug reports, not here. The *unredacted* guard also catches a
 # raw capture saved under some other extension.
