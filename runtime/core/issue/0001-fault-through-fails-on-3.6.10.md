@@ -49,3 +49,16 @@ What the two cases need is a fault the compiler cannot reason away;
 `runtime/signal/t` raises its with `ud2` in assembly and was never affected.
 Making that change is WP-22's redo and is not this measurement's to make. WP-22
 stays held until the operator lifts it.
+
+## Repaired, 2026-08-31
+
+The operator directed the repair. Both faulters read their address from a
+volatile global the compiler cannot fold, each faulting System V call is
+reached through one plain frame to sidestep a gcc 14.4 `choose_baseaddr` ICE
+the repair exposed, and the failure message distinguishes a missing specimen
+from a lost process. `runtime/core/t/run.sh` on the primary root exits zero --
+all nine cases pass, `fault-through` and `fault-direct-sysv` included, and the
+built binary verifiably carries the calls to both faulters. The certification
+that DR-0038 withdrew re-runs green on the real environment; whether the WP-22
+hold lifts on that is the operator's. This report's root cause stands corrected
+as above, and its reproduction is repaired.

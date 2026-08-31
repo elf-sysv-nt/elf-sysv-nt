@@ -82,3 +82,20 @@ suite raises its fault with `ud2` in assembly and never had the problem. The
 repair is not this measurement's to make, and neither is the verdict on whethe
 this spike's `no` is withdrawn; both are the operator's. The measurement
 obligation is discharged.
+
+## Repaired, 2026-08-31
+
+The operator directed the repair. `ms_faulter` now reads its address from a
+volatile global the compiler cannot fold, the faulting call is reached through
+one plain frame to sidestep a gcc 14.4 `choose_baseaddr` ICE the repai
+exposed, the failure message distinguishes a missing specimen from a lost
+process, and `t/run-tests.sh` guards the specimen by symbol. Re-run on the
+primary root, twice: `verdict=yes`, every crossing case passing,
+`results-2026-08-31.txt`. The `no` this report recorded is withdrawn; the
+verdict flip was the compiler eliding the specimen, and the specimen no longe
+elides. This issue is closed.
+
+The re-run's red-zone reading differs from 2026-08-29's -- stock 3.6.10
+delivery leaves the reserved 128 bytes alone where 3.0.7 took `%rsp-8` -- and
+that observation is recorded in the spike README's re-verification section fo
+DR-0006's owner rather than acted on here.

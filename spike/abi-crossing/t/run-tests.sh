@@ -113,6 +113,25 @@ else
 	expect_status 0 'a help request'       "$probe" --help
 fi
 
+# The specimen guard. From 2026-08-30 to 2026-08-31 fault-through failed
+# because gcc 14 proved the null-store faulter unreachable and removed the
+# call that reached it, and the case could not tell that from a delivery
+# failure. The faulter now reads its address from a volatile global, and this
+# checks the call survived compilation -- by symbol, not instruction pattern,
+# because the store's shape changes with -O and a grep for it was wrong at two
+# levels out of three the first time one was written.
+printf '\nthe fault specimen is in the binary\n'
+if [ -x "$probe" ] && command -v objdump >/dev/null 2>&1; then
+	if objdump -d "$probe" 2>/dev/null | grep -q -e 'call.*sysv_faulter'; then
+		ok 'the call to the System V faulter survived the compiler'
+	else
+		no 'the call to the System V faulter survived the compiler' \
+			'no call to sysv_faulter in the built probe'
+	fi
+else
+	no 'the specimen guard ran' 'no probe or no objdump'
+fi
+
 printf '\nthe summary is stable across runs\n'
 if [ -x "$probe" ]; then
 	for round in one two; do

@@ -198,7 +198,7 @@ static void case_unwind_present(void)
 /*
  * And the other half of the seam: a sysv_abi core carries no record the host
  * recognizes, so the host treats a System V frame as a leaf and cannot walk it.
- * This is the invariant WP-23 and WP-43 rest on -- no host unwinder is ever
+ * This is the invariant WP-23 and WP-43 rest on -- no host unwinder is eve
  * pointed through a System V frame -- so it is asserted rather than left
  * implicit. A System V frame that started carrying host unwind data would be a
  * silent change to what the host will try to walk, and this fails if it does.
@@ -331,9 +331,20 @@ static void install(int signo, void (*handler)(int))
 	sigaction(signo, &sa, NULL);
 }
 
+/*
+ * The faulting address is a volatile global rather than a literal. It is
+ * still zero; the indirection means the compiler cannot prove it is zero. A
+ * store through a literal null pointer is undefined behaviour, and gcc 14
+ * proved that path unreachable and elided the calls that reached it, which
+ * is what issue/0001 and the characterization in spike/abi-crossing/issue/
+ * 0001 traced this suite's two fault-case failures to. gcc 7.4 kept the
+ * calls, which is why the rhel-root certification passed.
+ */
+static volatile uintptr_t fault_address;	/* zero, and not provably so */
+
 ELFSYSV_MSABI static void ms_faulter(void)
 {
-	*(volatile int *)0 = 1;
+	*(volatile int *)fault_address = 1;
 }
 
 ELFSYSV_SYSV static uint64_t sysv_over_ms(uint64_t t)
@@ -344,8 +355,24 @@ ELFSYSV_SYSV static uint64_t sysv_over_ms(uint64_t t)
 
 ELFSYSV_SYSV static uint64_t sysv_direct_fault(uint64_t t)
 {
-	*(volatile int *)0 = 1;
+	*(volatile int *)fault_address = 1;
 	return t;
+}
+
+/*
+ * One plain frame between the sigsetjmp and each System V call, as a
+ * workaround: gcc 14.4 ICEs in choose_baseaddr when a function that calls
+ * sigsetjmp also calls a sysv_abi function it cannot prove unreachable,
+ * which is exactly what the fault repair above made these calls into.
+ */
+__attribute__((noinline)) static void call_sysv_over_ms(void)
+{
+	(void)sysv_over_ms(1);
+}
+
+__attribute__((noinline)) static void call_sysv_direct_fault(void)
+{
+	(void)sysv_direct_fault(1);
 }
 
 /*
@@ -365,12 +392,13 @@ static void case_fault_through(void)
 	install(SIGSEGV, catch_fault);
 	fault_signo = 0;
 	if (sigsetjmp(fault_return, 1) == 0)
-		(void)sysv_over_ms(1);
+		call_sysv_over_ms();
 	else
 		arrived = 1;
 	install(SIGSEGV, SIG_DFL);
 
-	want(c, arrived, "the fault never came back as a signal");
+	want(c, arrived, "the faulter returned without faulting; the specimen "
+	     "is not in the binary");
 	want(c, fault_signo == SIGSEGV, "arrived as signal %d, not SIGSEGV", (int)fault_signo);
 
 	m = ms_cross_probe((void *)elfsysv_thread_entry, 0x9);
@@ -397,12 +425,13 @@ static void case_fault_direct_sysv(void)
 	install(SIGSEGV, catch_fault);
 	fault_signo = 0;
 	if (sigsetjmp(fault_return, 1) == 0)
-		(void)sysv_direct_fault(1);
+		call_sysv_direct_fault();
 	else
 		arrived = 1;
 	install(SIGSEGV, SIG_DFL);
 
-	want(c, arrived, "the fault never came back as a signal");
+	want(c, arrived, "the faulter returned without faulting; the specimen "
+	     "is not in the binary");
 	want(c, fault_signo == SIGSEGV, "arrived as signal %d, not SIGSEGV", (int)fault_signo);
 	if (!c->failures)
 		detail(c, "a fault in an unwalkable System V frame still reached Cygwin and returned");

@@ -625,15 +625,39 @@ static void case_callbacks(void)
 
 /* ---- case: a fault underneath a System V frame ------------------------ */
 
+/*
+ * The faulting address lives in a volatile global rather than appearing as a
+ * literal. It is still zero; what the indirection buys is that the compile
+ * cannot prove it is zero. A store through a literal null pointer is
+ * undefined behaviour, and gcc 14 proved the path unreachable and removed
+ * the call site that reached it, so from 2026-08-30 to 2026-08-31 this case
+ * reported a fault that never came back when in fact no fault had been
+ * raised. The characterization is in issue/0001 and the transcripts beside
+ * it; this is the repair it called for.
+ */
+static volatile uintptr_t fault_address;	/* zero, and not provably so */
+
 MSABI static void ms_faulter(void)
 {
-	*(volatile int *)0 = 1;
+	*(volatile int *)fault_address = 1;
 }
 
 SYSV static uint64_t sysv_faulter(uint64_t token)
 {
 	ms_faulter();
 	return token;
+}
+
+/*
+ * One plain frame between the sigsetjmp and the System V call, and it is a
+ * workaround rather than a flourish: gcc 14.4 ICEs in choose_baseaddr when a
+ * function that calls sigsetjmp also calls a sysv_abi function it cannot
+ * prove unreachable. The characterization hit the same ICE from the othe
+ * direction, and its probe took the same detour.
+ */
+__attribute__((noinline)) static void call_sysv_faulter(void)
+{
+	(void)sysv_faulter(1);
 }
 
 /*
@@ -645,6 +669,12 @@ SYSV static uint64_t sysv_faulter(uint64_t token)
  * without asking it anything. Then the crossing is exercised again, because a
  * process that survives the fault and has lost the convention afterwards has
  * not survived it.
+ *
+ * The two failure modes get two sentences. A case that returns without
+ * faulting means the specimen is not in the binary, which is the compiler's
+ * doing; a process that never comes back at all is a delivery failure, which
+ * is the host's. The first shape of this reported both as the fault not
+ * coming back, and the difference was two days of wrong root cause.
  */
 static void case_fault_through(void)
 {
@@ -655,12 +685,13 @@ static void case_fault_through(void)
 	install(SIGSEGV, catch_fault);
 	fault_signo = 0;
 	if (sigsetjmp(fault_return, 1) == 0)
-		(void)sysv_faulter(1);
+		call_sysv_faulter();
 	else
 		arrived = 1;
 	install(SIGSEGV, SIG_DFL);
 
-	want(c, arrived, "the fault never came back as a signal");
+	want(c, arrived, "the faulter returned without faulting; the specimen "
+	     "is not in the binary");
 	want(c, fault_signo == SIGSEGV, "arrived as signal %d, not SIGSEGV",
 	     (int)fault_signo);
 

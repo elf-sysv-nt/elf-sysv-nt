@@ -231,6 +231,38 @@ What is owed is a specimen the compiler cannot reason away -- the same repai
 since it raises its fault with `ud2` in hand-written assembly. Making that
 repair is not this measurement's to make.
 
+## Repaired and re-verified, 2026-08-31
+
+The operator directed the repair and it is in. `ms_faulter` reads its address
+from a volatile global -- still zero, no longer provably so -- and the
+faulting call sits one plain frame below the `sigsetjmp`, which is a
+workaround for a second gcc 14.4 defect the repair exposed: an internal
+compiler error in `choose_baseaddr` when a function that calls `sigsetjmp`
+also calls a `sysv_abi` function it cannot prove unreachable. The failure
+message now distinguishes a specimen missing from the binary from a delivery
+that lost the process, and `t/run-tests.sh` gained a guard that checks, by
+symbol, that the call to the System V faulter survived compilation.
+Twenty-three checks, all green on 2026-08-31.
+
+`results-2026-08-31.txt` is the re-run on the primary root, regenerated twice
+with matching findings: `verdict=yes` with every crossing case passing,
+`fault-through` included, under Cygwin 3.6.10 and gcc 14.4.
+
+One finding in it is new, and it is reported here rather than acted on.
+`rz-signal` on 3.6.10 reads `nearest:320` -- three runs out of three, stock
+delivery, no spike-7 reservation in play -- where 3.0.7 read `nearest:8` on
+every delivery. Cygwin's own signal delivery on this version no longe
+touches the psABI's reserved 128 bytes, and the transcript accordingly says
+`redzone_policy=no clobber inside 128 bytes` where the 2026-08-29 transcript
+said the flag was required. Both transcripts stand; they measured different
+Cygwins. This bears directly on DR-0006, whose premise -- the delivery site
+takes `%rsp-8` and wants repairing -- was measured on 3.0.7, and whether that
+record is reaffirmed against 3.6.10's source or reopened is the operator's,
+not this spike's. Note also what this does not say: `nearest:320` is an
+observation about one version's delivery path, not a contract, and the
+hand-off of the whole question to WP-43's measurement against Cygwin's real
+`sigdelayed` is unchanged.
+
 ## Not verified
 
 That the six shapes exhaust the ways the fault can be reached. They are the

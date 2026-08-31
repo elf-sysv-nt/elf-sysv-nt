@@ -1,0 +1,73 @@
+one entry point, System V outward and Microsoft inward
+
+host        ins-15
+kernel      CYGWIN_NT-10.0-26200 3.6.10-1.x86_64 x86_64
+processors  12
+compiler    gcc (GCC) 14.4.0
+date        2026-08-31T06:38:51Z
+script      abi-crossing 1.0
+probe       crossing 1.0
+rounds      200000 passes, 2000 events, 1024 bytes watched
+
+== the crossing
+
+                   kind        checks  failures  what it saw
+    sysv-face      crossing        19         0  16 arguments, 5 down-calls, callee-saved mask 0x0
+    ms-face        crossing         5         0  gpr mask 0x0, xmm mask 0x0, rsi rdi and xmm6-15 held
+    varargs        crossing         2         0  unpacked and repacked five arguments into "111 3.5 222 4.25 tail"
+    varargs-raw    control          3         0  sysv va_list 24 bytes, ms 8; first argument reads 206158430216, not 111
+    callbacks      crossing         5         0  thread start, APC, vectored handler and signal handler, 4 of 4
+    fault-through  crossing         3         0  SIGSEGV through a System V frame, and the crossing held after it
+    rz-quiet       control     200000         0  1024 bytes below %rsp intact over 200000 passes
+
+    A crossing case has to pass. A control has to behave as a
+    control, which for varargs-raw means producing the wrong
+    answer and for rz-quiet means seeing nothing move.
+
+== the red zone
+
+                       passes   events words lost  nearest furthest
+    rz-quiet           200000        0          0        0        0
+    rz-preempt         200000       12          0        0        0
+    rz-hijack            1339     2000          0        0        0
+    rz-signal          600785     2000      73992      320      648
+    rz-veh               2000     2000      73963      272      600
+
+    Nearest and furthest are distances below the watched %rsp,
+    in bytes. The watcher only ever looked 1024 bytes down, so a
+    furthest equal to that is a floor and not a measurement, and
+    the furthest under rz-veh counts this probe's own handler
+    frames as well as the host's. Nearest is the number that
+    decides the policy, because it is where the writing starts.
+    Under rz-preempt the events column counts burner threads:
+    preemptions cannot be counted from the thread they hit.
+
+== summary
+
+    verdict=yes
+    cases=11
+    cases_judged=7
+    cases_failed=0
+    cases_incomplete=0
+    shape=sysv-face:pass,ms-face:pass,varargs:pass,varargs-raw:pass,callbacks:pass,fault-through:pass,rz-quiet:pass,rz-preempt:measured,rz-hijack:measured,rz-signal:measured,rz-veh:measured
+    sysv_callee_saved_mask=0x0
+    ms_callee_saved_gpr_mask=0x0
+    ms_callee_saved_xmm_mask=0x0
+    redzone_watched_bytes=1024
+    redzone_quiet=intact
+    redzone_preempt=intact
+    redzone_hijack=intact
+    redzone_signal=nearest:320,furthest:648,words:73992
+    redzone_veh=nearest:272,furthest:600,words:73963
+    redzone_clobbered_by=rz-signal,rz-veh
+    redzone_nearest_byte=272
+    redzone_furthest_byte=648
+    redzone_policy=no clobber inside 128 bytes
+    probe=crossing 1.0
+    sysv_leaf_uses_red_zone=yes
+    mno_red_zone_changes_codegen=yes
+
+    The last two lines are the compiler's answer rather than
+    Windows'. They say whether gcc puts a sysv_abi leaf's locals
+    below %rsp on this target, and so whether -mno-red-zone is a
+    flag that changes something or a restatement of the default.
