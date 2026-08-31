@@ -199,3 +199,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-locale.o" "$tmp/wire-locale.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-locale.o" | grep -q 'setlocale@@GLIBC_2.2.5'
 fi
+
+# The committed time wiring re-derives byte-identical as well. The
+# slice is all thunks: struct tm and struct timespec lay out the same
+# on both sides and cross by pointer, and the clockid and itimer
+# value translations belong downstream of the bind, so no row lands
+# in the shims file yet.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice time \
+    --table "$tmp/wire-time.gen.c" \
+    --thunks "$tmp/wire-time.gen.s" \
+    --shims "$tmp/wire-time.shims.tsv" >/dev/null
+cmp ../wire-time.gen.c "$tmp/wire-time.gen.c"
+cmp ../wire-time.gen.s "$tmp/wire-time.gen.s"
+cmp ../wire-time.shims.tsv "$tmp/wire-time.shims.tsv"
+grep -q '"clock_gettime"' "$tmp/wire-time.gen.c"
+grep -q '"strftime"' "$tmp/wire-time.gen.c"
+test "$(grep -vc '^#' "$tmp/wire-time.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-time-table.o" "$tmp/wire-time.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-time.o" "$tmp/wire-time.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-time.o" | grep -q 'strftime@@GLIBC_2.2.5'
+fi
