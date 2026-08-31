@@ -16,3 +16,27 @@ Cygwin-host runtime behaviour — so it is unlikely to be sensitive to the
 "unlikely" is a judgement, and the point of re-verifying is to replace it with a
 measurement. Verdict is provisional on the real environment until the vendor
 input is available and the script reruns.
+
+## Re-run attempted, 2026-08-31 — the input is here; the vehicle is not
+
+The vendor tree the audit could not find is on the machine at
+`/c/-/el8/versioned-libc` (`fixture`, `ref`, `rpm`, `sysroot`), and
+`probe-elfdeps.sh -D` against it gets as far as invoking
+`sysroot/usr/lib/rpm/elfdeps` — which is el8's own Linux ELF binary, and no
+Cygwin root can execute it. The 2026-08-29 run necessarily executed it through
+a Linux vehicle. The operator has since authorized a Rocky 8.10 reference
+instance; this spike re-verifies through that instance when it stands, and
+stays NEEDS-INPUT on the execution vehicle rather than on the vendor material.
+
+## Re-verified, 2026-08-31 — holds, and against the real glibc this time
+
+The Rocky 8.10 reference instance stands (glibc 2.28, verified), and the
+probe re-ran through it against the on-machine vendor tree; the transcript is
+`results-2026-08-31.txt`. Every measured value is identical to 2026-08-29's.
+The one differing line is the probe's own libc — `ldd (GNU libc) 2.28` where
+the old transcript says `ldd (Ubuntu GLIBC 2.43)` — which both confirms the
+original run's vehicle was the substituted Ubuntu userland and upgrades this
+re-verification to el8's actual glibc, the version the substitutions ledger
+wants everything measured against. rpm still writes
+`libc.so.6(GLIBC_2.2.5)(64bit)` when pointed at the synthesized library.
+Closed.
