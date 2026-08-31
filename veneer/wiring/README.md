@@ -10,4 +10,6 @@ run the census to completion (a long, resumable, background job logged
 under `a/build-logs/`), then cut the first slice from its
 `demand-ranking.tsv`.
 
-Status: census run in flight; no slices cut.
+Status: census run in flight under a/census-work (single background job,
+resumable, logged to a/build-logs/wp56-wiring-bodies.log; a duplicate run
+was retired); no slices cut.
