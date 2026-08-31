@@ -307,3 +307,22 @@ initgroups refusing a user that is not there and setgroups refusing an
 impossible count with EINVAL before it looks at privilege. Exercised
 end to end with both sides on el8: four cases, all match; judging the
 wired veneer awaits the runtime the earlier slices wait on.
+
+The io-mux slice wires 8 rows, all thunks, no shims, generated and
+committed as `wire-io-mux.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included, the empty shims file among them — by
+`t/real-map.sh`. The readiness families cross whole: select and
+pselect, poll and ppoll, signalfd, and the timerfd trio; the epoll,
+eventfd and inotify names the slice map also claims are not wired
+dispositions in the forward map, so they stay stubs for now. Four diff
+cases cover select seeing an empty pipe as silent under a zero timeout
+and readable once written with the write end writable and a closed fd
+refused as EBADF, poll printing the same pipe facts with a closed fd
+reported as POLLNVAL in-band rather than as an error return, signalfd
+carrying a blocked SIGUSR1 as a readable record with the right signo
+and pid after a nonblocking read of the idle descriptor returns
+EAGAIN, and a one-shot timerfd armed at 50ms that gettime reports
+armed, read delivers as exactly one expiration, and a zeroed settime
+disarms back to nothing. Exercised end to end with both sides on el8:
+four cases, all match; judging the wired veneer awaits the runtime the
+earlier slices wait on.
