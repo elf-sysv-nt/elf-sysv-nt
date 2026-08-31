@@ -41,7 +41,11 @@ for f in "$integ"/doc/decisions/XXXX-*.md; do
 done
 
 python3 "$integ/bin/normalize-logs" -q -C "$integ"
-git -C "$integ" add -A doc/decisions doc/status a/build-blockers.log 2>/dev/null
+# Add each path on its own: one missing pathspec must not abort the whole add
+# (a/build-blockers.log is absent until the first blocker, and a combined add
+# fails outright on the unmatched pathspec, silently skipping the bind commit).
+git -C "$integ" add -A doc/decisions doc/status
+[ -e "$integ/a/build-blockers.log" ] && git -C "$integ" add a/build-blockers.log
 git -C "$integ" diff --cached --quiet || \
     git -C "$integ" commit --no-verify -q -m "chore(land): bind ids and normalize logs"
 
