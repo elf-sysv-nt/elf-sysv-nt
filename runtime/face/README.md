@@ -54,8 +54,22 @@ Planned order of work, one milestone per commit:
       that doubles past both register files, mixed signatures, floats,
       long doubles, complex values, and structs and unions in every
       passing class cross exactly.
-   4. The unlisted disposition read from Cygwin's own declarations, and
-      the `.def`/`.din` seam that puts all the faces on the DLL.
+   4. The unlisted disposition — done. `derive-unlisted.sh` settles the
+      222 faces the first probe could not see, from Cygwin's own
+      declarations: a second `-aux-info` probe over the headers the first
+      had no reason to include (the fortified ssp surface, the
+      windows-typed half of `sys/cygwin.h`, the xdr headers the tree
+      ships but the host does not install) resolves 144, and the 78 no
+      header anywhere declares are curated in `unlisted-residue.tsv`,
+      each row citing the declaring file in the pinned tree. Two classes
+      join int/fp there: asis (the PE-side startup and compiler protocol
+      — `_dll_crt0`, `_alloca`, the `GetCommandLine` shims — faced by
+      nothing, exported unchanged) and data (`__infinity`, an object the
+      `.din` fails to mark). `t/unlisted.sh` certifies reproduction,
+      totality in sigclass order, the pinned counts (193 int, 16 fp,
+      12 asis, 1 data), and that every citation resolves in the tree.
+   5. The `.def`/`.din` seam that puts all the faces on the DLL, with
+      the unlisted int and fp rows folded into the face generators.
 3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
 4. `DllMain` and the PE TLS callback fired by the host's own loader.
 5. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.

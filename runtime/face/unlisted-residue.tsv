@@ -1,0 +1,78 @@
+__assertfail	int	-	winsup/cygwin/syscalls.cc	-
+__bsd_qsort_r	int	-	newlib/libc/include/stdlib.h	-
+__cxa_atexit	int	-	winsup/cygwin/dcrt0.cc	-
+__cxa_finalize	int	-	winsup/cygwin/dcrt0.cc	-
+__gnu_basename	int	-	newlib/libc/string/gnu_basename.c	-
+__infinity	data	-	winsup/cygwin/math/isinf.c	-
+__main	asis	-	winsup/cygwin/dcrt0.cc	-
+__mempcpy	int	-	winsup/cygwin/cygwin.din	__mempcpy = mempcpy
+__opendir_with_d_ino	int	-	winsup/cygwin/dir.cc	-
+__srget	int	-	newlib/libc/stdio/rget.c	-
+__stack_chk_fail_local	asis	-	newlib/libc/ssp/stack_protector.c	-
+__stpncpy_chk	int	-	newlib/libc/ssp/stpncpy_chk.c	-
+__swbuf	int	-	newlib/libc/stdio/wbuf.c	-
+__wrap__ZdaPv	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZdaPv
+__wrap__ZdaPvRKSt9nothrow_t	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZdaPvRKSt9nothrow_t
+__wrap__ZdlPv	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZdlPv
+__wrap__ZdlPvRKSt9nothrow_t	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZdlPvRKSt9nothrow_t
+__wrap__Znam	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_Znam
+__wrap__ZnamRKSt9nothrow_t	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZnamRKSt9nothrow_t
+__wrap__Znwm	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_Znwm
+__wrap__ZnwmRKSt9nothrow_t	int	-	winsup/cygwin/libstdcxx_wrapper.cc	_ZnwmRKSt9nothrow_t
+__xdrrec_getrec	int	-	newlib/libc/xdr/xdr_rec.c	-
+__xdrrec_setnonblock	int	-	newlib/libc/xdr/xdr_rec.c	-
+__xpg_sigpause	int	-	winsup/cygwin/signal.cc	-
+__xpg_strerror_r	int	-	newlib/libc/string/xpg_strerror_r.c	-
+_alloca	asis	-	winsup/cygwin/cygwin.din	_alloca = __alloca
+_dll_crt0	asis	-	winsup/cygwin/dcrt0.cc	-
+_feinitialise	asis	-	winsup/cygwin/fenv.c	-
+_pipe	int	-	winsup/cygwin/syscalls.cc	-
+arc4random_addrandom	int	-	winsup/cygwin/libc/arc4random_stir.c	-
+arc4random_stir	int	-	winsup/cygwin/libc/arc4random_stir.c	-
+cygwin_detach_dll	asis	-	winsup/cygwin/dll_init.cc	-
+cygwin_dll_init	asis	-	winsup/cygwin/dcrt0.cc	-
+cygwin_logon_user	int	-	winsup/cygwin/include/sys/cygwin.h	-
+cygwin_stackdump	int	-	winsup/cygwin/exceptions.cc	-
+dll_crt0__FP11per_process	asis	-	winsup/cygwin/cygwin.din	dll_crt0__FP11per_process
+dll_dllcrt0	asis	-	winsup/cygwin/dll_init.cc	-
+dll_entry	asis	-	winsup/cygwin/init.cc	-
+dn_comp	int	-	winsup/cygwin/libc/minires.c	-
+dn_expand	int	-	winsup/cygwin/libc/minires.c	-
+dn_skipname	int	-	winsup/cygwin/libc/minires.c	-
+ecvt	fp	char *ecvt (double, int, int *, int *)	newlib/libc/stdlib/efgcvt.c	-
+ecvtbuf	fp	char *ecvtbuf (double, int, int *, int *, char *)	newlib/libc/stdlib/ecvtbuf.c	-
+ecvtf	fp	char *ecvtf (float, int, int *, int *)	newlib/libc/stdlib/efgcvt.c	-
+fcvt	fp	char *fcvt (double, int, int *, int *)	newlib/libc/stdlib/efgcvt.c	-
+fcvtbuf	fp	char *fcvtbuf (double, int, int *, int *, char *)	newlib/libc/stdlib/ecvtbuf.c	-
+fcvtf	fp	char *fcvtf (float, int, int *, int *)	newlib/libc/stdlib/efgcvt.c	-
+gcvt	fp	char *gcvt (double, int, char *)	newlib/libc/stdlib/efgcvt.c	-
+gcvtf	fp	char *gcvtf (float, int, char *)	newlib/libc/stdlib/efgcvt.c	-
+GetCommandLineA@0	asis	-	winsup/cygwin/kernel32.cc	cygwin_GetCommandLineA
+GetCommandLineW@0	asis	-	winsup/cygwin/kernel32.cc	cygwin_GetCommandLineW
+getmode	int	-	winsup/cygwin/syscalls.cc	-
+lgammal_r	fp	long double lgammal_r (long double, int *)	winsup/cygwin/math/lgammal.c	-
+pthread_attr_getstackaddr	int	-	winsup/cygwin/thread.cc	-
+pthread_attr_setstackaddr	int	-	winsup/cygwin/thread.cc	-
+pthread_getsequence_np	int	-	winsup/cygwin/thread.cc	-
+res_close	int	-	winsup/cygwin/libc/minires.c	-
+res_init	int	-	winsup/cygwin/libc/minires.c	-
+res_mkquery	int	-	winsup/cygwin/libc/minires.c	-
+res_nclose	int	-	winsup/cygwin/libc/minires.c	-
+res_ninit	int	-	winsup/cygwin/libc/minires.c	-
+res_nmkquery	int	-	winsup/cygwin/libc/minires.c	-
+res_nquery	int	-	winsup/cygwin/libc/minires.c	-
+res_nquerydomain	int	-	winsup/cygwin/libc/minires.c	-
+res_nsearch	int	-	winsup/cygwin/libc/minires.c	-
+res_nsend	int	-	winsup/cygwin/libc/minires.c	-
+res_query	int	-	winsup/cygwin/libc/minires.c	-
+res_querydomain	int	-	winsup/cygwin/libc/minires.c	-
+res_search	int	-	winsup/cygwin/libc/minires.c	-
+res_send	int	-	winsup/cygwin/libc/minires.c	-
+scalb	fp	double scalb (double, double)	newlib/libm/math/w_scalb.c	-
+scalbf	fp	float scalbf (float, float)	newlib/libm/math/wf_scalb.c	-
+scalbl	fp	long double scalbl (long double, long int)	winsup/cygwin/math/scalbl.S	-
+significand	fp	double significand (double)	newlib/libm/math/s_signif.c	-
+significandf	fp	float significandf (float)	newlib/libm/math/sf_signif.c	-
+timezone	int	-	winsup/cygwin/times.cc	timezone (void)
+ttyslot	int	-	winsup/cygwin/tty.cc	-
+uname_x	int	-	winsup/cygwin/uname.cc	-
