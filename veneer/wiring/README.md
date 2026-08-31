@@ -31,10 +31,21 @@ winner in the generator, never a silent first-row-wins. The generated
 files are committed; `t/run-tests.sh` regenerates them, requires
 byte-identity, and runs compiled spot checks of both directions.
 
+## The crossing
+
+`gen-wire.py` turns the forward map and the slice map into one slice's
+wiring: a bind table (`wire-<slice>.gen.c`) with an `esn_wire_ent` row
+per wired symbol, a thunk per forward (`wire-<slice>.gen.s`, a
+rip-relative tail jump through the row's slot, `.symver`-bound like the
+stub it replaces), and the slice's shim worklist. `wire.c` is the one
+bind loop: at load the runtime resolves every export name through a
+callback and fills the slots; unresolved rows stay null and are counted.
+The mechanism and its alternatives are the bound-table decision record.
+
 ## Status
 
 The census (spike 12) is running in the background over the 4855-package
 el8 worklist (resumable, logged to `a/build-logs/wp56-wiring-bodies.log`).
 When it completes, `census.py report` produces `demand-ranking.tsv`,
 `order` cuts the slice queue from it, and the first slice's wiring
-begins. No slices cut yet.
+begins through `gen-wire.py`. No slices cut yet.
