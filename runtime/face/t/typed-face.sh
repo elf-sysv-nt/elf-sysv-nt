@@ -31,7 +31,10 @@ else
 fi
 
 # 2. exactly the fp and aggr classes, in order, bodies aliased to targets
-awk -F'\t' '$2 == "fp" || $2 == "aggr" { print $1 }' "$face_dir/sigclass.tsv" > "$tmp/want.names"
+awk -F'\t' 'FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
+  $2 == "fp" || $2 == "aggr" ||
+  ($2 == "unlisted" && (ucls[$1] == "fp" || ucls[$1] == "aggr")) { print $1 }' \
+  "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" > "$tmp/want.names"
 sed -n 's/^__attribute__((sysv_abi)) .*__face_\([A-Za-z0-9_]*\) (.*/\1/p' \
   "$face_dir/typed-faces.gen.c" > "$tmp/have.names"
 if cmp -s "$tmp/want.names" "$tmp/have.names"; then
@@ -40,9 +43,10 @@ else
   bad "emitted faces differ from the fp and aggr classes"
   diff "$tmp/want.names" "$tmp/have.names" | head -10
 fi
-awk -F'\t' 'NR==FNR { cls[$1]=$2; next }
+awk -F'\t' 'FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
+  FILENAME ~ /sigclass/ { cls[$1] = ($2=="unlisted" && ucls[$1]!="") ? ucls[$1] : $2; next }
   $2=="sv2ms" && (cls[$1]=="fp" || cls[$1]=="aggr") { print $4 }' \
-  "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.targets"
+  "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.targets"
 sed -n 's/.*__asm__("\([^"]*\)");$/\1/p' "$face_dir/typed-faces.gen.c" > "$tmp/have.targets"
 if cmp -s "$tmp/want.targets" "$tmp/have.targets"; then
   say "ok: every body aliased to its face-table target"

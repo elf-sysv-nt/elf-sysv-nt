@@ -27,12 +27,17 @@
 # --prelude substitutes an include for it so the certification harness
 # can drive the same emission over fabricated tables.
 #
+# Rows sigclass.tsv left unlisted take their class and prototype from
+# unlisted.tsv, so the 16 unlisted-fp faces are emitted here too, from the
+# prototypes that table records.
+#
 # Usage:
-#   gen-typed-faces.sh [-o FILE] [--face FILE] [--sigclass FILE] [--prelude NAME]
+#   gen-typed-faces.sh [-o FILE] [--face FILE] [--sigclass FILE] [--unlisted FILE] [--prelude NAME]
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 face=$here/face.tsv
 sigclass=$here/sigclass.tsv
+unlisted=$here/unlisted.tsv
 out=$here/typed-faces.gen.c
 prelude=
 while [ $# -gt 0 ]; do
@@ -40,6 +45,7 @@ while [ $# -gt 0 ]; do
     -o) out=$2; shift 2;;
     --face) face=$2; shift 2;;
     --sigclass) sigclass=$2; shift 2;;
+    --unlisted) unlisted=$2; shift 2;;
     --prelude) prelude=$2; shift 2;;
     *) echo "unknown option: $1" >&2; exit 2;;
   esac
@@ -52,14 +58,27 @@ gen() {
   else
     sed -n '/^cat > "\$tmp\/probe\.c"/,/^EOF$/p' "$here/derive-sigclass.sh" \
     | sed '1d;$d'
+    printf '\n/* The unlisted fp rows use two types no installed header provides:\n'
+    printf ' * the xdr pair from the headers the tree ships but the host does\n'
+    printf ' * not install. bool_t is int there; XDR only ever crosses here\n'
+    printf ' * behind a pointer, so an incomplete struct carries it. */\n'
+    printf 'typedef int bool_t;\n'
+    printf 'typedef struct __rpc_xdr XDR;\n'
   fi
-  awk -F'\t' -v face="$face" '
+  awk -F'\t' -v face="$face" -v unl="$unlisted" '
     BEGIN {
       n = 0
       while ((getline line < face) > 0) {
         split(line, f, "\t")
         if (f[2] == "sv2ms") target[f[1]] = f[4]
       }
+      while ((getline line < unl) > 0) {
+        split(line, f, "\t")
+        ucls[f[1]] = f[2]; uproto[f[1]] = f[3]
+      }
+    }
+    $2 == "unlisted" && (ucls[$1] == "fp" || ucls[$1] == "aggr") {
+      $2 = ucls[$1]; $3 = uproto[$1]
     }
     $2 != "fp" && $2 != "aggr" { next }
     {

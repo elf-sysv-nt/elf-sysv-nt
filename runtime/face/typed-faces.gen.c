@@ -93,6 +93,13 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 
+/* The unlisted fp rows use two types no installed header provides:
+ * the xdr pair from the headers the tree ships but the host does
+ * not install. bool_t is int there; XDR only ever crosses here
+ * behind a pointer, so an incomplete struct carries it. */
+typedef int bool_t;
+typedef struct __rpc_xdr XDR;
+
 extern int __body___fpclassifyd (double a1) __asm__("__fpclassifyd");
 __attribute__((sysv_abi)) int __face___fpclassifyd (double a1)
 { return __body___fpclassifyd (a1); }
@@ -577,6 +584,18 @@ extern float __body_dreml (long double a1, long double a2) __asm__("remainderl")
 __attribute__((sysv_abi)) float __face_dreml (long double a1, long double a2)
 { return __body_dreml (a1, a2); }
 
+extern char * __body_ecvt (double a1, int a2, int * a3, int * a4) __asm__("ecvt");
+__attribute__((sysv_abi)) char * __face_ecvt (double a1, int a2, int * a3, int * a4)
+{ return __body_ecvt (a1, a2, a3, a4); }
+
+extern char * __body_ecvtbuf (double a1, int a2, int * a3, int * a4, char * a5) __asm__("ecvtbuf");
+__attribute__((sysv_abi)) char * __face_ecvtbuf (double a1, int a2, int * a3, int * a4, char * a5)
+{ return __body_ecvtbuf (a1, a2, a3, a4, a5); }
+
+extern char * __body_ecvtf (float a1, int a2, int * a3, int * a4) __asm__("ecvtf");
+__attribute__((sysv_abi)) char * __face_ecvtf (float a1, int a2, int * a3, int * a4)
+{ return __body_ecvtf (a1, a2, a3, a4); }
+
 extern double __body_erand48 (short unsigned int * a1) __asm__("erand48");
 __attribute__((sysv_abi)) double __face_erand48 (short unsigned int * a1)
 { return __body_erand48 (a1); }
@@ -664,6 +683,18 @@ __attribute__((sysv_abi)) float __face_fabsf (float a1)
 extern long double __body_fabsl (long double a1) __asm__("fabsl");
 __attribute__((sysv_abi)) long double __face_fabsl (long double a1)
 { return __body_fabsl (a1); }
+
+extern char * __body_fcvt (double a1, int a2, int * a3, int * a4) __asm__("fcvt");
+__attribute__((sysv_abi)) char * __face_fcvt (double a1, int a2, int * a3, int * a4)
+{ return __body_fcvt (a1, a2, a3, a4); }
+
+extern char * __body_fcvtbuf (double a1, int a2, int * a3, int * a4, char * a5) __asm__("fcvtbuf");
+__attribute__((sysv_abi)) char * __face_fcvtbuf (double a1, int a2, int * a3, int * a4, char * a5)
+{ return __body_fcvtbuf (a1, a2, a3, a4, a5); }
+
+extern char * __body_fcvtf (float a1, int a2, int * a3, int * a4) __asm__("fcvtf");
+__attribute__((sysv_abi)) char * __face_fcvtf (float a1, int a2, int * a3, int * a4)
+{ return __body_fcvtf (a1, a2, a3, a4); }
 
 extern double __body_fdim (double a1, double a2) __asm__("fdim");
 __attribute__((sysv_abi)) double __face_fdim (double a1, double a2)
@@ -776,6 +807,14 @@ __attribute__((sysv_abi)) float __face_gammaf (float a1)
 extern float __body_gammaf_r (float a1, int * a2) __asm__("gammaf_r");
 __attribute__((sysv_abi)) float __face_gammaf_r (float a1, int * a2)
 { return __body_gammaf_r (a1, a2); }
+
+extern char * __body_gcvt (double a1, int a2, char * a3) __asm__("gcvt");
+__attribute__((sysv_abi)) char * __face_gcvt (double a1, int a2, char * a3)
+{ return __body_gcvt (a1, a2, a3); }
+
+extern char * __body_gcvtf (float a1, int a2, char * a3) __asm__("gcvtf");
+__attribute__((sysv_abi)) char * __face_gcvtf (float a1, int a2, char * a3)
+{ return __body_gcvtf (a1, a2, a3); }
 
 extern int __body_getloadavg (double * a1, int a2) __asm__("getloadavg");
 __attribute__((sysv_abi)) int __face_getloadavg (double * a1, int a2)
@@ -912,6 +951,10 @@ __attribute__((sysv_abi)) float __face_lgammaf_r (float a1, int * a2)
 extern long double __body_lgammal (long double a1) __asm__("lgammal");
 __attribute__((sysv_abi)) long double __face_lgammal (long double a1)
 { return __body_lgammal (a1); }
+
+extern long double __body_lgammal_r (long double a1, int * a2) __asm__("lgammal_r");
+__attribute__((sysv_abi)) long double __face_lgammal_r (long double a1, int * a2)
+{ return __body_lgammal_r (a1, a2); }
 
 extern lldiv_t __body_lldiv (long long int a1, long long int a2) __asm__("lldiv");
 __attribute__((sysv_abi)) lldiv_t __face_lldiv (long long int a1, long long int a2)
@@ -1165,6 +1208,18 @@ extern long double __body_roundl (long double a1) __asm__("roundl");
 __attribute__((sysv_abi)) long double __face_roundl (long double a1)
 { return __body_roundl (a1); }
 
+extern double __body_scalb (double a1, double a2) __asm__("scalb");
+__attribute__((sysv_abi)) double __face_scalb (double a1, double a2)
+{ return __body_scalb (a1, a2); }
+
+extern float __body_scalbf (float a1, float a2) __asm__("scalbf");
+__attribute__((sysv_abi)) float __face_scalbf (float a1, float a2)
+{ return __body_scalbf (a1, a2); }
+
+extern long double __body_scalbl (long double a1, long int a2) __asm__("scalbl");
+__attribute__((sysv_abi)) long double __face_scalbl (long double a1, long int a2)
+{ return __body_scalbl (a1, a2); }
+
 extern double __body_scalbln (double a1, long int a2) __asm__("scalbln");
 __attribute__((sysv_abi)) double __face_scalbln (double a1, long int a2)
 { return __body_scalbln (a1, a2); }
@@ -1188,6 +1243,14 @@ __attribute__((sysv_abi)) float __face_scalbnf (float a1, int a2)
 extern long double __body_scalbnl (long double a1, int a2) __asm__("scalbnl");
 __attribute__((sysv_abi)) long double __face_scalbnl (long double a1, int a2)
 { return __body_scalbnl (a1, a2); }
+
+extern double __body_significand (double a1) __asm__("significand");
+__attribute__((sysv_abi)) double __face_significand (double a1)
+{ return __body_significand (a1); }
+
+extern float __body_significandf (float a1) __asm__("significandf");
+__attribute__((sysv_abi)) float __face_significandf (float a1)
+{ return __body_significandf (a1); }
 
 extern int __body_sigqueue (pid_t a1, int a2, const union sigval a3) __asm__("sigqueue");
 __attribute__((sysv_abi)) int __face_sigqueue (pid_t a1, int a2, const union sigval a3)
@@ -1336,6 +1399,14 @@ __attribute__((sysv_abi)) long double __face_wcstold (const wchar_t * a1, wchar_
 extern long double __body_wcstold_l (const wchar_t * a1, wchar_t ** a2, locale_t a3) __asm__("wcstold_l");
 __attribute__((sysv_abi)) long double __face_wcstold_l (const wchar_t * a1, wchar_t ** a2, locale_t a3)
 { return __body_wcstold_l (a1, a2, a3); }
+
+extern bool_t __body_xdr_double (XDR * a1, double * a2) __asm__("xdr_double");
+__attribute__((sysv_abi)) bool_t __face_xdr_double (XDR * a1, double * a2)
+{ return __body_xdr_double (a1, a2); }
+
+extern bool_t __body_xdr_float (XDR * a1, float * a2) __asm__("xdr_float");
+__attribute__((sysv_abi)) bool_t __face_xdr_float (XDR * a1, float * a2)
+{ return __body_xdr_float (a1, a2); }
 
 extern double __body_y0 (double a1) __asm__("y0");
 __attribute__((sysv_abi)) double __face_y0 (double a1)
