@@ -253,6 +253,7 @@ def main():
         print('  (none)')
     print('verdict: %s' % verdict(rows, lock_held))
     if rows:
+        print()
         print('logs (relative to project root):')
         for name, st, wp in rows:
             rel = 'a/build-logs/%s.log' % name
