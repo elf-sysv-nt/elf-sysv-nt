@@ -510,3 +510,27 @@ reset of the tag to the program name, which differs between the two
 sides' binaries, is deliberately left unprinted). Exercised end to
 end with both sides on el8: four cases, all match; judging the wired
 veneer awaits the runtime the earlier slices wait on.
+
+The sysv-ipc slice is thirteen rows, all thunks, no shims, generated
+and committed as `wire-sysv-ipc.gen.c` / `.gen.s` / `.shims.tsv` and
+pinned byte-identical — counts included — by `t/real-map.sh`. The
+rows are ftok, the msg/sem/shm call families off sys/ipc.h and
+friends, and `__getpagesize`, which sys/shm.h declares for SHMLBA;
+every one forward-same at GLIBC_2.2.5, since keys, identifiers, and
+operation structs mean the same thing on both sides of the bound
+table. Four diff cases cover the ftok contract (a stable key from
+the same path and low byte, different low bytes naming different
+keys, and ENOENT on a missing path), semaphores (SETALL and GETALL
+round-tripping a set, semop applying an array atomically, IPC_NOWAIT
+turning a would-block into EAGAIN without touching any value, and
+GETPID/GETNCNT/GETZCNT), shared memory end to end (a second
+attachment seeing a first attachment's write, IPC_STAT's size and
+attach count, detach dropping the count, and removal outliving the
+existing mapping while blocking new attachments with EINVAL), and
+message queues (a zero-length body round-tripping, MSG_NOERROR
+truncating an oversized receive instead of failing, a
+type-selective receive picking the right message out of several
+queued, IPC_NOWAIT turning an empty queue into ENOMSG, and removal
+failing a further send with EIDRM). Exercised end to end with both
+sides on el8: four cases, all match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
