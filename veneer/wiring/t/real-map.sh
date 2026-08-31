@@ -53,12 +53,16 @@ cmp ../wire-string.gen.c "$tmp/wire-string.gen.c"
 cmp ../wire-string.gen.s "$tmp/wire-string.gen.s"
 cmp ../wire-string.shims.tsv "$tmp/wire-string.shims.tsv"
 
-# One real slice generates and, when the cross toolchain is present, its
-# thunks assemble and carry their versioned names.
+# The committed stdio wiring re-derives byte-identical too, and when the
+# cross toolchain is present its thunks assemble and carry their
+# versioned names.
 python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
     --slice-map ../symbol-slice.tsv --slice stdio \
     --table "$tmp/wire-stdio.gen.c" --thunks "$tmp/wire-stdio.gen.s" \
     --shims "$tmp/wire-stdio.shims.tsv" >/dev/null
+cmp ../wire-stdio.gen.c "$tmp/wire-stdio.gen.c"
+cmp ../wire-stdio.gen.s "$tmp/wire-stdio.gen.s"
+cmp ../wire-stdio.shims.tsv "$tmp/wire-stdio.shims.tsv"
 grep -q '"fopen"' "$tmp/wire-stdio.gen.c"
 "${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
     -o "$tmp/wire-stdio-table.o" "$tmp/wire-stdio.gen.c"
