@@ -1,4 +1,4 @@
-# DR-XXXX — `-mno-red-zone` is retired; the red zone is honored at the delivery site
+# DR-0050 — `-mno-red-zone` is retired; the red zone is honored at the delivery site
 
 Status: taken by the operator's standing mandate; supersedes DR-0006
 Date: 2026-08-31

@@ -60,6 +60,7 @@ is a record nobody will find.
 | [0047](0047-an-alias-is-as-strict-as-its-target.md) | an alias is never classified less strictly than its target | accepted 2026-08-31 | none |
 | [0048](0048-main-returns-through-exit.md) | main returns through exit, not _exit | accepted 2026-08-31 | none |
 | [0049](0049-wiring-crosses-a-bound-table.md) | the wiring crosses through a load-time bound table | accepted 2026-08-31 | none |
+| [0050](0050-retire-mno-red-zone.md) | `-mno-red-zone` is retired; the red zone is honored at the delivery site | accepted 2026-08-31 | none |
 
 ## What earns a record
 
