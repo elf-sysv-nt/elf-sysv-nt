@@ -11,10 +11,11 @@ created, and a non-zero exit aborts the merge. `gate.sh` runs every
 suite registered in `suites.txt` and fails if any fails, a new fuzz
 crash first among them. DR-0035 records the shape and why.
 
-The gate insists on the pinned verification root -- Cygwin 3.0.7, the
-rhel root -- because that is the environment the plan's done-when names
-and a pass anywhere else certifies nothing. Off that root it refuses to
-run and says so; `git merge --no-verify` remains as the deliberate
+The gate insists on the pinned certification root -- Cygwin 3.6.10, the
+primary root -- because a pass anywhere else certifies nothing. DR-0038
+re-pinned it there from the retired 3.0.7 rhel root, whose gcc 7.4 could
+no longer build what the suites certify. Off the pinned root it refuses
+to run and says so; `git merge --no-verify` remains as the deliberate
 bypass and should stay deliberate.
 
 `install.sh` wires the hook by setting `core.hooksPath` to `ci/hooks`.
