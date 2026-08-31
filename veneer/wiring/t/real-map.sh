@@ -176,3 +176,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-sockets.o" "$tmp/wire-sockets.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-sockets.o" | grep -q 'socket@@GLIBC_2.2.5'
 fi
+
+# The committed locale wiring re-derives byte-identical as well. The
+# slice is all thunks: the ctype classifications and their _l twins
+# cross by value, locale_t is an opaque pointer on both sides, and
+# setlocale's category values translate downstream of the bind, so no
+# row lands in the shims file yet.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice locale \
+    --table "$tmp/wire-locale.gen.c" \
+    --thunks "$tmp/wire-locale.gen.s" \
+    --shims "$tmp/wire-locale.shims.tsv" >/dev/null
+cmp ../wire-locale.gen.c "$tmp/wire-locale.gen.c"
+cmp ../wire-locale.gen.s "$tmp/wire-locale.gen.s"
+cmp ../wire-locale.shims.tsv "$tmp/wire-locale.shims.tsv"
+grep -q '"setlocale"' "$tmp/wire-locale.gen.c"
+grep -q '"isalpha"' "$tmp/wire-locale.gen.c"
+test "$(grep -vc '^#' "$tmp/wire-locale.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-locale-table.o" "$tmp/wire-locale.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-locale.o" "$tmp/wire-locale.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-locale.o" | grep -q 'setlocale@@GLIBC_2.2.5'
+fi
