@@ -37,13 +37,15 @@ _start:
 
 	call	main
 
-	/* main's return value is the exit status.  There is no kernel to hand
-	   it to; _exit is what stands where a syscall would, and WP-41 is what
-	   eventually gives it somewhere to go.  */
+	/* main's return value is the exit status, and it leaves through exit,
+	   not _exit: glibc's startup returns from main into exit, which runs
+	   the atexit chain and flushes stdio, and a program whose buffered
+	   output vanishes at return from main is observably not that platform.
+	   The string-slice differential caught exactly that.  */
 	movl	%eax, %edi
-	call	_exit
+	call	exit
 
-	/* _exit does not return.  If it does, fault here rather than run off
+	/* exit does not return.  If it does, fault here rather than run off
 	   into whatever follows: a crt that falls through is how a program
 	   ends up executing its own .rodata.  */
 	ud2
