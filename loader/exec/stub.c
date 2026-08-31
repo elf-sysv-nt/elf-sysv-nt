@@ -28,6 +28,8 @@
  *
  * Options:
  *   -s N, --stack=N     Bytes for the image's stack. [default: 0x800000]
+ *   -r P, --runtime=P   Load the runtime DLL at host path P and publish its
+ *                       base to the image through AT_BASE.
  *   -w, --self-window   Reserve the window here rather than adopting one, for
  *                       a run with no parent to arm it. It will normally fail,
  *                       and failing visibly is the point.
@@ -51,14 +53,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef __CYGWIN__
 #include <unistd.h>
+#endif
 
 static const char PROG[] = "elfsysv-stub";
 static const char RELEASE[] = "elfsysv-stub 1.0";
 
 extern void elf_enter(void *entry, void *sp, uint64_t rdx);
 extern void elf_terminate(void);
+#ifdef __CYGWIN__
 extern char **environ;
+#else
+/* A native build (the sole-runtime certification shape) has msvcrt's copy. */
+#define environ _environ
+#endif
 
 /* The far end of elf_terminate, once the status has crossed into the host
  * ABI. _exit rather than ExitProcess, so the Cygwin process the host still
@@ -70,8 +79,9 @@ void elf_terminate_host(int status)
 
 static struct {
 	unsigned long long stack;
+	const char *runtime;
 	int self_window, dry_run, verbose;
-} opt = { 0x800000, 0, 0, 0 };
+} opt = { 0x800000, NULL, 0, 0, 0 };
 
 static void say(const char *fmt, ...)
 {
@@ -200,6 +210,32 @@ static unsigned char *slurp(const char *path, size_t *size)
 	return buffer;
 }
 
+/* The runtime is loaded on a thread of its own, not because the load is
+ * concurrent -- the stub waits -- but because of where the runtime's fault
+ * handlers look. Cygwin locates a thread's control block a fixed distance
+ * below the stack base and its vectored fault handler reads it before
+ * anything has initialized it; on a thread whose stack top holds live or
+ * dead frames, a nonzero word where the handler expects its resume chain
+ * sends it through a wild pointer, and the handler's own fault recurses to
+ * a stack overflow. Measured here: the load succeeded or died with the
+ * layout of main's frame. A fresh thread with a small reserve carries only
+ * the thread-start frames at its top and zeroed stack beneath them, which
+ * is the shape every process that loads this runtime bare and survives --
+ * cygload, the hostload certification -- gives it. */
+struct rt_load {
+	const char *path;
+	HMODULE h;
+	DWORD err;
+};
+
+static DWORD WINAPI load_runtime_thread(void *arg)
+{
+	struct rt_load *r = arg;
+	r->h = LoadLibraryA(r->path);
+	r->err = r->h ? 0 : GetLastError();
+	return 0;
+}
+
 static void usage(FILE *to)
 {
 	fprintf(to,
@@ -208,6 +244,8 @@ static void usage(FILE *to)
 "\n"
 "Options:\n"
 "  -s N, --stack=N     Bytes for the image's stack. [default: 0x800000]\n"
+"  -r P, --runtime=P   Load the runtime DLL at host path P; its base goes\n"
+"                      to the image through AT_BASE.\n"
 "  -w, --self-window   Reserve the window here rather than adopting one.\n"
 "  -n, --dry-run       Do everything but the entry, and report.\n"
 "  -v, --verbose       Report each step.\n"
@@ -230,6 +268,7 @@ int main(int argc, char **argv)
 	proc_err lerr;
 	unsigned char random16[16];
 	unsigned char *stack;
+	uint64_t runtime_base = 0;
 	char why[256] = "";
 	win_err werr;
 	const char *path;
@@ -249,6 +288,11 @@ int main(int argc, char **argv)
 			opt.stack = strtoull(argv[i], NULL, 0);
 		} else if (!strncmp(a, "--stack=", 8)) {
 			opt.stack = strtoull(a + 8, NULL, 0);
+		} else if (!strcmp(a, "-r") || !strcmp(a, "--runtime")) {
+			if (++i >= argc) { usage(stderr); return 2; }
+			opt.runtime = argv[i];
+		} else if (!strncmp(a, "--runtime=", 10)) {
+			opt.runtime = a + 10;
 		} else if (!strcmp(a, "-w") || !strcmp(a, "--self-window")) {
 			opt.self_window = 1;
 		} else if (!strcmp(a, "-n") || !strcmp(a, "--dry-run")) {
@@ -284,6 +328,31 @@ int main(int argc, char **argv)
 			      "the window into it while it is suspended.",
 			      (uint64_t) ELF_WINDOW_BASE, win_err_name(werr));
 	say("window 0x%" PRIx64 " for 0x%" PRIx64 " held", w->base, w->size);
+
+	/* The runtime, when one is named. The plan gives this stub the job of
+	 * loading it, and --runtime names the faced DLL by its host path; its
+	 * module base is handed to the image through AT_BASE, which a static
+	 * image otherwise reads as 0. Loading happens with the window already
+	 * held, so nothing the host's loader allocates can land where the
+	 * image must go. With no --runtime nothing is loaded, which is the
+	 * shape the WP-41 certification runs. */
+	if (opt.runtime && *opt.runtime) {
+		struct rt_load r = { opt.runtime, NULL, 0 };
+		HANDLE t = CreateThread(NULL, 0x40000, load_runtime_thread,
+					&r, STACK_SIZE_PARAM_IS_A_RESERVATION,
+					NULL);
+		if (!t)
+			return refuse("no thread to load the runtime on: "
+				      "error %lu",
+				      (unsigned long) GetLastError());
+		WaitForSingleObject(t, INFINITE);
+		CloseHandle(t);
+		if (!r.h)
+			return refuse("cannot load the runtime %s: error %lu",
+				      opt.runtime, (unsigned long) r.err);
+		runtime_base = (uint64_t)(UINT_PTR) r.h;
+		say("runtime %s at 0x%" PRIx64, opt.runtime, runtime_base);
+	}
 
 	if (!(image = slurp(path, &size)))
 		return 1;
@@ -322,14 +391,24 @@ int main(int argc, char **argv)
 
 	memset(&pr, 0, sizeof pr);
 	pr.page_size = pl.mapping.page_size;
+#ifdef __CYGWIN__
 	pr.clktck = (uint64_t) sysconf(_SC_CLK_TCK);
 	pr.uid = (uint32_t) getuid();
 	pr.euid = (uint32_t) geteuid();
 	pr.gid = (uint32_t) getgid();
 	pr.egid = (uint32_t) getegid();
+#else
+	/* The native build has no POSIX identity to ask for; the values are
+	 * fixed and unprivileged, AT_SECURE below computes to 0 as it must,
+	 * and 100 is the tick el8's kernel reports to userspace. */
+	pr.clktck = 100;
+	pr.uid = pr.euid = 1000;
+	pr.gid = pr.egid = 1000;
+#endif
 	pr.secure = (pr.uid != pr.euid || pr.gid != pr.egid) ? 1 : 0;
 	pr.platform = "x86_64";
 	pr.execfn = path;
+	pr.base = runtime_base;
 	{
 		/* AT_RANDOM. Not a cryptographic source and not claimed to be
 		 * one; WP-2x owns the host entropy call and this is what
@@ -357,6 +436,7 @@ int main(int argc, char **argv)
 		printf("stub_map_base=0x%" PRIx64 "\n", pl.mapping.base);
 		printf("stub_map_size=0x%" PRIx64 "\n", pl.mapping.size);
 		printf("stub_entry=0x%" PRIx64 "\n", pl.mapping.entry);
+		printf("stub_runtime_base=0x%" PRIx64 "\n", runtime_base);
 		printf("stub_sp=0x%" PRIx64 "\n", layout.sp);
 		printf("stub_argc=%" PRIu64 "\n", layout.argc);
 		printf("stub_result=ready\n");
