@@ -1,9 +1,8 @@
 /* string slice: tokenizing and the errno/signal text lookups.
  *
- * Only string.h: the sysroot's errno.h reaches for linux/errno.h, which
- * the header set does not carry yet, so the errnums are Linux's values
- * written as themselves (EINVAL 22, ENOENT 2).  The argz family waits on
- * the same gap -- argz.h includes errno.h.
+ * Only string.h; the errnums here are written as bare values (EINVAL 22,
+ * ENOENT 2) from when the sysroot lacked <linux/errno.h>.  err.c spells
+ * them symbolically now that the kernel headers are laid in.
  */
 #define _GNU_SOURCE
 #include <stdio.h>
