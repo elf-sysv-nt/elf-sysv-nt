@@ -7,10 +7,15 @@ subsystem, with the slice order taken from spike 12's demand ranking.
 ## Slice machinery
 
 `cut-slices.py map` scans the el8 headers in `veneer/include` with the
-cross compiler's `-aux-info` and writes `symbol-slice.tsv`: every declared
-function credited to the header that declares it, and through `slices.tsv`
-(header -> slice; row order is the attribution priority) to its slice.
-The current map covers 1757 functions across 93 headers.
+cross compiler's `-aux-info`, under `_GNU_SOURCE` so the GNU extensions
+and `_LARGEFILE64` names are declared at all, and writes
+`symbol-slice.tsv`: every declared function credited to the header that
+declares it, and through `slices.tsv` (header -> slice; row order is the
+attribution priority) to its slice. The current map covers 3305 symbols
+across 101 headers, and `t/real-map.sh` pins what it leaves out: of the
+forward map's wired function rows, 275 are unassigned — the underscore
+internals no public header declares, `gets`, and the SunRPC `xdr_*`
+family, whose headers el8 moved out of glibc into libtirpc.
 
 `cut-slices.py order` joins the census `demand-ranking.tsv` against that
 map and writes `slice-order.tsv` plus one per-slice worklist, ranked by

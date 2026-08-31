@@ -9,6 +9,7 @@ obstack.h	memory
 stdio.h	stdio
 printf.h	stdio
 wchar.h	wchar
+uchar.h	wchar
 wctype.h	locale
 ctype.h	locale
 locale.h	locale
@@ -18,6 +19,8 @@ nl_types.h	locale
 monetary.h	locale
 string.h	string
 strings.h	string
+argz.h	string
+envz.h	string
 sys/stat.h	filesystem
 fcntl.h	filesystem
 dirent.h	filesystem
@@ -30,6 +33,9 @@ sys/statvfs.h	filesystem
 sys/statfs.h	filesystem
 sys/xattr.h	filesystem
 sys/file.h	filesystem
+fts.h	filesystem
+sys/mount.h	filesystem
+sys/quota.h	filesystem
 sys/socket.h	sockets
 netdb.h	sockets
 arpa/inet.h	sockets
@@ -50,6 +56,7 @@ signal.h	signal
 time.h	time
 sys/time.h	time
 sys/times.h	time
+sys/timeb.h	time
 sched.h	process
 spawn.h	process
 sys/wait.h	process
@@ -58,6 +65,7 @@ sys/prctl.h	process
 sys/ptrace.h	process
 pthread.h	threads
 semaphore.h	threads
+threads.h	threads
 pwd.h	identity
 grp.h	identity
 shadow.h	identity

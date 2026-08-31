@@ -67,4 +67,7 @@ if ESN_REF_CC="${CC:-gcc}" ESN_CC="${CC:-gcc}" ESN_RUN="$tmp/garble" \
 fi
 grep -q 'DIVERGED files/hello' "$tmp/diverge.txt"
 
+# The real forward map against the real slice map, pinned counts.
+sh real-map.sh
+
 echo ok

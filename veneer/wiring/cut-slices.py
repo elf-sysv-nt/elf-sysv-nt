@@ -46,7 +46,11 @@ def aux_symbols(cc, incdir, header):
         src = os.path.join(td, "t.c")
         aux = os.path.join(td, "t.aux")
         with open(src, "w") as f:
-            f.write("#include <%s>\n" % header)
+            # _GNU_SOURCE turns on every declaration the header can make:
+            # without it the scan misses the GNU extensions (accept4,
+            # asprintf, the argz/envz families) and the _LARGEFILE64
+            # names, and they all fall into the unassigned slice.
+            f.write("#define _GNU_SOURCE 1\n#include <%s>\n" % header)
         r = subprocess.run(
             [cc, "-fsyntax-only", "-aux-info", aux, "-I", incdir, src],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
