@@ -50,20 +50,33 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # ref_out CASE OUT -- the case's observable lines from the reference userland.
+# When the image carries gcc the case is compiled and run there; the pinned
+# rocky8 image carries none, so the fallback compiles with the candidate
+# compiler -- which targets el8's glibc -- and runs the binary on the image,
+# where the real ld.so and the real libc supply the behaviour under test.
 ref_out() {
 	if [ -n "$refcc" ]; then
 		"$refcc" -O0 -o "$work/ref.bin" "$1" && "$work/ref.bin" > "$2"
 		return
 	fi
-	wsl.exe -d "$distro" -- bash -lc \
-		'command -v gcc >/dev/null' 2>/dev/null || return 77
-	local w
-	w=$(wsl.exe -d "$distro" -- bash -lc 'mktemp -d' 2>/dev/null | tr -d '\r')
-	[ -n "$w" ] || return 77
-	tr -d '\r' < "$1" | wsl.exe -d "$distro" -- bash -lc "cat > $w/case.c"
-	wsl.exe -d "$distro" -- bash -lc \
-		"gcc -O0 -o $w/case $w/case.c && $w/case; s=\$?; rm -rf $w; exit \$s" \
-		2>/dev/null | tr -d '\r' > "$2"
+	wsl.exe -d "$distro" -- true 2>/dev/null || return 77
+	if wsl.exe -d "$distro" -- bash -lc \
+		'command -v gcc >/dev/null' 2>/dev/null; then
+		local w
+		w=$(wsl.exe -d "$distro" -- bash -lc 'mktemp -d' 2>/dev/null | tr -d '\r')
+		[ -n "$w" ] || return 77
+		tr -d '\r' < "$1" | wsl.exe -d "$distro" -- bash -lc "cat > $w/case.c"
+		wsl.exe -d "$distro" -- bash -lc \
+			"gcc -O0 -o $w/case $w/case.c && $w/case; s=\$?; rm -rf $w; exit \$s" \
+			2>/dev/null | tr -d '\r' > "$2"
+		return
+	fi
+	"$cc" -O0 -o "$work/ref.bin" "$1" || return 1
+	local wbin
+	wbin=$(wsl.exe -d "$distro" -- wslpath "$(cygpath -m "$work/ref.bin")" \
+		2>/dev/null | tr -d '\r')
+	[ -n "$wbin" ] || return 77
+	wsl.exe -d "$distro" -- bash -c "\"$wbin\"" 2>/dev/null | tr -d '\r' > "$2"
 }
 
 # cand_out CASE OUT -- the same lines from the candidate build.
