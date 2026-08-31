@@ -72,4 +72,22 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "${XCC%gcc}nm" "$tmp/wire-stdio.o" | grep -q 'fopen@@GLIBC_2.2.5'
 fi
 
+# The committed posix wiring re-derives byte-identical as well, and
+# when the cross toolchain is present its thunks assemble and carry
+# their versioned names.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice posix \
+    --table "$tmp/wire-posix.gen.c" --thunks "$tmp/wire-posix.gen.s" \
+    --shims "$tmp/wire-posix.shims.tsv" >/dev/null
+cmp ../wire-posix.gen.c "$tmp/wire-posix.gen.c"
+cmp ../wire-posix.gen.s "$tmp/wire-posix.gen.s"
+cmp ../wire-posix.shims.tsv "$tmp/wire-posix.shims.tsv"
+grep -q '"execvp"' "$tmp/wire-posix.gen.c"
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-posix-table.o" "$tmp/wire-posix.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-posix.o" "$tmp/wire-posix.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-posix.o" | grep -q 'execvp@@GLIBC_2.2.5'
+fi
+
 echo 'real-map: ok'
