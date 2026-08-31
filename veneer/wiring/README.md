@@ -552,3 +552,6 @@ write, and readv scattering the bytes back across three buffers whose
 sizes do not line up with the writer's. Exercised end to end with
 both sides on el8: one case, match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The system slice is next (WIP): uname, sysinfo, and the get_*_pages /
+get_nprocs* family off sys/utsname.h and sys/sysinfo.h.
