@@ -189,3 +189,31 @@ refusal's call sequenced before its printf per the stdio lesson.
 Exercised end to end with both sides on el8: seven cases, all match;
 judging the wired veneer awaits the runtime the earlier slices wait
 on.
+
+The locale slice is all thunks as well: 83 rows, generated and
+committed as `wire-locale.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical by `t/real-map.sh`. The ctype classifications and
+their `_l` twins cross by value, `locale_t` is an opaque pointer on
+both sides, and whatever category translation setlocale needs belongs
+downstream of the bind, so the shim worklist is empty for now.
+Pinning it surfaced a residue of the sockets pin: that slice's
+`.gen.s` and `.shims.tsv` still named `fwd-sockets.tsv` as their
+input, failing the byte-identity check on the first byte compared,
+and `.gitignore`'s `*local*` guard was catching the slice by name, so
+the wiring subtree now carries the same exception the vendored
+headers already had. Seven diff cases cover the narrow classes
+counted over 0..255 with the case maps as round-trips and EOF through
+every classifier, the wide classes with the named lookups
+(wctype/wctrans agreeing with their direct twins), the locale-object
+family (newlocale, duplocale, uselocale round-trips against
+LC_GLOBAL_LOCALE, `_l` classifiers agreeing through an explicit
+object), setlocale with localeconv (the startup default, C and POSIX
+round-trips, the refusal of a made-up name, the C lconv field by
+field), nl_langinfo across the calendar, formats, radix and yes/no
+expressions with the `_l` twin agreeing, strfmon (national and
+international forms, width and precision, the E2BIG refusal), and the
+message catalogs without a catalog (catopen refusing, catgets handing
+back the caller's default, catclose refusing the failed descriptor).
+Exercised end to end with both sides on el8: seven cases, all match;
+judging the wired veneer awaits the runtime the earlier slices wait
+on.
