@@ -1,0 +1,39 @@
+host mmap placement over an occupied span
+
+host        ins-15
+cygwin      3.6.10-1.x86_64
+compiler    gcc (GCC) 14.4.0
+date        2026-08-31T04:47:48Z
+script      characterize-overlap 1.0
+probe       overlap-probe 1.0
+
+reading, question by question
+
+  q1  MAP_FIXED over an occupied span: ALLOWED
+  q2  a bare hint on a free span: honored exactly
+  q3  a bare hint on an occupied span: relocated elsewhere, original intact
+  q4  a live reservation in /proc/self/maps: visible
+  q5  VirtualAlloc(MEM_RESERVE) over an occupied span: refused
+  q6  control, MAP_FIXED over a free span: succeeds
+
+raw
+
+    host mmap placement over an occupied span
+    
+    
+    page_size=0x10000
+    span=0x80000
+    q1_fixed_over_occupied_allowed=1
+    q1_fixed_displaced_content=0
+    q2_bare_hint_honored_when_free=1
+    q3_bare_hint_relocates_when_busy=1
+    q3_original_survived=1
+    q4_reservation_visible=1
+    q5_win_reserve_refused=1
+    q6_fixed_over_free_ok=1
+    win_reserve_base=0x400000
+    win_reserve_size=0x80000
+
+verdict
+
+    finding=bare-hint-discriminates

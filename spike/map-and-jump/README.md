@@ -204,6 +204,81 @@ and the check has to report `0xff` and `0x3ff` against it. It was watched
 failing before it was believed passing. Twenty-five checks, all green on
 2026-08-29.
 
+## The overlap characterization, 2026-08-31
+
+Spike 2 was measured in the rhel root (Cygwin 3.0.7). DR-0038 moved build and
+certification to the primary root (3.6.10), and re-run there the spike fails
+one placement case: a second mapping over an already-reserved span, which 3.0.7
+refused, 3.6.10 allows. `issue/0002` raised it and `loader/map/issue/0001`
+reopened WP-32, which had leaned on the refusal — its comment reads "MAP_FIXED
+here refuses rather than displaces an existing mapping on this host." That is a
+non-standard reading: POSIX defines `MAP_FIXED` to displace, and 3.6.10 now
+conforms. Both issues said the redo waits on a characterization that pins down
+3.6.10's overlap placement, so the redo is grounded rather than guessed. This
+is it.
+
+`overlap-probe.c` with `overlap-winprobe.c` asks six questions; each reserves
+its own region and releases it, so the order does not matter.
+`characterize-overlap.sh` builds and runs it in whichever root invokes it —
+never across roots, since a binary hangs against the other root's
+`cygwin1.dll` — and writes a transcript. It was run in both:
+`results-overlap-3.6.10-2026-08-31.txt` is the authoritative one and
+`results-overlap-3.0.7-2026-08-31.txt` is the historical control.
+
+The two transcripts differ in exactly one line, which is the whole finding:
+
+| question | 3.0.7 | 3.6.10 |
+|---|---|---|
+| q1 `MAP_FIXED` over an occupied span | **refused** | **allowed** |
+| q2 a bare hint on a free span | honored exactly | honored exactly |
+| q3 a bare hint on an occupied span | relocated, original intact | relocated, original intact |
+| q4 a live reservation in `/proc/self/maps` | visible | visible |
+| q5 `VirtualAlloc(MEM_RESERVE)` over an occupied span | refused | refused |
+| q6 control, `MAP_FIXED` over a free span | succeeds | succeeds |
+
+**The regression is q1 alone.** Everything the redo could stand on is
+identical on both roots. Three consequences follow, and they are what the redo
+is owed.
+
+The overlay is worse than a clean displacement. On 3.6.10 the second
+`MAP_FIXED` returned the same address and did not even re-zero the page — the
+sentinel written before it survived. So a loader that mapped two objects whose
+spans collided would not merely lose the first, it would hand the second a page
+still carrying the first's bytes, and its `.bss`-is-zero assertion would not
+fire because the tail it checks was never dirtied. Silent, and shaped exactly
+like the corruption WP-32's zero-fill check exists to catch but sits upstream
+of.
+
+The divergence is in Cygwin's `mmap`, not in the host. q5 shows the Win32 layer
+still refuses a reserve over an occupied span on 3.6.10, while the `mmap` above
+it now overlays. So this is a conformance change in Cygwin between 3.0.7 and
+3.6.10, not a change in what Windows will do, which is why nothing about the
+address space itself has to be relearned.
+
+There is a clean redo with no bookkeeping, and it certifies on both roots. q2
+and q3 together say a bare `mmap` — no `MAP_FIXED` — is honored exactly when
+its hint is free and relocated elsewhere when its hint is occupied, with the
+occupant left intact. So the reserve drops `MAP_FIXED`, passes the span base as
+a plain hint, and requires the returned address to equal the requested one: a
+free span lands exactly and is accepted, an occupied span comes back relocated,
+`got != want` catches it, and the stray mapping is unmapped and the object
+refused. No reservation ledger, no `/proc/self/maps` scan, no Win32 fallback.
+And because q2/q3 read the same on 3.0.7, a WP-32 rebuilt this way passes on the
+pinned floor too rather than trading one root's behaviour for the other's.
+
+That is the finding: `finding=bare-hint-discriminates`. What it does not do is
+change WP-32. The package is held (`doc/status/hold.txt`) and reopened by
+`loader/map/issue/0001`; picking and building the placement strategy is the
+redo, and the redo is the operator's to unhold. This spike stops at the
+measurement, which is where a spike stops.
+
+`MAP_FIXED_NOREPLACE`, the Linux flag built for exactly "place here or fail,"
+is not in 3.6.10's `sys/mman.h` — the header offers only `MAP_FIXED`,
+`MAP_ANONYMOUS`, `MAP_PRIVATE`/`MAP_SHARED`, `MAP_NORESERVE` and `MAP_AUTOGROW`
+— so the clean flag is unavailable and the hint-discriminates path is the
+grounded substitute for it. Recorded so the redo does not reach for a flag that
+is not there.
+
 ## Not verified
 
 That el8 static binaries carry a `p_align` of `0x200000`. The `huge` case is
@@ -232,3 +307,12 @@ matching verdicts, but the addresses in the survey block move between runs by
 design, so the transcript is reproducible in its findings rather than byte for
 byte. WP-T3's runner will need to diff it on the summary rather than on the
 whole file.
+
+That a bare `mmap` honors a *cold* fixed hint, not merely a recently-freed one.
+The overlap probe's q2 establishes the hint is honored by reserving an address,
+releasing it, and hinting at it again, so what it proves is that Cygwin reuses a
+just-freed address — which is the mechanism the redo would lean on. Whether an
+`ET_EXEC`'s exact link base, an address this process never touched, is honored
+the same way is what WP-32's real specimens exercise, and the redo's
+certification is where that gets nailed down rather than inferred. The overlap
+probe's own answer was stable across twelve consecutive runs on 3.6.10.
