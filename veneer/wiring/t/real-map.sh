@@ -222,3 +222,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-time.o" "$tmp/wire-time.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-time.o" | grep -q 'strftime@@GLIBC_2.2.5'
 fi
+
+# The committed signal wiring re-derives byte-identical as well. The
+# sigset_t bearers -- sigaction, the set-manipulation family,
+# sigprocmask, the wait family, sigaltstack and both sysv_signal
+# spellings -- cross with layout-bearing structs, so their rows land
+# in the shims file rather than as thunks, and the counts are pinned.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice signal \
+    --table "$tmp/wire-signal.gen.c" \
+    --thunks "$tmp/wire-signal.gen.s" \
+    --shims "$tmp/wire-signal.shims.tsv" >/dev/null
+cmp ../wire-signal.gen.c "$tmp/wire-signal.gen.c"
+cmp ../wire-signal.gen.s "$tmp/wire-signal.gen.s"
+cmp ../wire-signal.shims.tsv "$tmp/wire-signal.shims.tsv"
+grep -q '"kill"' "$tmp/wire-signal.gen.c"
+grep -q '^sigaction	' "$tmp/wire-signal.shims.tsv"
+test "$(grep -vc '^#' "$tmp/wire-signal.shims.tsv")" = 16
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-signal-table.o" "$tmp/wire-signal.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-signal.o" "$tmp/wire-signal.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-signal.o" | grep -q 'kill@@GLIBC_2.2.5'
+fi
