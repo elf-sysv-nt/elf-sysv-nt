@@ -361,3 +361,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-misc.o" "$tmp/wire-misc.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-misc.o" | grep -q 'getopt@@GLIBC_2.2.5'
 fi
+
+# The committed runtime wiring re-derives byte-identical as well. The
+# context family and __assert cross as thunks; the setjmp/longjmp
+# family are the shims, their jmp_buf a translation rather than a
+# jump. __assert_fail, the backtrace trio and getauxval are stubs in
+# the forward map, so they are not this slice's rows.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice runtime \
+    --table "$tmp/wire-runtime.gen.c" \
+    --thunks "$tmp/wire-runtime.gen.s" \
+    --shims "$tmp/wire-runtime.shims.tsv" >/dev/null
+cmp ../wire-runtime.gen.c "$tmp/wire-runtime.gen.c"
+cmp ../wire-runtime.gen.s "$tmp/wire-runtime.gen.s"
+cmp ../wire-runtime.shims.tsv "$tmp/wire-runtime.shims.tsv"
+grep -q '"swapcontext"' "$tmp/wire-runtime.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-runtime.gen.c")" = 10
+test "$(grep -vc '^#' "$tmp/wire-runtime.shims.tsv")" = 5
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-runtime-table.o" "$tmp/wire-runtime.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-runtime.o" "$tmp/wire-runtime.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-runtime.o" | grep -q 'getcontext@@GLIBC_2.2.5'
+fi
