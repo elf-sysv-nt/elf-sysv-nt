@@ -433,3 +433,27 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-wchar.o" "$tmp/wire-wchar.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-wchar.o" | grep -q 'wcrtomb@@GLIBC_2.2.5'
 fi
+
+# The committed regex wiring re-derives byte-identical as well. Five
+# rows, all thunks, none shims: the POSIX four, with regexec carrying
+# both its version nodes, cross whole -- regex_t and regmatch_t are
+# built and consumed by the same libc on both sides of the bound
+# table. The GNU re_* family are stubs in the forward map, so they
+# are not this slice's rows.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice regex \
+    --table "$tmp/wire-regex.gen.c" \
+    --thunks "$tmp/wire-regex.gen.s" \
+    --shims "$tmp/wire-regex.shims.tsv" >/dev/null
+cmp ../wire-regex.gen.c "$tmp/wire-regex.gen.c"
+cmp ../wire-regex.gen.s "$tmp/wire-regex.gen.s"
+cmp ../wire-regex.shims.tsv "$tmp/wire-regex.shims.tsv"
+grep -q '"regcomp"' "$tmp/wire-regex.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-regex.gen.c")" = 5
+test "$(grep -vc '^#' "$tmp/wire-regex.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-regex-table.o" "$tmp/wire-regex.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-regex.o" "$tmp/wire-regex.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-regex.o" | grep -q 'regexec@@GLIBC_2.3.4'
+fi
