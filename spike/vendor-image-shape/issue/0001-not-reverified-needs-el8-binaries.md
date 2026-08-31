@@ -15,3 +15,15 @@ likely of the spikes to be sensitive to the 3.0.7-vs-3.6.10 move — the bytes i
 measures are el8's, fixed, and the same tool reads them under either root.
 Verdict provisional only in the formal sense until the binaries are refetched
 and the script reruns. This spike feeds `doc/target-definition.md`'s six values.
+
+## Re-verified, 2026-08-31 — holds
+
+The input was on the machine after all: the audit's `-D` probe missed
+`/c/-/el8/vendor-image-shape`, which holds the pinned tree intact. Re-run in
+the primary root against it, `measure-shape.sh` measured the same 41 ELF
+files; the transcript is `results-2026-08-31.txt`. The only difference from
+2026-08-29 is the reporting tool: the primary root's readelf 2.47 labels 14
+of the 41 `DYN` objects "Position-Independent Executable file" where 2.29
+called all 41 "Shared object file" — same bytes, finer labels, 27 + 14 = 41.
+Every value the spike feeds `doc/target-definition.md` reads identically.
+Closed.
