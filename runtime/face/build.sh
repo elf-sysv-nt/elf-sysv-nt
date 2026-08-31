@@ -81,5 +81,9 @@ make DIN_FILE="$here/face.din" FACE_OFILES="$face_ofiles" \
 # it points at the whole new one, never at the seam. (atomic-dll-build proposal.)
 tmp=$(mktemp "$out/.elfsysv1.dll.XXXXXX")
 cp new-cygwin1.dll "$tmp"
+# mktemp creates mode 600, and without the execute ACE the PE loader is
+# denied the image mapping: every process of the faced runtime dies at
+# load.  Restore the mode before the rename publishes the file.
+chmod 755 "$tmp"
 mv -f "$tmp" "$out/elfsysv1.dll"
 say "== faced DLL at $out/elfsysv1.dll =="
