@@ -262,3 +262,29 @@ and sigsuspend over an already-pending signal refusing EINTR with the
 caller's mask coming back untouched. Exercised end to end with both
 sides on el8: eight cases, all match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The process slice wires 47 rows, 43 thunks and 4 shims, generated and
+committed as `wire-process.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. The shims are
+the rlimit family — getrlimit and setrlimit with their 64 spellings —
+whose struct rlimit crosses by translation; the spawn machinery, the
+scheduler surface, the wait family and the priority pair cross as
+thunks. Eight diff cases cover waitpid seeing an exit status and a
+termination signal through the status macros with ECHILD once the
+children are drained, wait3 and wait4 filling a child's rusage
+alongside getrusage on the caller with the bad-who refusal,
+posix_spawn through the shell and posix_spawnp on PATH with the
+ENOENT refusal returned rather than delivered through a half-born
+child and a file-actions chain redirecting the child's stdout, every
+spawnattr getter observing what its setter stored across flags, the
+process group, the sched policy and parameter and both signal sets,
+the scheduler's priority ranges with the bad-policy refusal and the
+caller's own policy, parameter, yield and round-robin interval, the
+affinity mask read back non-empty, written back unchanged and the
+empty-mask refusal, the NOFILE limit lowered and observed stuck with
+cur-over-max and bad-resource refused and the 64 spelling agreeing,
+and getpriority's errno protocol with setpriority making the process
+nicer, the bad-which refusal and ESRCH for a process that is not
+there. Exercised end to end with both sides on el8: eight cases, all
+match; judging the wired veneer awaits the runtime the earlier slices
+wait on.
