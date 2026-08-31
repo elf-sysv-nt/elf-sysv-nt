@@ -1,5 +1,19 @@
 # 0001 — the verdict flips to no on Cygwin 3.6.10: fault-through fails
 
+> **Corrected and closed, 2026-08-31.** This report's title and root cause did
+> not survive measurement. There was no delivery divergence: 3.6.10 crosses a
+> fault beneath a System V frame exactly as 3.0.7 does, and the verdict flip
+> was gcc 14 removing the fault -- a null-store specimen it is entitled to
+> treat as unreachable -- so the failing case was reporting a fault that was
+> never raised. The reasoning that followed from the wrong cause fails with
+> it: nothing here ever put the veneer-thunk fallback back in play, WP-43 and
+> WP-61 were never failing for this reason, and no characterization of
+> "3.6.10's delivery" was owed because 3.6.10's delivery was not the problem.
+> The sections below stand as raised, as the record of how it read before it
+> was measured; the "Characterized" section carries the measurement, the
+> "Repaired" section the fix, and `results-2026-08-31.txt` the spike passing
+> whole on 3.6.10.
+
 Raised 2026-08-30, re-running `abi-crossing.sh` in the primary Cygwin root
 (3.6.10, gcc 14) against the committed `results-2026-08-29.txt`, which was
 measured in the rhel root (3.0.7, gcc 7.4). The project builds and runs in the
