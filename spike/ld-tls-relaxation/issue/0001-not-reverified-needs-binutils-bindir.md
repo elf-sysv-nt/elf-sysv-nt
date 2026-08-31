@@ -16,3 +16,16 @@ property of the binutils build (WP-12), not of the Cygwin host runtime — so th
 move should not change its verdict, but that must be confirmed by pointing it at
 the toolchain and rerunning. It feeds WP-12's refusal of the TLS relocations;
 its verdict is provisional on the real environment until re-run.
+
+## Re-verified, 2026-08-31 — the refusal the spike demanded is what answers it
+
+Re-run in the primary root with `-B /c/-/x-elfsysvnt/bin`; the transcript is
+`results-2026-08-31.txt`. The link step no longer relaxes into an `%fs` fetch,
+because it no longer links: WP-12's patched `ld` refuses `R_X86_64_TLSGD`
+outright — "not supported by this target: it presumes a thread pointer in the
+FS segment base". The hazard this spike surfaced is structurally closed by the
+refusal it fed, and `toolchain/binutils/t/tls-models.s` carries the regression
+test. The script now classifies the refusal as a measured outcome (its old
+form died at the link and could not regenerate a transcript, which the spike
+rules treat as a defect). The 2026-08-29 verdict stands as the record of the
+unpatched behaviour that forced the decision. Closed.

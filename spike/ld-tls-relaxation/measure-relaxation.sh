@@ -110,24 +110,33 @@ printf '\n## Relocations the assembler emitted\n\n'
 
 # Linked as an executable with the definition in the same object, which is
 # the case that licenses both relaxations: general dynamic to local exec, and
-# initial exec to local exec.
-"$LD" -o tls.exe tls.o -e _start 2>/dev/null || die "the link failed"
+# initial exec to local exec. Since this spike first ran, WP-12's binutils
+# patch made ld refuse these relocations outright rather than relax them into
+# an %fs fetch, so a refusal naming the FS segment base is a measured outcome
+# here, not a broken run.
+if "$LD" -o tls.exe tls.o -e _start 2>ld.err; then
+    printf '\n## _start after the linker rewrote it\n\n'
+    "$OBJDUMP" -d tls.exe | sed -n '/<_start>:/,/ret/p' | sed 's/^/    /'
 
-printf '\n## _start after the linker rewrote it\n\n'
-"$OBJDUMP" -d tls.exe | sed -n '/<_start>:/,/ret/p' | sed 's/^/    /'
+    printf '\n## Segment-prefixed instructions in the output\n\n'
+    if "$OBJDUMP" -d tls.exe | grep -q '%fs:'; then
+        "$OBJDUMP" -d tls.exe | grep '%fs:' | sed 's/^/    /'
+        printf '\nverdict=ld emits fs-relative thread pointer fetches\n'
+    else
+        printf '    none\n\nverdict=ld emitted no segment-prefixed access\n'
+    fi
 
-printf '\n## Segment-prefixed instructions in the output\n\n'
-if "$OBJDUMP" -d tls.exe | grep -q '%fs:'; then
-    "$OBJDUMP" -d tls.exe | grep '%fs:' | sed 's/^/    /'
-    printf '\nverdict=ld emits fs-relative thread pointer fetches\n'
+    printf '\n## Whether the sequences leave room for a longer rewrite\n\n'
+    gd=$("$OBJDUMP" -d tls.exe | sed -n '/<_start>:/,$p' | sed -n 2p | sed 's/^/    /')
+    printf '%s\n' "$gd"
+    printf '    general dynamic occupies 16 bytes before rewriting and the\n'
+    printf '    local-exec form ld writes occupies 16 after, padding included.\n'
 else
-    printf '    none\n\nverdict=ld emitted no segment-prefixed access\n'
+    printf '\n## What the linker did with them\n\n'
+    sed 's/^/    /' ld.err
+    grep -q 'presumes a thread pointer' ld.err ||
+        die "the link failed for a reason this spike does not classify"
+    printf '\nverdict=ld refuses the fs-presuming TLS relocations\n'
 fi
-
-printf '\n## Whether the sequences leave room for a longer rewrite\n\n'
-gd=$("$OBJDUMP" -d tls.exe | sed -n '/<_start>:/,$p' | sed -n 2p | sed 's/^/    /')
-printf '%s\n' "$gd"
-printf '    general dynamic occupies 16 bytes before rewriting and the\n'
-printf '    local-exec form ld writes occupies 16 after, padding included.\n'
 
 exit 0
