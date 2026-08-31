@@ -27,12 +27,14 @@ else
   bad "int-faces.gen.S does not reproduce"
 fi
 
-# 2. exactly the int class (unlisted rows resolved through unlisted.tsv),
+# 2. exactly the int class (unlisted rows resolved through unlisted.tsv,
+# the setjmp family excluded onto its context-transparent face via ctx.tsv),
 # in order, bound to the face-table target
-awk -F'\t' 'FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
+awk -F'\t' 'FILENAME ~ /ctx/ { ctx[$1]=1; next }
+  FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
   FILENAME ~ /sigclass/ { cls[$1] = ($2=="unlisted" && ucls[$1]!="") ? ucls[$1] : $2; next }
-  $2 == "sv2ms" && cls[$1] == "int" { print $1 }' \
-  "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.names"
+  $2 == "sv2ms" && cls[$1] == "int" && !($1 in ctx) { print $1 }' \
+  "$face_dir/ctx.tsv" "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.names"
 sed -n 's/^\tsv2ms_int_face\t__face_\([^,]*\), .*/\1/p' "$face_dir/int-faces.gen.S" > "$tmp/have.names"
 if cmp -s "$tmp/want.names" "$tmp/have.names"; then
   say "ok: exactly the int-class rows, in face-table order ($(wc -l < "$tmp/want.names") faces)"
@@ -40,10 +42,11 @@ else
   bad "emitted faces differ from the int class"
   diff "$tmp/want.names" "$tmp/have.names" | head -10
 fi
-awk -F'\t' 'FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
+awk -F'\t' 'FILENAME ~ /ctx/ { ctx[$1]=1; next }
+  FILENAME ~ /unlisted/ { ucls[$1]=$2; next }
   FILENAME ~ /sigclass/ { cls[$1] = ($2=="unlisted" && ucls[$1]!="") ? ucls[$1] : $2; next }
-  $2 == "sv2ms" && cls[$1] == "int" { print $4 }' \
-  "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.targets"
+  $2 == "sv2ms" && cls[$1] == "int" && !($1 in ctx) { print $4 }' \
+  "$face_dir/ctx.tsv" "$face_dir/unlisted.tsv" "$face_dir/sigclass.tsv" "$face_dir/face.tsv" > "$tmp/want.targets"
 sed -n 's/^\tsv2ms_int_face\t__face_[^,]*, \(.*\)$/\1/p' "$face_dir/int-faces.gen.S" > "$tmp/have.targets"
 if cmp -s "$tmp/want.targets" "$tmp/have.targets"; then
   say "ok: every face bound to its face-table target"

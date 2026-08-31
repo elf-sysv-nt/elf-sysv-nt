@@ -28,6 +28,7 @@ cflags="-g -O2 -mno-red-zone -Wall -Werror"
 
 say "== face objects =="
 gcc -I "$here" -c "$here/int-faces.gen.S" -o "$out/int-faces.o"
+gcc -I "$here" -c "$here/ctx-faces.gen.S" -o "$out/ctx-faces.o"
 gcc $cflags -c "$here/typed-faces.gen.c" -o "$out/typed-faces.o"
 gcc $cflags -c "$here/cores.c" -o "$out/cores.o"
 gcc $cflags -c "$here/nonformat-cores.c" -o "$out/nonformat-cores.o"
@@ -55,7 +56,7 @@ for o in veneer-faced nonformat-faced; do
   fi
 done
 
-face_ofiles="$out/int-faces.o $out/typed-faces.o $out/cores.o"
+face_ofiles="$out/int-faces.o $out/ctx-faces.o $out/typed-faces.o $out/cores.o"
 face_ofiles="$face_ofiles $out/nonformat-cores.o $out/nonformat-faced.o"
 face_ofiles="$face_ofiles $out/veneer-faced.o $out/sv2ms.o $out/tlsdir.o"
 

@@ -86,6 +86,19 @@ Planned order of work, one milestone per commit:
       (1716 faced, 39 DATA, 12 asis), fence preservation, and that the
       vendor's own gendef consumes the file, wrapping exactly the 1000
       SIGFE-fenced faces in sigfe stubs.
+   6. The context-transparent faces — done. The setjmp family cannot sit
+      behind the call-style int face: its bodies capture the caller's
+      `%rsp` and return address, and a longjmp restored through a dead
+      face frame lands after the wrong call site once the stack is
+      reused. `sv2ms-ctx.inc` is the frameless shape — two register
+      moves and a jump — sound for exactly the six `ctx.tsv` rows whose
+      gendef-assembly bodies never touch caller shadow space.
+      `gen-ctx-faces.sh` emits them, `gen-int-faces.sh` excludes them
+      (1309 generic faces remain), and `t/ctx-face.sh` certifies the
+      shape and the resume-at-the-true-call-site property, with a
+      call-style control showing the property can fail. The ucontext
+      triple stays call-faced and unsettled; see the
+      context-transparent-faces decision record.
 3. The faced DLL build — done. The vendor tree takes the din and extra
    link objects from the make command line (`DIN_FILE`, `FACE_OFILES`,
    commit `5c96baaa8` there), so the face goes on without that tree

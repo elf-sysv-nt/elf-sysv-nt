@@ -81,11 +81,9 @@
 	sv2ms_int_face	__face__Exit, _Exit
 	sv2ms_int_face	__face__exit, _exit
 	sv2ms_int_face	__face__get_osfhandle, _get_osfhandle
-	sv2ms_int_face	__face__longjmp, longjmp
 	sv2ms_int_face	__face__pipe, _pipe
 	sv2ms_int_face	__face__pthread_cleanup_pop, _pthread_cleanup_pop
 	sv2ms_int_face	__face__pthread_cleanup_push, _pthread_cleanup_push
-	sv2ms_int_face	__face__setjmp, setjmp
 	sv2ms_int_face	__face__setmode, cygwin_setmode
 	sv2ms_int_face	__face_a64l, a64l
 	sv2ms_int_face	__face_abort, abort
@@ -606,7 +604,6 @@
 	sv2ms_int_face	__face_login_tty, login_tty
 	sv2ms_int_face	__face_logout, logout
 	sv2ms_int_face	__face_logwtmp, logwtmp
-	sv2ms_int_face	__face_longjmp, longjmp
 	sv2ms_int_face	__face_lrand48, lrand48
 	sv2ms_int_face	__face_lremovexattr, lremovexattr
 	sv2ms_int_face	__face_lsearch, lsearch
@@ -975,7 +972,6 @@
 	sv2ms_int_face	__face_sethostent, sethostent
 	sv2ms_int_face	__face_sethostname, sethostname
 	sv2ms_int_face	__face_setitimer, setitimer
-	sv2ms_int_face	__face_setjmp, setjmp
 	sv2ms_int_face	__face_setlinebuf, setlinebuf
 	sv2ms_int_face	__face_setlocale, setlocale
 	sv2ms_int_face	__face_setlogmask, setlogmask
@@ -1019,7 +1015,6 @@
 	sv2ms_int_face	__face_sigignore, sigignore
 	sv2ms_int_face	__face_siginterrupt, siginterrupt
 	sv2ms_int_face	__face_sigismember, sigismember
-	sv2ms_int_face	__face_siglongjmp, siglongjmp
 	sv2ms_int_face	__face_signal, signal
 	sv2ms_int_face	__face_signalfd, signalfd
 	sv2ms_int_face	__face_sigpause, sigpause
@@ -1027,7 +1022,6 @@
 	sv2ms_int_face	__face_sigprocmask, sigprocmask
 	sv2ms_int_face	__face_sigrelse, sigrelse
 	sv2ms_int_face	__face_sigset, sigset
-	sv2ms_int_face	__face_sigsetjmp, sigsetjmp
 	sv2ms_int_face	__face_sigsuspend, sigsuspend
 	sv2ms_int_face	__face_sigtimedwait, sigtimedwait
 	sv2ms_int_face	__face_sigwait, sigwait
