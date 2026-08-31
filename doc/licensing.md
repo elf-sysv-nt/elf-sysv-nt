@@ -46,13 +46,26 @@ Whether a modified Cygwin library may carry that exception forward, and in what
 wording, is a question for a lawyer and not for the people writing this.  Until
 it is answered this repository grants no exception of its own.  The intent is
 stated so that nobody plans around its absence; the wording is withheld so that
-nobody relies on text an engineer invented.
+nobody relies on text an engineer invented.  A draft putting the question to
+the Cygwin mailing list sits at `doc/proposals/licensing-email-draft.md`,
+unsent as of 2026-08-30.
 
 
 ## Third-party material
 
 Files under toolchain/ that are patches carry the licence of what they patch
 rather than this one.  The GNU config patch is against GPLv3-with-exception
-material and the flac patch against flac's own terms.  Nothing in this tree is
-a copy of Cygwin, glibc, binutils or gcc source; where a specification was
-implemented rather than code lifted, the governing document says so.
+material and the flac patch against flac's own terms.
+
+The headers under veneer/include/ are el8's glibc 2.28 installed headers,
+vendored byte-identical per DR-0000 and DR-0010, with `gnu/stubs.h` the one
+justified exception.  They are FSF-copyrighted, LGPL-2.1-or-later, and their
+own notices travel with them; the copyright line above does not claim them.
+
+Two inventories are cut from Cygwin 3.6.10 rather than written here:
+`runtime/exports/cygwin-exports.tsv` from `cygwin.din` and
+`runtime/imports/cygwin-imports.tsv` from the built DLL's import table, with
+wrappers generated from both.  Beyond these, where a specification was
+implemented rather than code lifted, the governing document says so.  An
+earlier revision of this page said nothing in the tree was a copy of glibc or
+Cygwin source; that was true when written and is not true now.

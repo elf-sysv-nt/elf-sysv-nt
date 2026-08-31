@@ -42,3 +42,8 @@ veneer/t/ref-cache/
 # git truth. It is not tracked -- its history was pure churn. Regenerate it with
 # bin/refresh-next-steps.py; the tracked source of truth is doc/status/.
 doc/Next-Steps.md
+
+# Session scratch, editor backups, crash dumps.
+/a/
+*~
+*.stackdump

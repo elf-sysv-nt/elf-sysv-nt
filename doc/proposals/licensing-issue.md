@@ -49,7 +49,9 @@ an equivalent one to its own users, having received the code under terms that
 carried it. Until that is answered the repository grants nothing, states the
 intent, and stops.
 
-This is the first thing to ask, because everything in item 2 depends on it.
+This is the first thing to ask, because everything in item 2 depends on it. A
+draft putting the question to the Cygwin mailing list sits at
+`doc/proposals/licensing-email-draft.md`, written 2026-08-30 and not yet sent.
 
 ### 2. LGPLv3 against a GPLv2-only userland
 
@@ -131,3 +133,27 @@ adoption and the worker proceed.
 No agent drafted or altered licence text in producing this record, per DR-0004.
 
 — Philip Dye, operator
+
+## Update — the tree moved under this docket (2026-08-30)
+
+The docket describes the tree as it stood on 2026-08-29, and one day of
+delivered work packages changed the facts under three of its items.  The
+questions stand; their premises need re-dating.
+
+Item 4's premise is gone.  "The tree holds no Cygwin-derived code yet" was
+true when written.  The tree now holds `runtime/exports/cygwin-exports.tsv`
+cut from Cygwin's `cygwin.din`, `runtime/imports/cygwin-imports.tsv` extracted
+from the built `cygwin1.dll`, and wrappers generated from both.  The
+per-component question is therefore live rather than deferred.
+
+Item 2's wait-condition has arrived.  WP-53 is delivered and the veneer
+exists, so the LGPLv3-against-GPLv2-only question can now be asked with the
+linkage shape in hand, which is what this docket said to wait for.  Item 3 is
+in the same position: WP-63's installer, which section-4 relinking bears on,
+is delivered, though whether anyone has examined relinking against it remains
+unverified.
+
+The Not verified section's "nothing has been lifted" no longer holds.  WP-50's
+redo vendored el8's glibc 2.28 headers into `veneer/include/` byte-identical,
+under DR-0000 and DR-0010; they carry their own FSF notices.
+`doc/licensing.md` was corrected the same day to stop denying the lift.
