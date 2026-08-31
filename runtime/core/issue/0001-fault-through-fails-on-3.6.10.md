@@ -1,7 +1,7 @@
 # 0001 — WP-22 reopened: fault-through fails on Cygwin 3.6.10
 
 Raised 2026-08-30. WP-22 was certified in the rhel root (Cygwin 3.0.7); the
-project builds and certifies in the primary root (3.6.10) per DR-0037. Re-run
+project builds and certifies in the primary root (3.6.10) per DR-0038. Re-run
 there, `runtime/core/t/run.sh` fails: the cross probe reports
 `sysv_callee_saved_mask=0x0` and the fault-crossing check does not hold.
 

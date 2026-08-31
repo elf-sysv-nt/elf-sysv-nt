@@ -1,7 +1,7 @@
 # 0001 — WP-43 reopened: signal/fault delivery differs on Cygwin 3.6.10
 
 Raised 2026-08-30. WP-43 was certified in the rhel root (Cygwin 3.0.7); the
-project builds and certifies in the primary root (3.6.10) per DR-0037. Re-run
+project builds and certifies in the primary root (3.6.10) per DR-0038. Re-run
 there, `runtime/signal/t/run.sh` fails: the reservation/delivery measurement
 comes out differently (a negative reservation cost among them), and the run
 exits non-zero.

@@ -1,4 +1,4 @@
-# DR-0037 — the build and certification environment is the primary Cygwin root (3.6.10)
+# DR-0038 — the build and certification environment is the primary Cygwin root (3.6.10)
 
 Status: accepted
 Date: 2026-08-30

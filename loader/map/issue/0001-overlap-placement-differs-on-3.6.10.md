@@ -1,7 +1,7 @@
 # 0001 — WP-32 reopened: mapping over an occupied span is allowed on 3.6.10
 
 Raised 2026-08-30. WP-32 was certified in the rhel root (Cygwin 3.0.7); the
-project builds and certifies in the primary root (3.6.10) per DR-0037. Re-run
+project builds and certifies in the primary root (3.6.10) per DR-0038. Re-run
 there, `loader/map/t/run.sh` fails one case (`case_failures=1`): after reserving
 a span, a second placement over that already-occupied span returns `elf_map_ok`
 where the test expects a refusal. On 3.0.7 the host refused it.
