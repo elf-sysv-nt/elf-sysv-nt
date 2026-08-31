@@ -2,10 +2,11 @@
 #
 # WP-52's certification: the committed classification reproduces from the two
 # inputs, it partitions the version map with nothing left out and nothing
-# invented, every shim is flagged for review, and the published fourth-bucket
-# document still states the numbers the generator produces.
+# invented, every shim is flagged for review, no alias is classified less
+# strictly than its target, and the published fourth-bucket document still
+# states the numbers the generator produces.
 #
-# Four things are checked, each a pass or a fail rather than a reading.
+# Five things are checked, each a pass or a fail rather than a reading.
 #
 #   reproduce   classify.py is rerun over veneer/version-map and
 #               runtime/exports and its classification.tsv and
@@ -18,6 +19,9 @@
 #               mutually exclusive. This is the "no symbol unclassified" bar.
 #   review      Every bucket-3 (shim) row carries the review flag: WP-52 makes
 #               no semantic judgement it did not flag for a human.
+#   strict      No bucket-1 forward targets a name whose own map row is a shim
+#               or a stub. The alias-strictness invariant of the F2 redo: an
+#               alias is never classified less strictly than its target.
 #   doc         doc/what-the-veneer-lacks.md states the same bucket-4 total and
 #               category counts the generator reports, so the published
 #               document cannot drift from the data.
@@ -63,7 +67,7 @@ type smon_session >/dev/null 2>&1 || {
 }
 
 smon_session build wp52-classification
-smon_plan reproduce partition review doc
+smon_plan reproduce partition review strict doc
 
 command -v python3 >/dev/null 2>&1 || {
 	smon_step_skip reproduce
@@ -148,6 +152,18 @@ strayflag=$(awk -F'\t' '$4!="3" && $7=="review"{print $2}' "$committed" | sort -
 say "review: all $b3 shim rows flagged for review, no stray flags"
 smon_step_ok review
 
+# --- strict ------------------------------------------------------------------
+# The generator enforces the invariant by construction; this re-derives it
+# from the committed file alone, so a hand-edited classification cannot pass.
+smon_step_start strict
+viol=$(awk -F'\t' 'NR==FNR { if ($4=="3" || $4=="4") s[$2]=$4; next }
+	$4=="1" && ($6 in s) { print $2" -> "$6" (bucket "s[$6]")" }' \
+	"$committed" "$committed" | sort -u)
+[ -z "$viol" ] || { smon_step_fail strict 1
+	fail "aliases classified less strictly than their target:\n$viol"; }
+say "strict: no bucket-1 forward targets a shim or a stub"
+smon_step_ok strict
+
 # --- doc ---------------------------------------------------------------------
 smon_step_start doc
 python3 "$gen" --map "$map" --cygwin "$cyg" --review "$cl/semantic-review.tsv" \
@@ -165,7 +181,7 @@ done < <(awk '/^  [a-z].* [0-9]+$/{print $1, $2}' "$tmp/sum.txt")
 say "doc: fourth-bucket total and category counts match the generator"
 smon_step_ok doc
 
-smon_item WP-52 met "classification reproduces, partitions the map, shims flagged, doc in sync"
+smon_item WP-52 met "classification reproduces, partitions the map, shims flagged, aliases strict, doc in sync"
 smon_end 0
-say "all four checks passed"
+say "all five checks passed"
 exit 0
