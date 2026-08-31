@@ -42,7 +42,7 @@ def flip_checks(text, delivered):
             return line
         def sub(m):
             wp = 'WP-' + m.group(1)
-            return wp + CHECK if (wp in delivered and m.group(2) != CHECK) else m.group(0)
+            return wp + CHECK if wp in delivered else wp   # bidirectional: add or remove
         return re.sub(r'WP-(\d+)(' + CHECK + r'?)', sub, line)
     return '\n'.join(one(l) for l in text.split('\n'))
 
