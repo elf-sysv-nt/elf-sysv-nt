@@ -475,6 +475,44 @@ crossing was, because the verdict has to run; `compat.c` is plain integer and
 string comparison and links into the runtime unchanged, and cross-compiles once
 the veneer headers (WP-50) are in the cross sysroot, which `README.md` records.
 
+### WP-26 — winsup builds as elfsysv1.dll
+
+Needs: WP-21, WP-25, DR-0007.
+Delivers: the `newlib-cygwin` tree at `b11613e47`, vendored or fetched per
+DR-0002's pattern, compiled `-mno-red-zone` throughout into a DLL named
+`elfsysv1.dll` whose face is still Microsoft's — a re-badged Cygwin, not yet
+re-faced. The imports route through WP-21's generated wrappers, the WP-25
+counter is compiled in rather than tested beside, and `_cygtls` gains the
+reserved carrier field DR-0021 left to "the forked runtime", its offset
+asserted against `sizeof(_cygtls)` at build time.
+Done when: a hello built against the DLL runs; the build reproduces from the
+pinned ref byte-for-byte in the parts the toolchain makes reproducible; and
+`runtime/tls/measure/` reruns against the forked block, closing the DR-0003
+re-measurement chain against the real 3.6.10 `_cygtls` rather than 3.0.7's.
+Risk: this is the first time Cygwin's source is compiled rather than called,
+the last unreached item on spike 3's list. Expect it to find things, and expect
+the `-mno-red-zone` world to surface hand-written assembly inside winsup itself;
+that residue joins WP-16's ledger.
+
+### WP-27 — the System V face at the DLL's width
+
+Needs: WP-26, WP-22, WP-23, WP-24.
+Delivers: the export surface re-faced per WP-20's inventory — System V outward,
+the variadic entries from WP-24's generated veneer, the host-facing entry points
+in WP-22's certified shapes now fronting the real runtime work they were
+stand-ins for. Thread creation establishes the carrier for every thread the
+runtime creates, which is where the veneer's `pthread_create` inherits it (F8),
+and the per-thread split of the blocked mask and alternate stack that DR-0030
+deferred lands here with it.
+Done when: WP-22's and WP-23's crossing certifications rerun unchanged against
+the real DLL; `DllMain` and the PE TLS callback fire from the host's own loader
+rather than from a harness; a fault beneath a System V frame still arrives as
+SIGSEGV and leaves by `siglongjmp`; and a static ELF through WP-41's branch
+calls a real export and returns.
+Risk: the unwind seam. DR-0012's tripwire must hold against gcc compiling all of
+winsup, not six functions, and a failure there reopens that record on its own
+stated terms.
+
 ---
 
 ## Phase 3 — TLS and the loader
@@ -1213,6 +1251,41 @@ tree with no name left over.
 el8 still ships these as separate objects rather than the merged glibc of later
 releases, so the partition follows el8's rather than a modern one.
 
+### WP-55 — the translation tables
+
+Needs: WP-50, DR-0007.
+Delivers: the divergence classes DR-0000 names, as generated tables rather than
+as knowledge in someone's head — the errno value map, the signal number map, the
+flag constant maps (`O_*`, `F_*`, `AT_*`, `MAP_*`, `SOCK_*` and their relatives),
+and layout descriptors for the structs that cross the boundary: `stat`, `dirent`,
+`termios`, the `sockaddr` family, `rlimit`, `sigaction`, and whatever else the
+extraction finds differing. Each table is extracted mechanically from el8's
+vendored headers on one side and the WP-26 tree's on the other, committed with a
+reproduce test in the WP-51 manner.
+Done when: the extraction reruns byte-identically, every class DR-0000 names has
+a table, and every table has a named consumer in the WP-56 shim set or a written
+reason it has none.
+Risk: a divergence the extraction cannot see — a field with the same name,
+offset and size whose meaning differs. The differential in WP-56 is the net
+under this package, not the package itself.
+
+### WP-56 — wiring the bodies, in slices
+
+Needs: WP-27, WP-55, WP-52 (redone), spike 12.
+Delivers: the forwards become real resolutions into `elfsysv1.dll` and the shims
+become translations through WP-55's tables, sliced by subsystem — stdio, memory,
+filesystem, process, sockets, time, and so on down the headers — with the slice
+order taken from spike 12's demand ranking rather than from anyone's guess.
+`libc-forward.tsv` stops being a promise and becomes the generator's input.
+Done when, per slice: the slice's symbols pass a differential against a real el8
+userland in the WP-T2 environment, over glibc's observable behaviour for that
+slice. Done when, overall: a named small vendor package — chosen by spike 12,
+built by WP-T4's harness in embryo — compiles, links, runs its own test suite,
+and passes it.
+Risk: this is the long pole and it always was; the point of cutting it now is
+that the plan's tail stops implying otherwise. The per-slice bar keeps it honest
+at every step rather than at the end.
+
 ---
 
 ## Phase 6 — packaging and tooling
@@ -1328,6 +1401,8 @@ WP-T1 through WP-T3 and fails this one has not done the job.
                         └────► WP-39          WP-37 ─────┘
     WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
     WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
+    WP-26 ─► WP-27 ─► WP-56 ─► (WP-54, WP-62)
+    WP-55 ────────────┘
 
 The spikes have all answered and the three reserved decisions are settled, so
 the graph waits on no input outside itself; the `TLS model` node above is
