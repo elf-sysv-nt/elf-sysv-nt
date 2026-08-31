@@ -1,4 +1,4 @@
-# DR-XXXX — the faced DLL is exercised as a process's sole Cygwin runtime
+# DR-0043 — the faced DLL is exercised as a process's sole Cygwin runtime
 
 Accepted 2026-08-31. Source: `doc/proposals/sole-runtime-crossing.md`.
 

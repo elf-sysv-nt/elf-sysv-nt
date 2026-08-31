@@ -1,4 +1,4 @@
-# DR-XXXX — fault dispatch across System V frames fails on runtime-created threads
+# DR-0042 — fault dispatch across System V frames fails on runtime-created threads
 
 Accepted 2026-08-31. Source: WP-27 milestone 7's certification, measured
 against the faced DLL. Reopens DR-0012 on its own stated terms, as a new
