@@ -1,0 +1,33 @@
+packages=4855
+packages_with_glibc_demand=3046
+packages_touching_bucket4=2530
+bucket4_share_of_all=52.1%
+bucket4_share_of_users=83.1%
+distinct_bindings=2009
+# small clean candidates (all bindings in buckets 1-3),
+# by distinct-binding count ascending:
+candidate=anaconda-widgets-devel bindings=1
+candidate=boost-atomic bindings=1
+candidate=cairo-gobject bindings=1
+candidate=fonts-tweak-tool bindings=1
+candidate=libX11-xcb bindings=1
+candidate=libeasyfc-gobject bindings=1
+candidate=liblangtag-gobject bindings=1
+candidate=libpsm2-compat bindings=1
+candidate=libuninameslist bindings=1
+candidate=ocaml-extlib bindings=1
+candidate=perl-Devel-CallChecker bindings=1
+candidate=perl-Fcntl bindings=1
+candidate=perl-File-DosGlob bindings=1
+candidate=perl-PCP-LogImport bindings=1
+candidate=perl-Ref-Util-XS bindings=1
+candidate=adwaita-gtk2-theme bindings=2
+candidate=ansible-core bindings=2
+candidate=apr-util-bdb bindings=2
+candidate=apr-util-ldap bindings=2
+candidate=atkmm bindings=2
+candidate=clutter-gtk bindings=2
+candidate=dbus-c++-glib bindings=2
+candidate=dleyna-connector-dbus bindings=2
+candidate=gedit-plugin-drawspaces bindings=2
+candidate=gedit-plugin-wordcompletion bindings=2

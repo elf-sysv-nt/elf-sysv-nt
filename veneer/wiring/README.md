@@ -62,11 +62,11 @@ first slice.
 
 ## Status
 
-The census (spike 12) is running in the background over the 4855-package
-el8 worklist (resumable, logged to `a/build-logs/wp56-wiring-bodies.log`).
-Its first launch died with the session that started it, at 550 of 4855;
-`spike/demand-census/run-census.sh` now starts or resumes it detached,
-with a pid check so a second launch is a no-op. When it completes,
-`census.py report` produces `demand-ranking.tsv`,
-`order` cuts the slice queue from it, and the first slice's wiring
-begins through `gen-wire.py`. No slices cut yet.
+The census (spike 12) is complete: 4855 packages probed, none in error,
+2009 distinct glibc bindings demanded. Its products are committed under
+`spike/demand-census/results/` — the per-binding demand ranking, the
+summary, and the slice order the ranking cuts. The order puts string
+first, then the unassigned internals (`__cxa_finalize`,
+`__stack_chk_fail` and kin, the most-demanded bindings of all), then
+stdio, posix, stdlib, filesystem, on down 26 slices. The first slice's
+wiring begins through `gen-wire.py`. No slice differentials run yet.
