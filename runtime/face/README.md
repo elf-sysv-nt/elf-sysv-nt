@@ -68,8 +68,24 @@ Planned order of work, one milestone per commit:
       `.din` fails to mark). `t/unlisted.sh` certifies reproduction,
       totality in sigclass order, the pinned counts (193 int, 16 fp,
       12 asis, 1 data), and that every citation resolves in the tree.
-   5. The `.def`/`.din` seam that puts all the faces on the DLL, with
-      the unlisted int and fp rows folded into the face generators.
+   5. The seam — done. The unlisted int and fp rows are folded into the
+      face generators (1315 generic faces, 333 typed), each generator
+      resolving sigclass's unlisted rows through `unlisted.tsv`.
+      `gen-din.sh` then emits `face.din`, the export table that puts the
+      faces on the DLL: one row per face-table row, data and asis rows
+      passing through (with the DATA marker the vendor din omitted on
+      `__infinity`), every faced row `name = __face_<name>` under the
+      fence marker the face table carried out of the vendor din. The
+      sigfe fence stays outside the face — export, sigfe stub, System V
+      face, Microsoft body — which is sound because the stub touches
+      only r10, r11, and the stack, scratch in both conventions.
+      Variadic rows bind `__face_<name>` too; the build step renames
+      WP-24's veneer entries onto that prefix when the objects join the
+      DLL, so the seam names one convention. `t/din.sh` certifies
+      reproduction, totality in face-table order, the pinned counts
+      (1716 faced, 39 DATA, 12 asis), fence preservation, and that the
+      vendor's own gendef consumes the file, wrapping exactly the 1000
+      SIGFE-fenced faces in sigfe stubs.
 3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
 4. `DllMain` and the PE TLS callback fired by the host's own loader.
 5. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
