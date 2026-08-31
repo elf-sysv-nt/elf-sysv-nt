@@ -463,3 +463,26 @@ back through fgetws, fgetwc and a pushed-back ungetwc, with fwide
 reporting the orientation). Exercised end to end with both sides on
 el8: four cases, all match; judging the wired veneer awaits the
 runtime the earlier slices wait on.
+
+The regex slice is the smallest yet: 5 rows, all thunks, no shims,
+generated and committed as `wire-regex.gen.c` / `.gen.s` /
+`.shims.tsv` and pinned byte-identical — counts included — by
+`t/real-map.sh`. The rows are the POSIX four — regcomp, regexec,
+regerror, regfree — with regexec carrying both its version nodes;
+regex_t and regmatch_t are built and consumed by the same libc on
+both sides of the bound table, so everything crosses as a tail jump.
+The GNU re_* family are stubs in the forward map and so are not this
+slice's rows. Four diff cases cover the compile-and-match core (a
+literal's span, subexpression offsets, BRE against ERE over the same
+pattern text, REG_NOSUB with re_nsub still counted, back-references
+binding to the captured text), bracket expressions and case (ranges,
+negation, the named classes in the C locale, REG_ICASE folding both
+forms, intervals in both syntaxes), the refusals (each bad pattern
+named by its code, regerror's text for every code it mints, and the
+truncation contract — the returned length counts the whole message
+while a short buffer gets a terminated prefix), and the anchors
+(REG_NOTBOL and REG_NOTEOL turning them off, REG_NEWLINE making them
+line-relative and stopping dot at the break, the empty pattern, and
+a match-by-match scan through rm_eo). Exercised end to end with both
+sides on el8: four cases, all match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
