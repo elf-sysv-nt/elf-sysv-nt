@@ -50,4 +50,21 @@ if command -v "$XAS" >/dev/null 2>&1; then
     ! "$xnm" "$tmp/wire-files.o" | grep -q frob_shim
 fi
 
+# The per-slice differential harness, judged before it judges any slice:
+# both sides host gcc so no WSL and no wired veneer is needed. Same source
+# on both sides must pass; a runner that garbles the candidate's output
+# must be reported as a divergence, not a pass.
+mkdir -p "$tmp/diffwork/diff/files"
+cp diff-cases/hello.c "$tmp/diffwork/diff/files/"
+cp ../diff-slice.sh "$tmp/diffwork/"
+ESN_REF_CC="${CC:-gcc}" ESN_CC="${CC:-gcc}" \
+    bash "$tmp/diffwork/diff-slice.sh" files | grep -q 'all match'
+printf '#!/bin/sh\n"$1"; echo garble\n' > "$tmp/garble"
+chmod 755 "$tmp/garble"
+if ESN_REF_CC="${CC:-gcc}" ESN_CC="${CC:-gcc}" ESN_RUN="$tmp/garble" \
+    bash "$tmp/diffwork/diff-slice.sh" files > "$tmp/diverge.txt"; then
+    echo "diff-slice missed a divergence" >&2; exit 1
+fi
+grep -q 'DIVERGED files/hello' "$tmp/diverge.txt"
+
 echo ok
