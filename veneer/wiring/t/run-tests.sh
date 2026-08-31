@@ -1,6 +1,8 @@
 #!/bin/sh
 # Network-free tests for cut-slices.py: map over fixture headers with
-# the native compiler, order over a synthetic ranking.
+# the native compiler, order over a synthetic ranking. Then the xlat
+# core: regenerate, require byte-identity with the committed files, and
+# run the compiled spot checks.
 set -e
 cd "$(dirname "$0")"
 tmp=$(mktemp -d)
@@ -21,5 +23,12 @@ head -1 "$tmp/out/slice-order.tsv" | grep -q '^files'
 awk -F'\t' '$1=="memory"{print $3}' "$tmp/out/slice-order.tsv" | grep -qx 5
 grep -q unknown_sym "$tmp/out/slice-unassigned.tsv"
 ! grep -rq nope "$tmp/out"
+
+python3 ../gen-xlat.py --out "$tmp" >/dev/null
+diff -u ../xlat-core.gen.c "$tmp/xlat-core.gen.c"
+diff -u ../xlat-core.gen.h "$tmp/xlat-core.gen.h"
+"${CC:-gcc}" -Wall -Wextra -Werror -o "$tmp/test-xlat" \
+    test-xlat.c ../xlat-core.gen.c
+"$tmp/test-xlat"
 
 echo ok

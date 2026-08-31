@@ -18,6 +18,19 @@ package demand. Symbols the map does not know land in an `unassigned`
 slice rather than disappearing. `t/run-tests.sh` exercises both halves
 against fixtures, network-free and cross-toolchain-free.
 
+## The translation core
+
+`gen-xlat.py` turns WP-55's `errno-map.tsv` and `signal-map.tsv` into
+`xlat-core.gen.c` / `.gen.h`: four functions (`__esn_errno_up/down`,
+`__esn_signal_up/down`) over dense value arrays, the one translation
+every down-call wrapper shares. Unclaimed values pass through unchanged.
+Where Linux aliases two names onto one value that Cygwin keeps apart
+(EDEADLK/EDEADLOCK, ENOTSUP/EOPNOTSUPP), the down direction picks the
+side-agreeing value when there is one and otherwise an explicitly named
+winner in the generator, never a silent first-row-wins. The generated
+files are committed; `t/run-tests.sh` regenerates them, requires
+byte-identity, and runs compiled spot checks of both directions.
+
 ## Status
 
 The census (spike 12) is running in the background over the 4855-package
