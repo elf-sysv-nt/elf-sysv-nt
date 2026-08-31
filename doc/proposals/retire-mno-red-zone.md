@@ -1,4 +1,4 @@
-# Proposal — retire `-mno-red-zone`; the delivery-site repair is the answer
+# Proposal — retire `-mno-red-zone`; honor the red zone as the psABI requires
 
 Status: draft
 Author: Philip Dye
@@ -8,59 +8,73 @@ Analysed against: 4216062 on `march`
 Drafted at the operator's request. DR-0006 chose to repair the red zone at
 Cygwin's signal-delivery site rather than compile around it, and carried
 `-mno-red-zone` as scaffolding "until that repair lands rather than the shipped
-answer." WP-43 built the repair, certified it on the primary root, and has now
-priced it. The price is in the band DR-0006 reserved for pulling the flag. This
-proposes pulling it.
+answer." WP-43 built the repair and certified it on the primary root. The
+scaffolding's building is finished. This proposes taking it down, because
+keeping it up is the less faithful implementation of the ABI this project
+exists to present.
 
-## What DR-0006 reserved, and what the number is
+## The reason: fidelity, not cost
 
-DR-0006 settled the direction and reserved one thing: the reading of WP-43's
-measured cost against a table it wrote before the number existed, so the number
-could not be read to suit. Under 5% of a delivery, the flag comes off and
-DR-0006 is superseded; 5 to 20%, proceed but record the cost; over 20%, reopen;
-and reopen at any number if the repair needed changes outside the delivery path.
+The red zone is the System V AMD64 psABI: the 128 bytes below `%rsp` that a
+conforming leaf function uses for its frame without adjusting the stack
+pointer, and that a conforming platform must not clobber across a signal.
+`-mno-red-zone` makes this platform's own compiler *avoid* the red zone -- every
+leaf adjusts `%rsp` instead. That is a deviation from the standard code shape,
+and it only ever protected the platform's own binaries. The el8 binaries this
+project runs are compiled normally, *with* the red zone; the flag does nothing
+for them. So a platform built on the flag is unfaithful twice over: its own code
+does not look like System V code, and the guarantee the el8 world actually
+depends on is absent.
 
-The measurement, taken on the repaired instrument after this session root-caused
-a self-kill in the old harness that had made it untrustworthy: median **−0.49%**
-over twenty clean runs, mean −2.96%, the tails scheduling noise around zero. It
-sits inside the under-5% band. The repair stayed in the delivery site, so the
-out-of-path trigger did not fire. Run through `doc/decision-ladder.md` the
-reading resolves to a single survivor -- proceed, the flag comes off -- without
-reaching tier 8. What remains is the operator's signature on the consequence,
-which is why this is a proposal and not a fact read off the number.
+The delivery-site repair fixes the layer that does the damage, so the red zone
+is honored for everyone -- the platform's own code and the vendor binaries
+alike. That is the conforming implementation, and it is the whole point of the
+effort: a Linux userland builds and runs against this platform unchanged, red
+zone included. With the repair in, the flag is not merely redundant; it is an
+active infidelity, keeping every leaf on the platform emitting an adjustment
+that a real System V leaf does not, for a guarantee the repair already provides.
+DR-0006 said this in its own words: the flag "announces in every one of those
+prologues that this is not quite the ABI the object file claims to conform to,"
+and a platform whose purpose is unchanged Linux builds "should not have a
+permanent asterisk of that shape." Retiring it removes the asterisk.
 
-## Why the repair makes the flag redundant
+## The cost closes the only objection; it is not the reason
 
-`-mno-red-zone` costs a stack adjustment in every leaf function on the platform,
-forever, and it does not reach hand-written assembly at all -- the residue
-WP-16's ledger exists to bound. The delivery-site repair fixes the layer that
-does the damage, so it buys the psABI's 128 bytes back for compiled and
-hand-written code at once. With the repair certified and its cost negligible,
-the flag is a permanent tax that guarantees less than the thing that replaces
-it. It is scaffolding whose building is finished.
+Cost of recompilation is not, and has never been, a deciding factor in this
+project. The one thing a measurement could have shown is a *reason to keep* the
+flag: if reserving the red zone in delivery were expensive, the cheaper
+compile-time avoidance might be worth its infidelity. WP-43's measurement closes
+that door. The reservation cost read a median of −0.49% of a delivery over
+twenty clean runs, inside DR-0006's under-5% band, with the repair contained in
+the delivery site so no out-of-path concern arises. There is no cost standing
+between the platform and the faithful implementation. Run through
+`doc/decision-ladder.md`, the reading resolves at tier 1 -- correctness,
+faithfulness to the psABI -- to a single survivor, retire, without reaching
+tier 8.
 
-## What retiring it means, and costs
+## What retiring it is
 
-Retiring the flag is a recompile of the world without it: every package rebuilt
-so its leaves stop reserving the red zone by hand and rely on the delivery
-repair instead. That is the cost DR-0006 meant when it said reversing this
-"costs a world," and it is why the reading was banded so carefully and why the
-signature is reserved. `-mred-zone` was kept available on the toolchain for
-WP-43's measurement; once the flag is retired, whether that option stays is a
-question for this record's implementer, and WP-16's residue ledger closes with
-the flag it was bounding.
+A rebuild of every package without the flag, so the platform's leaves use the
+red zone as System V code does and rely on the delivery repair to keep it. That
+rebuild is the work of realizing the faithful implementation, not a weight
+against it. `-mred-zone` was kept on the toolchain for WP-43's measurement;
+after retirement its fate is the implementer's, and WP-16's residue ledger --
+which existed to bound the hand-written assembly the flag never reached --
+closes with the flag it was tracking, because the delivery repair covers
+compiled and hand-written code at once.
 
 ## What this settles and what it leaves open
 
-It settles that the flag's replacement is proven and priced, and that by
-DR-0006's own criteria the flag comes off. It does not, by itself, perform the
-world recompile: accepting it authorizes that rebuild and supersedes DR-0006
-with the new record, and the rebuild is scheduled work, not a side effect of the
-acceptance.
+It settles that the faithful implementation is proven and that nothing but the
+scaffolding stands in its way. Accepting it supersedes DR-0006 with the new
+record and authorizes the rebuild; it does not perform the rebuild, which is
+scheduled work rather than a side effect of acceptance. It is reserved to the
+operator because it is the ABI boundary, not because the reading is close --
+the reading is not close.
 
 ## Not verified
 
 That every package's leaves in fact stop touching the red zone once the flag is
-gone -- the recompile is the measurement, and a package that still assumes the
-128 bytes for reasons unrelated to the compiler flag would surface there. WP-16's
+gone. The recompile is the measurement, and a package that still assumes the 128
+bytes for a reason unrelated to the compiler flag would surface there; WP-16's
 ledger is the list to check the rebuild against.
