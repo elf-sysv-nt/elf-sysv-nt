@@ -153,3 +153,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-memory.o" "$tmp/wire-memory.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-memory.o" | grep -q 'malloc@@GLIBC_2.2.5'
 fi
+
+# The committed sockets wiring re-derives byte-identical as well. The
+# slice is all thunks: the sockaddr family crosses by pointer and
+# length, laid out the same on both sides, and the flag translation
+# the mmap family taught us belongs downstream of the bind here too,
+# so no row lands in the shims file yet.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice sockets \
+    --table "$tmp/wire-sockets.gen.c" \
+    --thunks "$tmp/wire-sockets.gen.s" \
+    --shims "$tmp/wire-sockets.shims.tsv" >/dev/null
+cmp ../wire-sockets.gen.c "$tmp/wire-sockets.gen.c"
+cmp ../wire-sockets.gen.s "$tmp/wire-sockets.gen.s"
+cmp ../wire-sockets.shims.tsv "$tmp/wire-sockets.shims.tsv"
+grep -q '"socket"' "$tmp/wire-sockets.gen.c"
+grep -q '"getaddrinfo"' "$tmp/wire-sockets.gen.c"
+test "$(grep -vc '^#' "$tmp/wire-sockets.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-sockets-table.o" "$tmp/wire-sockets.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-sockets.o" "$tmp/wire-sockets.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-sockets.o" | grep -q 'socket@@GLIBC_2.2.5'
+fi
