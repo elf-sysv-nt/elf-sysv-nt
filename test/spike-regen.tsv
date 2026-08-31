@@ -1,0 +1,43 @@
+# WP-T3 spike-regeneration manifest, read by test/t3-regen.sh.
+#
+# One row per regeneration script. A spike directory that holds more than one
+# characterization script gets one row each -- abi-crossing and map-and-jump
+# carry a second, root-differential script (characterize-*) beside the main one,
+# and each script owns its own transcript. The fetch-* scripts in some spikes
+# stage inputs rather than regenerate a transcript and are not listed.
+#
+# Columns, TAB-separated:
+#   dir        directory under spike/
+#   needs      an input path that must exist for the rerun to be possible
+#              (- when none, SKIP to list the spike but not run it)
+#   transcript a glob under spike/dir naming the committed transcript this
+#              script regenerates; the runner diffs against the newest match.
+#              A script and its transcript must be paired here by name, because
+#              "newest results-*.txt" alone pairs a script with a sibling's
+#              transcript when a directory holds several.
+#   command    the regeneration command, run from inside the spike directory,
+#              writing the transcript to stdout.
+#
+# A row fails when its command produces no transcript, or when the findings no
+# longer match its paired transcript; it is skipped when needs is absent or SKIP.
+#
+# dir<TAB>needs<TAB>transcript<TAB>command
+abi-crossing	-	results-2026-[0-9]*.txt	bash abi-crossing.sh
+abi-crossing	-	results-fault-through-3.6.10-*.txt	bash characterize-fault-through.sh
+map-and-jump	-	results-2026-[0-9]*.txt	bash map-and-jump.sh
+map-and-jump	-	results-overlap-3.6.10-*.txt	bash characterize-overlap.sh
+redzone-delivery	-	results-2026-[0-9]*.txt	bash redzone-delivery.sh
+gs-thread-pointer	-	results-2026-[0-9]*.txt	bash measure-gs-tp.sh
+fs-base-fault	-	results-2026-[0-9]*.txt	bash measure-fs-base-fault.sh
+fs-base-persistence	-	results-2026-[0-9]*.txt	bash measure-fs-base.sh
+ld-tls-relaxation	/c/-/x-elfsysvnt/bin	results-2026-[0-9]*.txt	bash measure-relaxation.sh -B /c/-/x-elfsysvnt/bin
+vendor-image-shape	/c/-/el8/vendor-image-shape	results-2026-[0-9]*.txt	bash measure-shape.sh -D /c/-/el8/vendor-image-shape
+triple-fidelity	/c/-/el8/dump	results-2026-[0-9]*.txt	bash count-vendor-misses.sh --dump /c/-/el8/dump
+versioned-libc	/c/-/el8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d rocky8 -- bash probe-elfdeps.sh -D /mnt/c/-/el8/versioned-libc -o -
+# demand-census regenerates by re-running the detached, resumable census over
+# every package (outputs under results/, work under a/census-work), not by a
+# quick transcript rerun this runner can time and diff; skipped here.
+demand-census	SKIP	-	true
+# cygwin-from-source has no standalone regeneration script: its rerun is WP-26's
+# from-source DLL build, tracked in that package rather than here.
+cygwin-from-source	SKIP	-	true

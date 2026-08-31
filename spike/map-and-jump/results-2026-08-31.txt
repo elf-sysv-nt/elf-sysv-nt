@@ -1,0 +1,508 @@
+a PE stub against a static ELF image
+
+host        ins-15
+kernel      CYGWIN_NT-10.0-26200 3.6.10-1.x86_64 x86_64
+compiler    gcc (GCC) 14.4.0
+assembler   GNU assembler (GNU Binutils) 2.47.20260726
+python      Python 3.12.12
+date        2026-08-31T19:00:58Z
+script      map-and-jump 1.0
+stub        map-and-jump-stub 1.0
+generator   make-elf 1.0
+
+== case flat -- base 0x400000, p_align 0x1000
+
+    specimen base=0x400000
+    specimen align=0x1000
+    specimen entry=0x400120
+    specimen span_first=0x400000
+    specimen span_last=0x406080
+    specimen span_bytes=0x6080
+    specimen rodata_addr=0x402000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x404000
+    specimen bss_addr=0x404080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/flat.elf
+    entry                            0x0000000000400120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000000000400000 .. 0x0000000000406080   (24704 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000000000400000
+    so the reservation starts at     0x0000000000400000
+    which is rounding away           0 bytes below the image
+    the image wants                  0x7000 bytes there
+    state there beforehand           MEM_FREE, 0x200000 bytes of it
+    reserved                         yes, 0x7000 bytes
+
+== the segments
+
+     #  vaddr               filesz     memsz      elf  asked for          reported back
+     0  0x0000000000400000  0x00000220 0x00000220 r-x  EXECUTE_READ       EXECUTE_READ
+     1  0x0000000000402000  0x00000008 0x00000008 r--  READONLY           READONLY
+     2  0x0000000000404000  0x00000080 0x00002080 rw-  READWRITE          READWRITE
+
+    segments sharing a page          0
+
+== the probes
+
+    a store into the text segment    faulted
+    a call into the data segment     faulted
+
+== the transfer
+
+    stack                            0x0000000000410000, 262144 bytes
+    entered with %rsp at             0x000000000044fec0
+    handshake block                  0x00000000001e0000 (the stub's own page)
+    AT_SPIKE_RODATA                  0x0000000000402000
+    AT_SPIKE_BSS                     0x0000000000404080
+    control came back                yes
+
+    the image ran at all             ok       
+    it read the read-only segment    ok       
+    bss past p_filesz was zero       ok       
+    it found argc on the stack       ok       
+    it found argv[0]                 ok       
+    it walked envp into auxv         ok       
+    it ran inside its own text       ok       
+    callee-saved GPRs came back      ok       
+    callee-saved XMMs came back      ok       
+
+case_module_base=0x100400000
+case_reserved=1
+case_entry=0x400120
+case_span_first=0x400000
+case_span_last=0x406080
+case_reserved_at=0x400000
+case_granule_waste=0
+case_span_bytes=0x6080
+case_free_run=0x200000
+case_shared_pages=0
+case_returned=1
+case_store_faulted=1
+case_exec_faulted=1
+case_probed=1
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x9f143cdef6e1b1fa
+case_out_argc=1
+case_out_rodata=0xc0ffee0fbadc0de5
+case_out_bss=0x0000000000000000
+case_out_rip=0x00000000004001b9
+case_out_pagesz=4096
+case_failures=0
+case_result=pass
+
+== case huge -- base 0x400000, p_align 0x200000
+
+    specimen base=0x400000
+    specimen align=0x200000
+    specimen entry=0x400120
+    specimen span_first=0x400000
+    specimen span_last=0x804080
+    specimen span_bytes=0x404080
+    specimen rodata_addr=0x601000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x802000
+    specimen bss_addr=0x802080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/huge.elf
+    entry                            0x0000000000400120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000000000400000 .. 0x0000000000804080   (4210816 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000000000400000
+    so the reservation starts at     0x0000000000400000
+    which is rounding away           0 bytes below the image
+    the image wants                  0x405000 bytes there
+    state there beforehand           MEM_FREE, 0x250000 bytes of it
+    reserved                         no -- error 487: Attempt to access invalid address
+
+    what stood in that range, surveyed before the attempt
+
+      base                size         state        type      module
+      0x0000000000400000  0x000250000  MEM_FREE               
+      0x0000000000650000  0x000021000  MEM_COMMIT   PRIVATE   
+      0x0000000000671000  0x0000df000  MEM_RESERVE  PRIVATE   
+      0x0000000000750000  0x0000d3000  MEM_COMMIT   MAPPED    
+
+case_module_base=0x100400000
+case_reserved=0
+case_entry=0x400120
+case_span_first=0x400000
+case_span_last=0x804080
+case_reserved_at=0x400000
+case_granule_waste=0
+case_span_bytes=0x404080
+case_free_run=0x250000
+case_shared_pages=0
+case_returned=0
+case_store_faulted=0
+case_exec_faulted=0
+case_probed=0
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x0000000000000000
+case_out_argc=0
+case_out_rodata=0x0000000000000000
+case_out_bss=0x0000000000000000
+case_out_rip=0x0000000000000000
+case_out_pagesz=0
+case_failures=1
+case_result=fail
+    asked again 20 times, refused 20 of them
+case_repeat=20
+case_repeat_refused=20
+
+== case hugehigh -- base 0x10000000, p_align 0x200000
+
+    specimen base=0x10000000
+    specimen align=0x200000
+    specimen entry=0x10000120
+    specimen span_first=0x10000000
+    specimen span_last=0x10404080
+    specimen span_bytes=0x404080
+    specimen rodata_addr=0x10201000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x10402000
+    specimen bss_addr=0x10402080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/hugehigh.elf
+    entry                            0x0000000010000120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000000010000000 .. 0x0000000010404080   (4210816 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000000010000000
+    so the reservation starts at     0x0000000010000000
+    which is rounding away           0 bytes below the image
+    the image wants                  0x405000 bytes there
+    state there beforehand           MEM_FREE, 0x6ffe0000 bytes of it
+    reserved                         yes, 0x405000 bytes
+
+== the segments
+
+     #  vaddr               filesz     memsz      elf  asked for          reported back
+     0  0x0000000010000000  0x00000220 0x00000220 r-x  EXECUTE_READ       EXECUTE_READ
+     1  0x0000000010201000  0x00000008 0x00000008 r--  READONLY           READONLY
+     2  0x0000000010402000  0x00000080 0x00002080 rw-  READWRITE          READWRITE
+
+    segments sharing a page          0
+
+== the probes
+
+    a store into the text segment    faulted
+    a call into the data segment     faulted
+
+== the transfer
+
+    stack                            0x0000000000400000, 262144 bytes
+    entered with %rsp at             0x000000000043fec0
+    handshake block                  0x00000000001e0000 (the stub's own page)
+    AT_SPIKE_RODATA                  0x0000000010201000
+    AT_SPIKE_BSS                     0x0000000010402080
+    control came back                yes
+
+    the image ran at all             ok       
+    it read the read-only segment    ok       
+    bss past p_filesz was zero       ok       
+    it found argc on the stack       ok       
+    it found argv[0]                 ok       
+    it walked envp into auxv         ok       
+    it ran inside its own text       ok       
+    callee-saved GPRs came back      ok       
+    callee-saved XMMs came back      ok       
+
+case_module_base=0x100400000
+case_reserved=1
+case_entry=0x10000120
+case_span_first=0x10000000
+case_span_last=0x10404080
+case_reserved_at=0x10000000
+case_granule_waste=0
+case_span_bytes=0x404080
+case_free_run=0x6ffe0000
+case_shared_pages=0
+case_returned=1
+case_store_faulted=1
+case_exec_faulted=1
+case_probed=1
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x9f143cdef6e1b1fa
+case_out_argc=1
+case_out_rodata=0xc0ffee0fbadc0de5
+case_out_bss=0x0000000000000000
+case_out_rip=0x00000000100001b9
+case_out_pagesz=4096
+case_failures=0
+case_result=pass
+
+== case offgranule -- base 0x8048000, p_align 0x1000
+
+    specimen base=0x8048000
+    specimen align=0x1000
+    specimen entry=0x8048120
+    specimen span_first=0x8048000
+    specimen span_last=0x804e080
+    specimen span_bytes=0x6080
+    specimen rodata_addr=0x804a000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x804c000
+    specimen bss_addr=0x804c080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/offgranule.elf
+    entry                            0x0000000008048120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000000008048000 .. 0x000000000804e080   (24704 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000000008048000
+    so the reservation starts at     0x0000000008040000
+    which is rounding away           32768 bytes below the image
+    the image wants                  0xf000 bytes there
+    state there beforehand           MEM_FREE, 0x77fa0000 bytes of it
+    reserved                         yes, 0xf000 bytes
+
+== the segments
+
+     #  vaddr               filesz     memsz      elf  asked for          reported back
+     0  0x0000000008048000  0x00000220 0x00000220 r-x  EXECUTE_READ       EXECUTE_READ
+     1  0x000000000804a000  0x00000008 0x00000008 r--  READONLY           READONLY
+     2  0x000000000804c000  0x00000080 0x00002080 rw-  READWRITE          READWRITE
+
+    segments sharing a page          0
+
+== the probes
+
+    a store into the text segment    faulted
+    a call into the data segment     faulted
+
+== the transfer
+
+    stack                            0x0000000000400000, 262144 bytes
+    entered with %rsp at             0x000000000043fec0
+    handshake block                  0x00000000001e0000 (the stub's own page)
+    AT_SPIKE_RODATA                  0x000000000804a000
+    AT_SPIKE_BSS                     0x000000000804c080
+    control came back                yes
+
+    the image ran at all             ok       
+    it read the read-only segment    ok       
+    bss past p_filesz was zero       ok       
+    it found argc on the stack       ok       
+    it found argv[0]                 ok       
+    it walked envp into auxv         ok       
+    it ran inside its own text       ok       
+    callee-saved GPRs came back      ok       
+    callee-saved XMMs came back      ok       
+
+case_module_base=0x100400000
+case_reserved=1
+case_entry=0x8048120
+case_span_first=0x8048000
+case_span_last=0x804e080
+case_reserved_at=0x8040000
+case_granule_waste=32768
+case_span_bytes=0x6080
+case_free_run=0x77fa0000
+case_shared_pages=0
+case_returned=1
+case_store_faulted=1
+case_exec_faulted=1
+case_probed=1
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x9f143cdef6e1b1fa
+case_out_argc=1
+case_out_rodata=0xc0ffee0fbadc0de5
+case_out_bss=0x0000000000000000
+case_out_rip=0x00000000080481b9
+case_out_pagesz=4096
+case_failures=0
+case_result=pass
+
+== case occupied -- base 0x100400000, p_align 0x1000, a control that must be refused
+
+    specimen base=0x100400000
+    specimen align=0x1000
+    specimen entry=0x100400120
+    specimen span_first=0x100400000
+    specimen span_last=0x100406080
+    specimen span_bytes=0x6080
+    specimen rodata_addr=0x100402000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x100404000
+    specimen bss_addr=0x100404080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/occupied.elf
+    entry                            0x0000000100400120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000000100400000 .. 0x0000000100406080   (24704 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000000100400000
+    so the reservation starts at     0x0000000100400000
+    which is rounding away           0 bytes below the image
+    the image wants                  0x7000 bytes there
+    state there beforehand           MEM_COMMIT, 0x1000 bytes of it
+    reserved                         no -- error 487: Attempt to access invalid address
+
+    what stood in that range, surveyed before the attempt
+
+      base                size         state        type      module
+      0x0000000100400000  0x000001000  MEM_COMMIT   IMAGE     C:\-\cygwin\root\tmp\map-and-jump.mGfXRV\map-and-jump-stub.exe
+      0x0000000100401000  0x000003000  MEM_COMMIT   IMAGE     C:\-\cygwin\root\tmp\map-and-jump.mGfXRV\map-and-jump-stub.exe
+      0x0000000100404000  0x000001000  MEM_COMMIT   IMAGE     C:\-\cygwin\root\tmp\map-and-jump.mGfXRV\map-and-jump-stub.exe
+      0x0000000100405000  0x000005000  MEM_COMMIT   IMAGE     C:\-\cygwin\root\tmp\map-and-jump.mGfXRV\map-and-jump-stub.exe
+
+    Refusal is what this case asked for.
+
+case_module_base=0x100400000
+case_reserved=0
+case_entry=0x100400120
+case_span_first=0x100400000
+case_span_last=0x100406080
+case_reserved_at=0x100400000
+case_granule_waste=0
+case_span_bytes=0x6080
+case_free_run=0x0
+case_shared_pages=0
+case_returned=0
+case_store_faulted=0
+case_exec_faulted=0
+case_probed=0
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x0000000000000000
+case_out_argc=0
+case_out_rodata=0x0000000000000000
+case_out_bss=0x0000000000000000
+case_out_rip=0x0000000000000000
+case_out_pagesz=0
+case_failures=0
+case_result=pass
+
+== case nowhere -- base 0x800000000000, p_align 0x1000, a control that must be refused
+
+    specimen base=0x800000000000
+    specimen align=0x1000
+    specimen entry=0x800000000120
+    specimen span_first=0x800000000000
+    specimen span_last=0x800000006080
+    specimen span_bytes=0x6080
+    specimen rodata_addr=0x800000002000
+    specimen rodata_word=0xc0ffee0fbadc0de5
+    specimen handshake_addr=0x800000004000
+    specimen bss_addr=0x800000004080
+    specimen bss_bytes=0x2000
+    specimen code_bytes=256
+    specimen file_bytes=8320
+
+== the image
+
+    file                             /tmp/map-and-jump.mGfXRV/nowhere.elf
+    entry                            0x0000800000000120
+    program headers                  4, of which 3 PT_LOAD
+    span                             0x0000800000000000 .. 0x0000800000006080   (24704 bytes)
+    this stub is loaded at           0x0000000100400000
+
+== the reservation
+
+    allocation granularity           0x10000
+    span starts at                   0x0000800000000000
+    so the reservation starts at     0x0000800000000000
+    which is rounding away           0 bytes below the image
+    the image wants                  0x7000 bytes there
+    state there beforehand           MEM_FREE, 0x0 bytes of it
+    reserved                         no -- error 87: The parameter is incorrect
+
+    what stood in that range, surveyed before the attempt
+
+      base                size         state        type      module
+
+    Refusal is what this case asked for.
+
+case_module_base=0x100400000
+case_reserved=0
+case_entry=0x800000000120
+case_span_first=0x800000000000
+case_span_last=0x800000006080
+case_reserved_at=0x800000000000
+case_granule_waste=0
+case_span_bytes=0x6080
+case_free_run=0x0
+case_shared_pages=0
+case_returned=0
+case_store_faulted=0
+case_exec_faulted=0
+case_probed=0
+case_gpr_mask=0x00
+case_xmm_mask=0x000
+case_out_magic=0x0000000000000000
+case_out_argc=0
+case_out_rodata=0x0000000000000000
+case_out_bss=0x0000000000000000
+case_out_rip=0x0000000000000000
+case_out_pagesz=0
+case_failures=0
+case_result=pass
+
+== summary
+
+    cases_run=6
+    cases_passed=5
+    map_cases=4
+    map_cases_passed=3
+    refuse_cases=2
+    refuse_cases_passed=2
+    module_base=0x100400000
+    case_flat=map pass
+    case_huge=map fail
+    case_hugehigh=map pass
+    case_offgranule=map pass
+    case_occupied=refuse pass
+    case_nowhere=refuse pass
+    verdict=yes
