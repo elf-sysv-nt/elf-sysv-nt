@@ -290,3 +290,25 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-identity.o" "$tmp/wire-identity.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-identity.o" | grep -q 'getpwnam@@GLIBC_2.2.5'
 fi
+
+# The committed io-mux wiring re-derives byte-identical as well. The
+# readiness families -- select/pselect, poll/ppoll -- and the fd-based
+# event carriers signalfd and the timerfd trio cross as thunks; nothing
+# translates a struct, so the shims file is empty and pinned so.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice io-mux \
+    --table "$tmp/wire-io-mux.gen.c" \
+    --thunks "$tmp/wire-io-mux.gen.s" \
+    --shims "$tmp/wire-io-mux.shims.tsv" >/dev/null
+cmp ../wire-io-mux.gen.c "$tmp/wire-io-mux.gen.c"
+cmp ../wire-io-mux.gen.s "$tmp/wire-io-mux.gen.s"
+cmp ../wire-io-mux.shims.tsv "$tmp/wire-io-mux.shims.tsv"
+grep -q '"timerfd_settime"' "$tmp/wire-io-mux.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-io-mux.gen.c")" = 8
+test "$(grep -vc '^#' "$tmp/wire-io-mux.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-io-mux-table.o" "$tmp/wire-io-mux.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-io-mux.o" "$tmp/wire-io-mux.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-io-mux.o" | grep -q 'poll@@GLIBC_2.2.5'
+fi
