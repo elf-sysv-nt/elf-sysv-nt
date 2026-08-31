@@ -43,6 +43,16 @@ then
     exit 1
 fi
 
+# The committed string-slice wiring re-derives byte-identical from the
+# same inputs; a drift in either input is a conscious regeneration.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice string \
+    --table "$tmp/wire-string.gen.c" --thunks "$tmp/wire-string.gen.s" \
+    --shims "$tmp/wire-string.shims.tsv" >/dev/null
+cmp ../wire-string.gen.c "$tmp/wire-string.gen.c"
+cmp ../wire-string.gen.s "$tmp/wire-string.gen.s"
+cmp ../wire-string.shims.tsv "$tmp/wire-string.shims.tsv"
+
 # One real slice generates and, when the cross toolchain is present, its
 # thunks assemble and carry their versioned names.
 python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
