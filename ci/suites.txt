@@ -2,5 +2,8 @@
 # Each is run as: <suite> -n <count> [-q] and must exit non-zero on any
 # failure, a fuzz crash included. Blank lines and # comments are skipped.
 loader/elf/t/run.sh
-ci/t/run.sh
+# ci/t/run.sh is a meta-test of this gate: it installs the hook and drives real
+# merges, so running it FROM the gate is reentrant and mutates the live repo
+# (it left a "base" commit on march and flipped core.bare once). Run it
+# standalone as CI-of-CI, never as a gate suite.
 bin/check-doc-refs
