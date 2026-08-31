@@ -157,3 +157,19 @@ The Not verified section's "nothing has been lifted" no longer holds.  WP-50's
 redo vendored el8's glibc 2.28 headers into `veneer/include/` byte-identical,
 under DR-0000 and DR-0010; they carry their own FSF notices.
 `doc/licensing.md` was corrected the same day to stop denying the lift.
+
+## Resolution — items 1 and 2 closed by DR-0037 (2026-08-30)
+
+Items 1 and 2 are answered together: the linking exception carries forward
+with the modified library, on the reading and the precedent DR-0037 records.
+MSYS2 ships the exception verbatim with its own Cygwin fork and never sought
+a special grant, and Git for Windows has distributed GPLv2-only git over
+`msys-2.0.dll` for a decade — a distribution lawful only on this reading —
+without objection from the copyright holder.  The repository now states the
+exception in `doc/licensing.md`, reproducing upstream's text verbatim.
+
+The email drafted for the Cygwin list is retired unsent; asking upstream to
+confirm settled practice invited doubt where the ecosystem shows none.  What
+DR-0037's Not verified section says remains true: practice is acquiescence
+rather than confirmation, and counsel or Red Hat can still be asked on the
+operator's own timing.  Items 3 through 6 stand open.

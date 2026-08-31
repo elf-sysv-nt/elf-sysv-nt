@@ -1,7 +1,10 @@
 # Draft: linking-exception question for the Cygwin list
 
-Drafted 2026-08-30 against open item 1 of `licensing-issue.md`. Send to
-cygwin@cygwin.com; not yet sent.
+Retired unsent, 2026-08-30. DR-0037 answered the question this asked by
+adopting the accepted-practice reading — MSYS2 and Git for Windows already
+distribute on it — so there is nothing left to ask upstream. Kept because the
+two textual doubts it raises are the sharpest statement of the
+counter-reading, and whoever briefs counsel should start from them.
 
 ---
 
@@ -64,4 +67,5 @@ Until this is answered the repository grants no exception of its own and says
 so, so that nobody relies on wording an engineer invented.
 
 Thanks,
+
 Philip Dye
