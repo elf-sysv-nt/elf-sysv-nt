@@ -90,4 +90,22 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "${XCC%gcc}nm" "$tmp/wire-posix.o" | grep -q 'execvp@@GLIBC_2.2.5'
 fi
 
+# The committed stdlib wiring re-derives byte-identical as well, and
+# when the cross toolchain is present its thunks assemble and carry
+# their versioned names.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice stdlib \
+    --table "$tmp/wire-stdlib.gen.c" --thunks "$tmp/wire-stdlib.gen.s" \
+    --shims "$tmp/wire-stdlib.shims.tsv" >/dev/null
+cmp ../wire-stdlib.gen.c "$tmp/wire-stdlib.gen.c"
+cmp ../wire-stdlib.gen.s "$tmp/wire-stdlib.gen.s"
+cmp ../wire-stdlib.shims.tsv "$tmp/wire-stdlib.shims.tsv"
+grep -q '"strtol"' "$tmp/wire-stdlib.gen.c"
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-stdlib-table.o" "$tmp/wire-stdlib.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-stdlib.o" "$tmp/wire-stdlib.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-stdlib.o" | grep -q 'strtol@@GLIBC_2.2.5'
+fi
+
 echo 'real-map: ok'
