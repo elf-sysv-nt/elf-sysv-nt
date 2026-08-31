@@ -146,3 +146,22 @@ lstat, fstatat, mknod as libc_nonshared.a wrappers over the versioned
 `__xstat` entries, and the veneer's sliver now does the same. Exercised
 end to end with both sides on el8: seven cases, all match; judging the
 wired veneer awaits the runtime the earlier slices wait on.
+
+The memory slice is small and all thunks: 21 rows, generated and
+committed as `wire-memory.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical by `t/real-map.sh`. malloc and its family forward whole
+— the allocator behind the bound table serves both sides of the veneer
+— and the mmap family's flag translation belongs to the runtime
+downstream of the bind, so the shim worklist is empty for now. Five
+diff cases cover the allocator's contract (malloc, calloc's zeroing,
+realloc preserving contents across grow and shrink, reallocarray
+refusing the overflowing multiplication, free(NULL)), the aligned
+allocators with malloc_usable_size as capacity invariants, the mapping
+family (anonymous and file-backed mmap with mprotect, msync, munmap,
+the zero-length EINVAL, and the mmap64 twin), paging advice with page
+locking (madvise, posix_madvise returning the error rather than
+setting errno, mlock, munlock), and the allocator's introspection
+(mallopt, mallinfo, malloc_trim) printed as invariants over a known
+load, never as raw counters. Exercised end to end with both sides on
+el8: five cases, all match; judging the wired veneer awaits the same
+runtime.
