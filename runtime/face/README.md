@@ -202,5 +202,22 @@ Planned order of work, one milestone per commit:
       establishment order, inheritance, independence and the fallback
       against fabricated TCBs on harness-owned stacks, no DLL required.
 
-Landing also waits on the Done-when's last clause: a static ELF through
-WP-41's branch calling a real export and returning.
+9. A static ELF through WP-41's branch calls a real export and returns —
+   done, and with it the Done-when's last clause. The stub now takes the
+   plan at its word and loads the runtime: `--runtime` names the faced DLL,
+   the front end carries the option through its stub-options seam, and the
+   module base rides to the image in `AT_BASE`, which a static image
+   otherwise reads as 0. The load rides a fresh thread of its own, because
+   the runtime's fault handlers read the thread's control block out of the
+   stack top before anything initialized it, and on the main thread that
+   region is whatever `main`'s frame left there — measured to the frame,
+   and recorded in the runtime-crossing decision record. `t/elfcall.c` is
+   the specimen: freestanding, cross-built, it walks the auxv to the base,
+   resolves strlen, memcmp, labs, ldexp, and atan2 out of the PE export
+   directory, and calls them System V straight at the export — the NOSIGFE
+   leaves t/crossing.c chose, through the generic int face and the typed fp
+   thunks — reporting one bit per check through the terminator, 127 the
+   only pass. `t/elfcall.sh` drives it through WP-41's own front end with
+   stub.c built native over `t/shim`'s Win32 mman, the sole-runtime shape,
+   with two controls: a missing runtime refuses before entry by name, and a
+   run with no runtime at all comes back missing exactly the runtime bits.
