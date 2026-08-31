@@ -480,3 +480,28 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-syslog.o" "$tmp/wire-syslog.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-syslog.o" | grep -q 'syslog@@GLIBC_2.2.5'
 fi
+
+# The committed sysv-ipc wiring re-derives byte-identical as well.
+# Thirteen rows, all thunks, none shims: ftok, the msg/sem/shm call
+# families off sys/ipc.h and friends, and __getpagesize, which
+# sys/shm.h declares for SHMLBA -- every one forward-same at
+# GLIBC_2.2.5. Keys, identifiers, and operation structs mean the
+# same thing on both sides of the bound table, so everything crosses
+# as a tail jump.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice sysv-ipc \
+    --table "$tmp/wire-sysv-ipc.gen.c" \
+    --thunks "$tmp/wire-sysv-ipc.gen.s" \
+    --shims "$tmp/wire-sysv-ipc.shims.tsv" >/dev/null
+cmp ../wire-sysv-ipc.gen.c "$tmp/wire-sysv-ipc.gen.c"
+cmp ../wire-sysv-ipc.gen.s "$tmp/wire-sysv-ipc.gen.s"
+cmp ../wire-sysv-ipc.shims.tsv "$tmp/wire-sysv-ipc.shims.tsv"
+grep -q '"shmget"' "$tmp/wire-sysv-ipc.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-sysv-ipc.gen.c")" = 13
+test "$(grep -vc '^#' "$tmp/wire-sysv-ipc.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-sysv-ipc-table.o" "$tmp/wire-sysv-ipc.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-sysv-ipc.o" "$tmp/wire-sysv-ipc.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-sysv-ipc.o" | grep -q 'shmget@@GLIBC_2.2.5'
+fi
