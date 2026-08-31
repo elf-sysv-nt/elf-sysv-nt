@@ -288,3 +288,22 @@ nicer, the bad-which refusal and ESRCH for a process that is not
 there. Exercised end to end with both sides on el8: eight cases, all
 match; judging the wired veneer awaits the runtime the earlier slices
 wait on.
+
+The identity slice wires 17 rows, all thunks, no shims, generated and
+committed as `wire-identity.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included, the empty shims file among them — by
+`t/real-map.sh`. The pwd and grp families cross whole: lookup by name
+and by id, the iteration triples, the `_r` variants, and the
+group-membership trio. Four diff cases cover the lookups agreeing on
+root from both directions with the home and shell rooted and the
+not-found NULL for a user and a group that are not there, each `_r`
+variant agreeing with its plain sibling plus the ERANGE refusal when a
+four-byte buffer cannot hold the strings and not-found as success with
+a NULL result, the passwd and group walks passing root exactly once
+with a rewind through setpwent finding it again, and getgrouplist's
+two-call protocol — the short first call refusing and reporting the
+count, the sized second call delivering root's own gid — with
+initgroups refusing a user that is not there and setgroups refusing an
+impossible count with EINVAL before it looks at privilege. Exercised
+end to end with both sides on el8: four cases, all match; judging the
+wired veneer awaits the runtime the earlier slices wait on.
