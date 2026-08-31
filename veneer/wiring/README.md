@@ -217,3 +217,25 @@ back the caller's default, catclose refusing the failed descriptor).
 Exercised end to end with both sides on el8: seven cases, all match;
 judging the wired veneer awaits the runtime the earlier slices wait
 on.
+
+The time slice is all thunks as well: 40 rows, generated and committed
+as `wire-time.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical by `t/real-map.sh`. `struct tm` and `struct timespec`
+lay out the same on both sides and cross by pointer, and the clockid
+and itimer value translations belong downstream of the bind, so the
+shim worklist is empty for now. Seven diff cases cover the broken-down
+conversions (gmtime, localtime, mktime, timegm and the `_r` twins on
+fixed epochs under TZ=UTC, with mktime normalizing an overflowing
+field), strftime over the conversion set with strftime_l and the
+too-small buffer refusing with 0, strptime with the unconsumed tail,
+case-blind month names and the NULL refusals, the posix clocks as
+invariants (monotonic ordering, resolution, the cpu clock through
+clock_getcpuclockid, timespec_get, both nanosleeps with their EINVAL
+refusals), file times set to fixed instants through utimes, futimes,
+futimesat and lutimes and read back through stat — lutimes observed on
+the link, not the target — itimers reading back at or under what was
+armed with the interval held exactly, and tzset over explicit POSIX
+zone strings (a fixed offset and a rule-carrying DST form) so no zone
+file decides what either side believes. Exercised end to end with both
+sides on el8: seven cases, all match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
