@@ -67,7 +67,7 @@ static void mask_and_altstack(void)
 	elf_sigset_from_mask(&s, elf_sigbit(10) | elf_sigbit(9));
 	ok(elf_sig_procmask(&st, ELFSYSV_SIG_BLOCK, &s, NULL) == 0,
 	   "blocking a set succeeds");
-	ok(st.blocked == elf_sigbit(10),
+	ok(elf_sig_tls(&st)->blocked == elf_sigbit(10),
 	   "SIGKILL is dropped from a blocked set rather than refused");
 
 	elf_sig_procmask(&st, ELFSYSV_SIG_SETMASK, NULL, &old);
@@ -233,11 +233,11 @@ static void dispositions(void)
 	elf_sigset_from_mask(&sa.sa_mask, elf_sigbit(12));
 	elf_sig_action(&st, 10, &sa, NULL);
 
-	uint64_t before = st.blocked;
+	uint64_t before = elf_sig_tls(&st)->blocked;
 	ctx.rsp = sp;
 	ok(elf_sig_deliver(&st, 10, NULL, &ctx, &w) == ELF_SIG_DELIVERED,
 	   "a caught signal delivers");
-	ok(st.blocked == (before | elf_sigbit(10) | elf_sigbit(12)),
+	ok(elf_sig_tls(&st)->blocked == (before | elf_sigbit(10) | elf_sigbit(12)),
 	   "the mask gains sa_mask and the signal itself");
 
 	const elfsysv_sigframe_t *f = (const elfsysv_sigframe_t *)w.frame;
@@ -260,7 +260,7 @@ static void dispositions(void)
 	elf_sig_action(&st, 10, &sa, NULL);
 	ctx.rsp = sp;
 	elf_sig_deliver(&st, 10, NULL, &ctx, &w);
-	ok(st.blocked == 0, "SA_NODEFER does not block the signal it delivers");
+	ok(elf_sig_tls(&st)->blocked == 0, "SA_NODEFER does not block the signal it delivers");
 	f = (const elfsysv_sigframe_t *)w.frame;
 	ok(ctx.rsi == (uint64_t)(uintptr_t)&f->info,
 	   "SA_SIGINFO passes the siginfo in rsi");
@@ -468,6 +468,97 @@ static void round_trip(int on_alt)
 	}
 }
 
+/* ---- the per-thread split (DR-0030's deferral) --------------------------
+ *
+ * The provider stands in for a thread switch: two records, and a global that
+ * says which thread is "calling". What is certified is the seam itself --
+ * every mask and altstack access resolves through the provider, the records
+ * are independent, delivery is governed by the current record, and a NULL
+ * answer falls back to the embedded record so the single-thread path is the
+ * old behaviour exactly.
+ */
+
+static elfsysv_sigtls_t tls_a, tls_b;
+static elfsysv_sigtls_t *tls_now;
+
+static elfsysv_sigtls_t *pick_tls(void)
+{
+	return tls_now;
+}
+
+static void per_thread(void)
+{
+	elfsysv_sigstate_t st;
+	elfsysv_sigaction_t sa;
+	elfsysv_sigset_t s;
+	elfsysv_stack_t ss;
+	elfsysv_sigctx_t ctx;
+	elf_sig_placement_t w;
+	static char region_b[64 * 1024];
+	static char stack[64 * 1024];
+	uintptr_t sp = (uintptr_t)stack + sizeof(stack) - 4096;
+
+	elf_sig_init(&st);
+
+	/* What a new thread starts with: the creator's mask minus the
+	 * unblockable bits, and no alternate stack. */
+	elf_sig_tls_init(&tls_a, elf_sigbit(10) | elf_sigbit(9));
+	ok(tls_a.blocked == elf_sigbit(10),
+	   "a new thread inherits the creator's mask with SIGKILL dropped");
+	ok(tls_a.altstack.ss_flags == ELFSYSV_SS_DISABLE,
+	   "and starts with the alternate stack disabled");
+
+	elf_sig_tls_init(&tls_b, 0);
+	elf_sig_set_tls_provider(pick_tls);
+
+	/* The mask is per thread: blocking on B leaves A's mask alone. */
+	tls_now = &tls_b;
+	elf_sigset_from_mask(&s, elf_sigbit(12));
+	elf_sig_procmask(&st, ELFSYSV_SIG_BLOCK, &s, NULL);
+	ok(tls_b.blocked == elf_sigbit(12) && tls_a.blocked == elf_sigbit(10),
+	   "blocking on one thread does not touch the other's mask");
+
+	/* The alternate stack is per thread too. */
+	memset(&ss, 0, sizeof(ss));
+	ss.ss_sp = region_b;
+	ss.ss_size = sizeof(region_b);
+	ok(elf_sig_altstack(&st, 0, &ss, NULL) == 0,
+	   "an alternate stack installs on the calling thread");
+	uintptr_t inside = (uintptr_t)region_b + 1024;
+	ok(elf_sig_on_altstack(&st, inside) == 1,
+	   "and that thread is on it when its stack pointer is inside");
+	tls_now = &tls_a;
+	ok(elf_sig_on_altstack(&st, inside) == 0,
+	   "while the other thread, at the same address, is not");
+
+	/* Delivery is governed by the calling thread's record: the same
+	 * signal, under the same process state, is held on the thread that
+	 * blocks it and delivered on the thread that does not. */
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = (uintptr_t)handler_stub;
+	elf_sigemptyset(&sa.sa_mask);
+	elf_sig_action(&st, 10, &sa, NULL);
+	memset(&ctx, 0, sizeof(ctx));
+	ctx.rsp = sp;
+	ok(elf_sig_deliver(&st, 10, NULL, &ctx, &w) == ELF_SIG_BLOCKED,
+	   "the thread that blocks the signal holds it");
+	tls_now = &tls_b;
+	ctx.rsp = sp;
+	ok(elf_sig_deliver(&st, 10, NULL, &ctx, &w) == ELF_SIG_DELIVERED,
+	   "the thread that does not, takes the delivery");
+	ok((tls_b.blocked & elf_sigbit(10)) && tls_a.blocked == elf_sigbit(10),
+	   "and the delivery advances only the receiving thread's mask");
+
+	/* A NULL answer is the fallback, which is the embedded record. */
+	tls_now = NULL;
+	ok(elf_sig_tls(&st) == &st.tls0,
+	   "a provider with no record for this thread falls back");
+
+	elf_sig_set_tls_provider(NULL);
+	ok(elf_sig_tls(&st) == &st.tls0,
+	   "and no provider at all is the single-thread path unchanged");
+}
+
 int main(void)
 {
 	shape();
@@ -476,6 +567,7 @@ int main(void)
 	placement();
 	dispositions();
 	frame_check();
+	per_thread();
 	round_trip(0);
 	round_trip(1);
 

@@ -245,11 +245,13 @@ int elf_sig_place(const elfsysv_sigstate_t *st, const elfsysv_sigaction_t *sa,
 
 	memset(where, 0, sizeof(*where));
 
-	if ((sa->sa_flags & ELFSYSV_SA_ONSTACK) && st->altstack.ss_sp &&
-	    !(st->altstack.ss_flags & ELFSYSV_SS_DISABLE) &&
+	const elfsysv_sigtls_t *t = elf_sig_tls(st);
+
+	if ((sa->sa_flags & ELFSYSV_SA_ONSTACK) && t->altstack.ss_sp &&
+	    !(t->altstack.ss_flags & ELFSYSV_SS_DISABLE) &&
 	    !elf_sig_on_altstack(st, sp)) {
-		floor = (uintptr_t)st->altstack.ss_sp;
-		sp = floor + st->altstack.ss_size;
+		floor = (uintptr_t)t->altstack.ss_sp;
+		sp = floor + t->altstack.ss_size;
 		on_alt = 1;
 	} else if (!st->measure_no_reserve) {
 		/* DR-0006. The reserved bytes are skipped before anything is
@@ -295,6 +297,7 @@ void elf_sig_build(const elfsysv_sigstate_t *st, int signo,
 {
 	elfsysv_sigframe_t *f = (elfsysv_sigframe_t *)where->frame;
 	elfsysv_greg_t *g = f->uc.uc_mcontext.gregs;
+	const elfsysv_sigtls_t *t = elf_sig_tls(st);
 
 	memset(f, 0, sizeof(*f));
 
@@ -322,15 +325,15 @@ void elf_sig_build(const elfsysv_sigstate_t *st, int signo,
 					     ((uint64_t)ctx->gs << 16) |
 					     ((uint64_t)ctx->fs << 32) |
 					     ((uint64_t)ctx->ss << 48));
-	g[ELF_REG_OLDMASK] = (elfsysv_greg_t)st->blocked;
+	g[ELF_REG_OLDMASK] = (elfsysv_greg_t)t->blocked;
 
 	f->uc.uc_flags = elf_sig_xstate_size() ? ELFSYSV_UC_FP_XSTATE : 0;
 	f->uc.uc_link = 0;
-	f->uc.uc_stack = st->altstack;
+	f->uc.uc_stack = t->altstack;
 	f->uc.uc_stack.ss_flags = where->on_altstack ? ELFSYSV_SS_ONSTACK
-						     : st->altstack.ss_flags;
+						     : t->altstack.ss_flags;
 	f->uc.uc_mcontext.fpregs = (elfsysv_fpstate_t *)where->fpstate;
-	elf_sigset_from_mask(&f->uc.uc_sigmask, st->blocked);
+	elf_sigset_from_mask(&f->uc.uc_sigmask, t->blocked);
 
 	f->uc.uc_mcontext.__reserved1[ELF_SIG_RSV_TOP] = where->top;
 	f->uc.uc_mcontext.__reserved1[ELF_SIG_RSV_PLACE] =

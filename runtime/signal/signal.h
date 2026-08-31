@@ -275,12 +275,40 @@ typedef struct {
 	const void *fxsave;		/* 512-byte image, or NULL           */
 } elfsysv_sigctx_t;
 
+/* ---- the per-thread half of the state ----------------------------------
+ *
+ * POSIX gives every thread its own blocked mask and its own alternate stack;
+ * the action table and the frame cookie belong to the process. DR-0030
+ * shipped with the two halves in one record and said so under "Not verified";
+ * this is the split it deferred. Every mask and altstack access in this
+ * package resolves the calling thread's record through elf_sig_tls, which
+ * asks an installed provider first and falls back to the record embedded in
+ * the process state. The certification's single-thread path installs no
+ * provider and behaves exactly as before; a runtime with real threads
+ * installs one that reads the record out of the calling thread's TCB,
+ * reached through the DR-0021 carrier.
+ */
+typedef struct {
+	uint64_t blocked;		/* the calling thread's mask         */
+	elfsysv_stack_t altstack;	/* the calling thread's, too         */
+} elfsysv_sigtls_t;
+
+/* The provider: the calling thread's record, or NULL to mean "use the
+ * fallback". Installed once by the runtime that owns thread creation. */
+typedef elfsysv_sigtls_t *(*elf_sig_tls_provider_t)(void);
+void elf_sig_set_tls_provider(elf_sig_tls_provider_t provider);
+
+/* What a new thread starts with: the creator's mask (POSIX inheritance),
+ * SIGKILL and SIGSTOP dropped, and no alternate stack. */
+void elf_sig_tls_init(elfsysv_sigtls_t *tls, uint64_t inherited_blocked);
+
 /* ---- the per-process signal state -------------------------------------- */
 
 typedef struct {
 	elfsysv_sigaction_t act[ELFSYSV_NSIG + 1];
-	uint64_t blocked;		/* the calling thread's mask         */
-	elfsysv_stack_t altstack;
+	elfsysv_sigtls_t tls0;		/* the fallback per-thread record:
+					 * the main thread's when no provider
+					 * is installed */
 	uint64_t cookie;		/* frame authenticator, see below    */
 	int initialized;
 	/* Set to build the frame at the interrupted stack pointer instead of
@@ -290,6 +318,11 @@ typedef struct {
 	 * repair. Nothing but the certification sets it. */
 	int measure_no_reserve;
 } elfsysv_sigstate_t;
+
+/* Resolve the calling thread's record: the provider's answer when one is
+ * installed and it has one for this thread, the embedded fallback otherwise.
+ * Never NULL after elf_sig_init. */
+elfsysv_sigtls_t *elf_sig_tls(const elfsysv_sigstate_t *st);
 
 /* Disposition of one delivery attempt. */
 typedef enum {

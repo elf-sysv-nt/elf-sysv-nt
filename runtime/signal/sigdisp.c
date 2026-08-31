@@ -23,6 +23,30 @@
 
 __thread elfsysv_sigstate_t *elfsysv_sig_current;
 
+/* The per-thread resolver. One provider per process; the runtime that owns
+ * thread creation installs it, and until then (and whenever it answers NULL,
+ * as it does on a thread it never saw) the embedded fallback record serves,
+ * which is the certified single-thread behaviour unchanged. */
+static elf_sig_tls_provider_t sig_tls_provider;
+
+void elf_sig_set_tls_provider(elf_sig_tls_provider_t provider)
+{
+	sig_tls_provider = provider;
+}
+
+elfsysv_sigtls_t *elf_sig_tls(const elfsysv_sigstate_t *st)
+{
+	if (sig_tls_provider) {
+		elfsysv_sigtls_t *t = sig_tls_provider();
+		if (t)
+			return t;
+	}
+	/* The fallback lives inside the state; resolving it from a const
+	 * view is still a write access for the caller, which is the same
+	 * cast the state's owner already made by handing the record out. */
+	return &((elfsysv_sigstate_t *)(uintptr_t)st)->tls0;
+}
+
 /* Signals whose default is to be ignored, and the ones that cannot be caught.
  * SIGKILL and SIGSTOP are Linux's 9 and 19. */
 static int sig_ignored_by_default(int signo)
@@ -49,10 +73,18 @@ static int sig_valid(int signo)
 	return signo >= 1 && signo <= ELFSYSV_NSIG;
 }
 
+void elf_sig_tls_init(elfsysv_sigtls_t *tls, uint64_t inherited_blocked)
+{
+	tls->blocked = inherited_blocked & ~sig_unblockable();
+	tls->altstack.ss_sp = 0;
+	tls->altstack.ss_size = 0;
+	tls->altstack.ss_flags = ELFSYSV_SS_DISABLE;
+}
+
 void elf_sig_init(elfsysv_sigstate_t *st)
 {
 	memset(st, 0, sizeof(*st));
-	st->altstack.ss_flags = ELFSYSV_SS_DISABLE;
+	elf_sig_tls_init(&st->tls0, 0);
 	/* The authenticator's secret. Address entropy and the caller's own
 	 * state are what is available before the runtime has an RNG; the
 	 * cookie's job is to reject bytes a handler wrote, not to withstand an
@@ -81,10 +113,11 @@ int elf_sig_action(elfsysv_sigstate_t *st, int signo,
 int elf_sig_procmask(elfsysv_sigstate_t *st, int how,
 		     const elfsysv_sigset_t *set, elfsysv_sigset_t *old)
 {
+	elfsysv_sigtls_t *t = elf_sig_tls(st);
 	uint64_t m;
 
 	if (old)
-		elf_sigset_from_mask(old, st->blocked);
+		elf_sigset_from_mask(old, t->blocked);
 	if (!set)
 		return 0;
 	m = elf_sigset_mask(set);
@@ -93,13 +126,13 @@ int elf_sig_procmask(elfsysv_sigstate_t *st, int how,
 	m &= ~sig_unblockable();
 	switch (how) {
 	case ELFSYSV_SIG_BLOCK:
-		st->blocked |= m;
+		t->blocked |= m;
 		break;
 	case ELFSYSV_SIG_UNBLOCK:
-		st->blocked &= ~m;
+		t->blocked &= ~m;
 		break;
 	case ELFSYSV_SIG_SETMASK:
-		st->blocked = m;
+		t->blocked = m;
 		break;
 	default:
 		return -1;
@@ -109,22 +142,24 @@ int elf_sig_procmask(elfsysv_sigstate_t *st, int how,
 
 int elf_sig_on_altstack(const elfsysv_sigstate_t *st, uintptr_t sp)
 {
-	uintptr_t base = (uintptr_t)st->altstack.ss_sp;
+	const elfsysv_sigtls_t *t = elf_sig_tls(st);
+	uintptr_t base = (uintptr_t)t->altstack.ss_sp;
 
-	if (!base || (st->altstack.ss_flags & ELFSYSV_SS_DISABLE))
+	if (!base || (t->altstack.ss_flags & ELFSYSV_SS_DISABLE))
 		return 0;
-	return sp > base && sp <= base + st->altstack.ss_size;
+	return sp > base && sp <= base + t->altstack.ss_size;
 }
 
 int elf_sig_altstack(elfsysv_sigstate_t *st, uintptr_t cur_sp,
 		     const elfsysv_stack_t *ss, elfsysv_stack_t *old)
 {
+	elfsysv_sigtls_t *t = elf_sig_tls(st);
 	int on = elf_sig_on_altstack(st, cur_sp);
 
 	if (old) {
-		*old = st->altstack;
-		old->ss_flags = (st->altstack.ss_sp &&
-				 !(st->altstack.ss_flags & ELFSYSV_SS_DISABLE))
+		*old = t->altstack;
+		old->ss_flags = (t->altstack.ss_sp &&
+				 !(t->altstack.ss_flags & ELFSYSV_SS_DISABLE))
 					? (on ? ELFSYSV_SS_ONSTACK : 0)
 					: ELFSYSV_SS_DISABLE;
 	}
@@ -134,9 +169,9 @@ int elf_sig_altstack(elfsysv_sigstate_t *st, uintptr_t cur_sp,
 	if (on)
 		return -1;
 	if (ss->ss_flags & ELFSYSV_SS_DISABLE) {
-		st->altstack.ss_sp = 0;
-		st->altstack.ss_size = 0;
-		st->altstack.ss_flags = ELFSYSV_SS_DISABLE;
+		t->altstack.ss_sp = 0;
+		t->altstack.ss_size = 0;
+		t->altstack.ss_flags = ELFSYSV_SS_DISABLE;
 		return 0;
 	}
 	if (ss->ss_flags & ~(ELFSYSV_SS_DISABLE | ELFSYSV_SS_ONSTACK))
@@ -146,9 +181,9 @@ int elf_sig_altstack(elfsysv_sigstate_t *st, uintptr_t cur_sp,
 		return -1;
 	if (!ss->ss_sp)
 		return -1;
-	st->altstack.ss_sp = ss->ss_sp;
-	st->altstack.ss_size = ss->ss_size;
-	st->altstack.ss_flags = 0;
+	t->altstack.ss_sp = ss->ss_sp;
+	t->altstack.ss_size = ss->ss_size;
+	t->altstack.ss_flags = 0;
 	return 0;
 }
 
@@ -170,12 +205,18 @@ elf_sig_disposition_t elf_sig_deliver(elfsysv_sigstate_t *st, int signo,
 {
 	elf_sig_placement_t local;
 	elfsysv_sigaction_t sa;
+	elfsysv_sigtls_t *t;
 	uint64_t bit = elf_sigbit(signo);
 
 	if (!where)
 		where = &local;
 	if (!sig_valid(signo) || !st->initialized)
 		return ELF_SIG_REFUSED;
+
+	/* The record is the receiving thread's: delivery runs on the target
+	 * (DR-0030), so the calling thread here is the thread whose mask and
+	 * alternate stack govern the delivery. */
+	t = elf_sig_tls(st);
 
 	sa = st->act[signo];
 
@@ -184,13 +225,13 @@ elf_sig_disposition_t elf_sig_deliver(elfsysv_sigstate_t *st, int signo,
 	if (sa.sa_handler == ELFSYSV_SIG_DFL)
 		return sig_ignored_by_default(signo) ? ELF_SIG_IGNORED
 						     : ELF_SIG_DEFAULT;
-	if ((st->blocked & bit) && !sig_uncatchable(signo))
+	if ((t->blocked & bit) && !sig_uncatchable(signo))
 		return ELF_SIG_BLOCKED;
 
 	if (!elf_sig_place(st, &sa, ctx, where))
 		return ELF_SIG_REFUSED;
 
-	uint64_t next = st->blocked | elf_sigset_mask(&sa.sa_mask);
+	uint64_t next = t->blocked | elf_sigset_mask(&sa.sa_mask);
 	if (!(sa.sa_flags & ELFSYSV_SA_NODEFER))
 		next |= bit;
 	next &= ~sig_unblockable();
@@ -199,7 +240,7 @@ elf_sig_disposition_t elf_sig_deliver(elfsysv_sigstate_t *st, int signo,
 
 	/* The frame carries the mask that was in force, so the mask may be
 	 * advanced only after the frame is written. */
-	st->blocked = next;
+	t->blocked = next;
 
 	if (sa.sa_flags & ELFSYSV_SA_RESETHAND) {
 		st->act[signo].sa_handler = ELFSYSV_SIG_DFL;
@@ -254,7 +295,8 @@ ELF_SYSV int elfsysv_sigreturn(uintptr_t frame)
 					   ELFSYSV_EFLAGS_MASK) |
 					  ELFSYSV_EFLAGS_FIXED);
 
-	st->blocked = elf_sigset_mask(&f->uc.uc_sigmask) & ~sig_unblockable();
+	elf_sig_tls(st)->blocked = elf_sigset_mask(&f->uc.uc_sigmask) &
+				   ~sig_unblockable();
 
 	elf_sig_fprestore(f->uc.uc_mcontext.fpregs, f->uc.uc_flags);
 
