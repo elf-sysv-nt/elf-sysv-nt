@@ -25,3 +25,9 @@ is committed.
   from a native (cmd.exe) parent. Spawned from a Cygwin parent the
   child-info handshake collides: bash passes its cygheap and the badge
   reads it and dies. Handshake separation is re-face work, deferred.
+- `_cygtls` now carries DR-0021's reserved field: `elfsysv_carrier`, the
+  last data member, added on the vendor tree as `c86f4eeec` ("Cygwin: add
+  the DR-0021 reserved carrier field to _cygtls"). Two `static_assert`s
+  after the class guard that it stays last and that the struct still fits
+  `__CYGTLS_PADSIZE__`, so its distance below `StackBase` is the build
+  constant `__CYGTLS_PADSIZE__ - sizeof (_cygtls) + 8`.
