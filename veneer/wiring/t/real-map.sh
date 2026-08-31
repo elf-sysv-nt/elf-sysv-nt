@@ -245,3 +245,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-signal.o" "$tmp/wire-signal.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-signal.o" | grep -q 'kill@@GLIBC_2.2.5'
 fi
+
+# The committed process wiring re-derives byte-identical as well. The
+# rlimit family -- getrlimit and setrlimit with their 64 spellings --
+# carries struct rlimit across the boundary, so its four rows land in
+# the shims file; the spawn, sched, wait, priority and rusage names
+# cross as thunks, and the counts are pinned.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice process \
+    --table "$tmp/wire-process.gen.c" \
+    --thunks "$tmp/wire-process.gen.s" \
+    --shims "$tmp/wire-process.shims.tsv" >/dev/null
+cmp ../wire-process.gen.c "$tmp/wire-process.gen.c"
+cmp ../wire-process.gen.s "$tmp/wire-process.gen.s"
+cmp ../wire-process.shims.tsv "$tmp/wire-process.shims.tsv"
+grep -q '"waitpid"' "$tmp/wire-process.gen.c"
+grep -q '^getrlimit	' "$tmp/wire-process.shims.tsv"
+test "$(grep -vc '^#' "$tmp/wire-process.shims.tsv")" = 4
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-process-table.o" "$tmp/wire-process.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-process.o" "$tmp/wire-process.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-process.o" | grep -q 'waitpid@@GLIBC_2.2.5'
+fi
