@@ -384,3 +384,28 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-runtime.o" "$tmp/wire-runtime.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-runtime.o" | grep -q 'getcontext@@GLIBC_2.2.5'
 fi
+
+# The committed threads wiring re-derives byte-identical as well. The
+# libc-resident pthread subset and the C11 thrd_* names cross as
+# thunks; __sigsetjmp is the one shim, attributed here because el8's
+# pthread.h declares it for the cleanup macros and outranks setjmp.h,
+# its jmp_buf a translation like the runtime slice's kin. The rest of
+# the pthread surface lives in libpthread on el8, so the forward map
+# never carries it and it is not this slice's rows.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice threads \
+    --table "$tmp/wire-threads.gen.c" \
+    --thunks "$tmp/wire-threads.gen.s" \
+    --shims "$tmp/wire-threads.shims.tsv" >/dev/null
+cmp ../wire-threads.gen.c "$tmp/wire-threads.gen.c"
+cmp ../wire-threads.gen.s "$tmp/wire-threads.gen.s"
+cmp ../wire-threads.shims.tsv "$tmp/wire-threads.shims.tsv"
+grep -q '"pthread_mutex_lock"' "$tmp/wire-threads.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-threads.gen.c")" = 42
+test "$(grep -vc '^#' "$tmp/wire-threads.shims.tsv")" = 1
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-threads-table.o" "$tmp/wire-threads.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-threads.o" "$tmp/wire-threads.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-threads.o" | grep -q 'pthread_self@@GLIBC_2.2.5'
+fi
