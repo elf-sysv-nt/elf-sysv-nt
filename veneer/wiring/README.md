@@ -379,3 +379,27 @@ and getentropy/getrandom as return-code invariants including the
 oversized-buffer EIO. Exercised end to end with both sides on el8:
 five cases, all match; judging the wired veneer awaits the runtime
 the earlier slices wait on.
+
+The runtime slice is the first where the shims outnumber nothing but
+themselves: 10 rows, 5 thunks and 5 shims, generated and committed as
+`wire-runtime.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. The context
+family and `__assert` cross as thunks; the setjmp/longjmp family are
+the shims, their jmp_buf a translation rather than a jump.
+`__assert_fail`, the backtrace trio and getauxval are stubs in the
+forward map, so they are not this slice's rows. Four diff cases cover
+the jump value protocol (0 on the direct return, the sent value on
+the jumped one, a longjmp of 0 delivered as 1, a volatile hop
+counter proving the jumps happen, and a counted setjmp loop), what
+each jump saves of the signal mask — setjmp and _setjmp leave it
+alone, sigsetjmp saves it only when asked, observed by blocking
+SIGUSR1 in the jumped-from region — the context family (a
+swapcontext ping-pong with the trace pinning the order, makecontext
+arguments arriving intact, uc_link followed off the end of a
+function, and a setcontext loop rerun a counted three times), and
+the assert surface (a passing assert silent, a failing one SIGABRT
+through fork and wait with its path-bearing message left off the
+comparison, `__assert` — whose arguments are ours to pin — compared
+message and all, and NDEBUG compiling the failure away). Exercised
+end to end with both sides on el8: four cases, all match; judging
+the wired veneer awaits the runtime the earlier slices wait on.
