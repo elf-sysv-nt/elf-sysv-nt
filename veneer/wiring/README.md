@@ -46,6 +46,9 @@ The mechanism and its alternatives are the bound-table decision record.
 
 The census (spike 12) is running in the background over the 4855-package
 el8 worklist (resumable, logged to `a/build-logs/wp56-wiring-bodies.log`).
-When it completes, `census.py report` produces `demand-ranking.tsv`,
+Its first launch died with the session that started it, at 550 of 4855;
+`spike/demand-census/run-census.sh` now starts or resumes it detached,
+with a pid check so a second launch is a no-op. When it completes,
+`census.py report` produces `demand-ranking.tsv`,
 `order` cuts the slice queue from it, and the first slice's wiring
 begins through `gen-wire.py`. No slices cut yet.
