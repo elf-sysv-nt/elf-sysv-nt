@@ -433,3 +433,33 @@ the remainder untouched and time observably advanced, thrd_yield
 returning at all). Exercised end to end with both sides on el8: four
 cases, all match; judging the wired veneer awaits the runtime the
 earlier slices wait on.
+
+
+The wchar slice wires 87 rows, all thunks and no shims, generated and
+committed as `wire-wchar.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. The
+wide-character surface is value-preserving end to end: wchar_t is 4
+bytes on both sides, the conversion states are opaque, and nothing
+declared by wchar.h or uchar.h carries an errno-bearing structure of
+its own, so every row crosses as a tail jump. The rows are the
+conversion state machine (btowc/wctob, the mbr*/wcr* restartable
+converters, the string converters and their n-limited kin, and the
+C11 mbrtoc16/c16rtomb and mbrtoc32/c32rtomb), the wide string
+operators the string slice does not already claim (the copy and
+concatenate family, the span and search family, wcstok, wcsdup, the
+wmem movers), the wide-to-number converters with their _l variants,
+collation and width, and the wide stream protocol down to
+open_wmemstream. Four diff cases cover conversion in the C locale
+(ASCII round trips through every converter pair, mbsinit on a clean
+state, EILSEQ on a 0x80 byte, and the C11 pair rounding the same
+trip), the wide string operators (wcpcpy's end pointer, bounded
+copies and concatenations, the search family over one haystack,
+wcstok walking three fields, an overlapping wmemmove), the number
+converters (end-pointer contracts, ERANGE at the rim, wcstod's
+fractions, wcsftime over a fixed moment, widths and C-locale
+collation), and the wide stream protocol (a swprintf/swscanf round
+trip, open_wmemstream collecting three writers, and a tmpfile read
+back through fgetws, fgetwc and a pushed-back ungetwc, with fwide
+reporting the orientation). Exercised end to end with both sides on
+el8: four cases, all match; judging the wired veneer awaits the
+runtime the earlier slices wait on.
