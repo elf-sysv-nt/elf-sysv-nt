@@ -72,8 +72,8 @@ These carry no format, but each has a fixed, known signature, so its trailing
 arguments are walked one at a time for the exact types the prototype names and
 passed to a fixed-arity Microsoft-ABI core -- no `va_list` rebuild, the
 System V to Microsoft shuffle emitted by the compiler at the call site as in
-WP-21. `nonformat.c` works two of them, `open` and `execl`, as the pattern for
-the rest.
+WP-21. `nonformat.c` carries all fourteen; `open` and `execl` came first and
+set the pattern the rest follow.
 
 Both shapes name only the Microsoft-ABI **core**, never a public export, so a
 `printf` wrapper cannot recurse into itself. `core.h` is that contract -- the
@@ -156,7 +156,7 @@ renamed.
     derive-variadic.sh    derive and certify the set against the inventory
     gen-veneer.sh         generate the veneer from the enumeration
     veneer.gen.c/.h       the generated format-driven entry points (committed)
-    nonformat.c           the prototype-driven pattern, open and execl worked
+    nonformat.c           the fourteen prototype-driven entries, hand-written
     t/core.c              a stand-in core: forwards to the host formatter
     t/varargs-test.c      the done-condition, made runnable
     t/run-tests.sh        build the prefixed veneer and run the test

@@ -1,0 +1,6 @@
+_longjmp	longjmp
+_setjmp	setjmp
+longjmp	longjmp
+setjmp	setjmp
+siglongjmp	siglongjmp
+sigsetjmp	sigsetjmp

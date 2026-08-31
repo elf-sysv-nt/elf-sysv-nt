@@ -118,6 +118,10 @@ int main(int argc, char **argv)
 	}
 
 	cfg.stub = stub_win;
+	/* Options for the stub itself ride on its command line, inserted ahead
+	 * of the file, which is how the spawn path will carry them too. The
+	 * WP-27 elfcall certification hands the stub its --runtime this way. */
+	cfg.stub_options = getenv("ELFSYSV_STUB_OPTIONS");
 	cfg.inherit = 1;
 
 	rc = elf_exec(argv[i], argv + i, NULL, &cfg, &sp, &diag);
