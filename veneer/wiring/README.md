@@ -239,3 +239,26 @@ zone strings (a fixed offset and a rule-carrying DST form) so no zone
 file decides what either side believes. Exercised end to end with both
 sides on el8: seven cases, all match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The signal slice is the second with a real shim worklist: 28 rows, 12
+thunks and 16 shims, generated and committed as `wire-signal.gen.c` /
+`.gen.s` / `.shims.tsv` and pinned byte-identical — counts included —
+by `t/real-map.sh`. The shims are the sigset_t bearers — sigaction,
+the set-manipulation family, sigprocmask, sigpending, the wait family,
+sigqueue, sigsuspend, sigaltstack and both sysv_signal spellings —
+whose 128-byte Linux mask crosses the bound table by translation, not
+by jump. Eight diff cases cover the set algebra with the out-of-range
+refusals, sigaction installing a handler that raise delivers
+synchronously with sa_mask observed from inside it and the
+SIGKILL refusal, signal's sticky semantics against sysv_signal's
+one-shot, sigprocmask holding a raise for sigpending to see and
+releasing it, the synchronous wait family with sigqueue's payload
+carried through siginfo_t and the zero-timeout EAGAIN, the naming
+surface with stderr folded onto stdout so psignal and psiginfo are
+observable, sigaltstack installing and observing SS_ONSTACK from an
+SA_ONSTACK handler with the bad-flags and undersized refusals, the
+System V holding surface down to killpg on the caller's own group,
+and sigsuspend over an already-pending signal refusing EINTR with the
+caller's mask coming back untouched. Exercised end to end with both
+sides on el8: eight cases, all match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
