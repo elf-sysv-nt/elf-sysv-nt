@@ -16,3 +16,16 @@ the environment move. That remains a judgement until the count reruns against
 the el8 root. Verdict provisional on the real environment until then. Note that
 this spike priced DR-0001 rather than gating it, so a changed count would move a
 price, not a gate.
+
+## Re-verified, 2026-08-31 — the count holds exactly
+
+The input was on the machine: the audit missed `/c/-/el8/dump`, the 306 KB
+concatenated harvest that `count-vendor-misses.sh --dump` exists to classify
+(the el8 README documents it as exactly that). Re-run in the primary root, the
+transcript is `results-2026-08-31.txt`, and every summary count is identical
+to 2026-08-29's — `packages_affected=32`, `affected_share=1.1%`, the controls
+included — so DR-0001's price stands unmoved on the real environment. Two
+detail sections of the old transcript (the per-package rejection list and the
+literal-vendor file list) render only in `--root` mode and are absent from
+the `--dump` re-run; the 2026-08-29 transcript remains the record of those.
+Closed.

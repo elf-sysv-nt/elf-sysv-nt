@@ -1,0 +1,64 @@
+count-vendor-misses: classifying
+el8 sources against a nonstandard vendor field
+
+host        ins-15
+kernel      CYGWIN_NT-10.0-26200 3.6.10-1.x86_64 x86_64
+source      dump /c/-/el8/dump
+masquerade  x86_64-pc-linux-gnu
+candidate   x86_64-elfsysvnt-linux-gnu
+control     x86_64-pc-elfsysvnt
+date        2026-08-31T08:05:18Z
+script      count-vendor-misses 1.2
+
+== config.sub verdicts, one row per file probed
+
+                   probed  accepted rewritten  rejected      miss
+    masquerade       1193      1173         1        19      1.7%
+    candidate        1193      1173         1        19      1.7%
+    control          1193      1173         1        19      1.7%
+
+    Accepted means the triple came back byte for byte. Rewritten means
+    config.sub canonicalized it into something else, which is a silent
+    miss and the shape that matters. The control is expected to be
+    rejected outright; a row that is not tells you the os field is
+    cheaper than assumed.
+
+== packages
+
+    seen                          2893
+    carrying a config.sub          891   30.8% of seen
+    candidate not accepted          20   2.2% of those carrying one
+    and the masquerade was           0   0.0% of those carrying one
+    literal vendor in a source      19   0.7% of seen
+    both                             7
+    affected either way             32   1.1% of seen
+
+    The literal count is an upper bound. The pattern matches a comment
+    and a live host test alike, so a nonzero figure wants reading
+    before it is quoted.
+
+    The second row is the one that prices the decision. A config.sub
+    that refuses the candidate and refuses the masquerade too is
+    refusing something else about the triple, usually the cpu field,
+    and the vendor should not be charged for it.
+
+== summary
+
+    packages_seen=2893
+    packages_with_config_sub=891
+    config_sub_probed=1193
+    masquerade_accepted=1173
+    masquerade_rewritten=1
+    masquerade_rejected=19
+    candidate_accepted=1173
+    candidate_rewritten=1
+    candidate_rejected=19
+    control_accepted=1173
+    control_rewritten=1
+    control_rejected=19
+    packages_candidate_miss=20
+    packages_candidate_only_miss=0
+    config_sub_candidate_only_miss=0
+    packages_literal_vendor=19
+    packages_affected=32
+    affected_share=1.1%
