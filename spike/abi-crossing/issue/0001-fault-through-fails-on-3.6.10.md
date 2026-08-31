@@ -15,7 +15,7 @@ responsible:
 
 Everything else the spike measures is unchanged and still passes on 3.6.10:
 `sysv-face`, `ms-face`, `varargs`, `varargs-raw`, `callbacks` (all four crossing
-kinds), and the `rz-quiet` red-zone control (1024 bytes below `%rsp` intact over
+kinds), and the `rz-quiet` red-zone control (1024 bytes below `%rsp` intact ove
 200000 passes). The regression is isolated to a fault delivered *beneath a
 System V frame* not crossing back the way it did on 3.0.7.
 
@@ -45,7 +45,40 @@ the boundary itself is not refuted — only fault delivery across it.
 A characterization spike for 3.6.10's fault-under-System-V-frame delivery: is
 the difference repairable in the hijack-and-return path, or a genuine wall? That
 single answer decides whether WP-22/43/61 are a redo or a redesign, and it can
-reach back to DR-0006 and the signal design, so it is the operator's call rather
+reach back to DR-0006 and the signal design, so it is the operator's call rathe
 than the autonomous worker's. Until it is answered, this spike's verdict is
 `no` on the real environment and the `yes` in the committed transcript is
 superseded.
+
+## Characterized, 2026-08-31
+
+The measurement was taken and it does not support this report's root cause.
+`characterize-fault-through.sh` builds `fault-probe.c` at three optimization
+levels and runs each case in its own process; the transcripts are
+`results-fault-through-3.6.10-2026-08-31.txt` and
+`results-fault-through-3.0.7-2026-08-31.txt`, and the spike README's "The
+fault-through characterization" section carries the full reading. In short:
+
+- **The two hosts agree on the crossing.** A fault in Microsoft code beneath a
+  non-leaf System V frame recovers on 3.6.10 exactly as on 3.0.7, in all six
+  shapes measured and at every optimization level. 3.6.10 does not deliver a
+  fault beneath a System V frame differently.
+- **What changed is the compiler.** The spike raises its fault with
+  `*(volatile int *)0 = 1`, which is undefined behaviour, and gcc 14 concludes
+  the path is unreachable and removes the *call site* that reaches it. At `-O1`
+  and `-O2` the binary contains no call to the System V faulter at all. gcc 7.4
+  keeps it. So the case reports that the fault did not come back because the
+  fault does not happen.
+- **The case cannot tell that from a delivery failure.** "The fault never came
+  back as a signal" is what it prints for a fault that was never raised and fo
+  a fault that was raised and lost. That is why the probe answers by exit
+  status, with `nofault` and `lost` as separate outcomes.
+- **DR-0012's tripwire has not tripped.** Re-measured under gcc 14 through
+  `RtlLookupFunctionEntry`: an `ms_abi` non-leaf carries a `RUNTIME_FUNCTION`
+  and a `sysv_abi` non-leaf carries none, as that record requires.
+
+What is owed is a specimen the compiler cannot reason away -- `runtime/signal`'s
+suite raises its fault with `ud2` in assembly and never had the problem. The
+repair is not this measurement's to make, and neither is the verdict on whethe
+this spike's `no` is withdrawn; both are the operator's. The measurement
+obligation is discharged.

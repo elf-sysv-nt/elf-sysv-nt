@@ -1,0 +1,81 @@
+a fault taken beneath a System V frame
+
+host        ins-15
+cygwin      3.0.7(0.338/5/3)
+compiler    gcc (GCC) 7.4.0
+date        2026-08-31T06:16:30Z
+script      characterize-fault-through 1.0
+probe       fault-probe 1.0
+sweep       -O levels 0 1 2, 5 runs per case
+
+== the specimen
+
+    does the fault happen at all: O0=kept O1=kept O2=kept
+    is the call to it in the binary: O0=present O1=present O2=present
+
+    This is the compiler answering, not the host. A store through a
+    literal null pointer is undefined behaviour, so a compiler that
+    can see the path may conclude the path is unreachable. What it
+    removes is the call site, not only the store, which is why the
+    second line is asked by symbol. Where the call is gone, nothing
+    faults and every case below it reports nofault -- which is what
+    the original case reported as the fault not coming back.
+
+== the unwind records
+
+    ms_frame_carries_unwind_record=yes
+    sysv_frame_carries_unwind_record=no
+    plain_frame_carries_unwind_record=yes
+
+    DR-0012 measured this on gcc 7.4 and the seam depends on the
+    System V answer staying no. It is restated here because this runs
+    under a compiler that record never saw.
+
+== the matrix
+
+                 -O0                      -O1                      -O2                     
+    plain        ok                       ok                       ok                      
+    ms-only      ok                       ok                       ok                      
+    sysv-leaf    ok                       ok                       ok                      
+    null-store   ok                       ok                       ok                      
+    direct-0     ok                       ok                       ok                      
+    direct-1     ok                       ok                       ok                      
+    direct-2     ok                       ok                       ok                      
+    pointer-0    ok                       ok                       ok                      
+    pointer-1    ok                       ok                       ok                      
+    pointer-2    ok                       ok                       ok                      
+
+    ok means the fault came back as a signal and the handler
+    returned. nofault means the case ran and nothing faulted, so
+    the fault is not in the binary. lost means the process did not
+    survive to answer, which is the outcome the original case could
+    not tell from nofault and reported as the same sentence.
+
+    plain, ms-only and sysv-leaf are controls: a fault in a frame the
+    host can walk, and a fault in a System V leaf, which the host
+    leaf rule describes correctly by accident. null-store is the
+    spike specimen. The six below it are the same fault in the same
+    place, differing only in how the call is reached.
+
+== summary
+
+    specimen_null_store=kept
+    specimen_by_level=O0=kept,O1=kept,O2=kept
+    specimen_call_site=O0=present,O1=present,O2=present
+    ms_frame_carries_unwind_record=yes
+    sysv_frame_carries_unwind_record=no
+    plain_frame_carries_unwind_record=yes
+    case_plain=ok,ok,ok
+    case_ms-only=ok,ok,ok
+    case_sysv-leaf=ok,ok,ok
+    case_null-store=ok,ok,ok
+    case_direct-0=ok,ok,ok
+    case_direct-1=ok,ok,ok
+    case_direct-2=ok,ok,ok
+    case_pointer-0=ok,ok,ok
+    case_pointer-1=ok,ok,ok
+    case_pointer-2=ok,ok,ok
+    shapes_ok=6
+    shapes_lost=0
+    shapes_mixed=0
+    finding=crossing-holds

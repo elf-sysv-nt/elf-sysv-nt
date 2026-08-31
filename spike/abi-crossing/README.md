@@ -32,10 +32,10 @@ provoked ones get.
 ## Why two of these are hand-written
 
 `sysv_caller_probe` and `ms_caller_probe` are assembly because the thing being
-measured is the compiler's own convention thunk, and a caller the compiler
+measured is the compiler's own convention thunk, and a caller the compile
 wrote would emit that thunk on both sides of the check. A check expressed in
 terms of what it checks measures nothing. So each one loads the arguments the
-way the psABI or the Microsoft x64 document says to, poisons every register
+way the psABI or the Microsoft x64 document says to, poisons every registe
 its convention obliges the callee to preserve, and reports which ones came
 back changed.
 
@@ -44,7 +44,7 @@ makes no call at all: the moment it calls anything the return address lands
 eight bytes below `%rsp`, inside the hundred and twenty-eight the psABI
 reserves, and the watcher has destroyed what it came to watch. So it paints
 the region with a pattern that encodes each word's distance from `%rsp`,
-reads it back forever, and counts what moved. Nothing it does can account for
+reads it back forever, and counts what moved. Nothing it does can account fo
 a change, which is what makes a change mean something.
 
 The watcher is entered through a `sysv_abi` frame, because the question is
@@ -53,7 +53,7 @@ in general.
 
 ## The cases
 
-Six have to pass, two are controls, and three are measurements with no pass or
+Six have to pass, two are controls, and three are measurements with no pass o
 fail to give.
 
 | case | kind | asks |
@@ -88,7 +88,7 @@ integers, eight doubles and two stack arguments into a `sysv_abi` entry point
 that then called `GetCurrentThreadId`, `VirtualQuery`, `QueryPerformanceCounter`,
 the runtime's `snprintf` and `Sleep` -- five descents into Microsoft x64 -- and
 returned a value derived from all sixteen arguments, with `%rbx`, `%rbp` and
-`%r12` through `%r15` untouched. Going the other way, a Microsoft caller
+`%r12` through `%r15` untouched. Going the other way, a Microsoft calle
 reached System V code through a `ms_abi` entry with all eight callee-saved
 GPRs and all ten callee-saved XMM registers intact. That second one is the
 direction the design was nervous about, because `%rsi`, `%rdi` and `%xmm6`
@@ -109,7 +109,7 @@ That is the claim AGENTS.md forbids assuming, tested at the only width anyone
 has tested it.
 
 **Variadic entry points need their own machinery, and no forwarding is
-possible.** Plain `va_start` inside a `sysv_abi` function is a category error
+possible.** Plain `va_start` inside a `sysv_abi` function is a category erro
 on a Microsoft-ABI target rather than a portability wrinkle: gcc's `va_list`
 here is the Microsoft one, eight bytes, and the System V one is a
 twenty-four-byte descriptor reached through `__builtin_sysv_va_list`. Handing
@@ -156,7 +156,7 @@ is a flag that changes code generation rather than a restatement of the
 default, and the cost is the one the psABI always said it was: a stack
 adjustment in every leaf that would not otherwise need one.
 
-## What this does not answer
+## What this does not answe
 
 One function's width, which is what the milestone asked for and no more. The
 runtime here is Cygwin's, unmodified, called normally; nothing was rebuilt with
@@ -171,7 +171,7 @@ stack; it does not say a Windows unwinder could walk one.
 
 `DllMain`, PE TLS callbacks, and thread starts *into a re-faced DLL*. The
 callbacks case has Windows entering System V code inside an ordinary
-executable. A DLL whose export surface is System V is entered by the loader
+executable. A DLL whose export surface is System V is entered by the loade
 before any of this spike's machinery exists, and that is WP-41's neighbourhood.
 
 What Cygwin's delivery would cost if it reserved 128 bytes. The finding points
@@ -186,7 +186,62 @@ One Windows build, one processor, one compiler: `CYGWIN_NT-10.0` under the
 pinned 2019 root, twelve processors, gcc 7.4.0. Spike 1's answer was also from
 one machine and it decided a layer, so the narrowness is worth stating twice.
 
+## The fault-through characterization, 2026-08-31
+
+`fault-through` passes on Cygwin 3.0.7 and fails on 3.6.10, and `issue/0001`
+reads that as 3.6.10 delivering a fault beneath a System V frame differently.
+It does not. The case as written cannot support that reading, because it
+reports the same sentence -- "the fault never came back as a signal" -- fo
+three different things: a fault that was never raised, a fault that was raised
+and lost, and a fault that came back wrong.
+
+`characterize-fault-through.sh` separates them. It builds `fault-probe.c` at
+three optimization levels and runs each case in its own process, because a case
+that loses the fault takes the process with it and a matrix printed by a
+process that died is one row long. The transcripts are
+`results-fault-through-3.6.10-2026-08-31.txt` and
+`results-fault-through-3.0.7-2026-08-31.txt`, and the comparison is the point.
+
+**The two hosts agree.** Every one of the six shapes -- a fault in Microsoft
+code beneath a non-leaf System V frame, reached directly or through a pointer,
+with nothing, one plain frame or two in between -- recovers on both roots at
+every optimization level. So do all three controls. `finding=crossing-holds` on
+3.0.7 and `finding=specimen-deleted-crossing-holds` on 3.6.10, and the only
+difference between those two words is the specimen.
+
+**The compiler removes the fault.** The spike raises it with
+`*(volatile int *)0 = 1` inside `ms_faulter`. A store through a literal null
+pointer is undefined behaviour, so gcc 14 concludes the path is unreachable and
+drops the *call site* that reaches it -- not merely the store. Measured by
+symbol rather than by instruction pattern: at `-O1` and `-O2` the built binary
+contains no call to the System V faulter at all, and the probe's `null-store`
+case answers `nofault`, meaning it ran and nothing faulted. gcc 7.4 keeps the
+call at all three levels. So on 3.6.10 the case reports that the fault did not
+come back because the fault does not happen.
+
+**The unwind seam is unchanged.** DR-0012 rests on a System V frame carrying no
+host unwind record, and that record was measured on gcc 7.4. Re-measured here
+through `RtlLookupFunctionEntry` under gcc 14: an `ms_abi` non-leaf and a plain
+non-leaf each have a `RUNTIME_FUNCTION`, and a `sysv_abi` non-leaf has none.
+DR-0012's tripwire has not tripped.
+
+So `spike/abi-crossing`'s `yes` is not superseded by the environment switch.
+What is owed is a specimen the compiler cannot reason away -- the same repai
+`runtime/core/t` needs, and the reason `runtime/signal/t` never had the problem,
+since it raises its fault with `ud2` in hand-written assembly. Making that
+repair is not this measurement's to make.
+
 ## Not verified
+
+That the six shapes exhaust the ways the fault can be reached. They are the
+ones that varied while the characterization was being written, and they all
+recover. Earlier throwaway reductions written during the same work *did* lose
+the fault on both roots, and those losses stopped reproducing once the probe
+was written carefully -- one case per process, the case name checked before the
+`sigsetjmp`, no non-volatile local read after the `siglongjmp`. Every loss
+found so far has turned out to be a defect in the reduction rather than in the
+host, but "so far" is the whole of the claim, and a shape that loses the fault
+for a real reason would look the same from outside.
 
 That the transcript regenerates. It was regenerated three times on 2026-08-29
 with matching verdicts and matching red-zone findings, but the pass counts and

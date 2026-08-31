@@ -1,0 +1,3 @@
+fault-probe-O*.exe
+*.o
+*.exe.stackdump
