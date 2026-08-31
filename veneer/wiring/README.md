@@ -570,3 +570,44 @@ get_avphys_pages against get_phys_pages -- keep their bounding
 relationship. Exercised end to end with both sides on el8: one case,
 match; judging the wired veneer awaits the runtime the earlier slices
 wait on.
+
+The math slice is thirty-four rows, all thunks, none shims, generated
+and committed as `wire-math.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical -- counts included, the empty shims file among them --
+by `t/real-map.sh`. The rows are the classification family (isnan,
+isinf, finite, and the deprecated leading-underscore spellings el8
+still exports) with their f/l twins, plus copysign, frexp, ldexp, modf
+and scalbn with theirs; every one forward-same or forward-alias at
+GLIBC_2.2.5, since a classification returns a boolean and the rest
+split or scale a value in place, so nothing here carries a struct
+across the bound table. complex.h and fenv.h declare nothing this
+forward map wires, so the slice's rows are math.h's alone. One diff
+case covers all thirty-four through values with an exact binary
+representation -- an ordinary value, infinity, and nan on each width
+for the classifications, and 12.0/0.75 and 3.5 for the split and scale
+functions -- so both sides print the same bits, not just the same
+rounded decimal. Exercised end to end with both sides on el8: one
+case, match; judging the wired veneer awaits the runtime the earlier
+slices wait on.
+
+The dl slice is not yet wireable: `link.h`'s and `dlfcn.h`'s rows are
+all stub in the forward map today (`_dl_mcount_wrapper_check` and
+`dl_iterate_phdr`, disposition stub; `dlopen`, `dlclose`, `dlsym`,
+`dlerror` and the rest are not in the map at all), since dynamic
+loading is the runtime's job, not a libc forward -- `gen-wire.py`
+confirms this with "nothing to wire" for the slice today. It is left
+for the runtime work the earlier slices are already waiting on, not
+for another pass of this generator.
+
+Of the census's 26 slices, 23 are wired: string, stdio, posix,
+stdlib, filesystem, memory, sockets, locale, time, signal, process,
+identity, io-mux, terminal, misc, runtime, threads, wchar, regex,
+syslog, sysv-ipc, io, system and math. Two are open rather than
+wired: unassigned, whose 275 rows real-map.sh counts and pins as a
+residue check but `gen-wire.py` has never been asked to generate
+(the underscore internals no public header declares, `gets`, and the
+SunRPC `xdr_*` family), and dl, stub in the forward map today as
+above. WP-56's per-slice bar is met for every wireable slice; what
+remains is unassigned and dl's own resolution, and the runtime that
+judges every wired slice against a real vendor package, per the work
+package's overall done-when.
