@@ -88,7 +88,8 @@ counsel.
 LGPLv3 or later. Inherited rather than chosen: this rebuilds Cygwin's `winsup`
 library with a different export face, and Cygwin's own linking exception
 excludes a library based on the Cygwin library by its own definition.
-`doc/decisions/0004-license.md` carries the reasoning and the two questions
-that are not an engineer's to answer, and `doc/licensing.md` states the
-position in one page. No linking exception is granted here yet; a draft
-putting the question upstream is at `doc/proposals/licensing-email-draft.md`.
+`doc/decisions/0004-license.md` carries the reasoning and `doc/licensing.md`
+states the position in one page. Cygwin's linking exception carries forward
+with the library, on the reading the existing Cygwin forks already operate
+on; `doc/decisions/0037-the-linking-exception-carries-forward.md` records the
+decision and the precedent.

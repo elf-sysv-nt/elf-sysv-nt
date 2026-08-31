@@ -73,13 +73,12 @@ remembering, since it is MIT and the loader's working model.
 This tree is LGPLv3 or later, which DR-0004 records as inherited rather than
 chosen: `elfsysv1.dll` is Cygwin's `winsup` re-faced, Cygwin's exception
 excludes a library based on the Cygwin library by its own definition, and the
-licence follows the derivation. Two questions in that record are reserved for
-counsel rather than for an agent, and the sharp one is that LGPLv3 and
-GPLv2-only do not combine while el8 ships GPLv2-only software. Do not invent
-licence text, and do not grant an exception this repository has not been
-advised it may grant. The exception question is drafted for upstream in
-`doc/proposals/licensing-email-draft.md`; check whether it has been sent and
-answered before spending anything on item 1 of the licensing docket.
+licence follows the derivation. The linking exception carries forward with
+the modified library — DR-0037 records the reading and the precedent, MSYS2
+and Git for Windows being the practice it rests on — which is what lets el8's
+GPLv2-only software link an LGPLv3 runtime. Do not invent licence text: the
+exception is stated in `doc/licensing.md` by reproducing upstream's wording
+verbatim, and it stays that way.
 
 Every installer and configurator is idempotent. Running it twice, or ten times,
 leaves the same result as running it once, whatever state the last run left
