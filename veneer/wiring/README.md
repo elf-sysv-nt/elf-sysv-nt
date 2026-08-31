@@ -611,3 +611,23 @@ above. WP-56's per-slice bar is met for every wireable slice; what
 remains is unassigned and dl's own resolution, and the runtime that
 judges every wired slice against a real vendor package, per the work
 package's overall done-when.
+
+## Live crossing (plan)
+
+Every slice above is judged only on el8: both sides compiled and run on the
+pinned Linux image, never against a real `elfsysv1.dll`. WP-27 (the System V
+face) has since landed a faced DLL at `a/build/wp27-face/elfsysv1.dll` and a
+working pattern for calling into it for real -- `runtime/face/t/elfcall.c`
+resolves NOSIGFE exports out of the image's own PE export directory and calls
+them System V, straight at the export, driven through WP-41's front end and
+native stub. The next increment adapts that pattern to `wire.c`'s own bind
+loop: a resolver built on the same PE-export walk stands in for the runtime's
+eventual `GetProcAddress` callback, `__esn_wire_bind` runs it over the math
+slice's real table (all 34 rows NOSIGFE, so no full process bring-up is
+needed), and a couple of the slice's generated thunks are called directly to
+prove a wired veneer body executes for real on NT -- not the fallback of
+comparing the candidate against itself, and not only against el8. This
+certifies the bind mechanism against a real DLL and runs real candidate code,
+without yet attempting a SIGFE-fenced slice (io, system, sysv-ipc, ...),
+which needs the fuller process bring-up `runtime/face/t/fault.c` uses and is
+left for a later increment.
