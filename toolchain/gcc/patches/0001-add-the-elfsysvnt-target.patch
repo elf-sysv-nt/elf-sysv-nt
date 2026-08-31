@@ -47,7 +47,7 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
  		tm_file="${tm_file} kfreebsd-gnu.h i386/kfreebsd-gnu64.h"
 --- /dev/null
 +++ b/gcc/config/i386/elfsysvnt.h
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,60 @@
 +/* Target definitions for x86-64 ELF and System V on Windows NT, over Cygwin.
 +   Copyright (C) 2026 Philip Dye.
 +
