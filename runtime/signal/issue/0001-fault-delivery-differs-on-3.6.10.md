@@ -76,3 +76,39 @@ completed reading; both belong to WP-43's redo.
 
 The reading of the number against the bands, and whether the hold lifts, is
 the operator's; the measurement obligation is discharged.
+
+## The silent exit is a process death, and it is not the control's alone
+
+Hardening the probe to catch the silent exit turned the earlier "instrument
+defect" into a finding that should reach the reader before the cost does. The
+suite now runs the naive control behind a `popen` child under a `timeout`
+watchdog, unbuffers stdout, and prints a stderr marker at each arm boundary
+and an `atexit` line on any orderly exit; `t/run.sh` requires the probe's
+`ok -` line rather than trusting exit status, so a dead run fails the step
+instead of certifying it. With that in place the deaths are visible, and they
+say something the n=500 audit could not see:
+
+At n=20000, `sig_e2e` exits 0 with no `atexit` line — a hard process kill, not
+an `exit()` — on roughly two runs in three, and the arm it dies in is most
+often the **reserving** arm, which runs in the parent on the repaired path,
+not the no-reserve control. Fifteen back-to-back runs: five completed, ten
+died, and the last stderr marker before death was `# arm: reserving` in seven
+of the ten. So this is not the control demonstrating the damage the
+reservation prevents; it is the delivery probe destabilizing its own process
+while exercising the repaired path, at a rate the n=500 certification never
+sampled.
+
+That makes the instrument untrustworthy for certification as it stands, and
+the cost numbers above suggestive rather than dispositive: a median under 1%
+is only meaningful if the deliveries it timed are representative of a
+population that also includes whatever kills the process. Whether the kill is
+a defect in the probe harness (its own thread suspend/resume juggling) or in
+the delivery path itself is the WP-43 redo question, and it can reach DR-0006
+and the signal design, so it is the operator's rather than the worker's.
+
+WP-43 stays held. The hold's reason is upgraded from "measure the cost" to
+"the delivery probe kills its own process about two runs in three at
+n=20000, mostly on the reserving path; root-cause before certifying." The
+run.sh guard and the probe isolation land now regardless, because a
+certification suite that can pass on a silent death is a hole whether or not
+WP-43 is held.

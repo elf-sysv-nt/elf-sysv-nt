@@ -143,11 +143,21 @@ else
 fi
 
 # --- the done-when --------------------------------------------------------
+# The exit status alone is not trusted: a probe process that dies can exit 0
+# with its buffered output lost, and a silent exit must fail the step rather
+# than certify it vacuously. The pass requires the probe's own ok line.
 smon_step_start e2e
-if smon_cmd "$bin/sig_e2e" -n "$events"; then
+e2e_out="$bin/e2e.out"
+if smon_cmd timeout 600 "$bin/sig_e2e" -n "$events" > "$e2e_out" 2>&1 &&
+   grep -q '^ok - deliveries' "$e2e_out"; then
+	cat "$e2e_out"
 	smon_step_ok e2e
 else
-	smon_step_fail e2e $?; rc=1
+	e2e_rc=$?
+	cat "$e2e_out"
+	[ -s "$e2e_out" ] || \
+		echo "$prog: sig_e2e exited $e2e_rc with no output at all; a silent exit certifies nothing" >&2
+	smon_step_fail e2e "$e2e_rc"; rc=1
 fi
 
 if [ "$rc" = 0 ]; then

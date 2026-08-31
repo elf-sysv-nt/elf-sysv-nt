@@ -25,6 +25,9 @@
  * Options:
  *   -n N, --events=N    deliveries per arm [default: 500]
  *   -q, --quiet         errors only
+ *   --arm-control       internal: run only the control arm and report on
+ *                       stdout; the parent runs this in a child because a
+ *                       no-reserve delivery can kill the process
  *   -h, --help          print this message and exit
  *
  * Exit: 0 every arm held, 1 an arm did not, 2 usage.
@@ -90,6 +93,15 @@ static uint64_t expected_fold(uint64_t rounds)
 		v ^= 0x9e37;
 	}
 	return v;
+}
+
+/* Discriminates a clean exit() from a hard TerminateProcess in a run that
+ * dies without printing: atexit handlers run for the former and not the
+ * latter, and the delivery count says how far the arm got. */
+static void exit_probe(void)
+{
+	fprintf(stderr, "# exit path: atexit reached, handler_runs=%ld\n",
+		(long)handler_runs);
 }
 
 static double now_seconds(void)
@@ -181,9 +193,11 @@ static int run_arm(int no_reserve, long events, int alt, struct arm_result *r)
 			r->refused++;
 	}
 	r->seconds = now_seconds() - t0;
+	fprintf(stderr, "# arm loop done, delivered=%ld\n", r->delivered);
 
 	stop_flag = 1;
 	pthread_join(th, NULL);
+	fprintf(stderr, "# worker joined\n");
 	CloseHandle(worker_handle);
 	worker_handle = NULL;
 
@@ -191,7 +205,48 @@ static int run_arm(int no_reserve, long events, int alt, struct arm_result *r)
 	r->handler_sp = handler_last_sp;
 	if (handler_runs != r->delivered)
 		return -2;
+	fprintf(stderr, "# arm returning\n");
 	return 0;
+}
+
+/* The control arm in a child. A no-reserve delivery can land while the worker
+ * is mid-return and kill the whole process -- that is the damage DR-0006's
+ * repair exists to prevent, demonstrated rather than simulated -- so the arm
+ * runs behind a process boundary where its death is evidence instead of a
+ * lost run. A dead child counts as the control seeing damage; the timing is
+ * taken only from a child that finished. */
+static int run_control_child(const char *self, long events,
+			     struct arm_result *r, int *deaths)
+{
+	char cmd[512];
+	int tries;
+
+	/* Bounded: a corrupted spin can stop honoring the stop flag, leaving
+	 * the child's join waiting forever. A hung control is damage on the
+	 * same terms as a dead one, so the watchdog turns it into a death. */
+	snprintf(cmd, sizeof cmd, "timeout 120 \"%s\" --arm-control -n %ld",
+		 self, events);
+	for (tries = 0; tries < 10; tries++) {
+		FILE *p = popen(cmd, "r");
+		char line[256];
+		int got = 0;
+		if (!p)
+			return -1;
+		while (fgets(line, sizeof line, p))
+			if (sscanf(line,
+				   "CONTROL delivered=%ld seconds=%lf fold=%d",
+				   &r->delivered, &r->seconds,
+				   &r->fold_held) == 3)
+				got = 1;
+		pclose(p);
+		if (got)
+			return 0;
+		(*deaths)++;
+		fprintf(stderr, "# control-arm child died without reporting "
+			"(attempt %d); a dead process is damage too\n",
+			tries + 1);
+	}
+	return -1;
 }
 
 int main(int argc, char **argv)
@@ -199,6 +254,23 @@ int main(int argc, char **argv)
 	long events = 500;
 	int quiet = 0;
 	int rc = 0;
+
+	/* Unbuffered, so a run that dies mid-arm leaves its partial output as
+	 * evidence instead of losing everything still in the stdio buffer. A
+	 * certification probe that can exit silently certifies nothing. */
+	setvbuf(stdout, NULL, _IONBF, 0);
+
+	if (argc >= 2 && !strcmp(argv[1], "--arm-control")) {
+		struct arm_result r;
+		if (argc >= 4 && (!strcmp(argv[2], "-n") ||
+				  !strcmp(argv[2], "--events")))
+			events = strtol(argv[3], NULL, 0);
+		if (run_arm(1, events, 0, &r) != 0)
+			return 1;
+		printf("CONTROL delivered=%ld seconds=%.9f fold=%d\n",
+		       r.delivered, r.seconds, r.fold_held);
+		return 0;
+	}
 
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
@@ -217,19 +289,33 @@ int main(int argc, char **argv)
 	}
 
 	struct arm_result reserved, naive, onalt;
+	int arm_rc, control_deaths = 0;
 
-	if (run_arm(0, events, 0, &reserved) != 0) {
-		printf("not ok - the reserving arm did not complete\n");
+	/* Parent only, past the child branch: a run that reaches atexit chose
+	 * to exit; one that leaves no atexit line was killed outright. */
+	atexit(exit_probe);
+
+	/* The arm markers go to stderr, which is never buffered, so the last
+	 * marker in a transcript names the arm a dead run died in. */
+	fprintf(stderr, "# arm: reserving\n");
+	if ((arm_rc = run_arm(0, events, 0, &reserved)) != 0) {
+		printf("not ok - the reserving arm did not complete (%d)\n",
+		       arm_rc);
 		return 1;
 	}
-	if (run_arm(1, events, 0, &naive) != 0) {
-		printf("not ok - the control arm did not complete\n");
+	fprintf(stderr, "# arm: control (child)\n");
+	if (run_control_child(argv[0], events, &naive, &control_deaths) != 0) {
+		printf("not ok - the control arm did not complete "
+		       "(%d child deaths)\n", control_deaths);
 		return 1;
 	}
-	if (run_arm(0, events, 1, &onalt) != 0) {
-		printf("not ok - the alternate-stack arm did not complete\n");
+	fprintf(stderr, "# arm: alternate\n");
+	if ((arm_rc = run_arm(0, events, 1, &onalt)) != 0) {
+		printf("not ok - the alternate-stack arm did not complete (%d)\n",
+		       arm_rc);
 		return 1;
 	}
+	fprintf(stderr, "# arms done\n");
 
 	if (reserved.delivered < events / 2) {
 		printf("not ok - too few deliveries landed (%ld of %ld)\n",
@@ -269,6 +355,9 @@ int main(int argc, char **argv)
 		printf("control:    %ld delivered, red zone %s, %.3f us each\n",
 		       naive.delivered, naive.fold_held ? "whole" : "broken",
 		       per_naive * 1e6);
+		if (control_deaths)
+			printf("control:    also killed its process %d time(s) "
+			       "before a run completed\n", control_deaths);
 		printf("alternate:  %ld delivered, red zone %s, handler sp %p\n",
 		       onalt.delivered, onalt.fold_held ? "whole" : "broken",
 		       (void *)onalt.handler_sp);
