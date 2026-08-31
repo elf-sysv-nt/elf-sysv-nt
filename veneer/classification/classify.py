@@ -21,6 +21,13 @@ This is a first pass by name and availability. The mechanical rules decide
 buckets 1, 2 and 4 and the compiler-helper corner of 3; the semantic calls of
 bucket 3 that no name match can make are read from semantic-review.tsv, a
 curated queue where every entry is flagged for a human to confirm.
+
+A second pass enforces the alias-strictness invariant (the WP-52 F2 redo): no
+alias is classified less strictly than its ultimate target. A forward-alias
+whose target the map itself classifies as a shim is a shim through the same
+translation -- __open64 does not get to skip the O_* flag mapping that open
+needs -- and a forward-alias of a stub is a stub. The pass iterates to a fixed
+point, so a chain of aliases inherits the strictness of the symbol at its end.
 """
 import argparse, collections, os, re, sys
 
@@ -140,10 +147,41 @@ def classify(sym, cyg, review):
     return ("4", "-", "-", "absent from runtime export surface")
 
 
+def tighten(cls):
+    """Alias-strictness fixed point: raise every bucket-1 alias to its
+    ultimate target's bucket when the map classifies that target as a shim
+    or a stub. Raising is monotone (1 -> 3 or 1 -> 4), so this terminates."""
+    changed = True
+    while changed:
+        changed = False
+        for sym in cls:
+            bucket, target, flag, reason = cls[sym]
+            if bucket != "1":
+                continue
+            tgt = cls.get(target)
+            if tgt is None:
+                continue  # target is a runtime name with no map row; a leaf
+            if tgt[0] == "3":
+                cls[sym] = ("3", target, "review",
+                            "alias of shim %s; same translation applies (%s)"
+                            % (target, tgt[3]))
+                changed = True
+            elif tgt[0] == "4":
+                cls[sym] = ("4", "-", "-",
+                            "alias of %s, which has nothing behind it" % target)
+                changed = True
+    return cls
+
+
 def build(maprows, cyg, review):
+    cls = {}
+    for _, sym, *_rest in maprows:
+        if sym not in cls:
+            cls[sym] = classify(sym, cyg, review)
+    tighten(cls)
     out = []
     for soname, sym, version, binding, typ, bind in maprows:
-        bucket, target, flag, reason = classify(sym, cyg, review)
+        bucket, target, flag, reason = cls[sym]
         out.append([soname, sym, version, bucket, DISPOSITION[bucket],
                     target, flag, reason])
     return out

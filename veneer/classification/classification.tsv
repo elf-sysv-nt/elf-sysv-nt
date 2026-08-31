@@ -217,7 +217,7 @@ libc.so.6	__environ	GLIBC_2.2.5	1	forward-alias	environ	-	reserved-name alias of
 libc.so.6	__errno_location	GLIBC_2.2.5	3	shim	-	review	errno numeric values differ; translated pointer shim over cygwin __errno
 libc.so.6	__explicit_bzero_chk	GLIBC_2.25	3	shim	explicit_bzero	review	FORTIFY _chk variant; shim over explicit_bzero
 libc.so.6	__fbufsize	GLIBC_2.2.5	2	forward-same	__fbufsize	-	runtime exports the same name
-libc.so.6	__fcntl	GLIBC_2.2.5	1	forward-alias	fcntl	-	reserved-name alias of runtime export fcntl
+libc.so.6	__fcntl	GLIBC_2.2.5	3	shim	fcntl	review	alias of shim fcntl; same translation applies (F_* command and O_* flag values and struct flock layout differ; shim)
 libc.so.6	__fdelt_chk	GLIBC_2.15	4	stub	-	-	FORTIFY _chk variant; base fdelt also absent
 libc.so.6	__fdelt_warn	GLIBC_2.15	4	stub	-	-	absent from runtime export surface
 libc.so.6	__fentry__	GLIBC_2.13	4	stub	-	-	absent from runtime export surface
@@ -275,7 +275,7 @@ libc.so.6	__getmntent_r	GLIBC_2.2.5	1	forward-alias	getmntent_r	-	reserved-name 
 libc.so.6	__getpagesize	GLIBC_2.2.5	2	forward-same	__getpagesize	-	runtime exports the same name
 libc.so.6	__getpgid	GLIBC_2.2.5	1	forward-alias	getpgid	-	reserved-name alias of runtime export getpgid
 libc.so.6	__getpid	GLIBC_2.2.5	1	forward-alias	getpid	-	reserved-name alias of runtime export getpid
-libc.so.6	__getrlimit	GLIBC_PRIVATE	1	forward-alias	getrlimit	-	reserved-name alias of runtime export getrlimit
+libc.so.6	__getrlimit	GLIBC_PRIVATE	3	shim	getrlimit	review	alias of shim getrlimit; same translation applies (struct rlimit / RLIMIT_* values differ; shim)
 libc.so.6	__gets_chk	GLIBC_2.3.4	2	forward-same	__gets_chk	-	runtime exports the same name
 libc.so.6	__gettimeofday	GLIBC_2.2.5	1	forward-alias	gettimeofday	-	reserved-name alias of runtime export gettimeofday
 libc.so.6	__getwd_chk	GLIBC_2.4	3	shim	getwd	review	FORTIFY _chk variant; shim over getwd
@@ -450,8 +450,8 @@ libc.so.6	__nss_readline	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export sur
 libc.so.6	__nss_services_lookup2	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
 libc.so.6	__obstack_printf_chk	GLIBC_2.8	4	stub	-	-	FORTIFY _chk variant; base obstack_printf also absent
 libc.so.6	__obstack_vprintf_chk	GLIBC_2.8	4	stub	-	-	FORTIFY _chk variant; base obstack_vprintf also absent
-libc.so.6	__open	GLIBC_2.2.5	1	forward-alias	open	-	reserved-name alias of runtime export open
-libc.so.6	__open64	GLIBC_2.2.5	1	forward-alias	open	-	LFS 64-bit variant; on LP64 aliases open
+libc.so.6	__open	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
+libc.so.6	__open64	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
 libc.so.6	__open64_2	GLIBC_2.7	4	stub	-	-	absent from runtime export surface
 libc.so.6	__open64_nocancel	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
 libc.so.6	__open_2	GLIBC_2.7	4	stub	-	-	absent from runtime export surface
@@ -521,23 +521,23 @@ libc.so.6	__send	GLIBC_2.2.5	1	forward-alias	send	-	reserved-name alias of runti
 libc.so.6	__sendmmsg	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
 libc.so.6	__setmntent	GLIBC_2.2.5	1	forward-alias	setmntent	-	reserved-name alias of runtime export setmntent
 libc.so.6	__setpgid	GLIBC_2.2.5	1	forward-alias	setpgid	-	reserved-name alias of runtime export setpgid
-libc.so.6	__sigaction	GLIBC_2.2.5	1	forward-alias	sigaction	-	reserved-name alias of runtime export sigaction
-libc.so.6	__sigaddset	GLIBC_2.2.5	1	forward-alias	sigaddset	-	reserved-name alias of runtime export sigaddset
-libc.so.6	__sigdelset	GLIBC_2.2.5	1	forward-alias	sigdelset	-	reserved-name alias of runtime export sigdelset
-libc.so.6	__sigismember	GLIBC_2.2.5	1	forward-alias	sigismember	-	reserved-name alias of runtime export sigismember
+libc.so.6	__sigaction	GLIBC_2.2.5	3	shim	sigaction	review	alias of shim sigaction; same translation applies (struct sigaction / sigset_t layout and signal numbers differ; shim)
+libc.so.6	__sigaddset	GLIBC_2.2.5	3	shim	sigaddset	review	alias of shim sigaddset; same translation applies (sigset_t layout and signal numbers differ; shim)
+libc.so.6	__sigdelset	GLIBC_2.2.5	3	shim	sigdelset	review	alias of shim sigdelset; same translation applies (sigset_t layout and signal numbers differ; shim)
+libc.so.6	__sigismember	GLIBC_2.2.5	3	shim	sigismember	review	alias of shim sigismember; same translation applies (sigset_t layout and signal numbers differ; shim)
 libc.so.6	__signbit	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	__signbitf	GLIBC_2.2.5	2	forward-same	__signbitf	-	runtime exports the same name
 libc.so.6	__signbitl	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	__sigpause	GLIBC_2.2.5	1	forward-alias	sigpause	-	reserved-name alias of runtime export sigpause
 libc.so.6	__sigsetjmp	GLIBC_2.2.5	3	shim	sigsetjmp	review	sigjmp_buf layout differs; shim over cygwin sigsetjmp
-libc.so.6	__sigsuspend	GLIBC_2.2.5	1	forward-alias	sigsuspend	-	reserved-name alias of runtime export sigsuspend
-libc.so.6	__sigtimedwait	GLIBC_PRIVATE	1	forward-alias	sigtimedwait	-	reserved-name alias of runtime export sigtimedwait
+libc.so.6	__sigsuspend	GLIBC_2.2.5	3	shim	sigsuspend	review	alias of shim sigsuspend; same translation applies (sigset_t layout differs; shim)
+libc.so.6	__sigtimedwait	GLIBC_PRIVATE	3	shim	sigtimedwait	review	alias of shim sigtimedwait; same translation applies (sigset_t / siginfo_t layout differs; shim)
 libc.so.6	__snprintf	GLIBC_PRIVATE	1	forward-alias	snprintf	-	reserved-name alias of runtime export snprintf
 libc.so.6	__snprintf_chk	GLIBC_2.3.4	2	forward-same	__snprintf_chk	-	runtime exports the same name
 libc.so.6	__socket	GLIBC_PRIVATE	1	forward-alias	socket	-	reserved-name alias of runtime export socket
 libc.so.6	__sprintf_chk	GLIBC_2.3.4	2	forward-same	__sprintf_chk	-	runtime exports the same name
 libc.so.6	__stack_chk_fail	GLIBC_2.4	2	forward-same	__stack_chk_fail	-	runtime exports the same name
-libc.so.6	__statfs	GLIBC_2.2.5	1	forward-alias	statfs	-	reserved-name alias of runtime export statfs
+libc.so.6	__statfs	GLIBC_2.2.5	3	shim	statfs	review	alias of shim statfs; same translation applies (struct statfs layout differs; shim)
 libc.so.6	__stpcpy	GLIBC_2.2.5	1	forward-alias	stpcpy	-	reserved-name alias of runtime export stpcpy
 libc.so.6	__stpcpy_chk	GLIBC_2.3.4	2	forward-same	__stpcpy_chk	-	runtime exports the same name
 libc.so.6	__stpcpy_small	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
@@ -968,7 +968,7 @@ libc.so.6	fchownat	GLIBC_2.4	2	forward-same	fchownat	-	runtime exports the same 
 libc.so.6	fclose	GLIBC_2.2.5	2	forward-same	fclose	-	runtime exports the same name
 libc.so.6	fcloseall	GLIBC_2.2.5	2	forward-same	fcloseall	-	runtime exports the same name
 libc.so.6	fcntl	GLIBC_2.2.5	3	shim	fcntl	review	F_* command and O_* flag values and struct flock layout differ; shim
-libc.so.6	fcntl64	GLIBC_2.28	1	forward-alias	fcntl	-	LFS 64-bit variant; on LP64 aliases fcntl
+libc.so.6	fcntl64	GLIBC_2.28	3	shim	fcntl	review	alias of shim fcntl; same translation applies (F_* command and O_* flag values and struct flock layout differ; shim)
 libc.so.6	fcvt	GLIBC_2.2.5	2	forward-same	fcvt	-	runtime exports the same name
 libc.so.6	fcvt_r	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	fdatasync	GLIBC_2.2.5	2	forward-same	fdatasync	-	runtime exports the same name
@@ -1050,9 +1050,9 @@ libc.so.6	fsetpos	GLIBC_2.2.5	2	forward-same	fsetpos	-	runtime exports the same 
 libc.so.6	fsetpos64	GLIBC_2.2.5	1	forward-alias	fsetpos	-	LFS 64-bit variant; on LP64 aliases fsetpos
 libc.so.6	fsetxattr	GLIBC_2.3	2	forward-same	fsetxattr	-	runtime exports the same name
 libc.so.6	fstatfs	GLIBC_2.2.5	3	shim	fstatfs	review	struct statfs layout differs; shim
-libc.so.6	fstatfs64	GLIBC_2.2.5	1	forward-alias	fstatfs	-	LFS 64-bit variant; on LP64 aliases fstatfs
+libc.so.6	fstatfs64	GLIBC_2.2.5	3	shim	fstatfs	review	alias of shim fstatfs; same translation applies (struct statfs layout differs; shim)
 libc.so.6	fstatvfs	GLIBC_2.2.5	3	shim	fstatvfs	review	struct statvfs / ST_* flag values differ; shim
-libc.so.6	fstatvfs64	GLIBC_2.2.5	1	forward-alias	fstatvfs	-	LFS 64-bit variant; on LP64 aliases fstatvfs
+libc.so.6	fstatvfs64	GLIBC_2.2.5	3	shim	fstatvfs	review	alias of shim fstatvfs; same translation applies (struct statvfs / ST_* flag values differ; shim)
 libc.so.6	fsync	GLIBC_2.2.5	2	forward-same	fsync	-	runtime exports the same name
 libc.so.6	ftell	GLIBC_2.2.5	2	forward-same	ftell	-	runtime exports the same name
 libc.so.6	ftello	GLIBC_2.2.5	2	forward-same	ftello	-	runtime exports the same name
@@ -1189,7 +1189,7 @@ libc.so.6	getrandom	GLIBC_2.25	2	forward-same	getrandom	-	runtime exports the sa
 libc.so.6	getresgid	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	getresuid	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	getrlimit	GLIBC_2.2.5	3	shim	getrlimit	review	struct rlimit / RLIMIT_* values differ; shim
-libc.so.6	getrlimit64	GLIBC_2.2.5	1	forward-alias	getrlimit	-	LFS 64-bit variant; on LP64 aliases getrlimit
+libc.so.6	getrlimit64	GLIBC_2.2.5	3	shim	getrlimit	review	alias of shim getrlimit; same translation applies (struct rlimit / RLIMIT_* values differ; shim)
 libc.so.6	getrpcbyname	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	getrpcbyname_r	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	getrpcbynumber	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
@@ -1245,11 +1245,11 @@ libc.so.6	getwd	GLIBC_2.2.5	2	forward-same	getwd	-	runtime exports the same name
 libc.so.6	getxattr	GLIBC_2.3	2	forward-same	getxattr	-	runtime exports the same name
 libc.so.6	glob	GLIBC_2.2.5	3	shim	glob	review	glob_t layout and GLOB_* flag values differ; shim over cygwin glob
 libc.so.6	glob	GLIBC_2.27	3	shim	glob	review	glob_t layout and GLOB_* flag values differ; shim over cygwin glob
-libc.so.6	glob64	GLIBC_2.2.5	1	forward-alias	glob	-	LFS 64-bit variant; on LP64 aliases glob
-libc.so.6	glob64	GLIBC_2.27	1	forward-alias	glob	-	LFS 64-bit variant; on LP64 aliases glob
+libc.so.6	glob64	GLIBC_2.2.5	3	shim	glob	review	alias of shim glob; same translation applies (glob_t layout and GLOB_* flag values differ; shim over cygwin glob)
+libc.so.6	glob64	GLIBC_2.27	3	shim	glob	review	alias of shim glob; same translation applies (glob_t layout and GLOB_* flag values differ; shim over cygwin glob)
 libc.so.6	glob_pattern_p	GLIBC_2.2.5	2	forward-same	glob_pattern_p	-	runtime exports the same name
 libc.so.6	globfree	GLIBC_2.2.5	3	shim	globfree	review	glob_t layout differs; shim over cygwin globfree
-libc.so.6	globfree64	GLIBC_2.2.5	1	forward-alias	globfree	-	LFS 64-bit variant; on LP64 aliases globfree
+libc.so.6	globfree64	GLIBC_2.2.5	3	shim	globfree	review	alias of shim globfree; same translation applies (glob_t layout differs; shim over cygwin globfree)
 libc.so.6	gmtime	GLIBC_2.2.5	2	forward-same	gmtime	-	runtime exports the same name
 libc.so.6	gmtime_r	GLIBC_2.2.5	2	forward-same	gmtime_r	-	runtime exports the same name
 libc.so.6	gnu_dev_major	GLIBC_2.3.3	4	stub	-	-	absent from runtime export surface
@@ -1555,12 +1555,12 @@ libc.so.6	obstack_printf	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surfa
 libc.so.6	obstack_vprintf	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	on_exit	GLIBC_2.2.5	2	forward-same	on_exit	-	runtime exports the same name
 libc.so.6	open	GLIBC_2.2.5	3	shim	open	review	O_* flag values differ; shim over cygwin open
-libc.so.6	open64	GLIBC_2.2.5	1	forward-alias	open	-	LFS 64-bit variant; on LP64 aliases open
+libc.so.6	open64	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
 libc.so.6	open_by_handle_at	GLIBC_2.14	4	stub	-	-	absent from runtime export surface
 libc.so.6	open_memstream	GLIBC_2.2.5	2	forward-same	open_memstream	-	runtime exports the same name
 libc.so.6	open_wmemstream	GLIBC_2.4	2	forward-same	open_wmemstream	-	runtime exports the same name
 libc.so.6	openat	GLIBC_2.4	3	shim	openat	review	O_* flag values differ; shim over cygwin openat
-libc.so.6	openat64	GLIBC_2.4	1	forward-alias	openat	-	LFS 64-bit variant; on LP64 aliases openat
+libc.so.6	openat64	GLIBC_2.4	3	shim	openat	review	alias of shim openat; same translation applies (O_* flag values differ; shim over cygwin openat)
 libc.so.6	opendir	GLIBC_2.2.5	2	forward-same	opendir	-	runtime exports the same name
 libc.so.6	openlog	GLIBC_2.2.5	2	forward-same	openlog	-	runtime exports the same name
 libc.so.6	optarg	GLIBC_2.2.5	2	forward-same	optarg	-	runtime exports the same name
@@ -1740,7 +1740,7 @@ libc.so.6	re_syntax_options	GLIBC_2.2.5	4	stub	-	-	absent from runtime export su
 libc.so.6	read	GLIBC_2.2.5	2	forward-same	read	-	runtime exports the same name
 libc.so.6	readahead	GLIBC_2.3	4	stub	-	-	absent from runtime export surface
 libc.so.6	readdir	GLIBC_2.2.5	3	shim	readdir	review	struct dirent layout differs (d_off/d_type); shim over cygwin readdir
-libc.so.6	readdir64	GLIBC_2.2.5	1	forward-alias	readdir	-	LFS 64-bit variant; on LP64 aliases readdir
+libc.so.6	readdir64	GLIBC_2.2.5	3	shim	readdir	review	alias of shim readdir; same translation applies (struct dirent layout differs (d_off/d_type); shim over cygwin readdir)
 libc.so.6	readdir64_r	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	readdir_r	GLIBC_2.2.5	3	shim	readdir_r	review	struct dirent layout differs; shim over cygwin readdir_r
 libc.so.6	readlink	GLIBC_2.2.5	2	forward-same	readlink	-	runtime exports the same name
@@ -1793,7 +1793,7 @@ libc.so.6	scalbn	GLIBC_2.2.5	2	forward-same	scalbn	-	runtime exports the same na
 libc.so.6	scalbnf	GLIBC_2.2.5	2	forward-same	scalbnf	-	runtime exports the same name
 libc.so.6	scalbnl	GLIBC_2.2.5	2	forward-same	scalbnl	-	runtime exports the same name
 libc.so.6	scandir	GLIBC_2.2.5	3	shim	scandir	review	struct dirent layout differs; shim over cygwin scandir
-libc.so.6	scandir64	GLIBC_2.2.5	1	forward-alias	scandir	-	LFS 64-bit variant; on LP64 aliases scandir
+libc.so.6	scandir64	GLIBC_2.2.5	3	shim	scandir	review	alias of shim scandir; same translation applies (struct dirent layout differs; shim over cygwin scandir)
 libc.so.6	scandirat	GLIBC_2.15	2	forward-same	scandirat	-	runtime exports the same name
 libc.so.6	scandirat64	GLIBC_2.15	1	forward-alias	scandirat	-	LFS 64-bit variant; on LP64 aliases scandirat
 libc.so.6	scanf	GLIBC_2.2.5	2	forward-same	scanf	-	runtime exports the same name
@@ -1863,7 +1863,7 @@ libc.so.6	setresgid	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	setresuid	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	setreuid	GLIBC_2.2.5	2	forward-same	setreuid	-	runtime exports the same name
 libc.so.6	setrlimit	GLIBC_2.2.5	3	shim	setrlimit	review	struct rlimit / RLIMIT_* values differ; shim
-libc.so.6	setrlimit64	GLIBC_2.2.5	1	forward-alias	setrlimit	-	LFS 64-bit variant; on LP64 aliases setrlimit
+libc.so.6	setrlimit64	GLIBC_2.2.5	3	shim	setrlimit	review	alias of shim setrlimit; same translation applies (struct rlimit / RLIMIT_* values differ; shim)
 libc.so.6	setrpcent	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	setservent	GLIBC_2.2.5	2	forward-same	setservent	-	runtime exports the same name
 libc.so.6	setsgent	GLIBC_2.10	4	stub	-	-	absent from runtime export surface
@@ -1939,9 +1939,9 @@ libc.so.6	sscanf	GLIBC_2.2.5	2	forward-same	sscanf	-	runtime exports the same na
 libc.so.6	ssignal	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	sstk	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	statfs	GLIBC_2.2.5	3	shim	statfs	review	struct statfs layout differs; shim
-libc.so.6	statfs64	GLIBC_2.2.5	1	forward-alias	statfs	-	LFS 64-bit variant; on LP64 aliases statfs
+libc.so.6	statfs64	GLIBC_2.2.5	3	shim	statfs	review	alias of shim statfs; same translation applies (struct statfs layout differs; shim)
 libc.so.6	statvfs	GLIBC_2.2.5	3	shim	statvfs	review	struct statvfs / ST_* flag values differ; shim
-libc.so.6	statvfs64	GLIBC_2.2.5	1	forward-alias	statvfs	-	LFS 64-bit variant; on LP64 aliases statvfs
+libc.so.6	statvfs64	GLIBC_2.2.5	3	shim	statvfs	review	alias of shim statvfs; same translation applies (struct statvfs / ST_* flag values differ; shim)
 libc.so.6	statx	GLIBC_2.28	4	stub	-	-	absent from runtime export surface
 libc.so.6	stderr	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libc.so.6	stdin	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
@@ -3451,7 +3451,7 @@ libpthread.so.0	_IO_funlockfile	GLIBC_2.2.5	4	stub	-	-	absent from runtime expor
 libpthread.so.0	__close	GLIBC_2.2.5	1	forward-alias	close	-	reserved-name alias of runtime export close
 libpthread.so.0	__connect	GLIBC_2.2.5	1	forward-alias	connect	-	reserved-name alias of runtime export connect
 libpthread.so.0	__errno_location	GLIBC_2.2.5	3	shim	-	review	errno numeric values differ; translated pointer shim over cygwin __errno
-libpthread.so.0	__fcntl	GLIBC_2.2.5	1	forward-alias	fcntl	-	reserved-name alias of runtime export fcntl
+libpthread.so.0	__fcntl	GLIBC_2.2.5	3	shim	fcntl	review	alias of shim fcntl; same translation applies (F_* command and O_* flag values and struct flock layout differ; shim)
 libpthread.so.0	__fork	GLIBC_2.2.5	1	forward-alias	fork	-	reserved-name alias of runtime export fork
 libpthread.so.0	__h_errno_location	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
 libpthread.so.0	__libc_allocate_rtsig	GLIBC_2.2.5	4	stub	-	-	absent from runtime export surface
@@ -3460,8 +3460,8 @@ libpthread.so.0	__libc_current_sigrtmin	GLIBC_2.2.5	4	stub	-	-	absent from runti
 libpthread.so.0	__libpthread_freeres	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
 libpthread.so.0	__lseek	GLIBC_2.2.5	1	forward-alias	lseek	-	reserved-name alias of runtime export lseek
 libpthread.so.0	__nanosleep	GLIBC_2.2.6	1	forward-alias	nanosleep	-	reserved-name alias of runtime export nanosleep
-libpthread.so.0	__open	GLIBC_2.2.5	1	forward-alias	open	-	reserved-name alias of runtime export open
-libpthread.so.0	__open64	GLIBC_2.2.5	1	forward-alias	open	-	LFS 64-bit variant; on LP64 aliases open
+libpthread.so.0	__open	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
+libpthread.so.0	__open64	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
 libpthread.so.0	__pread64	GLIBC_2.2.5	1	forward-alias	pread	-	LFS 64-bit variant; on LP64 aliases pread
 libpthread.so.0	__pthread_attr_copy	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
 libpthread.so.0	__pthread_barrier_init	GLIBC_PRIVATE	1	forward-alias	pthread_barrier_init	-	reserved-name alias of runtime export pthread_barrier_init
@@ -3499,7 +3499,7 @@ libpthread.so.0	__read	GLIBC_2.2.5	1	forward-alias	read	-	reserved-name alias of
 libpthread.so.0	__res_state	GLIBC_2.2.5	2	forward-same	__res_state	-	runtime exports the same name
 libpthread.so.0	__send	GLIBC_2.2.5	1	forward-alias	send	-	reserved-name alias of runtime export send
 libpthread.so.0	__shm_directory	GLIBC_PRIVATE	4	stub	-	-	absent from runtime export surface
-libpthread.so.0	__sigaction	GLIBC_2.2.5	1	forward-alias	sigaction	-	reserved-name alias of runtime export sigaction
+libpthread.so.0	__sigaction	GLIBC_2.2.5	3	shim	sigaction	review	alias of shim sigaction; same translation applies (struct sigaction / sigset_t layout and signal numbers differ; shim)
 libpthread.so.0	__wait	GLIBC_2.2.5	1	forward-alias	wait	-	reserved-name alias of runtime export wait
 libpthread.so.0	__write	GLIBC_2.2.5	1	forward-alias	write	-	reserved-name alias of runtime export write
 libpthread.so.0	_pthread_cleanup_pop	GLIBC_2.2.5	2	forward-same	_pthread_cleanup_pop	-	runtime exports the same name
@@ -3534,7 +3534,7 @@ libpthread.so.0	mtx_trylock	GLIBC_2.28	2	forward-same	mtx_trylock	-	runtime expo
 libpthread.so.0	mtx_unlock	GLIBC_2.28	2	forward-same	mtx_unlock	-	runtime exports the same name
 libpthread.so.0	nanosleep	GLIBC_2.2.5	2	forward-same	nanosleep	-	runtime exports the same name
 libpthread.so.0	open	GLIBC_2.2.5	3	shim	open	review	O_* flag values differ; shim over cygwin open
-libpthread.so.0	open64	GLIBC_2.2.5	1	forward-alias	open	-	LFS 64-bit variant; on LP64 aliases open
+libpthread.so.0	open64	GLIBC_2.2.5	3	shim	open	review	alias of shim open; same translation applies (O_* flag values differ; shim over cygwin open)
 libpthread.so.0	pause	GLIBC_2.2.5	2	forward-same	pause	-	runtime exports the same name
 libpthread.so.0	pread	GLIBC_2.2.5	2	forward-same	pread	-	runtime exports the same name
 libpthread.so.0	pread64	GLIBC_2.2.5	1	forward-alias	pread	-	LFS 64-bit variant; on LP64 aliases pread
