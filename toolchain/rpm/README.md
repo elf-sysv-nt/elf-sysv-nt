@@ -3,29 +3,25 @@
 WP-16. Cheap by design: every package in the set rebuilds anyway, so the target
 mandates land once here instead of in four hundred spec files.
 
-`macros.elfsysvnt` carries the triple, the sysroot paths, the tool names in
-full, and `-mno-red-zone`. WP-63 installs it as
+`macros.elfsysvnt` carries the triple, the sysroot paths, and the tool names in
+full. WP-63 installs it as
 `/usr/lib/rpm/macros.d/macros.elfsysvnt`, reseeded from this copy on every run.
 
 The exit criterion has two halves and they are unequal. A package that names no
 flags getting all of them is the easy half, and it falls out of `%optflags`.
 The ledger is the other half and it is the one worth the section below.
 
-## Why -mno-red-zone appears twice
+## -mno-red-zone is retired
 
-The compiler already defaults it. `gcc/config/i386/elfsysvnt.h` sets
-`TARGET_SUBTARGET_DEFAULT` to `MASK_NO_RED_ZONE`, so a caller who passes
-nothing gets it, which is what makes it a mandate rather than an option.
-
-Repeating it in `%optflags` is not belt and braces so much as evidence. It puts
-the flag in every build log, where somebody debugging a corrupted stack in
-month nine will actually look, and where its absence would otherwise be
-indistinguishable from a compiler that had quietly stopped defaulting it.
-
-`-mred-zone` still turns it back on, deliberately. WP-43 may retire the flag
-entirely if a signal delivery that reserves the 128 bytes proves cheap enough,
-and a target that refused the option outright would have to be rebuilt to find
-out.
+The flag once appeared twice -- defaulted by `gcc/config/i386/elfsysvnt.h` and
+repeated in `%optflags` as evidence in every build log -- because DR-0006
+carried it as scaffolding until its replacement landed. The replacement is in:
+WP-43 built and certified the delivery-site repair, which reserves the psABI's
+128 bytes before Cygwin builds a handler frame, and its cost measured
+negligible. So the flag is retired at both points, the compiler defaults to the
+red zone like any x86-64 target, and a package's leaves use it as System V code
+does. `-mno-red-zone` stays selectable for a package that needs it; it is no
+longer forced. The decision superseding DR-0006 records it.
 
 ## The ledger, which is the residual risk
 

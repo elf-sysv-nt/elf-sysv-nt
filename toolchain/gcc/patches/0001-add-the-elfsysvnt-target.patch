@@ -69,40 +69,21 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +is the definition of a thing that belongs here instead of in a makefile.  The
 +target definition it answers to is doc/target-definition.md.  */
 +
-+/* The red zone is honoured on this platform eventually, and not yet.  That
-+   ordering is the whole content of this block, so it comes first.
++/* The red zone is honoured on this platform.  The psABI reserves 128 bytes
++   below %rsp and a conforming platform leaves them alone; this one does, at
++   the delivery site, the way a Linux kernel does.  DR-0006 chose that
++   direction and WP-43 built and certified the repair: Cygwin's signal
++   delivery reserves the 128 bytes before it builds a handler frame, and the
++   reservation's cost measured negligible.
 +
-+   The psABI reserves 128 bytes below %rsp and a conforming platform leaves
-+   them alone.  The direction is to honour them at the delivery site, the way
-+   a Linux kernel does, rather than to compile the world with a flag that
-+   announces through every leaf's prologue that this is not quite the ABI it
-+   claims to be.  DR-0006 records that direction and WP-43 is where it lands.
-+   The flag below is scaffolding for the bootstrap and not the shipped answer.
-+
-+   What stands in the way is not Windows.  Spike 3 measured the host leaving
-+   the reserved bytes alone under preemption, thread hijacking and its own
-+   exception dispatch, and measured Cygwin's own signal delivery taking the
-+   word at %rsp-8 on every single delivery.  So the two repairs are not
-+   alternatives to choose between but steps in an order: until that delivery
-+   path reserves the bytes before it builds a handler frame, an object
-+   compiled with a red zone corrupts a stack at an unpredictable later date in
-+   a package nobody was looking at.  Removing the flag first would not make
-+   this platform more faithful to ELF; it would make every leaf a defect.
-+
-+   Hence the flag, and hence -mred-zone still turning it back on.  That escape
-+   hatch is the point rather than a concession.  Spike 7 showed a delivery
-+   that reserves the 128 bytes first keeps them whole across every delivery;
-+   WP-43 has to price that against Cygwin's real sigdelayed and write the
-+   record that retires the flag.  A target that refused the option outright
-+   would force a toolchain rebuild before that measurement could be taken at
-+   all.
-+
-+   DR-0006 made the choice between the two repairs and left WP-43 the price.
-+   Nothing here makes either call; what this file does is keep both reachable
-+   until the number exists.
-+
-+   Hand-written assembly is reached by none of this, which is why WP-16
-+   delivers a ledger of it.
++   So the -mno-red-zone scaffolding this block once carried, which made every
++   leaf adjust %rsp and announced in its prologue that this was not quite the
++   ABI it claimed, is retired: the subtarget default below no longer disables
++   the red zone, so a leaf uses it as System V code does, kept whole by the
++   delivery repair for compiled and hand-written code alike.  The record
++   retiring the flag supersedes DR-0006, and WP-16's ledger of the hand-written
++   assembly the flag never reached closes with it.  -mred-zone and
++   -mno-red-zone stay selectable as on any x86-64 target; neither is forced.
 +   Added to i386/unix.h's set rather than replacing it, which is the whole of
 +   the difficulty.  That header defines the default as MASK_80387, MASK_IEEE_FP
 +   and MASK_FLOAT_RETURNS, and a target header that assigns instead of ORing
@@ -111,7 +92,7 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +   disabled", which reads like a libgcc bug and is not one.  */
 +#undef  TARGET_SUBTARGET_DEFAULT
 +#define TARGET_SUBTARGET_DEFAULT \
-+	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS | MASK_NO_RED_ZONE)
++	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS)
 +
 +/* config.guess cannot read the vendor field off uname here: sysname is Linux
 +   by design, so that the thousands of configure scripts branching on it keep

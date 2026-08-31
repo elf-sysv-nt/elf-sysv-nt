@@ -118,11 +118,11 @@ claim '__ELFSYSVNT__ is predefined with nothing passed' \
 claim 'and __linux__ survives beside it' grep -q '^#define __linux__ 1$' defines.txt
 
 "$CC" -Q --help=target > target-default.txt 2>&1
-"$CC" -Q --help=target -mred-zone > target-opt-in.txt 2>&1
-claim '-mno-red-zone is the compiler default' \
-    grep -qE '^[[:space:]]*-mno-red-zone[[:space:]]+\[enabled\]' target-default.txt
-claim '-mred-zone still turns it back on' \
-    grep -qE '^[[:space:]]*-mred-zone[[:space:]]+\[enabled\]' target-opt-in.txt
+"$CC" -Q --help=target -mno-red-zone > target-opt-out.txt 2>&1
+claim 'the red zone is honored by default -- the psABI shape' \
+    grep -qE '^[[:space:]]*-mred-zone[[:space:]]+\[enabled\]' target-default.txt
+claim '-mno-red-zone remains an explicit opt-out' \
+    grep -qE '^[[:space:]]*-mno-red-zone[[:space:]]+\[enabled\]' target-opt-out.txt
 
 # What the belief is worth. The volatile array is what forces the spill; a
 # fixture the optimiser can keep in registers compiles to the same code either
@@ -137,16 +137,16 @@ long leaf (long a, long b, long c)
 EOF
 
 "$CC" -O2 -S -o leaf-default.s leaf.c || die "the compiler rejected leaf.c"
-"$CC" -O2 -mred-zone -S -o leaf-red.s leaf.c || die "-mred-zone was rejected"
+"$CC" -O2 -mno-red-zone -S -o leaf-noredzone.s leaf.c || die "-mno-red-zone was rejected"
 
 below() { grep -cE -e '-[0-9]+\(%rsp\)' "$1"; }
 
-claim 'by default a spilling leaf makes room instead of using the red zone' \
-    sh -c 'grep -q "subq.*%rsp" leaf-default.s && [ "$(grep -cE -e "-[0-9]+\(%rsp\)" leaf-default.s)" = 0 ]'
+claim 'by default a spilling leaf uses the red zone, as System V code does' \
+    sh -c '[ "$(grep -cE -e "-[0-9]+\(%rsp\)" leaf-default.s)" -gt 0 ]'
 # The negative control. Without it the claim above is satisfied by a compiler
 # that cannot generate the sequence at all.
-claim 'and with -mred-zone it uses it, so the flag is what is doing the work' \
-    sh -c '[ "$(grep -cE -e "-[0-9]+\(%rsp\)" leaf-red.s)" -gt 0 ]'
+claim 'and with -mno-red-zone it makes room instead, so the option still works' \
+    sh -c 'grep -q "subq.*%rsp" leaf-noredzone.s && [ "$(grep -cE -e "-[0-9]+\(%rsp\)" leaf-noredzone.s)" = 0 ]'
 
 # x87 stays on. Defaulting the red zone means writing TARGET_SUBTARGET_DEFAULT,
 # and i386/unix.h already keeps MASK_80387, MASK_IEEE_FP and MASK_FLOAT_RETURNS
