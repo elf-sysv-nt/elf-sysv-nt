@@ -612,7 +612,43 @@ remains is unassigned and dl's own resolution, and the runtime that
 judges every wired slice against a real vendor package, per the work
 package's overall done-when.
 
-## Live crossing (plan)
+## Live crossing
+
+Every slice above was, until now, judged only on el8: both sides compiled
+and run on the pinned Linux image, never against a real `elfsysv1.dll`.
+WP-27 (the System V face) landed a faced DLL at
+`a/build/wp27-face/elfsysv1.dll` and a working pattern for calling into it
+for real -- `runtime/face/t/elfcall.c` resolves NOSIGFE exports out of the
+image's own PE export directory and calls them System V, straight at the
+export, driven through WP-41's front end and native stub. `t/live-math.c`
+and `t/live-math.sh` adapt that pattern to `wire.c`'s own bind loop: a
+resolver of `esn_wire_resolver`'s shape stands in for the runtime's
+eventual `GetProcAddress` callback, `__esn_wire_bind` runs it over the
+math slice's real, committed table (`wire-math.gen.c`, all 34 rows
+NOSIGFE, so no full process bring-up is needed), and three of the slice's
+generated thunks (`wire-math.gen.s`'s w00010/copysign, w00022/isnan,
+w00025/ldexp) are called directly rather than the raw exports, so the code
+under test is the wired veneer body itself. Run through WP-41's branch
+against the real DLL: the bind loop resolves all 34 rows with none
+missing, and all three thunks return the real body's answer -- status 15,
+the only pass, with the same refuse-before-entry and no-runtime controls
+`elfcall.sh` uses. This is the first slice judged against a real DLL
+rather than only on el8, and the first execution of a generated wire
+thunk as real candidate code on NT.
+
+It does not extend to a SIGFE-fenced slice (io, system, sysv-ipc, regex,
+syslog, and most of the rest): those need the fuller process bring-up
+`runtime/face/t/fault.c` uses (the vendor crt0, `cygwin_internal` init,
+the thread carrier), not just a resolved export table, and are left for a
+later increment. It also does not run any of `diff-slice.sh`'s existing
+differential cases through this path -- that wants a hosted C library on
+the candidate side (argv/envp, a heap, I/O) that a freestanding specimen
+like this one does not have; today's result is the bind loop and the
+thunks proven against the real DLL, not a diff case's full behavior.
+WP-56's overall done-when (a vendor package compiles, links, runs its own
+test suite, and passes) still needs that hosted candidate environment and
+the SIGFE-fenced slices' process bring-up, neither of which this increment
+attempts.
 
 Every slice above is judged only on el8: both sides compiled and run on the
 pinned Linux image, never against a real `elfsysv1.dll`. WP-27 (the System V
