@@ -49,7 +49,9 @@ an equivalent one to its own users, having received the code under terms that
 carried it. Until that is answered the repository grants nothing, states the
 intent, and stops.
 
-This is the first thing to ask, because everything in item 2 depends on it.
+This is the first thing to ask, because everything in item 2 depends on it. A
+draft putting the question to the Cygwin mailing list sits at
+`doc/proposals/licensing-email-draft.md`, written 2026-08-30 and not yet sent.
 
 ### 2. LGPLv3 against a GPLv2-only userland
 

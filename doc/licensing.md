@@ -46,7 +46,9 @@ Whether a modified Cygwin library may carry that exception forward, and in what
 wording, is a question for a lawyer and not for the people writing this.  Until
 it is answered this repository grants no exception of its own.  The intent is
 stated so that nobody plans around its absence; the wording is withheld so that
-nobody relies on text an engineer invented.
+nobody relies on text an engineer invented.  A draft putting the question to
+the Cygwin mailing list sits at `doc/proposals/licensing-email-draft.md`,
+unsent as of 2026-08-30.
 
 
 ## Third-party material
