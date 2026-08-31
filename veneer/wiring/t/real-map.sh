@@ -457,3 +457,26 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-regex.o" "$tmp/wire-regex.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-regex.o" | grep -q 'regexec@@GLIBC_2.3.4'
 fi
+
+# The committed syslog wiring re-derives byte-identical as well. Five
+# rows, all thunks, none shims: the syslog.h five -- openlog, syslog,
+# closelog, setlogmask, vsyslog -- every one forward-same at
+# GLIBC_2.2.5, crossing whole as tail jumps; the format string and
+# the mask value mean the same thing on both sides of the bound table.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice syslog \
+    --table "$tmp/wire-syslog.gen.c" \
+    --thunks "$tmp/wire-syslog.gen.s" \
+    --shims "$tmp/wire-syslog.shims.tsv" >/dev/null
+cmp ../wire-syslog.gen.c "$tmp/wire-syslog.gen.c"
+cmp ../wire-syslog.gen.s "$tmp/wire-syslog.gen.s"
+cmp ../wire-syslog.shims.tsv "$tmp/wire-syslog.shims.tsv"
+grep -q '"syslog"' "$tmp/wire-syslog.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-syslog.gen.c")" = 5
+test "$(grep -vc '^#' "$tmp/wire-syslog.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-syslog-table.o" "$tmp/wire-syslog.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-syslog.o" "$tmp/wire-syslog.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-syslog.o" | grep -q 'syslog@@GLIBC_2.2.5'
+fi
