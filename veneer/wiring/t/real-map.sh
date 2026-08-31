@@ -131,3 +131,25 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-filesystem.o" "$tmp/wire-filesystem.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-filesystem.o" | grep -q 'mkdir@@GLIBC_2.2.5'
 fi
+
+# The committed memory wiring re-derives byte-identical as well. The
+# slice is small and all thunks: malloc and its family forward whole,
+# and the mmap family's flags translate downstream of the bind, so no
+# row lands in the shims file yet.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice memory \
+    --table "$tmp/wire-memory.gen.c" \
+    --thunks "$tmp/wire-memory.gen.s" \
+    --shims "$tmp/wire-memory.shims.tsv" >/dev/null
+cmp ../wire-memory.gen.c "$tmp/wire-memory.gen.c"
+cmp ../wire-memory.gen.s "$tmp/wire-memory.gen.s"
+cmp ../wire-memory.shims.tsv "$tmp/wire-memory.shims.tsv"
+grep -q '"malloc"' "$tmp/wire-memory.gen.c"
+grep -q '"mmap"' "$tmp/wire-memory.gen.c"
+test "$(grep -vc '^#' "$tmp/wire-memory.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-memory-table.o" "$tmp/wire-memory.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-memory.o" "$tmp/wire-memory.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-memory.o" | grep -q 'malloc@@GLIBC_2.2.5'
+fi
