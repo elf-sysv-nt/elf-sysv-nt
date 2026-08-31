@@ -126,3 +126,23 @@ multibyte no-ops, and leaving — on_exit order and quick_exit skipping
 it, observed through fork and wait. Exercised end to end with both
 sides on el8: six cases, all match; judging the wired veneer awaits the
 runtime the earlier slices wait on.
+
+The filesystem slice is the first with a real shim worklist: 103 rows,
+67 thunks and 36 shims, generated and committed as
+`wire-filesystem.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included — by `t/real-map.sh`. The shims are the
+stat family and its layout-bearing kin (`__xstat` and twins, statfs,
+statvfs, fcntl, glob, readdir, scandir), whose structs cross the bound
+table by translation, not by jump. Seven diff cases cover making nodes
+(umask, mkdir, mkdirat, chmod, fchmodat, mkfifo, creat, read back
+through stat), the directory stream with telldir/seekdir and fdopendir,
+scandir under alphasort against versionsort, glob with GLOB_APPEND and
+fnmatch's flag set, open flags with fcntl, locks, posix_fallocate and
+the statvfs invariants, file times through utime, utimensat and
+futimens with UTIME_OMIT, and tree walks — ftw, nftw, fts — with every
+walk's findings sorted so traversal order never decides. Writing them
+caught the sysroot linking no stat at all: el8 supplies stat, fstat,
+lstat, fstatat, mknod as libc_nonshared.a wrappers over the versioned
+`__xstat` entries, and the veneer's sliver now does the same. Exercised
+end to end with both sides on el8: seven cases, all match; judging the
+wired veneer awaits the runtime the earlier slices wait on.
