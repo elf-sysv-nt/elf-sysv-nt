@@ -157,3 +157,20 @@ delivery symbols, so the instrument fails loud instead of silent. The
 reservation-cost transcript is regenerated on the trustworthy instrument in
 `t/reservation-cost-2026-08-31.txt`; reading its number against DR-0006's
 bands, and lifting the hold, remain the operator's per that record.
+
+## Closed, 2026-08-31 — the certification reinstates; the flag stays a separate call
+
+Two things were tangled in this hold and are now separated. The certification
+is a fact: with the harness self-kill fixed, `runtime/signal/t/run.sh` passes on
+the primary root, which is the condition DR-0038's audit withdrew it against. So
+WP-43 reinstates and is delivered.
+
+The reservation cost is the reserved reading, and it is not this issue's to
+decide, but the number is in: median −0.49% over twenty clean runs, inside
+DR-0006's under-5% band, with the repair contained in the delivery site so the
+out-of-path reopen trigger did not fire. Run through `doc/decision-ladder.md`
+the reading resolves to a single survivor -- proceed, `-mno-red-zone` comes off
+-- without reaching tier 8. What stays reserved is the signature on that,
+because retiring the flag recompiles the world; it is proposed in
+`doc/proposals/retire-mno-red-zone.md` for the operator, not read off here.
+This issue is closed on the certification; the flag decision is tracked there.

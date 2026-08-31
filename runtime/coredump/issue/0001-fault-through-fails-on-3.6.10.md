@@ -84,3 +84,19 @@ currently blocked: the pinned GMP 6.2.1 that `build-gdb` compiles for the host
 does not configure and build cleanly under the primary root's gcc 14.4, which
 is a toolchain-pin question of its own. WP-61 stays held on a working cross
 gdb; the blocker is now named rather than guessed.
+
+## Closed, 2026-08-31 — the gdb was rebuilt on the primary root
+
+The earlier rebuild failure was self-inflicted: a `CFLAGS` override forced onto
+`build-gdb` broke GMP's configure. Without it, `build-gdb` builds GMP and MPFR
+and then gdb cleanly under the primary root's gcc 14.4, `GDB_BUILD_RC=0`. The
+rebuilt gdb runs -- `--version` returns and exits zero through both `cmd` and a
+Cygwin shell, where the old binary died 141 -- and reports itself configured
+`--target=x86_64-elfsysvnt-linux-gnu`. The SIGPIPE-at-teardown was a property of
+a gdb built off the primary root, which DR-0038 already requires everything be
+built on; building it there is the fix.
+
+Re-run on the primary root, `runtime/coredump/t/run.sh` passes **15 of 15** --
+every `readelf:` check and every `gdb:` check, the ones this report recorded as
+failing among them. The hold's condition, a working cross gdb, is met, so WP-61
+is delivered. This issue is closed.
