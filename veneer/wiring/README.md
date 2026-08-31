@@ -349,3 +349,33 @@ flags, FIOCLEX setting close-on-exec, a terminal request answering
 ENOTTY and a closed descriptor EBADF. Exercised end to end with both
 sides on el8: four cases, all match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The misc slice wires 33 rows, all thunks, no shims, generated and
+committed as `wire-misc.gen.c` / `.gen.s` / `.shims.tsv` and pinned
+byte-identical — counts included, the empty shims file among them — by
+`t/real-map.sh`. The grab-bag headers cross whole: the getopt family,
+the err/warn and error reporters, dirname, the search trees and
+tables, wordexp, and the random-byte pair. basename is the string
+slice's row by attribution (string.h declares it and outranks
+libgen.h) and `__xpg_basename` is a stub, so neither is counted here.
+Five diff cases cover getopt over fixed argv arrays (arguments
+attached and separate, the unknown-option and missing-argument
+protocols with and without the leading colon, glibc's permutation
+observed through optind and the reordered operands, getopt_long's
+value and flag-setting rows with getopt_long_only's single-dash
+spelling), the reporters with both program-name variables pinned —
+err reads the `__progname` pair where error reads
+program_invocation_name, a divergence the case caught — and stderr
+folded onto stdout, the exiting forms observed as statuses through
+fork and wait, and error_one_per_line suppressing the repeat,
+tsearch grown in a fixed order so twalk agrees with tdelete, tdestroy
+counting its frees, lfind refusing what lsearch appends, and
+insque/remque edits walked, the hsearch tables global and reentrant
+(ENTER keeping the first row on a duplicate key, the ESRCH miss, two
+`_r` tables independent), and wordexp under a pinned environment (a
+two-word variable split, WRDE_APPEND, command substitution refused by
+flag, a bad character by value) with dirname over the POSIX examples
+and getentropy/getrandom as return-code invariants including the
+oversized-buffer EIO. Exercised end to end with both sides on el8:
+five cases, all match; judging the wired veneer awaits the runtime
+the earlier slices wait on.

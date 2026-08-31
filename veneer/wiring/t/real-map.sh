@@ -336,3 +336,28 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-terminal.o" "$tmp/wire-terminal.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-terminal.o" | grep -q 'tcgetattr@@GLIBC_2.2.5'
 fi
+
+# The committed misc wiring re-derives byte-identical as well. The
+# grab-bag headers -- getopt, the err/warn and error reporters,
+# dirname, the search trees and tables, wordexp, and the random-byte
+# pair -- cross as thunks with no shims. basename is the string
+# slice's row by attribution (string.h declares it and outranks
+# libgen.h), and __xpg_basename is not a wired disposition, so
+# neither is counted here.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice misc \
+    --table "$tmp/wire-misc.gen.c" \
+    --thunks "$tmp/wire-misc.gen.s" \
+    --shims "$tmp/wire-misc.shims.tsv" >/dev/null
+cmp ../wire-misc.gen.c "$tmp/wire-misc.gen.c"
+cmp ../wire-misc.gen.s "$tmp/wire-misc.gen.s"
+cmp ../wire-misc.shims.tsv "$tmp/wire-misc.shims.tsv"
+grep -q '"getopt_long"' "$tmp/wire-misc.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-misc.gen.c")" = 33
+test "$(grep -vc '^#' "$tmp/wire-misc.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-misc-table.o" "$tmp/wire-misc.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-misc.o" "$tmp/wire-misc.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-misc.o" | grep -q 'getopt@@GLIBC_2.2.5'
+fi
