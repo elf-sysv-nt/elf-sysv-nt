@@ -45,14 +45,12 @@ extern struct esn_wire_ent __esn_wire_math[];
 extern const unsigned long __esn_wire_math_n;
 
 /* The wired thunks this specimen calls directly, by their generated label
- * (wire-math.gen.s); System V, the convention this whole unit is compiled
- * to, is the shape a real ELF caller reaches them through too. */
-extern double copysign(double, double);
-extern int isnan(double);
-extern double ldexp(double, int);
-__asm__(".weak copysign\n.set copysign, w00010");
-__asm__(".weak isnan\n.set isnan, w00022");
-__asm__(".weak ldexp\n.set ldexp, w00025");
+ * (wire-math.gen.s -- w00010 is copysign, w00022 is isnan, w00025 is
+ * ldexp). System V, the convention this whole unit is compiled to, is the
+ * shape a real ELF caller reaches them through too. */
+extern double w00010(double, double);   /* copysign */
+extern int    w00022(double);           /* isnan */
+extern double w00025(double, int);      /* ldexp */
 
 static uint16_t rd16(const uint8_t *p)
 {
@@ -134,13 +132,13 @@ void live_math_main(uint64_t *sp, terminator_fn leave)
 		if (missing == 0)
 			status |= 0x01;
 
-		if (copysign(-3.5, 1.0) == 3.5 && copysign(3.5, -1.0) == -3.5)
+		if (w00010(-3.5, 1.0) == 3.5 && w00010(3.5, -1.0) == -3.5)
 			status |= 0x02;
 
-		if (isnan(0.0) == 0 && isnan(1.0 / 0.0 - 1.0 / 0.0) != 0)
+		if (w00022(0.0) == 0 && w00022(1.0 / 0.0 - 1.0 / 0.0) != 0)
 			status |= 0x04;
 
-		if (ldexp(1.0, 8) == 256.0)
+		if (w00025(1.0, 8) == 256.0)
 			status |= 0x08;
 	}
 
