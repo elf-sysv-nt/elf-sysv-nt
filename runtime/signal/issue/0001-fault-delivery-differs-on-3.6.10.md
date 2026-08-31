@@ -170,7 +170,7 @@ decide, but the number is in: median −0.49% over twenty clean runs, inside
 DR-0006's under-5% band, with the repair contained in the delivery site so the
 out-of-path reopen trigger did not fire. Run through `doc/decision-ladder.md`
 the reading resolves to a single survivor -- proceed, `-mno-red-zone` comes off
--- without reaching tier 8. What stays reserved is the signature on that,
-because retiring the flag recompiles the world; it is proposed in
-`doc/proposals/retire-mno-red-zone.md` for the operator, not read off here.
-This issue is closed on the certification; the flag decision is tracked there.
+-- without reaching tier 8. Retiring the flag is the operator's standing
+faithfulness mandate applied, not a fresh call, and it is recorded as a decision
+that supersedes DR-0006. This issue is closed on the certification; the flag
+retirement is tracked in that record.

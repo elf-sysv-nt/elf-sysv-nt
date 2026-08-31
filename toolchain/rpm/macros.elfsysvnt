@@ -41,26 +41,13 @@
 %__readelf		%{_elfsysvnt_triple}-readelf
 %__strip		%{_elfsysvnt_triple}-strip
 
-# -mno-red-zone is scaffolding, not the shipped answer, and this line exists
-# to make the scaffolding visible.
-#
-# The platform is meant to honour the red zone: the psABI reserves 128 bytes
-# below %rsp; DR-0006 records that direction and WP-43 is where it lands.
-# What stands in the way is our own layer rather than Windows -- spike 3
-# measured Cygwin's delivery taking the word at %rsp-8 on every delivery where
-# the host takes nothing -- so the flag and the delivery repair are steps in
-# an order rather than alternatives. Removing the flag before the repair would
-# not make this more faithful to ELF; it would make every leaf a defect.
-#
-# The compiler already defaults it, so this duplicates the mandate on purpose:
-# it puts the flag in every build log, which is where somebody debugging a
-# corrupted stack in month nine will look, and where its absence would
-# otherwise be indistinguishable from a compiler that had quietly stopped
-# defaulting it. When WP-43 retires the flag this line goes with it.
-#
-# Hand-written assembly is reached by neither. That is what the ledger under
-# toolchain/rpm/ is for.
-%_elfsysvnt_mandates	-mno-red-zone
+# The platform honours the red zone: the psABI reserves 128 bytes below %rsp,
+# and DR-0006's delivery-site repair -- WP-43, certified -- reserves them before
+# Cygwin builds a handler frame, so a red-zone object is safe. The
+# -mno-red-zone the compiler once defaulted is retired, and the line this macro
+# once carried to force it into every build log goes with it, as its own comment
+# said it would. The macro stays defined and empty so %optflags does not break.
+%_elfsysvnt_mandates	%{nil}
 
 %optflags		-O2 -g -pipe -Wall -Werror=format-security \\\
 			-Wp,-D_FORTIFY_SOURCE=2 \\\

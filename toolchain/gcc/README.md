@@ -11,40 +11,25 @@ pass. `patches/0001` adds them.
     build-gcc -P <prefix>
     t/accept.sh -P <prefix>
 
-## The two mandates
+## The mandate, and a retirement
 
-`-mno-red-zone`, defaulted through `TARGET_SUBTARGET_DEFAULT` rather than
-through a spec string. The order of that sentence matters and is easy to read
-backwards, so it is worth stating the destination before the mechanism: this
-platform is meant to honour the red zone, and does not yet.
+The target header mandates one thing now, `__ELFSYSVNT__`. It once mandated a
+second, `-mno-red-zone`, and that one is retired.
 
-The psABI reserves 128 bytes below `%rsp`, a conforming platform leaves them
-alone, and the direction is to honour them at the delivery site the way a
-Linux kernel does rather than to compile the world with a flag that announces
-in every leaf's prologue that this is not quite the ABI it claims to be.
-DR-0006 records that direction and WP-43 is where it lands. The flag here is
-scaffolding for the bootstrap.
-
-What stands in the way is not Windows. Spike 3 measured the host leaving the
-reserved bytes alone under preemption, thread hijacking and its own exception
-dispatch, and measured Cygwin's own delivery taking the word at `%rsp-8` on
-every single delivery. So the two repairs are not alternatives to pick
-between; they are steps in an order. Until delivery reserves the bytes before
-it builds a handler frame, an object compiled with a red zone corrupts a stack
-at an unpredictable later date in a package nobody was looking at, and
-removing the flag first would not make this platform more faithful to ELF — it
-would make every leaf a defect.
-
-`-mred-zone` still turns it back on, and that escape hatch is the point rather
-than a concession. Spike 7 showed a delivery that reserves the 128 bytes first
-keeps them whole; WP-43 has to price that against Cygwin's real `sigdelayed`
-and write the record that retires the flag. A target that refused the option
-outright would force a toolchain rebuild before that measurement could be
-taken at all.
-
-DR-0006 made the choice between the two repairs and left WP-43 the price;
-nothing here makes either call. Hand-written assembly is reached by neither, which is what
-`bin/asm-ledger` exists for.
+The red zone is the psABI's: the 128 bytes below `%rsp` a conforming leaf uses
+and a conforming platform leaves alone. DR-0006 chose to honour them at the
+delivery site, the way a Linux kernel does, rather than to compile the world
+with a flag that announces in every leaf's prologue that this is not quite the
+ABI it claims to be, and it carried `-mno-red-zone` only as bootstrap
+scaffolding. WP-43 built and certified the delivery repair -- Cygwin's signal
+delivery reserves the 128 bytes before it builds a handler frame -- and the
+reservation's cost measured negligible. So the flag is retired: the subtarget
+default no longer disables the red zone, a leaf uses it as System V code does,
+and the delivery repair keeps it whole for compiled and hand-written code
+alike. `-mred-zone` and `-mno-red-zone` stay selectable as on any x86-64
+target; neither is forced. The decision superseding DR-0006 records it, and
+`bin/asm-ledger`'s WP-16 ledger of the hand-written residue the flag never
+reached closes with the flag.
 
 `__ELFSYSVNT__`, because WP-11 taught `config.guess` to ask the compiler which
 vendor it is building for. `uname` cannot answer: `sysname` is `Linux` here by
@@ -74,9 +59,10 @@ function for that reason alone.
 The red-zone claim is checked two ways for a related reason. A first version
 checked codegen only, against a fixture the optimiser could keep in registers,
 so it compiled identically with and without the flag and passed while proving
-nothing. It now asks the compiler what it believes its default is, and
-separately compiles a leaf that must spill, with the `-mred-zone` case as the
-negative control.
+nothing. It now asks the compiler what it believes its default is -- the red
+zone, since the flag is retired -- and separately compiles a leaf that must
+spill, confirming it uses the red zone by default with the `-mno-red-zone` case
+as the negative control that makes room instead.
 
 ## Not verified
 
