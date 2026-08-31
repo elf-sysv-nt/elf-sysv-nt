@@ -667,3 +667,44 @@ certifies the bind mechanism against a real DLL and runs real candidate code,
 without yet attempting a SIGFE-fenced slice (io, system, sysv-ipc, ...),
 which needs the fuller process bring-up `runtime/face/t/fault.c` uses and is
 left for a later increment.
+
+The runtime slice is the second live crossing, and the only other slice
+(after math) whose whole wired table is NOSIGFE (10 rows). `t/live-runtime.c`
+and `t/live-runtime.sh` adapt live-math's shape unchanged: the same
+freestanding entry, the same PE-export resolver standing in for
+`GetProcAddress`, `__esn_wire_bind` run over the real, committed
+`wire-runtime.gen.c` table, and generated thunks called directly rather than
+the raw exports. Of the table's 10 rows, five are jmp_buf-translating shims
+out of scope for a specimen that only calls thunks. Of the remaining five
+thunks, three turned out to need skipping: `__assert` aborts unconditionally
+by contract and a freestanding specimen has no safe way to observe an abort;
+`makecontext` needs a second stack, more machinery than this increment
+attempts; and `setcontext` was skipped for a reason only writing the specimen
+surfaced -- its whole observable contract on success is never returning, and
+testing `swapcontext`, which performs the same kind of switch, found that the
+real DLL's body does not actually transfer control in this freestanding
+harness: it returns 0 having only done the save half of the operation, not
+the restore half. That leaves `getcontext` (w00003) and `swapcontext`
+(w00009), and both checks were redesigned around that finding to observe a
+save-side effect -- a sentinel-filled `ucontext_t` buffer gets overwritten --
+rather than assume a completed control transfer, with the swapcontext check
+guarded against ever running twice in case a future runtime does perform the
+switch and resumes there. Run through WP-41's branch against the real DLL:
+the bind loop resolves all 10 rows with none missing, and both thunks reach
+the real body and touch their buffers -- status 7, the only pass, with the
+same refuse-before-entry and no-runtime controls live-math.sh uses.
+
+This confirms live crossing generalizes past math (a second slice's bind
+table and thunks run for real against the real DLL), and it narrows what
+"NOSIGFE" actually promises: the classification is about the calling
+convention a thunk needs, not about whether the body behind it is complete.
+`getcontext` behaves as documented; `setcontext`/`swapcontext`'s actual
+context switch does not happen under this specimen's minimal process state,
+which this increment surfaces as a finding rather than papering over with a
+weaker but still-honest pair of checks. Whether that gap closes with fuller
+Cygwin per-thread bring-up (cygtls and friends) or needs a fix in the face
+layer is left for whoever next touches the runtime slice's shims -- the five
+jmp_buf-translating rows this specimen did not attempt are the next thing to
+try, and setjmp/longjmp's simpler save/restore contract (no signal mask, no
+stack switch) may turn out to be easier to prove live than context switching
+was.
