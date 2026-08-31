@@ -172,3 +172,23 @@ Planned order of work, one milestone per commit:
    that flags the outcome changing either way.
 8. Thread creation establishing the DR-0021 carrier; per-thread blocked
    mask and alternate stack split that DR-0030 deferred.
+   1. The hosted carrier — done. DR-0021 reserved the backing for threads
+      the runtime creates: the last data member of the forked `_cygtls`,
+      one build constant below `StackBase`. The DLL hands out the calling
+      thread's carrier address through `cygwin_internal
+      (CW_ELFSYSV_CARRIER)` (vendor commit `a9925920a`); `carrier.c`
+      latches the offset from one probe rather than a second copy of the
+      constant, reads through the same %gs chain as the managed carrier,
+      and wraps thread creation so the new thread writes its own pointer
+      into its own carrier before the body runs — the shape the veneer's
+      `pthread_create` inherits (F8). `t/carrier.sh` certifies it against
+      the real DLL: one offset across threads, inside the reservation;
+      a created thread finds its word zeroed and established before the
+      body; the words are per thread; unaligned and disagreeing probes
+      refuse, so a wrong offset cannot latch silently.
+   2. The per-thread split of the blocked mask and alternate stack that
+      DR-0030 deferred — remaining, with the state reached through the
+      carrier's TCB rather than one process-wide record.
+
+Landing also waits on the Done-when's last clause: a static ELF through
+WP-41's branch calling a real export and returning.
