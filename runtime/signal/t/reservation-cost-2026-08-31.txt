@@ -1,0 +1,26 @@
+# WP-43 reservation-cost measurement, primary root (Cygwin 3.6.10, gcc 14.4)
+# 2026-08-31, uname -r 3.6.10-1.x86_64, machine ins-15
+#
+# Instrument: t/sig_e2e.exe -n 20000 (t/run.sh --keep build of this tree).
+# Each completed run prices the reserving arm against the naive control and
+# prints the delta as a percent of a delivery. The suite's default n=500 is
+# inside timer noise: three n=500 runs this day read -15.35%, -29.40% and
+# -23.71%, and one of them failed its own control ("the control arm did not
+# damage the red zone").
+#
+# Completed n=20000 readings, in the order taken:
+#   -0.23  +0.58  +1.60  +13.05  +3.43  +5.12  -1.92
+#   -4.32  +1.11  +12.30  -1.62  -1.18
+#
+# n=12: median +0.85%, mean +2.33%, range -4.32% .. +13.05%.
+# Per-delivery time both arms: ~33-34 us.
+#
+# Instrument defects observed while measuring, not repaired here:
+#   - Repeated invocations mostly die silently: exit status 0, no output at
+#     all, roughly 7 of 10 attempts (33 attempts for the 12 completions,
+#     plus earlier probes). Not load-dependent; happens back-to-back with
+#     the same command line that just succeeded.
+#   - One attempt printed "not ok - the reserving arm did not complete".
+#
+# This transcript records the measurement only. The reading against
+# DR-0006's bands, and whether WP-43's hold lifts on it, is the operator's.

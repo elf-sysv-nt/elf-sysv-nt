@@ -57,3 +57,22 @@ The operator chose the measurement: WP-43 stays held until the reservation
 cost is measured on its own and read against DR-0006's bands, and the
 certification reinstates after that reading rather than on the passing re-run
 alone. The suite itself needs no repair.
+
+## Measured, 2026-08-31
+
+The measurement was taken; the transcript is
+`t/reservation-cost-2026-08-31.txt`. Twelve completed `sig_e2e -n 20000` runs
+read a median of +0.85% and a mean of +2.33% of a delivery, ranging −4.32% to
++13.05%; both arms run ~33 us per delivery. Ten of the twelve fall in
+DR-0006's under-5% band, two land in 5–20%, none approach 20%. The default
+n=500 readings — the −23.71% this report carries among them — are inside
+timer noise and say nothing.
+
+The claim "the suite itself needs no repair" did not survive the measuring.
+Two instrument defects are in the transcript: repeated invocations mostly
+exit 0 silently with no output at all (roughly seven in ten attempts), and
+one attempt reported the reserving arm incomplete. Neither affects a
+completed reading; both belong to WP-43's redo.
+
+The reading of the number against the bands, and whether the hold lifts, is
+the operator's; the measurement obligation is discharged.
