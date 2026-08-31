@@ -1,10 +1,11 @@
 # The target definition
 
-Five values have to agree, and this is where they are written down. The triple
-was settled by the operator in DR-0001. The other four were settled here on
+Six values have to agree, and this is where they are written down. The triple
+was settled by the operator in DR-0001. Four more were settled here on
 2026-08-29, against measurement rather than against a recollection of what
 Linux does: `spike/vendor-image-shape/` read forty-one el8 binaries and its
-transcript is what the arguments below cite.
+transcript is what the arguments below cite. The sixth, the PIE default, records
+el8's own hardening baseline.
 
 Every one of these ends up compiled into a shipped artifact. A `.note.ABI-tag`
 sits in every executable, the loader SONAME sits in every `PT_INTERP`, and the
@@ -19,6 +20,7 @@ rather than falling out of it.
 | `.note.ABI-tag` | `GNU`, `NT_GNU_ABI_TAG`, Linux, 3.2.0 |
 | Loader SONAME | `ld-linux-x86-64.so.2` at `/usr/lib64` |
 | `uname` | `Linux` / `4.18.0-elfsysvnt` / `#1 SMP elfsysvnt` / `x86_64` |
+| PIE default | the compiler defaults to `-pie`, output `ET_DYN`, matching el8 |
 
 ## The triple
 
@@ -184,6 +186,22 @@ table and must never be written out separately. Two tables drift; one does not.
 coreutils compiles it in — so `GNU/Linux` there is a build-time setting and
 belongs to WP-16 with the rest of the macro set.
 
+## The PIE default
+
+el8's own executables are position-independent: every object in
+`spike/vendor-image-shape/`'s sample was `ET_DYN`, which is el8's hardening
+baseline rather than an accident of the packages picked. This platform matches
+it — the compiler defaults to `-pie` and emits `ET_DYN` executables — because the
+default is el8's to dictate and matching it is the whole premise. This records
+el8's choice; it is not one of ours to make.
+
+WP-13 owns the follow-up that makes the default `-pie` in the specs rather than
+a flag the caller remembers, the way `-mno-red-zone` is a target default rather
+than a spec string (DR-0006's lesson: a mandate belongs where a later flag
+cannot silently drop it). WP-41 is the consumer that depends on the answer: a
+non-PIE image has one fixed load address and DR-0028's parent-side reservation
+is what satisfies it, so the loader must know which shape it was handed.
+
 ## Where the name actually lives
 
 Not in `EI_OSABI`, not in the ABI-tag note, not in the loader SONAME, and not
@@ -211,9 +229,10 @@ the first unattributed site.
 
 ## Not verified
 
-That el8 ships no non-PIE executables. Every object in the sample was `ET_DYN`,
-but the sample was three packages picked for other reasons, and this document
-does not depend on the answer. WP-41 does.
+That el8 ships no non-PIE executables uniformly. Every object in the sample was
+`ET_DYN`, but the sample was three packages picked for other reasons; the PIE
+default above records that as el8's baseline, and WP-41 is where a non-PIE image,
+should the full set hold one, is handled by DR-0028's parent-side reservation.
 
 That `ELFSYSVNT` is unclaimed as a note owner. Nobody has grepped a
 distribution for it. The consequence of a collision is small and the check is

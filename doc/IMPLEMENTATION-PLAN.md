@@ -219,6 +219,13 @@ adds only the two things the target mandates. `-mno-red-zone` by
 `TARGET_SUBTARGET_DEFAULT`, and `__ELFSYSVNT__` for the `config.guess` WP-11
 taught to ask. `t/accept.sh` carries eleven claims.
 
+Follow-up (F8): the compiler's default output is to be made PIE — `-pie` by
+`TARGET_SUBTARGET_DEFAULT` alongside `-mno-red-zone`, so `ET_DYN` is the default
+shape el8's toolchain gives (`doc/target-definition.md`, the PIE default). It
+lands when the toolchain is next built at WP-26, since a one-line specs default
+does not warrant rebuilding a closed stage on its own, and `t/accept.sh` gains
+the claim then.
+
 The flag is scaffolding rather than the answer, which DR-0006 records and
 which the target header now says before it says anything else. The mandate is
 a target default rather than a spec string, which is stronger: a spec can be
@@ -960,6 +967,14 @@ Guard, loads the runtime, and hands the loader the file and the argument vector.
 Done when: `execve` on an ELF binary from a Cygwin program works, `#!` scripts
 still work, the ordering between the ELF, `#!`, and PE cases is written down,
 and the interpreter recursion limit is enforced.
+
+F8, pending measurement: DR-0027 fixed the `#!` buffer size, and confirming it
+against the kernel el8 ships — the 4.18 line, backports included — is one
+`git show <ref>:include/uapi/linux/binfmts.h` against el8's kernel source when it
+is at hand. If `BINPRM_BUF_SIZE` reads 128 there, DR-0027's constant moves to 128
+through the record's own stated mechanism and the fuzz corpus gains the 129-byte
+case. The el8 kernel source is not on this machine, so the check is recorded
+here rather than asserted from memory.
 
 Descriptor inheritance, close-on-exec, the environment, the working directory,
 signal disposition reset, and `AT_SECURE` all come with it. Cygwin's `execve`
