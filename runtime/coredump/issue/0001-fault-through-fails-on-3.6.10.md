@@ -57,3 +57,30 @@ That is a toolchain defect and it belongs to WP-60, not to fault delivery.
 Diagnosing why that binary dies is not this measurement's to do. WP-61 stays
 held; what it is waiting on is a working cross gdb, not a fault-delivery
 answer.
+
+## Diagnosed, 2026-08-31 — SIGPIPE at teardown, a WP-60 build defect
+
+The exit-141 was traced (`toolchain/gdb/t/startup-sigpipe-trace-2026-08-31.txt`
+is the `strace`). The binary is not missing a DLL — `cygcheck` resolves every
+one — and the death is not a caller artifact: it reproduces identically with
+stdin, stdout and stderr each redirected to a file and under `setsid`, so no
+pipe or tty of the harness is involved. The Cygwin exit status is `0xD00`,
+which is termination by signal `0x0D` = 13 = SIGPIPE.
+
+What the trace shows: early in startup gdb's own Cygwin pipe transport fails
+to connect — `transport_layer_pipes::connect: Error opening the pipe (2)` on
+`\\.\pipe\cygwin-...-lpc` — and at process teardown gdb sends SIGPIPE to
+itself (`sig_send ... signal 13, its_me 1`), which resolves to
+`signal_exit: exiting due to signal 13` before any output is flushed. So the
+binary writes into an internal pipe whose far end is already gone and does not
+carry SIGPIPE ignored the way a debugger normally must. `--version`,
+`--batch`, `-nx` and `show version` all die the same way at the same point.
+
+This is a defect in how WP-60 built or configured gdb (its host-side signal
+disposition, or an unwanted Cygwin-native transport compiled into a
+cross-only debugger), not in fault delivery and not in WP-61. Fixing it means
+reopening WP-60. A rebuild through `toolchain/gdb/build-gdb` is itself
+currently blocked: the pinned GMP 6.2.1 that `build-gdb` compiles for the host
+does not configure and build cleanly under the primary root's gcc 14.4, which
+is a toolchain-pin question of its own. WP-61 stays held on a working cross
+gdb; the blocker is now named rather than guessed.
