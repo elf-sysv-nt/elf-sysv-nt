@@ -27,6 +27,11 @@
 						   one it prints */
 
 	.text
+	/* crt1 now leaves through exit, the flushing door; in this spike there
+	   is no stdio to flush and no atexit chain, so exit and _exit are the
+	   same symbol here.  */
+	.globl	exit
+	.set	exit, _exit
 	.globl	_exit
 	.type	_exit, @function
 _exit:

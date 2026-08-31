@@ -32,7 +32,7 @@ _start:
 	call	*main@GOTPCREL(%rip)
 
 	movl	%eax, %edi
-	call	*_exit@GOTPCREL(%rip)
+	call	*exit@GOTPCREL(%rip)
 
 	ud2
 	.size	_start, .-_start
