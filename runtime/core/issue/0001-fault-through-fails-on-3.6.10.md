@@ -62,3 +62,9 @@ built binary verifiably carries the calls to both faulters. The certification
 that DR-0038 withdrew re-runs green on the real environment; whether the WP-22
 hold lifts on that is the operator's. This report's root cause stands corrected
 as above, and its reproduction is repaired.
+
+## Closed, 2026-08-31
+
+The operator lifted the hold on the repaired, passing suite. WP-22 is restored
+to `doc/status/delivered.txt` and removed from `doc/status/hold.txt`; its
+certification stands on the primary root. This issue is closed.

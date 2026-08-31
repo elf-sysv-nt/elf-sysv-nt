@@ -50,3 +50,10 @@ So this report has no reproduction on the environment it was raised against.
 Whether the hold lifts, and whether the certification is simply reinstated o
 the reservation cost wants its own measurement first, is the operator's call.
 WP-43 stays held until then.
+
+## Disposition, 2026-08-31
+
+The operator chose the measurement: WP-43 stays held until the reservation
+cost is measured on its own and read against DR-0006's bands, and the
+certification reinstates after that reading rather than on the passing re-run
+alone. The suite itself needs no repair.

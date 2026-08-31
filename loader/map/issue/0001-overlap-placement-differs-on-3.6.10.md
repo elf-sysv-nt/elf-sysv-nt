@@ -51,3 +51,9 @@ The grounded redo, unblocked by the measurement but not performed here:
 
 The redo stays the operator's to unhold; this note records that its
 precondition is met, not that it was done.
+
+## Redo authorized, 2026-08-31
+
+The operator authorized the hint-discriminates redo as written above. WP-32
+stays in `doc/status/hold.txt` until the rebuilt reserve certifies on the
+primary root; the hold lifts on that pass, and this issue closes with it.
