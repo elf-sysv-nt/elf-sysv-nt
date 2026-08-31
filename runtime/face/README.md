@@ -30,8 +30,21 @@ Planned order of work, one milestone per commit:
       and underscore names no public header declares). `t/sigclass.sh`
       certifies reproduction, totality over the face table, and the
       pinned counts.
-   2. The face generator itself, emitting the faces from the table by
-      class, and the `.def`/`.din` seam that puts them on the DLL.
+   2. The generic int face — done. `sv2ms-int.inc` is the one shape the
+      whole int class shares: four register moves, two register-to-slot
+      moves, an unconditional eight-slot stack copy (headroom over the
+      widest int signature, arity ten), one sub for shadow space and
+      Microsoft alignment. `gen-int-faces.sh` instantiates it once per
+      int-class row as `__face_<name>` bound to the row's target; the
+      export table renames the face back at the `.def`/`.din` seam.
+      `t/int-face.sh` certifies reproduction, exact coverage of the int
+      class in order, that the unit assembles, and — through Microsoft
+      bodies of arity 0, 4, 6, and 10 called from a System V caller —
+      that every argument and return crosses exactly, at Microsoft stack
+      alignment.
+   3. The fp and aggr faces, compiled from their recorded prototypes; the
+      unlisted disposition read from Cygwin's own declarations; and the
+      `.def`/`.din` seam that puts all the faces on the DLL.
 3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
 4. `DllMain` and the PE TLS callback fired by the host's own loader.
 5. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
