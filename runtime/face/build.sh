@@ -48,6 +48,13 @@ bash "$here/../varargs/gen-veneer.sh" --prefix __face_ \
   --c "$out/veneer-faced.c" --h "$out/veneer-faced.h"
 gcc $cflags -I "$here/../varargs" -I "$out" \
   -c "$out/veneer-faced.c" -o "$out/veneer-faced.o"
+# Remove the generated source now the object is built. It is the one face
+# source that lands in $out beside its own object, so if it outlives the .o by
+# even a timestamp the winsup Makefile's generic .c.o rule (Makefile ~2072)
+# recompiles it with the vendor's default flags -- which lack -I ../varargs --
+# and the build fails on a missing sv2ms.h. With no co-located source the rule
+# cannot fire and make treats the prebuilt object as final. Regenerated each run.
+rm -f "$out/veneer-faced.c" "$out/veneer-faced.h"
 # nothing in the faced object may define an export-table name outright
 for o in veneer-faced nonformat-faced; do
   if nm "$out/$o.o" | awk '$2~/[TD]/{print $3}' \
@@ -66,5 +73,13 @@ rm -f cygwin.def sigfe.s cygwin.sc new-cygwin1.dll
 make DIN_FILE="$here/face.din" FACE_OFILES="$face_ofiles" \
      new-cygwin1.dll 2>&1 | tee -a "$log"
 
-cp new-cygwin1.dll "$out/elfsysv1.dll"
+# Install by rename, not a plain copy. A copy truncates the destination and
+# writes 25 MB into it, and for that window a reader -- a crossing test, a
+# parallel session -- sees a partial PE and LoadLibrary fails with the same
+# codes a real defect gives. A temporary in the same directory renamed into
+# place is atomic on one filesystem: the name points at the whole old DLL until
+# it points at the whole new one, never at the seam. (atomic-dll-build proposal.)
+tmp=$(mktemp "$out/.elfsysv1.dll.XXXXXX")
+cp new-cygwin1.dll "$tmp"
+mv -f "$tmp" "$out/elfsysv1.dll"
 say "== faced DLL at $out/elfsysv1.dll =="
