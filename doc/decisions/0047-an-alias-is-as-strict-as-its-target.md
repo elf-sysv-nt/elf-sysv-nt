@@ -1,4 +1,4 @@
-# DR-XXXX — an alias is never classified less strictly than its target
+# DR-0047 — an alias is never classified less strictly than its target
 
 Status: accepted
 Date: 2026-08-31

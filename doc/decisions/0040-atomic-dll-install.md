@@ -1,4 +1,4 @@
-# DR-XXXX — the faced DLL is installed by rename, not by copy
+# DR-0040 — the faced DLL is installed by rename, not by copy
 
 Accepted 2026-08-31. Source: `doc/proposals/atomic-dll-build.md`.
 

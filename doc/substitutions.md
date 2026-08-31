@@ -11,11 +11,14 @@ justified. An open row is a known gap, not a hidden one.
 
 | # | Substitute | For | Where | Burns it down |
 |---|------------|-----|-------|---------------|
-| S1 | WSL glibc 2.43 | el8's glibc 2.28 | The differential certifications of WP-33 (`elf-ldd` / cache), WP-35 (symbol lookup), and WP-40 (auxv / initial process image), which compared this platform's output against a locally available glibc rather than el8's own | WP-T2's pinned el8-shaped environment — a Rocky or Alma 8.10 userland with glibc 2.28, documented in `doc/test-environment.md` — against which those three differentials rerun. The row closes when each rerun matches or its divergence is recorded as justified. |
+
+None open.
 
 ## Closed
 
-None yet.
+| # | Substitute | For | How it closed |
+|---|------------|-----|---------------|
+| S1 | WSL glibc 2.43 | el8's glibc 2.28 | Closed 2026-08-31, matched. WP-T2's pinned el8 image stood up as a Rocky Linux 8.10 WSL instance (`rocky8`, `ldd (GNU libc) 2.28`), and the three differentials reran against it through the `LINUX_REF_DISTRO` seam: WP-33's `elf-ldd` load order matched a real `ld.so` on all seven graph cases, WP-35's symbol resolution matched on every collision case, and WP-40's auxv differed from Linux's only in the entries that describe the platform. The transcript is `test/t2-results-2026-08-31.txt`; `test/t2-run.sh` regenerates it. No divergence to justify — the substitute's behaviour held against el8's own. |
 
 ## Notes
 

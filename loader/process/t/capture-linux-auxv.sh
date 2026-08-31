@@ -19,6 +19,10 @@
 
 set -u
 prog=capture-linux-auxv
+
+# Which Linux image the reference is captured from. Default Ubuntu for
+# back-compat; WP-T2 drives this with rocky8 (el8 glibc 2.28) for row S1.
+distro=${LINUX_REF_DISTRO:-Ubuntu}
 here=$(cd "$(dirname "$0")" && pwd)
 
 out=
@@ -40,7 +44,7 @@ command -v wsl >/dev/null 2>&1 || {
 # the same file is run without copying it across the boundary.
 winmnt=$(printf '%s' "$here/dump_auxv.py" | sed -E 's#^/([a-zA-Z])/#/mnt/\L\1/#')
 
-capture=$(wsl -e python3 "$winmnt" 2>/dev/null) || {
+capture=$(wsl -d "$distro" -e python3 "$winmnt" 2>/dev/null) || {
 	echo "$prog: WSL could not run python3 on the dumper" >&2
 	exit 1
 }
