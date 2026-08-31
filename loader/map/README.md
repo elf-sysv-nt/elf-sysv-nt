@@ -96,6 +96,16 @@ base the caller chooses; the specimens the test maps are linked at
 `0x10000000`. Nothing here has solved the low-address problem, and nothing here
 needs to.
 
+Occupancy at that base is the mapper's own to detect. The reserve asks for the
+span with a bare hint rather than `MAP_FIXED` and requires the answer to equal
+the ask: a free span is honored exactly on this host, an occupied one comes
+back relocated, and a relocated answer is unmapped and refused with a
+diagnostic naming both addresses. `MAP_FIXED` stopped being an option when
+Cygwin 3.6.10 began allowing it to land on an already-reserved span without
+re-zeroing it (`spike/map-and-jump/issue/0002` carries the measurement);
+`MAP_FIXED_NOREPLACE` is absent from its headers, so the hint stands in for
+the flag that would otherwise say this.
+
 ## The interface
 
 `elf_map` takes the image, its size, the `elf_parsed` from `elf_parse`, and a

@@ -57,3 +57,12 @@ precondition is met, not that it was done.
 The operator authorized the hint-discriminates redo as written above. WP-32
 stays in `doc/status/hold.txt` until the rebuilt reserve certifies on the
 primary root; the hold lifts on that pass, and this issue closes with it.
+
+## Closed, 2026-08-31
+
+The redo landed as authorized: the reserve in `elf_map.c` asks with a bare
+hint, requires `got == want`, and unmaps and refuses a relocated answer with a
+diagnostic naming both addresses; the false `MAP_FIXED` comment is gone and
+the mechanism is recorded in the package README. `t/run.sh` on the primary
+root passes whole, the occupied-span control refusing through the new path.
+WP-32 returns to `doc/status/delivered.txt` and leaves `hold.txt`. Closed.

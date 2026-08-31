@@ -190,17 +190,30 @@ elf_map_err elf_map(const unsigned char *image, size_t image_size,
 
 	/* Reserve and commit the whole span, writable, in one region. Committed
 	 * pages arrive zeroed, which is what makes .bss free; the copy pass
-	 * relies on it and the assertion below proves it held. MAP_FIXED here
-	 * refuses rather than displaces an existing mapping on this host, which
-	 * is how the occupied case is turned away. */
+	 * relies on it and the assertion below proves it held. The base goes in
+	 * as a bare hint, never MAP_FIXED: Cygwin 3.6.10 lets MAP_FIXED land on
+	 * an already-reserved span without re-zeroing it
+	 * (spike/map-and-jump/issue/0002), so occupancy is discriminated by the
+	 * hint instead. A free span comes back at the asked-for base exactly; an
+	 * occupied one comes back relocated, and the relocated region is
+	 * unmapped and the object refused. */
 	got = mmap((void *)(uintptr_t) res_base, (size_t) res_size,
 	           PROT_READ | PROT_WRITE,
-	           MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-	if (got == MAP_FAILED || (uint64_t)(uintptr_t) got != res_base)
+	           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (got == MAP_FAILED)
 		return fail(diag, elf_map_err_reserve, "mmap",
 		    "reserve of 0x%llx bytes at 0x%llx refused (errno %d)",
 		    (unsigned long long) res_size,
 		    (unsigned long long) res_base, errno);
+	if ((uint64_t)(uintptr_t) got != res_base) {
+		munmap(got, (size_t) res_size);
+		return fail(diag, elf_map_err_reserve, "mmap",
+		    "span of 0x%llx bytes at 0x%llx is occupied; the host "
+		    "relocated the reserve to 0x%llx",
+		    (unsigned long long) res_size,
+		    (unsigned long long) res_base,
+		    (unsigned long long)(uintptr_t) got);
+	}
 
 	/* Copy pass. Every segment's file bytes land at its runtime address; the
 	 * memsz tail past filesz is left as the committed zero it arrived as. */
