@@ -268,3 +268,25 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-process.o" "$tmp/wire-process.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-process.o" | grep -q 'waitpid@@GLIBC_2.2.5'
 fi
+
+# The committed identity wiring re-derives byte-identical as well. The
+# pwd and grp families -- lookup, iteration, the _r variants -- and the
+# group-membership trio cross as thunks; nothing in the slice carries a
+# struct by translation, so the shims file is empty and pinned so.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice identity \
+    --table "$tmp/wire-identity.gen.c" \
+    --thunks "$tmp/wire-identity.gen.s" \
+    --shims "$tmp/wire-identity.shims.tsv" >/dev/null
+cmp ../wire-identity.gen.c "$tmp/wire-identity.gen.c"
+cmp ../wire-identity.gen.s "$tmp/wire-identity.gen.s"
+cmp ../wire-identity.shims.tsv "$tmp/wire-identity.shims.tsv"
+grep -q '"getpwuid_r"' "$tmp/wire-identity.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-identity.gen.c")" = 17
+test "$(grep -vc '^#' "$tmp/wire-identity.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-identity-table.o" "$tmp/wire-identity.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-identity.o" "$tmp/wire-identity.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-identity.o" | grep -q 'getpwnam@@GLIBC_2.2.5'
+fi
