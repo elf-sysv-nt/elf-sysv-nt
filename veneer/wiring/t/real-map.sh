@@ -312,3 +312,27 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-io-mux.o" "$tmp/wire-io-mux.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-io-mux.o" | grep -q 'poll@@GLIBC_2.2.5'
 fi
+
+# The committed terminal wiring re-derives byte-identical as well. The
+# termios surface -- cf* speeds, tc* control -- and the utmp/utmpx
+# session records cross as thunks; ioctl is the one shim, its request
+# codes a translation, not a jump. The pty helpers (openpty, forkpty,
+# login and kin) live in libutil on el8, so the forward map never
+# carries them and they are not this slice's rows.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice terminal \
+    --table "$tmp/wire-terminal.gen.c" \
+    --thunks "$tmp/wire-terminal.gen.s" \
+    --shims "$tmp/wire-terminal.shims.tsv" >/dev/null
+cmp ../wire-terminal.gen.c "$tmp/wire-terminal.gen.c"
+cmp ../wire-terminal.gen.s "$tmp/wire-terminal.gen.s"
+cmp ../wire-terminal.shims.tsv "$tmp/wire-terminal.shims.tsv"
+grep -q '"tcsetattr"' "$tmp/wire-terminal.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-terminal.gen.c")" = 30
+test "$(grep -vc '^#' "$tmp/wire-terminal.shims.tsv")" = 1
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-terminal-table.o" "$tmp/wire-terminal.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-terminal.o" "$tmp/wire-terminal.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-terminal.o" | grep -q 'tcgetattr@@GLIBC_2.2.5'
+fi
