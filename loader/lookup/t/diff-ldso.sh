@@ -19,6 +19,10 @@
 set -u
 
 prog=diff-ldso
+
+# Which Linux image supplies the reference ld.so. Default Ubuntu (glibc 2.43)
+# for back-compat; WP-T2 drives this with rocky8 (el8 glibc 2.28) for row S1.
+distro=${LINUX_REF_DISTRO:-Ubuntu}
 lt=${1:?usage: diff-ldso.sh LOOKUP_TEST GRAPHS_DIR}
 G=${2:?usage: diff-ldso.sh LOOKUP_TEST GRAPHS_DIR}
 GABS=$(cd "$G" && pwd)
@@ -42,8 +46,8 @@ if ! command -v wsl.exe >/dev/null 2>&1; then
 	echo "$prog: wsl.exe not found; skipping the real-ld.so differential" >&2
 	exit 77
 fi
-if ! wsl.exe -d Ubuntu -- test -x "$ldso" 2>/dev/null; then
-	echo "$prog: no Ubuntu ld.so at $ldso; skipping the differential" >&2
+if ! wsl.exe -d "$distro" -- test -x "$ldso" 2>/dev/null; then
+	echo "$prog: no reference ld.so at $ldso; skipping the differential" >&2
 	exit 77
 fi
 
@@ -71,7 +75,7 @@ for row in "${cases[@]}"; do
 	# status under this WSL, a quirk of the environment unrelated to lookup.)
 	envp=""
 	[ "$pre" != - ] && envp="LD_PRELOAD='$W/$pre' "
-	real_bind=$(wsl.exe -d Ubuntu -- bash -lc \
+	real_bind=$(wsl.exe -d "$distro" -- bash -lc \
 		"${envp}LD_DEBUG=bindings LD_BIND_NOW=1 '$ldso' '$W/$root' 2>&1 >/dev/null \
 		 | grep \"symbol .collide\" | head -1" 2>/dev/null)
 	real_win=$(printf '%s\n' "$real_bind" | sed -n 's#.*/\([^/ ]*\) \[0\]: normal.*#\1#p')
