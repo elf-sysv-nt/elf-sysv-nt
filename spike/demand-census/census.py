@@ -19,6 +19,8 @@ import lzma
 import os
 import struct
 import sys
+import threading
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -260,19 +262,30 @@ def process_one(name, url, fragdir, donedir):
     marker = os.path.join(donedir, name + ".done")
     if os.path.exists(marker):
         return "skip"
+    # The whole body is guarded, not just the fetch: a filesystem flake
+    # on one package (a scanner briefly holding a fresh .tmp, say) must
+    # cost that package an .err record, never the whole run, which is
+    # how launch two died at 1900 of 4855. The tmp name carries the
+    # thread id so no two writers can ever race on one path.
     try:
         demand = rpm_demand(fetch(url))
+        tmp = os.path.join(fragdir,
+                           "%s.%d.tmp" % (name, threading.get_ident()))
+        with open(tmp, "w") as f:
+            for soname, sym, ver in sorted(demand):
+                f.write("%s\t%s\t%s\n" % (soname, sym, ver))
+        dst = os.path.join(fragdir, name + ".tsv")
+        try:
+            os.replace(tmp, dst)
+        except OSError:
+            time.sleep(1)
+            os.replace(tmp, dst)
+        with open(marker, "w") as f:
+            f.write(url + "\n")
     except Exception as e:
         with open(os.path.join(donedir, name + ".err"), "w") as f:
             f.write("%s\n%s\n" % (url, e))
         return "err"
-    tmp = os.path.join(fragdir, name + ".tmp")
-    with open(tmp, "w") as f:
-        for soname, sym, ver in sorted(demand):
-            f.write("%s\t%s\t%s\n" % (soname, sym, ver))
-    os.replace(tmp, os.path.join(fragdir, name + ".tsv"))
-    with open(marker, "w") as f:
-        f.write(url + "\n")
     return "ok"
 
 
