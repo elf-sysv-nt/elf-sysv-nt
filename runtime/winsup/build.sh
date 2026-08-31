@@ -27,4 +27,9 @@ if [ ! -f Makefile ]; then
     CFLAGS="-g -O2 -mno-red-zone" CXXFLAGS="-g -O2 -mno-red-zone" LDFLAGS="-L$deps" LDFLAGS_FOR_TARGET="-L$deps" \
     2>&1 | tee -a "$log"
 fi
+# A faced relink (runtime/face/build.sh) leaves sigfe.s generated from
+# face.din in this tree; a vanilla make would then link __face_ references
+# with no face objects on the line.  Clear the residue so this build is
+# self-contained either way.
+rm -f x86_64-pc-cygwin/winsup/cygwin/{cygwin.def,sigfe.s,cygwin.sc,new-cygwin1.dll}
 make -j"$(nproc)" 2>&1 | tee -a "$log"
