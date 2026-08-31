@@ -154,6 +154,21 @@ Planned order of work, one milestone per commit:
    attach and detach after a thread runs. Process detach stays out of
    scope: the runtime beneath the face is Cygwin, which does not support
    unload.
-7. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
+7. The fault path — done. `t/fault.c` is a real process of the faced
+   runtime: the vendor's crt0 into the asis `_dll_crt0` protocol, linked
+   -nostdlib so every libc call crosses the face System V by function
+   pointer, with crt0's Microsoft-convention call to the veneer-faced
+   `cygwin_internal` interposed at the link. (The cygload shape —
+   LoadLibrary plus `cygwin_dll_init` — cannot carry this: the vendor
+   leaves the main thread marked in-cygwin, and delivery hangs even for
+   a plain raise.) `t/fault.sh` certifies the Done-when's case — a fault
+   two System V frames deep on the main thread arrives as SIGSEGV and
+   leaves by the faced `siglongjmp`, resuming at the true `sigsetjmp`
+   site through the context-transparent face — and the same round trip
+   with Microsoft frames on a thread the DLL's own `pthread_create`
+   made. The third shape, a System V fault on such a thread, fails in
+   dispatch and reopens DR-0012 per the fault-dispatch record: the
+   repair is WP-43's and milestone 8's, and fault.sh carries the probe
+   that flags the outcome changing either way.
 8. Thread creation establishing the DR-0021 carrier; per-thread blocked
    mask and alternate stack split that DR-0030 deferred.
