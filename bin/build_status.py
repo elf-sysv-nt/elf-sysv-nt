@@ -206,6 +206,18 @@ def last_commit_age():
         return None
 
 
+def lock_age():
+    """Seconds since the build-worker lock was taken, or None if free or
+    unreadable. The lock directory holds a ts file with the epoch second it was
+    created; a held lock with a large age and nothing in flight is a run that
+    died holding it."""
+    try:
+        with open(os.path.join(LOCK, 'ts')) as f:
+            return int(time.time()) - int(f.read().strip())
+    except Exception:
+        return None
+
+
 def verdict(rows, lock_held):
     undone = undelivered_wps()
     if not undone:
@@ -220,6 +232,15 @@ def verdict(rows, lock_held):
         return 'work committed and awaiting the worker; not stalled'
     nb = next_buildable()
     if lock_held:
+        # A real build shows an in-flight row and returned above; reaching here
+        # with the lock held means nothing is in flight. Past a short startup
+        # window that is an orphaned lock -- a run that died before STEP 4 and
+        # never released it -- which jams every later run until the 3h steal.
+        la = lock_age()
+        if la is not None and la > 900:
+            return ('STALLED — the build-worker lock has been held %d min with nothing '
+                    'in flight; a run almost certainly died holding it. Clear '
+                    'a/.build-worker.lock to recover now (the auto-steal is 3h).' % (la // 60))
         return 'worker holds the lock (starting or finishing %s); not stalled' % (nb or 'a package')
     if nb:
         age = last_commit_age()
