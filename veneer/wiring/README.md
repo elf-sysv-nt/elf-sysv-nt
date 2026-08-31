@@ -100,3 +100,15 @@ call before printing. `t/el8-run.sh` packages the run-on-the-image
 candidate runner the string exercise improvised. Exercised end to end
 with both sides on el8: five cases, all match; judging the wired veneer
 awaits the same runtime the string slice waits on.
+
+The posix slice is the unistd.h family: 108 rows, all thunks, no shims,
+generated and committed as `wire-posix.gen.c` / `.gen.s` / `.shims.tsv`
+and pinned byte-identical by `t/real-map.sh`. Six diff cases cover
+descriptors (pipe, the dup family, lseek with pread and pwrite,
+ftruncate), names (link, symlink, readlink, access, truncate, unlink),
+the working directory, process identity as invariants rather than raw
+values, fork with the exec family joined through wait, and the
+not-a-terminal answers (isatty, ttyname, tcgetpgrp on a pipe) with
+confstr and pathconf. Exercised end to end with both sides on el8: six
+cases, all match; judging the wired veneer awaits the same runtime the
+earlier slices wait on.
