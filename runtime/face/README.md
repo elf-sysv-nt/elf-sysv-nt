@@ -109,7 +109,20 @@ Planned order of work, one milestone per commit:
    because malloc_wrapper.cc takes the address of `_sigfe_malloc` by
    name to recognize the DLL's own export in an import table. The faced
    DLL lands at a/build/wp27-face/elfsysv1.dll.
-5. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
+5. Rerun WP-22's and WP-23's crossing certifications against the real
+   DLL — done. `t/crossing.sh` reruns both certifications unchanged, then
+   points the same instruments at the DLL itself: `crossing.c` loads the
+   faced `elfsysv1.dll` (rebadged, so it coexists with the host's own
+   cygwin1.dll in one process), resolves real exports, and calls them the
+   way an ELF caller will — System V, straight at the export. Values
+   cross the generic int face (strlen, labs, memcmp) and the typed fp
+   thunks (atan2, ldexp), `sysv_cross_probe` from probe.S sees the System
+   V callee-saved set survive calls into the DLL, and the leaky control
+   still lights all six bits. The exports exercised are NOSIGFE leaves on
+   purpose: they cross the face without the second runtime initialized,
+   keeping this milestone about the face. The sigfe-fenced surface and
+   the variadic veneer against the DLL need its runtime brought up
+   beneath a real process, which is milestones 6-8's work.
 6. `DllMain` and the PE TLS callback fired by the host's own loader.
 7. The fault path: SIGSEGV beneath a System V frame, out by `siglongjmp`.
 8. Thread creation establishing the DR-0021 carrier; per-thread blocked
