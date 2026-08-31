@@ -1,0 +1,19 @@
+# WP-T4 acceptance pins, read by accept.sh.
+#
+# One row per package the embryo harness builds. Each names a leaf small enough
+# that a failure points at the runtime rather than at the package's own weight.
+# bzip2 is first because it is the cleanest such leaf: pure C, no external
+# library dependency, a hand-written Makefile rather than autotools, its own
+# self-test built into `make test`, and a libc surface of forty symbols in the
+# earliest-demand slices.
+#
+# Columns, TAB-separated:
+#   name     the package, and the name to pass accept.sh
+#   relpath  its .src.rpm under the mirror root
+#   sha256   the pin; a fetch whose hash differs is refused
+#   build    the build command, %CC% replaced by the cross compiler, run from
+#            the unpacked source directory; it must leave the binary below
+#   binary   the built executable to read the libc surface from
+#
+# name<TAB>relpath<TAB>sha256<TAB>build<TAB>binary
+bzip2	BaseOS/source/tree/Packages/b/bzip2-1.0.6-28.el8_10.src.rpm	08a13db5dfd0ef88e2169bde7426a59d290cc690ed4256dfda640a680fe71f7c	make CC=%CC% bzip2	bzip2

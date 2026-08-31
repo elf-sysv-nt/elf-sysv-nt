@@ -1,0 +1,15 @@
+# WP-T4 acceptance (embryo) -- 2026-08-31
+
+bzip2        needs-wiring  builds; 40 libc symbols: 34 forward, 5 shim, 1 stub
+    shims needed (a runtime export exists; the ABI differs):
+      __errno_location
+      __lxstat64
+      __xstat64
+      open64
+      signal
+    stubs (nothing behind them yet):
+      __ctype_b_loc
+    waits on WP-56 to wire these slices; it links and loads, and runs once the shims are written and the stubs filled.
+bzip2=surface:40,forward:34,shim:5,stub:1,unclassified:0,verdict:needs-wiring
+
+accept: 1 classified, 0 did not build
