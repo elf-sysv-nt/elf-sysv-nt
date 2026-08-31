@@ -20,6 +20,12 @@
 set -u
 
 prog=diff-ldso
+
+# Which Linux image supplies the reference ld.so. Default Ubuntu (glibc 2.43)
+# for back-compat; WP-T2 drives this with the pinned el8 image (rocky8, glibc
+# 2.28) to burn down substitution row S1. Env only, since the callers are
+# scripts, not a command line.
+distro=${LINUX_REF_DISTRO:-Ubuntu}
 elfldd=${1:?usage: diff-ldso.sh ELF_LDD GRAPHS_DIR}
 G=${2:?usage: diff-ldso.sh ELF_LDD GRAPHS_DIR}
 
@@ -66,8 +72,8 @@ if ! command -v wsl.exe >/dev/null 2>&1; then
 	echo "$prog: wsl.exe not found; skipping the real-ld.so differential" >&2
 	exit 77
 fi
-if ! wsl.exe -d Ubuntu -- test -x "$ldso" 2>/dev/null; then
-	echo "$prog: no Ubuntu ld.so at $ldso; skipping the differential" >&2
+if ! wsl.exe -d "$distro" -- test -x "$ldso" 2>/dev/null; then
+	echo "$prog: no reference ld.so at $ldso; skipping the differential" >&2
 	exit 77
 fi
 
@@ -80,7 +86,7 @@ for row in "${cases[@]}"; do
 	[ "$sub" != - ] && ld="LD_LIBRARY_PATH='$W/$sub' "
 	wsl_script+="echo '@@ $name'; ${ld}LD_TRACE_LOADED_OBJECTS=1 LD_WARN=yes '$ldso' '$W/$main' 2>&1;"
 done
-golden=$(wsl.exe -d Ubuntu -- bash -lc "$wsl_script" 2>&1)
+golden=$(wsl.exe -d "$distro" -- bash -lc "$wsl_script" 2>&1)
 
 rc=0
 for row in "${cases[@]}"; do
