@@ -27,28 +27,34 @@ different export face rather than replacing what is behind it.  A re-faced
 library is a modified version of it, so LGPLv3+ attaches to the largest
 component here by derivation.  doc/decisions/0004-license.md is the record.
 
-Cygwin's linking exception does not reach that component and says so in its own
-terms: it covers linking libcygwin.a, crt0.o and gcrt0.o with independent
-modules, and defines an independent module as one not itself based on the
-Cygwin library.
+## The linking exception
 
+Cygwin's linking exception lets an executable that links the library be
+conveyed under terms of the linker's choosing, without complying with LGPLv3
+section 4.  That exception is what lets a GPLv2-only program link Cygwin at
+all, since LGPLv3 and GPLv2-only do not otherwise combine, and el8 ships
+GPLv2-only software whose running is the point of the exercise.
 
-## No exception is granted here, yet
+The exception carries forward with this modified library.  Under GPLv3
+section 7 an additional permission travels with the work unless a conveyor
+removes it, nothing in the exception's text terminates it on modification,
+and this is the reading the ecosystem already operates on: MSYS2 ships the
+exception verbatim with its own modified Cygwin runtime, and Git for Windows
+has distributed GPLv2-only git over `msys-2.0.dll` for a decade on the same
+footing.  DR-0037 records the decision and the precedent.  Executables
+linking `elfsysv1.dll` are conveyed under the exception the way executables
+linking `cygwin1.dll` are.
 
-Cygwin grants an exception letting a linked executable be conveyed under terms
-of the linker's choosing, without complying with LGPLv3 section 4.  That
-exception is what lets a GPLv2-only program link Cygwin at all, since LGPLv3
-and GPLv2-only do not otherwise combine, and this project intends to carry an
-equivalent one forward for the same reason: el8 ships GPLv2-only software and
-running it is the point of the exercise.
+The text is upstream's, reproduced verbatim and unaltered from
+https://cygwin.com/licensing.html; nothing here is wording of this project's
+invention:
 
-Whether a modified Cygwin library may carry that exception forward, and in what
-wording, is a question for a lawyer and not for the people writing this.  Until
-it is answered this repository grants no exception of its own.  The intent is
-stated so that nobody plans around its absence; the wording is withheld so that
-nobody relies on text an engineer invented.  A draft putting the question to
-the Cygwin mailing list sits at `doc/proposals/licensing-email-draft.md`,
-unsent as of 2026-08-30.
+> As a special exception, the copyright holders of the Cygwin library grant
+> you additional permission to link libcygwin.a, crt0.o, and gcrt0.o with
+> independent modules to produce an executable, and to convey the resulting
+> executable under terms of your choice, without any need to comply with the
+> conditions of LGPLv3 section 4. An independent module is a module which is
+> not itself based on the Cygwin library.
 
 
 ## Third-party material
