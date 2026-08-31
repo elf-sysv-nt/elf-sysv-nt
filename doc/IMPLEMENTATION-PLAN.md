@@ -1187,8 +1187,11 @@ Delivers: every symbol in the map sorted into one of four buckets — forwards t
 a runtime export under another name, forwards under the same name, needs a shim
 because the semantics differ, or has nothing behind it and becomes a stub that
 fails predictably.
-Done when: the four buckets partition the map with no symbol unclassified, and
-the fourth bucket is published rather than filed.
+Done when: the four buckets partition the map with no symbol unclassified; the
+fourth bucket is published rather than filed; and no alias is classified less
+strictly than its ultimate target — a forward-alias whose target is a shim is a
+shim through the same translation, a forward-alias of a stub is a stub — with the
+reproduce test asserting zero violations (F2).
 
 That fourth bucket is the honest inventory of what this platform does not have.
 It is the most useful document the project will produce for anyone deciding
@@ -1210,6 +1213,14 @@ interfaces a package will actually miss — the Linux-only `epoll`/`inotify`/
 math surface. `t/reproduce.sh` reruns the classification, asserts the partition
 covers the map one-to-one with nothing unclassified, checks every shim is
 flagged, and confirms the published document still states the generated counts.
+
+Redo (F2, 2026-08-30): the classification is regenerated under the
+alias-strictness invariant in the Done-when above. The known instance is the
+acceptance case — `open64` and `__open64`, delivered as bare forwards, become
+shims over the same flag translation `open` gets, or carry a written reason they
+need none, which the `O_*` table from WP-55 can settle mechanically. The redo
+earns a decision record stating the invariant, in the WP-50 redo manner, and
+supersedes nothing.
 
 ### WP-53 — libc.so.6
 
