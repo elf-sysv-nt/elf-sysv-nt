@@ -1,0 +1,5 @@
+libc.so.6	frob_open	GLIBC_2.2.5	10	1
+libc.so.6	frob_alloc	GLIBC_2.2.5	4	1
+libc.so.6	frob_shared	GLIBC_2.2.5	1	2
+libc.so.6	unknown_sym	GLIBC_2.2.5	2	4
+libother.so.1	nope	V1	9	1
