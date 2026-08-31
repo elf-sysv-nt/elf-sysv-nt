@@ -5,7 +5,9 @@
 # reopened by DR-0038's audit: certified on 3.0.7, failed on 3.6.10.
 # WP-22's hold lifted 2026-08-31 by the operator on the repaired, passing suite.
 # WP-32's hold lifted 2026-08-31: the hint-discriminates redo certified on the primary root.
-# WP-43: passes, held until the reservation cost is measured against DR-0006's bands.
-# WP-61: waiting on a working cross gdb (WP-60 defect), not on fault delivery.
-WP-43
-WP-61
+# WP-43's hold lifted 2026-08-31: the harness self-kill was root-caused and the
+#   suite passes on the primary root; the reservation cost read -0.49% median,
+#   inside DR-0006's under-5% band. Retiring -mno-red-zone stays a reserved call.
+# WP-61's hold lifted 2026-08-31: the cross gdb was rebuilt on the primary root,
+#   the SIGPIPE is gone, and runtime/coredump certifies 15 of 15.
+# (nothing held)
