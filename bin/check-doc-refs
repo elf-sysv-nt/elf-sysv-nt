@@ -63,6 +63,10 @@ def citing_files(root):
     for dirpath, dirs, files in os.walk(os.path.join(root, 'doc')):
         if '.git' in dirpath.split(os.sep):
             continue
+        rel = os.path.relpath(dirpath, root).replace('\\', '/')
+        if rel == 'doc/proposals' or rel.startswith('doc/proposals/') \
+           or rel == 'doc/design-gaps' or rel.startswith('doc/design-gaps/'):
+            continue           # proposals and reviews cite artifacts they propose to create
         for f in files:
             if f.endswith('.md'):
                 out.append(os.path.join(dirpath, f))
