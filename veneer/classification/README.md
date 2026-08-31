@@ -45,9 +45,9 @@ the map with nothing unclassified.
 ## The counts
 
     bucket           rows
-    1  forward-alias   353
+    1  forward-alias   323
     2  forward-same   1614
-    3  shim            192   (all flagged for review)
+    3  shim            222   (all flagged for review)
     4  stub           1797
        scaffold         68
     total             4024
@@ -77,6 +77,15 @@ Rules 1 through 5 and the `_chk`/`_finite` corner of 6 are decidable by name.
 The rest of bucket 3 is not: whether a same-name export behaves as glibc's does
 is a semantic question no name match can answer, so those calls are not guessed.
 They are read from a curated file and flagged.
+
+After the name rules, a second pass enforces the alias-strictness invariant
+of the F2 redo (its decision record states it): no alias is classified less
+strictly than its ultimate target. A forward whose target the map classifies
+as a shim becomes a shim through the same translation — `open64` and
+`__open64` carry the `O_*` flag translation `open` needs — and a forward of a stub
+becomes a stub. The pass runs to a fixed point, so alias chains inherit the
+strictness of the symbol at their end; 30 rows moved from bucket 1 to bucket 3
+when it first ran, and none needed a written exemption.
 
 ## semantic-review.tsv
 
@@ -117,7 +126,8 @@ document reads. `t/reproduce.sh` is the certification.
 `t/reproduce.sh` reruns the generator, diffs its output against the committed
 `classification.tsv` and `bucket4-inventory.tsv`, asserts the partition covers
 the map one-to-one with no symbol unclassified and none invented, checks that
-every shim carries the review flag, and confirms `doc/what-the-veneer-lacks.md`
+every shim carries the review flag, asserts zero alias-strictness violations
+from the committed file alone, and confirms `doc/what-the-veneer-lacks.md`
 still states the generated counts. It exits 0 on success, 1 on any difference,
 and 77 when there is no `python3`.
 
