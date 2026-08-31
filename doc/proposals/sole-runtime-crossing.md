@@ -1,6 +1,6 @@
 # Proposal — exercise the faced DLL as a process's sole runtime
 
-Status: draft
+Status: accepted 2026-08-31; decision record and implementation on the WP-27 branch, landing with it
 Author: Philip Dye
 Date: 2026-08-31
 Analysed against: e862a13 on `march`
