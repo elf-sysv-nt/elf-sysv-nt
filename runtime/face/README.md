@@ -11,10 +11,14 @@ fronting the real runtime work they were stand-ins for.
 
 Planned order of work, one milestone per commit:
 
-1. The face table: derive from WP-20's inventory the disposition of every
-   export — data (no wrapping), function (sv2ms face), variadic (WP-24's
-   generated veneer entry). A generator writes the table; a test checks it
-   is total over the inventory and agrees with WP-24's list.
+1. The face table — done. `gen-face.sh` derives `face.tsv` from WP-20's
+   inventory and WP-24's variadic list: one row per export, disposed
+   data (exported unchanged), variadic (WP-24's generated veneer entry),
+   or sv2ms (a System V face over the Microsoft body), each bound to its
+   .din target — an alias like `accept = cygwin_accept` binds the face to
+   the DLL-internal symbol. `t/face-table.sh` certifies it reproduces, is
+   total over the inventory (1767 rows: 36 data, 68 variadic, 1562 sv2ms,
+   101 aliased), and that no variadic export is an alias.
 2. The face wiring: the generated System V export surface over the WP-26
    DLL, entry points from WP-22's `entry.c` shapes made real.
 3. Rerun WP-22's and WP-23's crossing certifications against the real DLL.
