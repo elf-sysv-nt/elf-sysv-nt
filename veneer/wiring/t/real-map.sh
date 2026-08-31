@@ -505,3 +505,29 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "$XCC" -c -o "$tmp/wire-sysv-ipc.o" "$tmp/wire-sysv-ipc.gen.s"
     "${XCC%gcc}nm" "$tmp/wire-sysv-ipc.o" | grep -q 'shmget@@GLIBC_2.2.5'
 fi
+
+# The committed io wiring re-derives byte-identical as well. Two rows,
+# both thunks, none shims: readv and writev, forward-same at
+# GLIBC_2.2.5. The rest of the slice's map rows -- the aio_* family
+# and lio_listio, sendfile and its 64 twin, the preadv/pwritev family
+# and their v2 kin, and process_vm_readv/writev -- are stub in the
+# forward map (aio and lio_listio are not in libc's version map at
+# all; el8 carries them in librt, WP-54 territory), so they are not
+# this slice's rows.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice io \
+    --table "$tmp/wire-io.gen.c" \
+    --thunks "$tmp/wire-io.gen.s" \
+    --shims "$tmp/wire-io.shims.tsv" >/dev/null
+cmp ../wire-io.gen.c "$tmp/wire-io.gen.c"
+cmp ../wire-io.gen.s "$tmp/wire-io.gen.s"
+cmp ../wire-io.shims.tsv "$tmp/wire-io.shims.tsv"
+grep -q '"readv"' "$tmp/wire-io.gen.c"
+test "$(grep -c '^    { "' "$tmp/wire-io.gen.c")" = 2
+test "$(grep -vc '^#' "$tmp/wire-io.shims.tsv")" = 0
+"${CC:-gcc}" -Wall -Wextra -Werror -c -I.. \
+    -o "$tmp/wire-io-table.o" "$tmp/wire-io.gen.c"
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -o "$tmp/wire-io.o" "$tmp/wire-io.gen.s"
+    "${XCC%gcc}nm" "$tmp/wire-io.o" | grep -q 'readv@@GLIBC_2.2.5'
+fi

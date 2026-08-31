@@ -534,3 +534,21 @@ queued, IPC_NOWAIT turning an empty queue into ENOMSG, and removal
 failing a further send with EIDRM). Exercised end to end with both
 sides on el8: four cases, all match; judging the wired veneer awaits
 the runtime the earlier slices wait on.
+
+The io slice is the smallest yet: 2 rows, both thunks, no shims,
+generated and committed as `wire-io.gen.c` / `.gen.s` / `.shims.tsv`
+and pinned byte-identical — counts included, the empty shims file
+among them — by `t/real-map.sh`. readv and writev cross whole,
+forward-same at GLIBC_2.2.5; the rest of the slice's map rows stay
+stub. The aio_* family and lio_listio are not in libc's version map
+at all — el8 carries asynchronous I/O in librt, WP-54 territory, the
+same split the threads slice found for the rest of pthread — sendfile
+and its 64 twin and process_vm_readv/writev have no Cygwin-side
+equivalent to forward to, and the preadv/pwritev family and their v2
+kin are classification stubs alongside them, so none of the seven are
+this slice's rows. One diff case covers the two wired calls: writev
+gathering three buffers, one of them zero-length, into a single pipe
+write, and readv scattering the bytes back across three buffers whose
+sizes do not line up with the writer's. Exercised end to end with
+both sides on el8: one case, match; judging the wired veneer awaits
+the runtime the earlier slices wait on.
