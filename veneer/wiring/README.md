@@ -86,3 +86,17 @@ el8 kernel headers are laid into the sysroot now
 (`toolchain/sysroot/kernel-headers`, taught to unpack with `rpmx.py`
 where the root has no cpio). Judging the candidate side awaits the
 runtime that loads the wired veneer.
+
+The stdio slice follows the same path: its wiring is generated and
+committed — `wire-stdio.gen.c` / `.gen.s` / `.shims.tsv`, 98 rows, all
+thunks, no shims — and `t/real-map.sh` pins it byte-identical too. Five
+diff cases cover formatted output, formatted input, stream positioning
+over `tmpfile`, memory streams with the line readers, and named files
+through open, reopen, rename, remove. Writing them earned a lesson the
+harness enforced for free: printing a call's result and its
+side-effected operands in one `printf` is unsequenced, and the two
+sides' compilers are entitled to disagree — every case now sequences the
+call before printing. `t/el8-run.sh` packages the run-on-the-image
+candidate runner the string exercise improvised. Exercised end to end
+with both sides on el8: five cases, all match; judging the wired veneer
+awaits the same runtime the string slice waits on.
