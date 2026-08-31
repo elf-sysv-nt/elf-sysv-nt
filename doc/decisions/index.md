@@ -47,6 +47,7 @@ is a record nobody will find.
 | [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30 | none |
 | [0035](0035-ci-is-the-pre-merge-gate.md) | CI is a pre-merge gate on the pinned root, not a hosted service | accepted 2026-08-30 | none |
 | [0036](0036-ratification-sweep-0008-0035.md) | ratification sweep: DR-0008 through DR-0035 pass the decision ladder and are ratified | accepted 2026-08-30 | proposal F7 |
+| [0037](0037-the-build-environment-is-the-primary-root.md) | the build and certification environment is the primary Cygwin root (3.6.10); supersedes DR-0035 on the CI root | accepted 2026-08-30 | none |
 
 ## What earns a record
 
