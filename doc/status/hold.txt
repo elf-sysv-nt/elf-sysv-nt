@@ -2,3 +2,8 @@
 # just not built by the worker). Remove an id to release it.
 # (empty: nothing held — the worker may build any dependency-ready package,
 #  including WP-15, unattended.)
+# reopened by DR-0037: certified on 3.0.7, fail on 3.6.10; held pending their spikes.
+WP-22
+WP-32
+WP-43
+WP-61
