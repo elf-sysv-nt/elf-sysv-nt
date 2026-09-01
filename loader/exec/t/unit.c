@@ -298,6 +298,57 @@ static void test_quoting(void)
 	quoted_is("odd\\\"", "\"odd\\\\\\\"\"");
 }
 
+/* A stand-in for cygwin_conv_path: it prefixes "W:" so the test can tell a
+ * converted operand from the raw one without a real mount table, and it can
+ * be told to fail so the fallback is exercised too. */
+static int fake_ok(const char *posix, char *out, size_t n)
+{
+	if (n < strlen(posix) + 3)
+		return -1;
+	out[0] = 'W'; out[1] = ':';
+	strcpy(out + 2, posix);
+	return 0;
+}
+
+static int fake_fail(const char *posix, char *out, size_t n)
+{
+	(void) posix; (void) out; (void) n;
+	return -1;
+}
+
+/* The operand decision: which form of the image path the stub is handed.
+ * With no converter it is the resolved path unchanged, and the very pointer,
+ * so nothing is copied needlessly; with a converter that succeeds it is the
+ * converted form in the caller's buffer; with one that fails, or no room, it
+ * falls back to the path unchanged. */
+static void test_image_operand(void)
+{
+	char buf[64];
+	exec_config cfg;
+	const char *posix = "/bin/echo.exe";
+	const char *got;
+
+	memset(&cfg, 0, sizeof cfg);
+	got = exec_image_operand(&cfg, posix, buf, sizeof buf);
+	ck("operand: no converter yields the path", got == posix);
+
+	cfg.image_path = fake_ok;
+	got = exec_image_operand(&cfg, posix, buf, sizeof buf);
+	ck("operand: converter yields its output",
+	   got == buf && !strcmp(got, "W:/bin/echo.exe"));
+
+	cfg.image_path = fake_fail;
+	got = exec_image_operand(&cfg, posix, buf, sizeof buf);
+	ck("operand: a failed conversion falls back", got == posix);
+
+	cfg.image_path = fake_ok;
+	got = exec_image_operand(&cfg, posix, buf, 4);
+	ck("operand: no room falls back", got == posix);
+
+	got = exec_image_operand(&cfg, posix, NULL, 0);
+	ck("operand: no buffer falls back", got == posix);
+}
+
 int main(void)
 {
 	printf("  WP-41 unit: the branch and the chain\n");
@@ -306,6 +357,7 @@ int main(void)
 	test_resolve();
 	test_depth_boundary();
 	test_quoting();
+	test_image_operand();
 	if (failures)
 		printf("  %d check(s) failed\n", failures);
 	else
