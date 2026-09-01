@@ -1969,3 +1969,51 @@ export while the slice's `librt` names and its one stub stay outside the
 table by `real-map.sh`'s partition. WP-56's per-slice done-when is unchanged:
 still the differential against a real el8 userland, with the live crossing the
 added NT check, and for this slice that added check is the bind.
+
+The io slice crosses next, the eleventh crossed by its bind alone and the
+twenty-third crossing overall. Its table is two rows, both forwards and no
+shim: libc's scatter-gather I/O primitives `readv` and `writev`. Each
+versions at `GLIBC_2.2.5` with no rename and no compat pair, exactly one tag
+on each of two distinct names -- the plainness sysv-ipc and syslog had, at
+the narrowest width a wired slice has shown.
+
+The one thing new here is how far the wired table sits inside the slice. The
+demand ranking placed thirty-one names in this slice, down the three I/O
+headers `sys/uio.h`, `sys/sendfile.h` and `aio.h`; the table wires two.
+Sixteen are the POSIX asynchronous-I/O family -- `aio_read`, `aio_write`,
+`aio_error`, `aio_return`, `aio_suspend`, `aio_cancel`, `aio_fsync`,
+`lio_listio` and their `*64` aliases -- which glibc ships in `librt.so.1`,
+not `libc`, so they never enter libc's forward map at all; the other thirteen
+are stubs the classification marks with no body behind them -- `aio_init`,
+the `preadv`/`pwritev` family with its `*64` and `*2` variants, the
+`process_vm_readv`/`process_vm_writev` pair, and `sendfile`/`sendfile64` --
+which gen-wire leaves to WP-53's ret. Neither absence is a shim shortfall.
+`real-map.sh` pins the partition, and the wired two are exactly libc's
+vectored read and write; the sixteen that moved to `librt` and the thirteen
+stubs are the residue that partition accounts for, not rows a shim must
+synthesise.
+
+So the crossing asks memory's question and gets memory's answer across the
+narrowest plain-forward slice yet: does a Cygwin-faced DLL export the pair,
+or does the bind leave a row a shim must synthesise? Measurement leaves no
+row null. io crosses by its bind alone, not by call: neither row is safely
+callable from a freestanding harness. `readv` and `writev` move bytes across
+file descriptors through Cygwin's subsystem, which is SIGFE, entering
+`cygtls` on the way in and reaching the fhandler layer, and a freestanding
+harness never brought that up -- the trap `fnmatch` sprang in filesystem. So
+the specimen calls nothing and reads the table the bind filled. Five checks,
+one bit each, so 31 is the only pass -- the bind leaving no row null, every
+filled slot landing inside the mapped image span `[base, base + SizeOfImage)`,
+the resolver discriminating while the plain-forward finding holds (`readv`
+resolves, a junk name resolves null, and the single row whose export_name is
+`readv` bound to exactly that one export), `readv`/`writev` reaching two
+distinct bodies, and a second bind idempotent, per DR-0049's contract. The
+same refuse-before-entry and no-runtime controls the earlier crossings use
+bound it. `t/live-io.sh` records it, and `diff/io/readv-writev.c` holds the
+by-call bar the differential reaches over a pipe. The crossing adds no
+decision: it confirms DR-0055's rule on the narrowest plain-forward slice,
+both wired rows a plain forward onto their own export while the slice's
+`librt` names and its thirteen stubs stay outside the table by `real-map.sh`'s
+partition. WP-56's per-slice done-when is unchanged: still the differential
+against a real el8 userland, with the live crossing the added NT check, and
+for this slice that added check is the bind.
