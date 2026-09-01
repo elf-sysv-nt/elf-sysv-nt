@@ -25,6 +25,9 @@
  *   -r, --report          Print what the resolver decided and exit without
  *                         running anything.
  *   -v, --verbose         Report each step.
+ *   -R, --real-stub       Hand the stub a Windows-form image path, for the
+ *                         real-process stub whose CreateFileA cannot resolve
+ *                         a Cygwin mount. [env: ELFSYSV_REAL_STUB]
  *   -V, --version         Print the version and exit.
  *   -h, --help            Print this message and exit.
  *
@@ -53,8 +56,22 @@ static void usage(FILE *to)
 "  -f, --host-fallback   Run a non-ELF result through the host.\n"
 "  -r, --report          Print the resolver's decision and exit.\n"
 "  -v, --verbose         Report each step.\n"
+"  -R, --real-stub       Hand the stub a Windows-form image path (for the\n"
+"                        real-process stub). [env: ELFSYSV_REAL_STUB]\n"
 "  -V, --version         Print the version and exit.\n"
 "  -h, --help            Print this message and exit.\n");
+}
+
+/* The converter the real-process stub needs for its image operand. The stub
+ * opens the image with CreateFileA, which does not resolve a Cygwin mount, so
+ * the front end -- a normal Cygwin process, holding the host cygwin1.dll --
+ * resolves the POSIX path to Windows form here and hands the stub the result
+ * (spike/reent-stub-path: route=parent-passes-windows-path). The plain-PE stub
+ * wants no converter: its inline fopen resolves the POSIX path itself. */
+static int image_to_win(const char *posix, char *out, size_t n)
+{
+	return cygwin_conv_path(CCP_POSIX_TO_WIN_A | CCP_ABSOLUTE, posix,
+				out, n) == 0 ? 0 : -1;
 }
 
 int main(int argc, char **argv)
@@ -66,6 +83,7 @@ int main(int argc, char **argv)
 	const char *stub = getenv("ELFSYSV_STUB");
 	char stub_win[4096];
 	int fallback = 0, report = 0, verbose = 0, status = 0, i;
+	int real_stub = getenv("ELFSYSV_REAL_STUB") != NULL;
 	unsigned k;
 
 	memset(&cfg, 0, sizeof cfg);
@@ -90,6 +108,8 @@ int main(int argc, char **argv)
 			report = 1;
 		} else if (!strcmp(a, "-v") || !strcmp(a, "--verbose")) {
 			verbose = 1;
+		} else if (!strcmp(a, "-R") || !strcmp(a, "--real-stub")) {
+			real_stub = 1;
 		} else if (a[0] == '-' && a[1]) {
 			fprintf(stderr, "%s: unknown option %s\n", PROG, a);
 			return 2;
@@ -118,6 +138,11 @@ int main(int argc, char **argv)
 	}
 
 	cfg.stub = stub_win;
+	/* The real-process stub opens the image host-side, so it is handed a
+	 * Windows-form operand; the plain-PE stub resolves the POSIX path
+	 * itself and wants none. */
+	if (real_stub)
+		cfg.image_path = image_to_win;
 	/* Options for the stub itself ride on its command line, inserted ahead
 	 * of the file, which is how the spawn path will carry them too. The
 	 * WP-27 elfcall certification hands the stub its --runtime this way. */
