@@ -1,4 +1,4 @@
-# DR-XXXX — the decision ladder measures before it escalates
+# DR-0070 — the decision ladder measures before it escalates
 
 Status: accepted
 Date: 2026-09-01
