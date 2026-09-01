@@ -1921,3 +1921,51 @@ plainest slice, every row a plain forward onto its own export. WP-56's
 per-slice done-when is unchanged: still the differential against a real el8
 userland, with the live crossing the added NT check, and for this slice that
 added check is the bind.
+
+The sysv-ipc slice crosses next, the tenth crossed by its bind alone and the
+twenty-second crossing overall. Its table is thirteen rows, all forwards and
+no shim: libc's System V IPC primitives -- `__getpagesize` and `ftok`, the
+message-queue calls `msgctl`, `msgget`, `msgrcv` and `msgsnd`, the semaphore
+calls `semctl`, `semget` and `semop`, and the shared-memory calls `shmat`,
+`shmctl`, `shmdt` and `shmget`. Every one versions at `GLIBC_2.2.5` with no
+rename and no compat pair, exactly one tag on each of thirteen distinct
+names -- the plainness syslog had, at more than twice the width.
+
+The one thing new here is the gap between the slice and its wired table. The
+demand ranking placed twenty-four names in this slice, down the four System V
+headers and `mqueue.h`; the table wires thirteen. Eleven are the POSIX
+message-queue family -- `mq_open`, `mq_close`, `mq_notify`, `mq_getattr`,
+`mq_setattr`, `mq_send`, `mq_receive`, `mq_timedsend`, `mq_timedreceive` and
+`mq_unlink` -- which glibc ships in `librt.so.1`, not `libc`, so they never
+enter libc's forward map at all; the twelfth is `semtimedop`, which the
+classification marks a stub with no body behind it, so gen-wire leaves it to
+WP-53's ret. Neither absence is a shim shortfall. `real-map.sh` pins the
+partition, and the wired thirteen are exactly libc's IPC primitives; the
+eleven that moved to `librt` and the one stub are the residue that partition
+accounts for, not rows a shim must synthesise.
+
+So the crossing asks memory's question and gets memory's answer across the
+widest plain-forward slice yet: does a Cygwin-faced DLL export the whole set,
+or does the bind leave rows a shim must synthesise? Measurement leaves no row
+null -- no System V disposition as signal had, no struct translation as
+filesystem's stat family had, and not even a version tag to discount as regex
+and threads carried. sysv-ipc crosses by its bind alone, not by call: no IPC
+row is safely callable from a freestanding harness. `shmget`, `semget` and
+`msgget` open kernel IPC objects through Cygwin's subsystem, which is SIGFE,
+entering `cygtls` on the way in and reaching the shared-memory server, and a
+freestanding harness never brought that up -- the trap `fnmatch` sprang in
+filesystem. So the specimen calls nothing and reads the table the bind
+filled. Five checks, one bit each, so 31 is the only pass -- the bind leaving
+no row null, every filled slot landing inside the mapped image span
+`[base, base + SizeOfImage)`, the resolver discriminating while the
+plain-forward finding holds (`shmget` resolves, a junk name resolves null, and
+the single row whose export_name is `shmget` bound to exactly that one
+export), `msgget`/`semget`/`shmget` reaching three distinct bodies, and a
+second bind idempotent, per DR-0049's contract. The same refuse-before-entry
+and no-runtime controls the earlier crossings use bound it. `t/live-sysv-ipc.sh`
+records it. The crossing adds no decision: it confirms DR-0055's rule on the
+widest plain-forward slice, every wired row a plain forward onto its own
+export while the slice's `librt` names and its one stub stay outside the
+table by `real-map.sh`'s partition. WP-56's per-slice done-when is unchanged:
+still the differential against a real el8 userland, with the live crossing the
+added NT check, and for this slice that added check is the bind.
