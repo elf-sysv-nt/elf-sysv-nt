@@ -1,4 +1,4 @@
-# DR-XXXX — the acceptance crossing hosts the faced runtime as its own process
+# DR-0071 — the acceptance crossing hosts the faced runtime as its own process
 
 Proposed 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 item 1 (the faced-runtime hosting the run halts on).
