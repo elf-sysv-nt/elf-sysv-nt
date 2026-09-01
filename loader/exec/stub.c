@@ -289,7 +289,7 @@ int main(int argc, char **argv)
 		if (!RP_STRCMP(a, "--")) { i++; break; }
 		if (!RP_STRCMP(a, "-h") || !RP_STRCMP(a, "--help")) { usage(stdout); return 0; }
 		if (!RP_STRCMP(a, "-V") || !RP_STRCMP(a, "--version")) {
-			printf("%s\n", RELEASE);
+			RP_PUTS(RELEASE);
 			return 0;
 		}
 		if (!RP_STRCMP(a, "-s") || !RP_STRCMP(a, "--stack")) {
