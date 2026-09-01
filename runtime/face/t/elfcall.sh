@@ -54,7 +54,7 @@ if [ ! -f "$dll" ]; then
 fi
 
 loader_srcs="$exec_dir/reserve.c $loader/map/elf_map.c $loader/map/host_mem.c \
-$loader/elf/elf_parse.c $loader/process/process_image.c"
+$loader/elf/elf_parse.c $loader/process/process_image.c $loader/reloc/elf_reloc.c $loader/reloc/reloc_resolve.S"
 
 # WP-41's front end, the branch itself, from the certified sources unchanged.
 gcc $cflags -o "$tmp/elfsysv-exec" "$exec_dir/exec_main.c" \
@@ -64,7 +64,7 @@ gcc $cflags -o "$tmp/elfsysv-exec" "$exec_dir/exec_main.c" \
 # The stub, native, over the shim. The stack reserve is DR-0028's, not a
 # tuning choice: the default puts the initial stack where the ELF world goes.
 $native $cflags -I"$here/shim" -Wl,--stack,0x100000 -o "$tmp/elfsysv-stub.exe" \
-  "$exec_dir/stub.c" "$exec_dir/enter.S" "$here/shim/mman.c" $loader_srcs \
+  "$exec_dir/stub.c" "$exec_dir/enter.S" "$exec_dir/exec_kind.c" "$exec_dir/dyn_exec.c" "$exec_dir/dyn_init.c" "$here/shim/mman.c" $loader_srcs \
   || { bad "the native stub does not build"; }
 
 # The specimen, cross-built exactly as WP-41's own.
