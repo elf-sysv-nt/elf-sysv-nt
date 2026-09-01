@@ -82,3 +82,26 @@ harness's.
 The pins live in `packages.tsv`, one row per package with its mirror path,
 sha256, build command and built binary. bzip2 is enough to stand the harness up;
 the next leaves are added a row at a time.
+
+## Image shape
+
+A clean symbol surface says the runtime can resolve what a package calls. It
+does not say the loader will take the image. The classifier that decides which
+crossing an image is owed — `exec_kind_of` (WP-56), the gate the dynamic
+crossing driver stands behind (DR-0058) — is the one that answers that, so the
+harness reads the built ELF with the loader's own path rather than a second
+reading of its own. `t/img_shape.c` runs `elf_parse` (WP-31) then
+`exec_kind_of` over the binary and prints its kind, its interpreter, and the
+sonames it needs; `accept.sh` builds it once with the host compiler over those
+two loader packages and reads every built binary through it.
+
+The verdict now clears two gates in order. A package whose symbols do not all
+resolve reads `needs-wiring`. One whose symbols resolve but whose image the
+classifier does not call dynamic reads `shape-mismatch` — not the shape the
+crossing driver runs, and not ready however clean its surface. Only a package
+that clears both reads `ready`. bzip2 reads `kind=dynamic`, interp
+`/lib64/ld-linux-x86-64.so.2`, needs `libc.so.6` — an interp-bearing `ET_EXEC`,
+exactly the shape DR-0058's driver is written to link — so it clears the shape
+gate and the `ready` it already earned on its surface now rests on the loader's
+reading, not only the harness's. `t/shape.sh` certifies the helper against a
+cross-built dynamic, static, and shared specimen whose kinds are known.
