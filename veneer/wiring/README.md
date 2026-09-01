@@ -1887,3 +1887,37 @@ with the two `.symver` tags playing no part in the resolution. WP-56's
 per-slice done-when is unchanged: still the differential against a real el8
 userland, with the live crossing the added NT check, and for this slice that
 added check is the bind.
+
+The syslog slice crosses next, the ninth crossed by its bind alone and the
+twenty-first crossing overall. Its table is five rows, all forwards and no
+shim: the whole of `syslog.h`, `openlog`, `syslog`, `vsyslog`, `closelog` and
+`setlogmask`. This is the plainest slice the crossing has met. Where io-mux's
+spread put four tags on eight distinct names, threads' put two tags on one
+name six times over, and regex's put two tags on one name once, syslog puts
+exactly one tag on each of five distinct names: every row versions at
+`GLIBC_2.2.5`, with no rename and no compat pair.
+
+So the crossing asks memory's question in its barest form: does a Cygwin-faced
+DLL export the whole set, or does the bind leave rows a shim must synthesise?
+Measurement leaves no row null -- no System V disposition as signal had, no
+struct translation as filesystem's stat family had, and not even a version tag
+to discount as regex and threads carried. syslog crosses by its bind alone,
+not by call: no syslog row is safely callable from a freestanding harness.
+`openlog` copies its ident into the C library's process-global logging state,
+and `syslog` and `vsyslog` format through `vsnprintf` and emit over a
+Unix-domain socket; Cygwin's runtime is SIGFE, entering cygtls on the way in,
+and a freestanding harness never brought that up -- the trap `fnmatch` sprang
+in filesystem. So the specimen calls nothing and reads the table the bind
+filled. Five checks, one bit each, so 31 is the only pass -- the bind leaving
+no row null, every filled slot landing inside the mapped image span
+`[base, base + SizeOfImage)`, the resolver discriminating while the
+plain-forward finding holds (`syslog` resolves, a junk name resolves null, and
+the single row whose export_name is `syslog` bound to exactly that export),
+`openlog`/`syslog`/`closelog` reaching three distinct bodies, and a second
+bind idempotent, per DR-0049's contract. The same refuse-before-entry and
+no-runtime controls the earlier crossings use bound it. `t/live-syslog.sh`
+records it. The crossing adds no decision: it confirms DR-0055's rule on the
+plainest slice, every row a plain forward onto its own export. WP-56's
+per-slice done-when is unchanged: still the differential against a real el8
+userland, with the live crossing the added NT check, and for this slice that
+added check is the bind.
