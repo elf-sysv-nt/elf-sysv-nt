@@ -50,4 +50,16 @@ GetModuleHandleA("elfsysv1.dll"), "puts");
 return p ? p(s) : -1;
 }
 
+int rp_eputs(const char *s)
+{
+typedef long (__attribute__((sysv_abi)) *write_fn)(int, const void *, unsigned long);
+static write_fn p;
+if (!p)
+p = (write_fn)(void *)GetProcAddress(
+GetModuleHandleA("elfsysv1.dll"), "write");
+if (!p)
+return -1;
+return (int)p(2, s, (unsigned long)rp_strlen(s));
+}
+
 #endif /* ELFSYSV_REALPROC */

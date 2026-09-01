@@ -48,6 +48,7 @@
 #define RP_STRLEN(s)             strlen((s))
 #define RP_STRTOULL(s, e, base)  strtoull((s), (e), (base))
 #define RP_PUTS(s)               puts((s))
+#define RP_EPUTS(s)              fputs((s), stderr)
 #define RP_SNPRINTF(b, n, ...)   snprintf((b), (n), __VA_ARGS__)
 #define RP_VSNPRINTF(b, n, f, a) vsnprintf((b), (n), (f), (a))
 
@@ -76,6 +77,12 @@ int                rp_snprintf(char *buf, size_t size, const char *fmt, ...);
  * uses. Returns non-negative on success, EOF (-1) if the export is absent. */
 int                rp_puts(const char *s);
 
+/* The stderr twin. No `stderr` FILE* is exported (spike/reent-stub-stderr-
+ * crossing), so the crossing takes a sysv_abi write(2, s, len) thunk. The
+ * caller composes the finished line, newline included, host-side; this writes
+ * it verbatim. Returns the byte count, -1 if the export is absent. */
+int                rp_eputs(const char *s);
+
 #define RP_STRCMP(a, b)          rp_strcmp((a), (b))
 #define RP_STRNCMP(a, b, n)      rp_strncmp((a), (b), (n))
 #define RP_STRLEN(s)             rp_strlen((s))
@@ -83,6 +90,7 @@ int                rp_puts(const char *s);
 #define RP_SNPRINTF(b, n, ...)   rp_snprintf((b), (n), __VA_ARGS__)
 #define RP_VSNPRINTF(b, n, f, a) rp_vsnprintf((b), (n), (f), (a))
 #define RP_PUTS(s)               rp_puts((s))
+#define RP_EPUTS(s)              rp_eputs((s))
 
 #endif /* ELFSYSV_REALPROC */
 
