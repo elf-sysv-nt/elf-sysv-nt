@@ -63,3 +63,6 @@ reent-veneer-thunk	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2
 # thunk keys on a name the WP-27 face exports, across the whole forward set,
 # so the run-time resolver's walk finds an export for each.
 reent-veneer-face-exports	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2026-[0-9]*.txt	bash measure.sh
+# reent-stub-realproc-window locates the real-process stub fault: not a window
+# collision but the crt0 cygwin_internal ABI crossing; a bridge reaches main.
+reent-stub-realproc-window	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
