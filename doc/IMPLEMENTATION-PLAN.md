@@ -226,6 +226,20 @@ lands when the toolchain is next built at WP-26, since a one-line specs default
 does not warrant rebuilding a closed stage on its own, and `t/accept.sh` gains
 the claim then.
 
+Three more defaults ride that same rebuild, each a requirement recorded after a
+build-side obligation was found living only in prose, and each realized here
+rather than left for a package to remember. Max-page-size at or above the host
+granule (DR-0061), so every image is granule-separable and the loader's refusal
+(DR-0008) never has to fire on our own builds. `-fcf-protection=none` (DR-0062),
+so the target compiler opts out of CET by default the way it already opts out of
+the red zone, rather than only under the rpm macros. And codegen that emits no
+`%fs`-relative thread-pointer access (DR-0063), the compiler half of the TLS
+constraint whose linker half WP-12 already enforces; the `%fs` case fails
+silently, so this rebuild also owes the build-side image scan DR-0063 names.
+Together they are the done-when for the retirement task the operator carries as
+"rebuild gcc, recompile the world," and `t/accept.sh` gains a claim for each.
+The `%fs` codegen mechanism itself is the operator's to settle (DR-0063).
+
 The flag is scaffolding rather than the answer, which DR-0006 records and
 which the target header now says before it says anything else. The mandate is
 a target default rather than a spec string, which is stronger: a spec can be

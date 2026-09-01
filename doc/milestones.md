@@ -14,9 +14,15 @@ linker emitting `%fs` code unasked, and an eleventh that built Cygwin from
 source. All eleven have run, and one of them took the recommended path off the
 table, which is what a spike is for.
 
-Each has a directory under `spike/` and one question it answers, yes or no fo
-most and a count for the fifth. The verdict is the deliverable. Reaching one is
-a successful outcome even when the answer is unwelcome, and especially then.
+Each has a directory under `spike/`, and most answer one question — yes or no
+for all but the fifth, a count for that one. Two carry a second characterization
+beside the first: `abi-crossing` measures the fault beneath a System V frame as
+well as the signal crossing, and `map-and-jump` measures span-claim overlap as
+well as the map-and-jump itself, so `test/spike-regen.tsv`, the authoritative
+index, counts fifteen measurements across the thirteen directories. Both second
+findings are recorded in their spike's entry below. The verdict is the
+deliverable. Reaching one is a successful outcome even when the answer is
+unwelcome, and especially then.
 
 In dependency order, which is also cost order.
 
