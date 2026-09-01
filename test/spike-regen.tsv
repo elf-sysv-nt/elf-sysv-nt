@@ -104,3 +104,10 @@ reent-stub-realproc-faceload	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dl
 # over the low ~2 MB at 0x400000, made before any user code -- the runtime own
 # low reservation, colliding with the window's base. Needs the WP-26 build tree.
 reent-stub-realproc-window-occupant	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/winsup/cygwin/crt0.o	results-2026-[0-9]*.txt	bash measure.sh
+
+# reent-stub-realproc-window-reconcile drives the real elf_window_reserve_in
+# (its DR-0068/0069 reconcile fallback) against a real cygwin-linked child.
+# The reconcile is refused: the low window is not the bare MEM_RESERVE the
+# planner models but reserved+committed, and elf_window_plan refuses a
+# committed occupant. Re-aims item 1. Needs the WP-26 build tree.
+reent-stub-realproc-window-reconcile	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/winsup/cygwin/crt0.o	results-2026-[0-9]*.txt	bash measure.sh
