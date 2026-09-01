@@ -1,2 +1,0 @@
-live-crossing the io-mux slice (WP-56): 8 rows, all forward-same, no shim.
-WIP scaffold; see t/live-io-mux.sh once landed.

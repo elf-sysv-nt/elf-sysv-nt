@@ -1764,3 +1764,44 @@ that is SIGFE throughout yet needs no shim placeholder repointed at all, every
 row already a plain forward onto its own export. WP-56's per-slice done-when is
 unchanged: still the differential against a real el8 userland, with the live
 crossing the added NT check, and for this slice that added check is the bind.
+
+The io-mux slice crosses next, the sixth crossed by its bind alone and the
+eighteenth crossing overall. Its table is eight rows, all forwards and no
+shim: the readiness multiplexers (`poll`, `ppoll`, `pselect`, `select`) and
+the descriptor-backed event sources (`signalfd`, and the timerfd trio
+`timerfd_create`, `timerfd_gettime`, `timerfd_settime`). The one thing new,
+small and worth naming, is version spread. identity's seventeen rows all
+versioned at `GLIBC_2.2.5`; io-mux's eight carry four tags -- `poll`,
+`pselect` and `select` at `GLIBC_2.2.5`, `ppoll` at `GLIBC_2.4`, `signalfd` at
+`GLIBC_2.7`, and the timerfd trio at `GLIBC_2.8`. The tag lives in the thunk's
+`.symver`, not in the export name the bind resolves, so every row's export_name
+is still its own plain symbol and the spread changes nothing for the crossing.
+So the crossing asks memory's question and gets memory's answer in its plainest
+form across a mixed-version slice: does a Cygwin-faced DLL export the whole set,
+or does the bind leave rows a shim must synthesise? Measurement leaves no row
+null. Where process's four `getrlimit64` and `setrlimit64` rows looked like a
+gap until their export_name aliases closed it, io-mux has no such gap to explain
+away -- no LFS `*64` variant to reconcile, no System V disposition as signal
+had, no struct translation as filesystem's stat family had.
+
+io-mux crosses by its bind alone all the same, not by call: no io-mux row is
+callable from a freestanding harness. `poll`, `ppoll`, `pselect` and `select`
+block on real descriptors and a timeout no event loop here satisfies; `signalfd`
+and the timerfd trio create descriptor-backed kernel objects and are SIGFE,
+entering the runtime's `cygtls` on the way in. A freestanding harness brings
+none of that up, so a body called here would touch descriptor and signal-mask
+state the harness never initialised -- the trap `fnmatch` sprang in filesystem.
+So the specimen calls nothing and reads the table the bind filled. Five checks,
+one bit each, so 31 is the only pass -- the bind leaving no row null, every
+filled slot landing inside the mapped image span `[base, base + SizeOfImage)`,
+the resolver discriminating while the no-alias finding holds (`poll` resolves, a
+junk name resolves null, and the row whose export_name is `poll` bound to
+exactly that export), `poll`/`select`/`signalfd` reaching three distinct bodies
+across three of the slice's four version tags, and a second bind idempotent, per
+DR-0049's contract. The same refuse-before-entry and no-runtime controls the
+earlier crossings use bound it. `t/live-io-mux.sh` records it. The crossing adds
+no decision: it confirms DR-0055's rule on a version-spread slice, every row a
+plain forward onto its own export with the four `.symver` tags playing no part
+in the resolution. WP-56's per-slice done-when is unchanged: still the
+differential against a real el8 userland, with the live crossing the added NT
+check, and for this slice that added check is the bind.
