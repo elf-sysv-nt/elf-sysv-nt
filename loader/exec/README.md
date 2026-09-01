@@ -82,6 +82,19 @@ program with no startup file — which is what the certification specimen is —
 jumps to it with a status in `%rdi`. It is the one way out of the ELF world that
 does not need the syscall surface a later package delivers.
 
+Between the parse and the entry the stub asks one more question: which crossing
+the image is owed. `exec_kind_of` (WP-56) reads the parsed image — its `e_type`
+and whether it names a `PT_INTERP` — and the stub branches on the verdict, the
+single decision DR-0058 places here. A static executable keeps the direct entry
+above, the path this package certifies. A dynamic image, one that names an
+interpreter (bzip2's shape), is not entered at `e_entry`: its `_start` runs
+before the GOT is relocated against the runtime, so entered that way it faults
+on its first library call, and the crossing that relocates it — DR-0058's, over
+the loader packages already delivered — is not yet wired into the stub, so the
+stub refuses the image with that reason rather than entering it into a fault. An
+image this route does not run at all — a relocatable object, a core, a bare
+shared object — is refused before it is even mapped.
+
 ## What is certified
 
 `t/run.sh` builds all of it and holds it to the done-when. The classifier, the
@@ -98,6 +111,13 @@ alignment at `_start`, its own read-only sentinel, and a zero past `p_filesz` �
 so a status of 127 is the only pass. A `#!` script still works, a two-hop chain
 comes out in the kernel's order, a cycle is refused by name, and a host image
 comes back as the host's rather than as an error.
+
+The stub's own branch is then held to each shape it must tell apart. The static
+specimen still leaves 127 — the classification did not disturb the path it
+guards. A dynamic image, an interp-bearing `ET_EXEC` at el8's segment alignment
+so the map takes it, is refused as owed the crossing rather than entered, and
+the refusal names DR-0058. A bare shared object — a dynamic section, no
+interpreter — is refused as no program on this route, before it is mapped.
 
 The quoting has its own tests for a reason worth repeating. It is sized with no
 buffer and then written into one, and the first version did that with a macro
