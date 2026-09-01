@@ -35,9 +35,15 @@ loader, and three things stand between the reproduced probe and that:
    regress the WP-41 exec-* certifications the plain-PE stub passes today.
    `spike/reent-stub-link/` measures a link change alone: the stub links in the
    real-process shape (once `-lgcc` supplies the builtins `-nostdlib` drops), but
-   the standalone stub faults before entry -- its low non-PIE window collides
-   with `_dll_crt0`'s own mappings -- so item 1 is loader work reconciling that
-   contract, not a link flag. See acceptance/reent/stub-realproc.md.
+   the standalone stub faults before entry. `spike/reent-stub-realproc-window`
+   locates that fault: the stub links at `0x100400000`, not the `0x400000`
+   window it reserves, and what faults is the crt0 startup crossing --
+   `_cygwin_crt0_common` calls `cygwin_internal` Microsoft-style into the faced
+   runtime's System V veneer. Interposing the crossing reaches `main`; a plain
+   `printf` into the faced libc then still does not cross. So item 1 is not a
+   window reconciliation but crossing the Microsoft <-> System V ABI boundary at
+   every host-to-faced-runtime call -- the reframing the decision record and
+   `acceptance/reent/stub-realproc.md` carry -- not a link flag.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
