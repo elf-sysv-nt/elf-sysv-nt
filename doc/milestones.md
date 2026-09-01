@@ -19,7 +19,7 @@ for all but the fifth, a count for that one. Two carry a second characterization
 beside the first: `abi-crossing` measures the fault beneath a System V frame as
 well as the signal crossing, and `map-and-jump` measures span-claim overlap as
 well as the map-and-jump itself, so `test/spike-regen.tsv`, the authoritative
-index, counts fifteen measurements across the thirteen directories. Both second
+index, counts sixteen measurements across the fourteen directories. Both second
 findings are recorded in their spike's entry below. The verdict is the
 deliverable. Reaching one is a successful outcome even when the answer is
 unwelcome, and especially then.
@@ -41,6 +41,7 @@ In dependency order, which is also cost order.
 | 11 | `spike/cygwin-from-source/` | Can this machine build `cygwin1.dll`, and does a reserving delivery hold the red zone? | WP-26's from-source build and the red-zone reservation. Run 2026-08-29: both recorded, the prerequisites and the reservation captured. |
 | 12 | `spike/demand-census/` | How many el8 packages need a symbol the classification can only stub? | WP-56's slice order and its named acceptance package. Infrastructure landed 2026-08-31; the run over the 4855-name worklist is in progress. |
 | 13 | `spike/reent-bringup/` | Which host shape makes a reent-consuming libc body work across the face? | WP-56's `reent-tls-bringup` road-to-green row. Run 2026-09-01: the real-process shape (crt0/`_dll_crt0`) carries it — a body sets `errno` through the caller's reent — while the cygload shape's bring-up call hangs; DR records the certification path. |
+| 14 | `spike/reent-stub-link/` | Does relinking the loader stub in the real-process shape make it start? | WP-56's `reent-tls-bringup` road-to-green row, item 1. Run 2026-09-01: it links (once `-lgcc` supplies the builtins `-nostdlib` drops) but the standalone stub faults before entry, its low non-PIE window colliding with `_dll_crt0`'s own mappings; so item 1 is loader work reconciling that contract, not a link flag. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
