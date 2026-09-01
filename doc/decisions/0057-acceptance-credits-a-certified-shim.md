@@ -1,4 +1,4 @@
-# DR-XXXX — the acceptance embryo credits a certified shim, not only a filled stub
+# DR-0057 — the acceptance embryo credits a certified shim, not only a filled stub
 
 Accepted 2026-09-01. Source: WP-56, the acceptance harness after the last slice crossed.
 
