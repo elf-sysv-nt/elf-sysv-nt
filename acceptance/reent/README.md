@@ -51,9 +51,10 @@ loader, and three things stand between the reproduced probe and that:
    on is now measured: `spike/reent-stub-faceload` builds the real-process host
    and finds its `--runtime` `LoadLibraryA` of the faced `elfsysv1.dll` returns
    the runtime's base -- the host's own module, brought up by `crt0` -- with no
-   `error 1114` cygheap wedge (measure.sh, 2026-09-01). What item 1 still owes
-   is the full relink of `loader/exec/stub.c` into that shape and its remaining
-   libc use, behind item 3's live crossing.
+   `error 1114` cygheap wedge (measure.sh, 2026-09-01). The stderr diagnostics
+   have since been rerouted through the measured fd-2 `write(2)` crossing
+   (`loader/exec/realproc/STDERR-REROUTE.md`), so what item 1 still owes is
+   `slurp`'s file I/O, behind item 3's live crossing.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
