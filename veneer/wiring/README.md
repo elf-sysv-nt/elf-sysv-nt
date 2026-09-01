@@ -2017,3 +2017,46 @@ both wired rows a plain forward onto their own export while the slice's
 partition. WP-56's per-slice done-when is unchanged: still the differential
 against a real el8 userland, with the live crossing the added NT check, and
 for this slice that added check is the bind.
+
+The system slice crosses last, the twelfth crossed by its bind alone and the
+twenty-fourth crossing overall -- the last of WP-56's per-slice live
+crossings. Its table is six rows, every one a forward and no shim: libc's
+machine-and-kernel enquiries. Five come from `sys/sysinfo.h` --
+`get_avphys_pages`, `get_nprocs`, `get_nprocs_conf`, `get_phys_pages` and
+`sysinfo` -- and one from `sys/utsname.h`, `uname`. Each versions at
+`GLIBC_2.2.5` with no rename and no compat pair, exactly one tag on each of
+six distinct names -- the plainness sysv-ipc, syslog and io had.
+
+The one thing new here is that the wired table and the slice are the same
+width. The demand ranking placed six names in this slice, down its two
+headers, and the table wires all six: no name moved to `librt` as io's
+sixteen `aio`/`lio_listio` names did, and none is a stub the classification
+left to WP-53's ret as io's thirteen `preadv`/`sendfile` names were. So the
+slice carries no residue for `real-map.sh`'s partition to own -- where io's
+crossing measured a table two rows wide against a slice of thirty-one, this
+one measures the whole slice binding whole.
+
+So the crossing asks memory's question and gets memory's answer across a slice
+with nothing held back: does a Cygwin-faced DLL export the six, or does the
+bind leave a row a shim must synthesise? Measurement leaves no row null.
+system crosses by its bind alone, not by call: no system row is safely
+callable from a freestanding harness. `uname`, `sysinfo` and the page and
+processor counts read the machine through Cygwin's subsystem, which is SIGFE,
+entering `cygtls` on the way in and reaching the fhandler and kernel-query
+layers, and a freestanding harness never brought that up -- the trap
+`fnmatch` sprang in filesystem. So the specimen calls nothing and reads the
+table the bind filled. Five checks, one bit each, so 31 is the only pass --
+the bind leaving no row null, every filled slot landing inside the mapped
+image span `[base, base + SizeOfImage)`, the resolver discriminating while the
+plain-forward finding holds (`uname` resolves, a junk name resolves null, and
+the single row whose export_name is `uname` bound to exactly that one export),
+`uname`/`sysinfo` reaching two distinct bodies, and a second bind idempotent,
+per DR-0049's contract. The same refuse-before-entry and no-runtime controls
+the earlier crossings use bound it. `t/live-system.sh` records it. The
+crossing adds no decision: it confirms DR-0055's rule on a slice with no
+residue at all, every wired row a plain forward onto its own export and
+nothing outside the table. WP-56's per-slice done-when is unchanged: still the
+differential against a real el8 userland, with the live crossing the added NT
+check, and for this slice that added check is the bind. This is the last
+slice to cross; what remains for WP-56 is the acceptance done-when, the named
+vendor package that builds, links, runs its suite and passes.
