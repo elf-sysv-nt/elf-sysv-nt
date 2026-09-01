@@ -6,4 +6,5 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 bash "$here/classify.sh"
+bash "$here/shape.sh"
 echo "acceptance: unit tests passed"
