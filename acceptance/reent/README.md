@@ -116,6 +116,24 @@ loader, and three things stand between the reproduced probe and that:
    place through a real cygwin-linked child rather than the in-process unit
    fixtures.
 
+   The first of those verbs, `reserve`, is now driven live
+   (`spike/reent-stub-realproc-window-reconcile`), and it re-aims the design:
+   `elf_window_reserve_in`'s reconcile fallback is refused against a real
+   cygwin-linked child (`reserve_in=win_err_refused`, `window_covered=no`),
+   because the child's low window is not the bare `MEM_RESERVE` the planner
+   models but `low_window_occupant=reserved+committed` -- a private reservation
+   plus committed pages below the free tail, the runtime's own, present before
+   any user code. `elf_window_plan` refuses any committed occupant by design, so
+   the fallback returns `win_err_refused`. So item 1's reserve verb does not yet
+   clear a real child: the unit fixtures modelled the low region as one
+   `MEM_RESERVE`, and the live child carries a committed occupant beside it. How
+   the loader should treat a committed low occupant that is the child's own
+   runtime allocation -- adopt it, reserve only up to it, reserve around it, or
+   otherwise -- is a design step with more than one live candidate, parked for
+   the operator (`a/build-blockers.log`) rather than guessed. The spike fixes
+   the constraint that step must satisfy and guards that the obstacle
+   reproduces.
+
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
    needing one; the bare ELF runtime specimens (`libgreet.so`) carry no reent.
