@@ -1,0 +1,9 @@
+script  reent-veneer-body 1.0
+
+host        ins-15
+cross gcc   x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+date        2026-09-01
+
+targets_all_exported=yes  (1047/1047 forwarding targets are face exports; 1767 exports total)
+link_forward_self_references=yes  (strtol@@GLIBC_2.2.5 defined in .dynsym, no UND import of strtol)
+verdict=yes

@@ -51,3 +51,7 @@ reent-stub-link	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-202
 # reent-veneer-runtime measures what the WP-53 libc.so.6 veneer, built today,
 # provides for item 2: the reent surface yes, a live reent body no (all stubs).
 reent-veneer-runtime	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2026-[0-9]*.txt	bash measure.sh
+# reent-veneer-body measures item 2's target surface: every forward-map
+# target is a real face export, yet a link-time forward self-references, so the
+# bodies must be runtime-resolving thunks against the WP-27 crossing.
+reent-veneer-body	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
