@@ -70,4 +70,8 @@ grep -q 'DIVERGED files/hello' "$tmp/diverge.txt"
 # The real forward map against the real slice map, pinned counts.
 sh real-map.sh
 
+# The ctype-table filled stub: pinned to its generator, and certified
+# byte-for-byte against el8's real tables where the image is reachable.
+bash ctype-table.sh
+
 echo ok
