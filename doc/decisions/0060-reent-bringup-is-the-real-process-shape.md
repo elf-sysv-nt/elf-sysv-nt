@@ -1,4 +1,4 @@
-# DR-XXXX — reent bring-up is the real-process shape, not a cygload call
+# DR-0060 — reent bring-up is the real-process shape, not a cygload call
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row.
 
