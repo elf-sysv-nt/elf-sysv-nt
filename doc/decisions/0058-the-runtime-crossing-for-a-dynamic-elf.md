@@ -1,4 +1,4 @@
-# DR-XXXX — The runtime crossing for a dynamic ELF
+# DR-0058 — The runtime crossing for a dynamic ELF
 
 DR-0045 settled how a static ELF reaches the faced runtime: the stub loads
 the runtime, the image finds it through `AT_BASE`, and a hand-written call

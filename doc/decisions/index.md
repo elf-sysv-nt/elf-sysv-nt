@@ -68,6 +68,7 @@ is a record nobody will find.
 | [0055](0055-a-sigfe-slice-crosses-live-by-its-bind-alone.md) | a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone | accepted 2026-09-01 | none |
 | [0056](0056-the-stat-family-does-not-forward.md) | the stat family does not forward, and filesystem crosses by its bind | accepted 2026-09-01 | none |
 | [0057](0057-acceptance-credits-a-certified-shim.md) | the acceptance embryo credits a certified shim, not only a filled stub | accepted 2026-09-01 | none |
+| [0058](0058-the-runtime-crossing-for-a-dynamic-elf.md) | The runtime crossing for a dynamic ELF | accepted 2026-09-01 | none |
 
 ## What earns a record
 
