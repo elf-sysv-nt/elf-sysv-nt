@@ -1409,3 +1409,75 @@ the way down, widening on the way up, scaling counts and returned end pointers b
 the ratio -- not a tail jump. The wire table's thunks stay in place only until
 that shim generator replaces them. WP-56's overall done-when is unchanged: still
 the vendor package's own test suite, run and passed.
+
+
+## The terminal slice: live crossing
+
+wchar was the eleventh crossing and the first whose finding was negative, and
+it turned on a scalar width; terminal is the twelfth, and its finding is
+negative too, one level up -- it turns on an aggregate's layout. Its thirty
+rows are forwards but one shim (`ioctl`), so the bind check is the all-resolve
+shape math, stdlib, sockets, posix, time, misc and wchar used -- every row must
+resolve, `missing == 0`, not string's exactly-one-null -- and it holds: every
+terminal name, `ioctl` included, is exported by the real DLL, so a resolved
+thunk reaches the real body. What the crossings before it confirmed for their
+rows, and this one refutes for the struct-reading rows, is that a resolved
+terminal row crosses as a plain tail jump.
+
+`cfgetispeed` (w00000), `cfgetospeed` (w00001) and `cfmakeraw` (w00002; see
+`wire-terminal.gen.s` for the index -> name mapping) are the rows the specimen
+calls. All three are marked NOSIGFE in `runtime/exports/cygwin-exports.tsv`,
+standing on no reent, locale, table or kernel -- exactly the freestanding shape
+string's `ffs` family, stdlib's `abs` family, misc's `insque`/`remque` and the
+rest were chosen for. So the thunk reaches the body cleanly. The body then
+reads or writes the caller's `struct termios` by its own idea of where the
+fields lie, and that idea is the finding.
+
+The face this tree presents is el8's, where `struct termios` is sixty bytes
+with `NCCS` thirty-two; the body inside `elfsysv1.dll` is Cygwin's newlib,
+whose `struct termios` is forty-four bytes with `NCCS` eighteen. The leading
+flag words and the start of `c_cc` share their offsets exactly -- `c_iflag` at
+0, `c_oflag` at 4, `c_cflag` at 8, `c_lflag` at 12, `c_cc` at 17 on both -- but
+the shorter `c_cc` pulls `c_ispeed` and `c_ospeed` from the face's 52/56 to the
+body's 36/40. `cfgetispeed` and `cfgetospeed` in the body are plain field reads
+(`return t->c_ispeed;`, measured on Cygwin), so on a face-laid struct they read
+the body's offset, fourteen bytes short of the face's field. The paragraph on
+the terminal wiring above recorded the surface as value-preserving because its
+diff cases ran with both sides on el8, glibc against glibc, both `NCCS`-32. Face
+against the real DLL, `cfgetispeed` on a struct whose face `c_ispeed` was filled
+returns whatever sits at the body's offset instead.
+
+The specimen owns every buffer outright -- a plain byte array laid out by hand
+to the face's offsets, never a libc `struct termios` -- so what the checks read
+is the body's own placement against the face's and not a header the two sides
+lay out for the compiler differently. It puts one marker at the face's speed
+offset and a different one at the body's, so a body reading the face field
+could not match the body-offset check by luck.
+
+Five checks, one bit each, so 31 is the only pass -- and here a pass means the
+negative finding holds and reproduces: the all-forward bind with every terminal
+name exported, then `cfgetispeed` reaching the real body and reading the body's
+`c_ispeed` at offset 36 (the value placed there, not the face's at 52), then
+`cfgetospeed` reproducing the divergence on the output speed at offset 40, then
+a control confirming the body never consults the face's offset -- a struct with
+only the face fields set returns zero -- and finally `cfmakeraw` crossing the
+shared leading region exactly, the four flag words coming back the body's
+measured raw-mode values (`0xfffefa1c`, `0xfffffffe`, `0xfffffeff`,
+`0xfffffed8`), run last so a body that had drifted on the shared region would
+show it there. Status 31 is the only pass, with the same refuse-before-entry
+and no-runtime controls the earlier crossings use. `t/live-terminal.sh` records
+it.
+
+The consequence is a decision this crossing adds: the terminal slice's
+`struct termios`-bearing rows are reclassified from forward to shim, every row
+that touches `c_cc` past its start, `c_ispeed` or `c_ospeed` needing a
+layout-translating shim -- mapping the face's sixty-byte, `NCCS`-32 struct to
+the body's forty-four-byte, `NCCS`-18 one on the way down and back on the way up
+-- not a tail jump. `cfmakeraw` and any row confined to the shared leading flag
+words may stay a forward; the crossing pins that those offsets coincide. The
+wire table's thunks stay in place only until that shim generator replaces the
+struct-reading rows. The finding generalizes: `struct termios` is one aggregate
+the two libcs size differently and unlikely to be the last, so every later
+struct-bearing slice must be crossed against the real DLL before its struct rows
+are trusted as forwards. WP-56's overall done-when is unchanged: still the
+vendor package's own test suite, run and passed.
