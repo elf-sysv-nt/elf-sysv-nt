@@ -1,0 +1,11 @@
+script  reent-veneer-thunk 1.0
+
+host        ins-15
+cross gcc   x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+date        2026-09-01
+
+thunk_defines_versioned_symbol=yes  (strtol@@GLIBC_2.2.5 FUNC, 40 bytes, not a ret stub)
+thunk_no_elf_self_import=yes  (no UND strtol, no relocation names strtol)
+thunk_keys_on_export_name=yes  ("strtol" in .rodata, the run-time resolver's key)
+resolver_stays_private=yes  (_elfsysv_resolve absent from .dynsym, hidden)
+verdict=yes
