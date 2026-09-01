@@ -1,4 +1,4 @@
-# DR-XXXX — a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone
+# DR-0055 — a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone
 
 Accepted 2026-09-01. Source: WP-56, the stdio slice's live crossing.
 
