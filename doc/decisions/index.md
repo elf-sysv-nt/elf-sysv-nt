@@ -66,6 +66,7 @@ is a record nobody will find.
 | [0053](0053-wchar-is-two-bytes-in-the-body.md) | wchar_t is two bytes in the body, four in the face | accepted 2026-09-01 | none |
 | [0054](0054-termios-layout-differs-in-the-body.md) | struct termios is laid out differently in the body than the face | accepted 2026-09-01 | none |
 | [0055](0055-a-sigfe-slice-crosses-live-by-its-bind-alone.md) | a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone | accepted 2026-09-01 | none |
+| [0056](0056-the-stat-family-does-not-forward.md) | the stat family does not forward, and filesystem crosses by its bind | accepted 2026-09-01 | none |
 
 ## What earns a record
 

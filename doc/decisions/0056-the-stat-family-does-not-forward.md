@@ -1,4 +1,4 @@
-# DR-XXXX — the stat family does not forward, and filesystem crosses by its bind
+# DR-0056 — the stat family does not forward, and filesystem crosses by its bind
 
 Accepted 2026-09-01. Source: WP-56, the filesystem slice's live crossing.
 
