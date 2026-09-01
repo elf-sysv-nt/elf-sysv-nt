@@ -1,57 +1,54 @@
 /*
- * live-filesystem -- WP-56's fourteenth live crossing. The bind loop resolves
- * the filesystem slice's real table against a real elfsysv1.dll, and one of the
- * slice's generated thunks -- fnmatch -- is called for real on NT.
+ * live-filesystem -- WP-56's fourteenth live crossing, and the second crossed
+ * by its bind alone. The bind loop (wire.c) resolves the filesystem slice's
+ * real table against a real elfsysv1.dll; no filesystem body is called.
  *
  * The filesystem slice is wire-filesystem.gen.c: 103 rows, 67 forwards and 36
- * shims, every row naming an elfsysv1.dll export. Its bind check is math's,
- * stdlib's, sockets's, posix's, time's, misc's and stdio's shape -- every row
- * must resolve, missing == 0.
+ * shims. DR-0055 crosses a SIGFE slice by its bind alone and lists the slices
+ * that inherit the rule, omitting filesystem on the reading that filesystem
+ * carries a callable pure row. Measurement refutes that reading. filesystem's
+ * only NOSIGFE, argument-only rows -- fnmatch, alphasort, versionsort -- look
+ * pure but are not: fnmatch consults the locale's ctype and collation, and
+ * alphasort/versionsort run strcoll/strverscmp over a struct dirent, so each
+ * stands on locale or reent state a freestanding harness never brings up.
+ * Calling fnmatch here proved it directly: built byte-identical and run three
+ * times it returned three different verdicts (a five-check status of 30, then
+ * 5, then 31), the signature of a body reading uninitialised state. NOSIGFE
+ * names the calling convention a thunk needs, not whether the body behind it
+ * stands on its own -- DR-0055's own words -- and filesystem is a slice with
+ * NOSIGFE rows and no stateless one. So it crosses by its bind alone, as stdio
+ * did, and its bodies are left to the two bars that reach them: diff-slice.sh
+ * on the pinned el8 image, and process bring-up.
  *
- * DR-0055 fixed the rule for a SIGFE slice with no callable pure row: it
- * crosses by its bind alone. That record lists the SIGFE-heavy slices that
- * inherit the rule -- memory, signal, process, identity, io-mux, threads,
- * regex, syslog, sysv-ipc, io, system -- and pointedly omits filesystem,
- * because filesystem carries pure NOSIGFE rows a freestanding harness can call.
- * fnmatch is one: runtime/exports/cygwin-exports.tsv marks it NOSIGFE, and its
- * body is a byte-pattern matcher standing on no reent, no cygheap, no clock and
- * no kernel -- for an ASCII pattern in the default C locale it is the pure
- * comparison string's ffs and misc's insque were. Its arguments are two
- * const char * the specimen owns and an int flag word, no libc struct whose two
- * sides might disagree, the same discipline every earlier crossing kept. The
- * rest of the slice -- open, stat, the readdir and xattr families -- reads the
- * fd table and the cygheap and is left for the differential and process
- * bring-up.
- *
- * fnmatch is w00028; see wire-filesystem.gen.s for the index -> name mapping.
- * It is declared here with fnmatch's own prototype and called directly by its
- * generated label. System V, the convention this whole unit is compiled to, is
- * the shape a real ELF caller reaches it through too.
- *
- * What fnmatch adds that the earlier crossed rows did not is a finding. The
- * forward is wired forward-same, but the flag word is not value-preserving:
- * el8's <fnmatch.h> numbers FNM_PATHNAME 0x01 and FNM_NOESCAPE 0x02, while
- * Cygwin's numbers them the other way round -- FNM_NOESCAPE 0x01, FNM_PATHNAME
- * 0x02. FNM_PERIOD (0x04), FNM_LEADING_DIR (0x08) and FNM_CASEFOLD (0x10) agree,
- * and FNM_NOMATCH is 1 on both. So the flagless call crosses value-preserving,
- * but an el8 caller passing FNM_PATHNAME (0x01) reaches a body that reads 0x01
- * as FNM_NOESCAPE: the forward misdelivers it, and fnmatch needs a shim that
- * swaps the two low flag bits. This crossing shows both halves against the real
- * DLL: the flagless contract holds, and the body reads 0x01 as NOESCAPE and
- * 0x02 as PATHNAME, which is Cygwin's numbering and not el8's.
+ * The bind carries a finding of its own. Eleven rows do not resolve, and they
+ * are exactly the rows a real shim must synthesise. Ten are the stat family:
+ * glibc's versioned wrappers __xstat, __fxstat, __lxstat, __xmknod, their *at
+ * forms and their *64 forms -- the (int version, ...) entry points el8 binaries
+ * import. Cygwin has no such ABI: it exports plain stat, fstat, lstat, fstatat,
+ * mknod and mknodat (all present in the DLL), and being LP64 it has no separate
+ * *64 symbol. The eleventh is getdirentries, which Cygwin exports neither as
+ * itself nor as getdents. The generator left the glibc name in each row's
+ * export_name as a placeholder; a real shim body drops glibc's version
+ * argument, translates the struct stat layout and calls the Cygwin function
+ * (the *64 rows onto the same call), and getdirentries is composed from
+ * readdir/seekdir/telldir or left a documented stub. Every other row -- every
+ * forward, and the 25 shims whose export exists -- binds.
  *
  * Reports one bit per check through the terminator the stub puts in %rdx,
  * so 31 is the only passing status (five checks):
  *
- *   0x01  the bind resolved every row of the 103-row table (missing 0)
- *   0x02  fnmatch("*.c", "foo.c", 0) == 0 -- the flagless forward matches
- *   0x04  fnmatch("*.c", "foo.h", 0) == FNM_NOMATCH -- and rejects, and
- *         FNM_NOMATCH is 1 on both libcs, so the return crosses too
- *   0x08  fnmatch("*", "a/b", 0x02) == FNM_NOMATCH -- 0x02 is PATHNAME in the
- *         body, so '*' is stopped at '/'
- *   0x10  fnmatch("*", "a/b", 0x01) == 0 -- 0x01 is NOESCAPE in the body, not
- *         PATHNAME, so '*' crosses '/': el8's FNM_PATHNAME does not reach the
- *         body as PATHNAME, the finding this crossing earns
+ *   0x01  the bind left exactly the eleven stat-family and getdirentries rows
+ *         unresolved and every other row filled -- the finding as a check: the
+ *         null rows are exactly the set a shim must synthesise, no more, no less
+ *   0x02  every filled slot lands inside the DLL's mapped image span, so a
+ *         resolved thunk tail-jumps into the real body region, not unmapped
+ *         space (the eleven null slots are not filled and are not checked)
+ *   0x04  the resolver discriminates: chmod, a real forward, resolves; __xstat,
+ *         a stat-family name Cygwin does not export, does not; and a junk name
+ *         does not -- so the all-but-eleven result is a fact about the names
+ *   0x08  distinct exported names reach distinct bodies (chmod, closedir, fnmatch)
+ *   0x10  the bind is idempotent, per DR-0049: a rebind leaves the same eleven
+ *         null and every filled slot equal to a fresh resolve of its name
  */
 
 #include <stdint.h>
@@ -65,10 +62,34 @@ typedef void (*terminator_fn)(uint64_t status);
 extern struct esn_wire_ent __esn_wire_filesystem[];
 extern const unsigned long __esn_wire_filesystem_n;
 
-/* The wired thunk this specimen calls directly, by its generated label.
- * fnmatch takes two const char * and an int flag word and returns an int,
- * exactly its real prototype, without reaching into the very libc under test. */
-extern int w00028(const char *pattern, const char *string, int flags); /* fnmatch */
+/* The eleven rows that cannot bind against a Cygwin-faced DLL: glibc's
+ * versioned stat/mknod wrappers and getdirentries. A real shim body reaches
+ * Cygwin's plain stat/fstat/lstat/fstatat/mknod/mknodat (or, for getdirentries,
+ * composes readdir/seekdir/telldir); the generator left the glibc name as a
+ * placeholder, so these are precisely the rows the bind refuses. */
+static const char *const expected_null[] = {
+"__fxstat", "__fxstat64", "__fxstatat", "__fxstatat64",
+"__lxstat", "__lxstat64", "__xmknod", "__xmknodat",
+"__xstat", "__xstat64", "getdirentries", 0
+};
+
+static int str_eq(const char *a, const char *b)
+{
+while (*a && *a == *b) {
+a++;
+b++;
+}
+return *a == 0 && *b == 0;
+}
+
+static int is_expected_null(const char *name)
+{
+int i;
+for (i = 0; expected_null[i]; i++)
+if (str_eq(name, expected_null[i]))
+return 1;
+return 0;
+}
 
 static uint16_t rd16(const uint8_t *p)
 {
@@ -125,12 +146,22 @@ static void *resolve(const char *export_name, void *ctx)
 return pe_export((const uint8_t *) ctx, export_name);
 }
 
+/* SizeOfImage from the PE32+ optional header: opt starts past the DOS stub,
+ * the PE signature and the 20-byte file header, and SizeOfImage sits 56 bytes
+ * into it -- the same header this file's pe_export already walks. */
+static uint32_t pe_size_of_image(const uint8_t *base)
+{
+uint32_t lfanew = rd32(base + 0x3C);
+const uint8_t *opt = base + lfanew + 4 + 20;
+
+return rd32(opt + 56);
+}
+
 void live_filesystem_main(uint64_t *sp, terminator_fn leave)
 {
 uint64_t status = 0;
 uint64_t *p;
 const uint8_t *rt = 0;
-size_t missing;
 
 /* Past argv and its terminator, past envp and its terminator. */
 p = sp + 1 + sp[0] + 1;
@@ -145,29 +176,86 @@ break;
 }
 
 if (rt) {
-missing = __esn_wire_bind(__esn_wire_filesystem,
-  __esn_wire_filesystem_n,
-  resolve, (void *) rt);
-if (missing == 0 && __esn_wire_filesystem_n > 0)
+size_t i, nulls = 0;
+int stray = 0;
+uintptr_t base = (uintptr_t) rt;
+uintptr_t end = base + pe_size_of_image(rt);
+
+(void) __esn_wire_bind(__esn_wire_filesystem,
+       __esn_wire_filesystem_n,
+       resolve, (void *) rt);
+
+/* The finding as a check: every unresolved row is one of the
+ * eleven the stat family and getdirentries need a shim for, and
+ * every other row resolved. */
+for (i = 0; i < __esn_wire_filesystem_n; i++) {
+if (__esn_wire_filesystem[i].fn == 0) {
+nulls++;
+if (!is_expected_null(
+__esn_wire_filesystem[i].export_name))
+stray = 1;
+}
+}
+if (nulls == 11 && !stray && __esn_wire_filesystem_n > 0)
 status |= 0x01;
 
-/* The flagless forward: matches, and rejects with FNM_NOMATCH,
- * whose value (1) is the same on both libcs. */
-if (w00028("*.c", "foo.c", 0) == 0)
+/* Every filled slot lands inside the mapped image span. The
+ * eleven null slots are expected null and are skipped. */
+{
+int all_in = 1;
+
+for (i = 0; i < __esn_wire_filesystem_n; i++) {
+uintptr_t fn =
+(uintptr_t) __esn_wire_filesystem[i].fn;
+
+if (fn == 0)
+continue;
+if (fn < base || fn >= end)
+all_in = 0;
+}
+if (all_in && __esn_wire_filesystem_n > 0)
 status |= 0x02;
-if (w00028("*.c", "foo.h", 0) == 1)
+}
+
+/* The resolver discriminates: a real forward resolves, a
+ * stat-family name Cygwin does not export does not, and a junk
+ * name does not. */
+if (pe_export(rt, "chmod") != 0 &&
+    pe_export(rt, "__xstat") == 0 &&
+    pe_export(rt, "__no_such_filesystem_export_zzq") == 0)
 status |= 0x04;
 
-/* The flag word. 0x02 is PATHNAME in the body -- '*' cannot
- * cross '/', so "a/b" is rejected. */
-if (w00028("*", "a/b", 0x02) == 1)
+/* Distinct exported names reach distinct bodies. */
+{
+void *a = pe_export(rt, "chmod");
+void *b = pe_export(rt, "closedir");
+void *c = pe_export(rt, "fnmatch");
+
+if (a && b && c && a != b && b != c && a != c)
 status |= 0x08;
-/* 0x01 is NOESCAPE in the body, not PATHNAME -- '*' crosses
- * '/', so "a/b" matches. el8's FNM_PATHNAME (0x01) does not
- * reach the body as PATHNAME: the forward misdelivers the flag
- * word, and fnmatch needs a bit-swapping shim. */
-if (w00028("*", "a/b", 0x01) == 0)
+}
+
+/* Idempotent rebind: the same eleven null again, every filled
+ * slot equal to a fresh resolve of its name. */
+{
+size_t nulls2 = 0;
+int same = 1;
+
+(void) __esn_wire_bind(__esn_wire_filesystem,
+       __esn_wire_filesystem_n,
+       resolve, (void *) rt);
+for (i = 0; i < __esn_wire_filesystem_n; i++) {
+void *fresh = pe_export(rt,
+__esn_wire_filesystem[i].export_name);
+
+if (__esn_wire_filesystem[i].fn != fresh)
+same = 0;
+if (__esn_wire_filesystem[i].fn == 0)
+nulls2++;
+}
+if (same && nulls2 == 11 && __esn_wire_filesystem_n > 0)
 status |= 0x10;
+}
 }
 
 leave(status);
