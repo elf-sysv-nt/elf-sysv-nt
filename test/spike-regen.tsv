@@ -55,3 +55,7 @@ reent-veneer-runtime	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results
 # target is a real face export, yet a link-time forward self-references, so the
 # bodies must be runtime-resolving thunks against the WP-27 crossing.
 reent-veneer-body	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
+# reent-veneer-thunk measures the link-time shape of item 2's runtime-
+# resolving thunk: it names the faced target as data and holds no ELF
+# dependency on it, so nothing self-binds -- the codegen contract.
+reent-veneer-thunk	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2026-[0-9]*.txt	bash measure.sh
