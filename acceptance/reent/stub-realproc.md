@@ -44,3 +44,20 @@ boundary does not arise for it. This rung builds the real-process link as a
 separate measurement, not a replacement. Item 3 (a reent-consuming ELF body
 across the crossing) stays deferred behind this and the WP-53 `libc.so.6`
 veneer.
+
+## The bounded choice, measured
+
+`spike/reent-stub-libc-crossing` closes the empirical question the "bounded
+choice" above rested on. Past the bridged startup, the real-process probe
+reaches the faced libc twice through an explicit `sysv_abi` thunk resolved from
+`elfsysv1.dll`'s export directory -- the same shape the `cygwin_internal` bridge
+uses -- and both cross: `strlen("abcd")` returns `4`
+(`sysv_thunk_reentfree_call_crosses=yes`) and `puts` emits its line
+(`sysv_thunk_stdio_call_crosses=yes`, a reent-consuming body over the reent
+`_dll_crt0` brought up). So the boundary `reent-stub-realproc-window` found is
+the ABI *direction* -- Microsoft-style into a System V body -- not reent
+bring-up: routing the stub's own libc use through `sysv_abi` thunks is a viable
+route, reent-consuming calls included. The choice between that and host-safe
+calls stays a design decision, but it is no longer gated on whether the second
+route works. This is a probe, not the loader crossing; item 3 and the
+`to-green.tsv` signal are unchanged.
