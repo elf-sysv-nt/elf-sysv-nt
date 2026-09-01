@@ -65,12 +65,14 @@ cleanup() { [ "$keep" = 1 ] || rm -rf "$bin"; }
 trap cleanup EXIT
 
 loader_srcs="$exec_dir/reserve.c $loader/map/elf_map.c $loader/map/host_mem.c \
-$loader/elf/elf_parse.c $loader/process/process_image.c"
+$loader/elf/elf_parse.c $loader/process/process_image.c \
+$loader/reloc/elf_reloc.c $loader/reloc/reloc_resolve.S"
 
 # ---- build the stub (now with the classifier) and the front end ---------
 say "$prog: build the stub and front end with $cc"
 $cc $cflags $stubldflags -o "$bin/elfsysv-stub" \
-	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/enter.S" $loader_srcs \
+	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/dyn_exec.c" \
+	"$exec_dir/enter.S" $loader_srcs \
 	|| fail "stub build failed"
 $cc $cflags -o "$bin/elfsysv-exec" "$exec_dir/exec_main.c" \
 	"$exec_dir/dispatch.c" "$exec_dir/binfmt.c" "$exec_dir/reserve.c" \

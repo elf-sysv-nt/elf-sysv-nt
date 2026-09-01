@@ -20,6 +20,12 @@
 #   exec-chain   a two-hop chain and its argument order
 #   exec-loop    a `#!' cycle is refused rather than followed
 #   exec-nonelf  a file the host owns comes back as the host's, not as an error
+#   exec-kind    the stub classifies a parsed image before it enters: static
+#                keeps the direct-entry path, dynamic is owed the crossing,
+#                a bare shared object is refused
+#   dyn-cross    the stub runs the dynamic crossing and enters: an interp-
+#                bearing image calls across into an ELF runtime and leaves
+#                with the call's result, while the static path is undisturbed
 #
 # Usage:
 #   run.sh [options]
@@ -77,11 +83,12 @@ stubldflags="-Wl,--stack,0x100000"
 if [ "$keep" = 1 ]; then bin=$here; else bin=$(mktemp -d "${TMPDIR:-/tmp}/wp41.XXXXXX"); fi
 
 loader_srcs="$exec_dir/reserve.c $loader/map/elf_map.c $loader/map/host_mem.c \
-$loader/elf/elf_parse.c $loader/process/process_image.c"
+$loader/elf/elf_parse.c $loader/process/process_image.c \
+$loader/reloc/elf_reloc.c $loader/reloc/reloc_resolve.S"
 
 smon_session build wp41-exec-dispatch
 smon_plan unit fuzz when specimen stub frontend exec-elf exec-script \
-	exec-chain exec-loop exec-nonelf exec-kind
+	exec-chain exec-loop exec-nonelf exec-kind dyn-cross
 
 rc=0
 say() { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
@@ -132,7 +139,8 @@ fi
 
 smon_step_start stub
 if smon_cmd $cc $cflags $stubldflags -o "$bin/elfsysv-stub" \
-	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/enter.S" $loader_srcs; then
+	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/dyn_exec.c" \
+	"$exec_dir/enter.S" $loader_srcs; then
 	smon_step_ok stub
 else
 	smon_step_fail stub $?; fail "stub build failed"
@@ -203,6 +211,19 @@ if smon_cmd bash "$here/exec-kind-stub.sh" -q; then
 else
 	say "    FAILED    exec-kind: the stub's classification branch"
 	smon_step_fail exec-kind $?; rc=1
+fi
+
+# The stub runs the dynamic crossing between the map and the entry: an interp-
+# bearing image is linked against an ELF runtime through dyn_exec_link, so its
+# PLT resolves into the runtime, and it is entered and leaves with the result
+# of a cross-object call. The static path is checked undisturbed. DR-0058.
+smon_step_start dyn-cross
+if smon_cmd bash "$here/dyn-cross-stub.sh" -q; then
+	say "    ok        dyn-cross: the stub crosses a dynamic image and enters"
+	smon_step_ok dyn-cross
+else
+	say "    FAILED    dyn-cross: the stub's dynamic crossing branch"
+	smon_step_fail dyn-cross $?; rc=1
 fi
 
 if [ "$rc" = 0 ]; then
