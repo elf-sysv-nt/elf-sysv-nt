@@ -71,6 +71,7 @@ is a record nobody will find.
 | [0058](0058-the-runtime-crossing-for-a-dynamic-elf.md) | The runtime crossing for a dynamic ELF | accepted 2026-09-01 | none |
 | [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01 | none |
 | [0060](0060-reent-bringup-is-the-real-process-shape.md) | reent bring-up is the real-process shape, not a cygload call | accepted 2026-09-01 | none |
+| [0061](0061-images-are-linked-granule-separable.md) | every image the platform loads is linked granule-separable | accepted 2026-09-01 | none |
 
 ## What earns a record
 

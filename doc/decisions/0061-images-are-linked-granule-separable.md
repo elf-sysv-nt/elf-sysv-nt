@@ -1,4 +1,4 @@
-# DR-XXXX — every image the platform loads is linked granule-separable
+# DR-0061 — every image the platform loads is linked granule-separable
 
 Status: accepted
 Date: 2026-09-01
