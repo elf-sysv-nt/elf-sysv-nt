@@ -33,6 +33,11 @@ loader, and three things stand between the reproduced probe and that:
    against WP-26 `crt0.o` and `-lcygwin` -- so `_dll_crt0` brings the reent up
    the sanctioned way. DR-0060 calls this WP-41/WP-43-shaped, and it must not
    regress the WP-41 exec-* certifications the plain-PE stub passes today.
+   `spike/reent-stub-link/` measures a link change alone: the stub links in the
+   real-process shape (once `-lgcc` supplies the builtins `-nostdlib` drops), but
+   the standalone stub faults before entry -- its low non-PIE window collides
+   with `_dll_crt0`'s own mappings -- so item 1 is loader work reconciling that
+   contract, not a link flag. See acceptance/reent/stub-realproc.md.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts

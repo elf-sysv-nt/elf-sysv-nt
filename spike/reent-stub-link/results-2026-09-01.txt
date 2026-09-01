@@ -1,0 +1,10 @@
+script  reent-stub-link 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_stub_links=yes
+realproc_stub_reaches_version=no
+verdict=yes

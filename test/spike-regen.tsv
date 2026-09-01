@@ -45,3 +45,6 @@ cygwin-from-source	SKIP	-	true
 # the faced DLL; its rerun needs that uncommitted build product, so it is
 # checked where the DLL is built and INCOMPLETE (not run) elsewhere.
 reent-bringup	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
+# reent-stub-link measures how far the real-process relink of the loader stub
+# gets: it links, but the standalone stub faults before entry.
+reent-stub-link	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
