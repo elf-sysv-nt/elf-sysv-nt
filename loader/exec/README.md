@@ -87,13 +87,17 @@ the image is owed. `exec_kind_of` (WP-56) reads the parsed image — its `e_type
 and whether it names a `PT_INTERP` — and the stub branches on the verdict, the
 single decision DR-0058 places here. A static executable keeps the direct entry
 above, the path this package certifies. A dynamic image, one that names an
-interpreter (bzip2's shape), is not entered at `e_entry`: its `_start` runs
+interpreter (bzip2's shape), may not be entered at `e_entry`: its `_start` runs
 before the GOT is relocated against the runtime, so entered that way it faults
-on its first library call, and the crossing that relocates it — DR-0058's, over
-the loader packages already delivered — is not yet wired into the stub, so the
-stub refuses the image with that reason rather than entering it into a fault. An
-image this route does not run at all — a relocatable object, a core, a bare
-shared object — is refused before it is even mapped.
+on its first library call. So the stub runs the crossing first — DR-0058's
+`dyn_exec_link`, over the loader packages already delivered — which maps the ELF
+runtime named by `--elf-runtime`, links the image against it so its GOT and PLT
+resolve into the runtime's exports, and only then enters. With no runtime named
+the image is refused rather than entered into the fault. Running the image's
+`DT_INIT` chain between the link and the entry is the step after this one; a
+specimen with no initializers reaches the entry without it. An image this route
+does not run at all — a relocatable object, a core, a bare shared object — is
+refused before it is even mapped.
 
 ## What is certified
 
@@ -114,10 +118,15 @@ comes back as the host's rather than as an error.
 
 The stub's own branch is then held to each shape it must tell apart. The static
 specimen still leaves 127 — the classification did not disturb the path it
-guards. A dynamic image, an interp-bearing `ET_EXEC` at el8's segment alignment
-so the map takes it, is refused as owed the crossing rather than entered, and
-the refusal names DR-0058. A bare shared object — a dynamic section, no
-interpreter — is refused as no program on this route, before it is mapped.
+guards. A bare shared object — a dynamic section, no interpreter — is refused as
+no program on this route, before it is mapped. And the crossing itself is run
+end to end: an interp-bearing `ET_EXEC` whose entry calls one function imported
+from an ELF runtime is linked against that runtime through the stub and entered,
+and it leaves with what the call returned — a status reached only when its PLT
+was relocated into the runtime. The same image with no runtime supplied is
+refused rather than entered into the fault. The runtime here is a bare specimen,
+not the WP-53 `libc.so.6` veneer; standing the branch up against a specimen is
+this step, and the veneer and bzip2 are the ones it carries.
 
 The quoting has its own tests for a reason worth repeating. It is sized with no
 buffer and then written into one, and the first version did that with a macro
