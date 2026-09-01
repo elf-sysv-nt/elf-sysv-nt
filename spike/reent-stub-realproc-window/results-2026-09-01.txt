@@ -1,0 +1,12 @@
+script  reent-stub-realproc-window 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_stub_image_base=0x0000000100400000
+startup_faults_without_bridge=yes
+startup_reached_with_bridge=yes
+ms_abi_libc_call_crosses=no
+verdict=yes
