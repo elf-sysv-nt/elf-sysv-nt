@@ -77,13 +77,21 @@ loader, and three things stand between the reproduced probe and that:
    `errno` to `ERANGE` in the reent `__errno` hands back -- the spike's
    `realproc_body_sets_errno_erange`, measured across the loader.
 
-   `spike/reent-face-bringup` (item 3's spike) now measures the reachable
-   half of this: with all three artifacts built, its `strtol` thunk in the WP-53
-   veneer keys on a name the built `elfsysv1.dll` face actually exports
-   (`veneer_face_target_matched=yes`), so the crossing target is real end to
-   end. Its `verdict` stays `staged` and it stays out of `test/spike-regen.tsv`
-   until the thunk resolves and returns the reent across `enter.S` -- the live
-   run that wires the signal below.
+   `spike/reent-face-bringup` (item 3's spike) now writes and measures that
+   run (`live-run.sh`, 0.3). It builds the loader, the veneer, and a
+   reent-consuming forward specimen and takes it through the crossing three
+   ways. Two of the three now pass: the veneer maps as an `--elf-runtime`
+   (`veneer_maps_as_elf_runtime=yes`, once its link was made granule-separable),
+   and the specimen enters through `enter.S` with its `strtol` thunk running
+   (`crossing_enters=yes`) -- so the ELF crossing is no longer the obstacle.
+   What remains is the face-base half: `--runtime`'s `LoadLibraryA` of the faced
+   `elfsysv1.dll`, so its base reaches the veneer's resolver through `AT_BASE`,
+   is the cygload shape that wedges (`error 1114`, heap-at-wrong-address), so
+   `AT_BASE` carries no face base and the thunk null-faults. That is item 1's
+   real-process face-load, not the crossing. The spike's `verdict` stays
+   `staged` and it stays out of `test/spike-regen.tsv` until that half lands and
+   the thunk resolves and returns the reent -- the live run that wires the
+   signal below.
 
 Only then is the `to-green.tsv` `reent-tls-bringup` signal wired, to that live
 test's positive result, replacing the `-`.
