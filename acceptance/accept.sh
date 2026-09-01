@@ -21,9 +21,12 @@
 #            package that does not compile and link stops here with does-not-build.
 #   classify the built ELF's undefined libc symbols are read and matched against
 #            veneer/classification -- forwards that resolve to a runtime export,
-#            shims that need a written translation, stubs with nothing behind
-#            them. That match is the readiness the runtime has for this package.
-#   verdict  builds; surface size; forwards, shims and stubs; and the overall
+#            shims that need a written translation, and stubs with nothing
+#            behind them, save the stubs the wiring layer fills with a
+#            synthesized, certified body (DR-0052). That match is the readiness
+#            the runtime has for this package.
+#   verdict  builds; surface size; forwards, shims, stubs and filled bodies;
+#            and the overall
 #            reading -- does-not-build, needs-wiring (with the shims and stubs
 #            named), or ready. A ready package is one every symbol of which
 #            forwards, and only then is running it the next thing to try.
@@ -87,6 +90,9 @@ sha256() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 # The disposition each libc symbol of a built ELF carries in the veneer's
 # classification: forward (buckets 1 and 2) resolves to a runtime export, shim
 # (bucket 3) needs a written translation, stub (bucket 4) has nothing behind it.
+# A bucket-4 stub the wiring layer's filled manifest names is a filled stub --
+# a synthesized, certified body stands behind it (DR-0052), so classify.awk
+# reports it apart from the stubs that only fail.
 classify_surface() {
 	local bin=$1
 	"${cross%gcc}nm" -D --undefined-only "$bin" 2>/dev/null \

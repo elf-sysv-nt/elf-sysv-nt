@@ -56,9 +56,10 @@ Its verdict today is `needs-wiring`. It cross-builds to a proper el8 ELF — `EX
 System V OS/ABI, `NEEDED libc.so.6`, `INTERP /lib64/ld-linux-x86-64.so.2` — and
 of its forty libc symbols, thirty-four forward, five want shims
 (`__errno_location`, `__lxstat64`, `__xstat64`, `open64`, `signal` — the
-large-file stat, errno and signal family), and one is a stub (`__ctype_b_loc`,
-glibc's ctype-table accessor, with no matching Cygwin export). So bzip2 links and
-loads against the runtime as it stands; it is five shims and one stub away from
+large-file stat, errno and signal family), and one is a filled stub (`__ctype_b_loc`,
+glibc's ctype-table accessor, with no matching Cygwin export, but a synthesized,
+certified body behind it (DR-0052). So bzip2 links and
+loads against the runtime as it stands; it is five shims away from
 running. `results-2026-08-31.txt` records the run.
 
 The pins live in `packages.tsv`, one row per package with its mirror path,

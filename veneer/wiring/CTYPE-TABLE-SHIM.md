@@ -78,9 +78,11 @@ translating Cygwin's per-locale ctype data into glibc's layout at load,
 downstream of this static body -- the same line every slice draws for
 category-sensitive behaviour.
 
-The acceptance harness still counts `__ctype_b_loc` against bzip2, because it
-reads `classification.tsv`, which still says stub. A stub the veneer fills is
-not a stub that fails, and the verdict should come to distinguish the two
-rather than reporting bzip2 short a symbol the tree now supplies. Teaching the
-harness that distinction -- so bzip2's verdict reflects the fill -- is the
-follow-up this increment sets up and does not itself take.
+The acceptance harness now distinguishes the two. `classification.tsv` still
+says stub -- the one fact it holds, whether the export surface carries the
+name, is still no -- but the wiring layer's filled manifest,
+`ctype-filled.tsv`, generated beside this body, names the filled stubs, and
+`acceptance/classify.awk` reports a bucket-4 symbol the manifest names as
+`filled` rather than `stub`. bzip2's verdict now reads 34 forward, 5 shim,
+0 stub, 1 filled: the ctype fill no longer counts against it, and the five
+shims are all that stand between it and running.
