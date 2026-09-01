@@ -385,6 +385,30 @@ if command -v "$XCC" >/dev/null 2>&1; then
     "${XCC%gcc}nm" "$tmp/wire-runtime.o" | grep -q 'getcontext@@GLIBC_2.2.5'
 fi
 
+
+# The runtime slice's jmp_buf shims are not ordinary call-style thunks
+# (DR-0051): wire-jmpbuf-faces.gen.S is generated from the curated
+# jmpbuf.tsv cross-referenced against the freshly re-derived
+# wire-runtime.shims.tsv above, so a drift in the real forward map's
+# five jmp_buf rows (a table-index shift, a binding change) is caught
+# here the same way the ordinary thunks are.
+cp ../wire-jmpbuf-face.inc ../jmpbuf.tsv ../gen-jmpbuf-face.sh "$tmp/"
+bash "$tmp/gen-jmpbuf-face.sh" --curated "$tmp/jmpbuf.tsv" \
+    --shims "$tmp/wire-runtime.shims.tsv" -o "$tmp/wire-jmpbuf-faces.gen.S"
+cmp ../wire-jmpbuf-faces.gen.S "$tmp/wire-jmpbuf-faces.gen.S"
+grep -q 'siglongjmp@@GLIBC_2.2.5' "$tmp/wire-jmpbuf-faces.gen.S"
+test "$(grep -c '^	\.symver' "$tmp/wire-jmpbuf-faces.gen.S")" = 5
+if command -v "$XCC" >/dev/null 2>&1; then
+    "$XCC" -c -I "$tmp" -o "$tmp/wire-jmpbuf-faces.o" \
+        "$tmp/wire-jmpbuf-faces.gen.S"
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q 'setjmp@@GLIBC_2.2.5'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q 'longjmp@@GLIBC_2.2.5'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q '_setjmp@@GLIBC_2.2.5'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q '_longjmp@@GLIBC_2.2.5'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q 'siglongjmp@@GLIBC_2.2.5'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q ' U malloc$'
+    "${XCC%gcc}nm" "$tmp/wire-jmpbuf-faces.o" | grep -q ' U __esn_wire_runtime$'
+fi
 # The committed threads wiring re-derives byte-identical as well. The
 # libc-resident pthread subset and the C11 thrd_* names cross as
 # thunks; __sigsetjmp is the one shim, attributed here because el8's
