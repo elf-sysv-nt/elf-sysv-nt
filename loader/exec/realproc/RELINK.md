@@ -61,12 +61,10 @@ including `dyn-cross` and `dyn-init`, which run the built stub and read
 ## What stays deferred
 
 The stub's remaining libc use is not on a path that must cross for the
-`reent-tls-bringup` signal, and stays as it is: the stderr diagnostics
-(`say`, `refuse`, `usage`, and the unknown-option and no-argument messages),
-which write to `stderr` rather than the `stdout` the `rp_puts` thunk carries and
-so want a separate stderr crossing before they reroute; the Windows placement
-path; and `slurp`'s file I/O. None is on the `--version` or `--dry-run` path or
-needed for it.
+`reent-tls-bringup` signal, and stays as it is: the Windows placement
+path and `slurp`'s file I/O. Neither is on the `--version` or `--dry-run` path
+or needed for it. (The stderr diagnostics, deferred here, have since been
+rerouted through an fd-2 crossing -- `STDERR-REROUTE.md`.)
 
 The stderr crossing those diagnostics wait on is now measured, so the deferral
 is the implementing reroute, not an open question. `spike/reent-stub-stderr-crossing`
@@ -75,8 +73,10 @@ finds the faced `elfsysv1.dll` exports no `stderr` `FILE*`, so an
 an fd-2 body, and both that exist cross the faced runtime (`write(2,s,n)` raw and
 `dprintf(2,"%s",s)` variadic, `results-2026-09-01.txt`, reproduced). `write` is
 the route -- non-variadic, no `FILE*`, and the diagnostics format host-side with
-`RP_SNPRINTF` first, as `report()` does -- leaving a plain `sysv_abi` `write`
-thunk and the reroute of the five diagnostic paths through it as the next step.
+`RP_SNPRINTF` first, as `report()` does. That reroute has now landed:
+`rp_eputs` is the `sysv_abi` `write(2)` thunk, and the five diagnostic paths
+format host-side and cross the finished bytes through it (`STDERR-REROUTE.md`),
+certified live by the realproc `t/run.sh` `ecross` stage.
 
 Item 3 -- a reent-consuming ELF body reached across the loader, the
 `to-green.tsv` `reent-tls-bringup` signal -- stays deferred behind the WP-53
