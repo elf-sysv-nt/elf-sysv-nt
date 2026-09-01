@@ -1,4 +1,4 @@
-# DR-XXXX — the real-process stub's obstacle is the ABI boundary, not the window
+# DR-0066 — the real-process stub's obstacle is the ABI boundary, not the window
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 item 1 of `acceptance/reent/README.md`.

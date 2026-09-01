@@ -76,6 +76,7 @@ is a record nobody will find.
 | [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
 | [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01 | none |
 | [0065](0065-veneer-func-forward-is-a-runtime-resolving-thunk.md) | a veneer FUNC forward is a runtime-resolving thunk | accepted 2026-09-01 | none |
+| [0066](0066-real-process-stub-obstacle-is-the-abi-boundary.md) | the real-process stub's obstacle is the ABI boundary, not the window | accepted 2026-09-01 | none |
 
 ## What earns a record
 
