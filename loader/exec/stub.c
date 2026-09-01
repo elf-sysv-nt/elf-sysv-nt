@@ -46,6 +46,7 @@
 #include "reserve.h"
 #include "exec_kind.h"
 #include "dyn_exec.h"
+#include "dyn_init.h"
 #include "../elf/elf_parse.h"
 #include "../map/elf_map.h"
 #include "../reloc/elf_reloc.h"
@@ -529,6 +530,26 @@ int main(int argc, char **argv)
 				      ddiag.reloc.msg[0] ? " -- " : "",
 				      ddiag.reloc.msg[0] ? ddiag.reloc.msg : "");
 		say("crossing done: GOT and PLT resolve against %s", opt.elf_runtime);
+
+		/* The image is relocated but its constructors have not run. An el8
+		 * program's C runtime would call DT_INIT and DT_INIT_ARRAY before
+		 * main; these images have no startup file of their own, so the loader
+		 * runs them here -- after the link that resolved their PLT into the
+		 * runtime, before the entry -- in the ABI's order (WP-56). They run on
+		 * the host stack, which elf_enter has not yet parked. */
+		{
+			dyn_init_diag idiag;
+			dyn_init_err ie;
+			unsigned iran = 0;
+
+			ie = dyn_init_run(&parsed, &pl.mapping, (int) layout.argc,
+					  (char **) prog_argv, environ, &iran, &idiag);
+			if (ie != dyn_init_ok)
+				return refuse("%s: the image's initializers did not run: "
+					      "%s at %s", path, dyn_init_err_name(ie),
+					      idiag.stage ? idiag.stage : "?");
+			say("initializers run: %u", iran);
+		}
 	}
 
 	fflush(NULL);
