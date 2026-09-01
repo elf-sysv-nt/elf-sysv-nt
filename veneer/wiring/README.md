@@ -1161,3 +1161,67 @@ would show it there. Status 31 is the only pass, with the same
 refuse-before-entry and no-runtime controls the earlier crossings use.
 `t/live-locale.sh` records it. WP-56's overall done-when is unchanged: still
 the vendor package's own test suite, run and passed.
+
+## The posix slice: live crossing
+
+locale was a slice whose family is almost entirely off-limits to a
+freestanding harness; posix is the eighth crossing and the largest
+all-forward table bound live so far. Its 108 rows -- 102 distinct export
+names, all forwards with no shim -- resolve against the real `elfsysv1.dll`
+with none missing, so the bind check is math's, stdlib's, sockets's and
+locale's shape, every row filled and `missing == 0`, not string's
+exactly-one-null. sockets at 66 rows held the previous largest; posix is
+bigger, and binding it shows the resolver's PE-export walk scales past that
+without a miss.
+
+What posix is, that the earlier crossed slices were not, is a slice whose
+bodies overwhelmingly touch a descriptor, the process, or Cygwin's reent and
+thread state: fork, close, dup, access, the exec family, chdir, the pathconf
+and getcwd calls all reach the kernel face or the current process through the
+thread pointer this harness never establishes. Calling any of them here would
+corrupt the way string's memcpy and strverscmp did, and for the same reason
+-- NOSIGFE names the calling convention a thunk needs, not whether the body
+behind it stands on its own. Even most of posix's own NOSIGFE rows -- getpid,
+getuid, getlogin and their kin -- read process or cygheap state and are
+off-limits to a specimen that cannot set up a thread pointer.
+
+swab (w00089) is the one row that stands entirely alone. It is a byte
+permutation between two caller-provided buffers -- it copies floor(n/2) pairs
+from `from` to `to`, swapping the two bytes of each pair -- with no table,
+reent, descriptor or locale behind it, and `runtime/exports/cygwin-exports.tsv`
+marks it NOSIGFE. So it crosses a freestanding harness cleanly, exactly as
+string's ffs family, stdlib's abs family, sockets's byte-order family and
+locale's toascii did. The rest of posix is left for the process bring-up
+`runtime/face/t/fault.c` performs that the SIGFE-fenced slices already wait
+on.
+
+What swab adds that the earlier crossed rows did not is its result shape. ffs,
+abs, htonl and toascii each hand their answer back in a register; swab returns
+void and writes its whole result through the caller's destination pointer.
+This is the first crossed row whose output lands in caller memory rather than
+in `%rax`, so it exercises a pointer-out argument class the earlier scalar and
+struct-by-value returns never reached. The specimen proves that by handing
+swab a destination buffer and reading the swapped bytes back from it: `ABCD`
+becomes `BADC` over an even length, and a 256-byte buffer matches a local
+reference swap pair for pair.
+
+Writing the specimen found where the real body parts from POSIX. POSIX leaves
+swab to do nothing when its length is not positive; the crossing confirmed
+Cygwin's body does nothing for a zero length -- the destination keeps its
+sentinel -- but for a negative length it does not return early, it writes
+through the destination instead. That divergence is real, not the harness's:
+a negative count is out of this crossing's scope, and pinning it is a job for
+whatever differential later records the slice's divergences against a real el8
+userland. The crossing keeps to swab's well-defined range -- a positive even
+length, a positive odd length, and zero -- where the real body and the
+standard agree.
+
+Five checks, one bit each: the all-forward bind, then the even-length swap
+through the destination pointer, an odd length that swaps the whole pairs and
+leaves the trailing unpaired byte untouched, a zero length that writes
+nothing, and swab against the local reference swap over a whole 256-byte
+buffer, the last run after the crossings above so a body that had degraded
+would show it there. Status 31 is the only pass, with the same
+refuse-before-entry and no-runtime controls the earlier crossings use.
+`t/live-posix.sh` records it. WP-56's overall done-when is unchanged: still
+the vendor package's own test suite, run and passed.
