@@ -1,0 +1,2 @@
+live-crossing the threads slice (WP-56): 42 rows, 41 forward-same plus one setjmp-family shim (sigsetjmp), no System V synthesis.
+WIP scaffold; see t/live-threads.sh once landed.
