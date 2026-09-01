@@ -1,0 +1,17 @@
+script  reent-bringup 1.0
+
+host        ins-15
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-01
+
+cygload_getreent=reachable
+cygload_errno_is_reent_base=yes
+cygload_errno_roundtrip=holds
+cygload_errno_thread_local=holds
+cygload_dll_init=hangs
+realproc_getreent=reachable
+realproc_errno_is_reent_base=yes
+realproc_strtol_overflow_ret_is_longmax=yes
+realproc_body_sets_errno_erange=yes (got 34)
+realproc_errno_roundtrip=holds
+verdict=yes

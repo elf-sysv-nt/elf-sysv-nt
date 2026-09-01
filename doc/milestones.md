@@ -34,6 +34,7 @@ In dependency order, which is also cost order.
 | 10 | `spike/ld-tls-relaxation/` | Does the linker emit `%fs`-relative code on its own? | The binutils TLS-relaxation policy in WP-12. Run 2026-08-29: yes, so WP-12 refuses those relocations rather than rewriting them. |
 | 11 | `spike/cygwin-from-source/` | Can this machine build `cygwin1.dll`, and does a reserving delivery hold the red zone? | WP-26's from-source build and the red-zone reservation. Run 2026-08-29: both recorded, the prerequisites and the reservation captured. |
 | 12 | `spike/demand-census/` | How many el8 packages need a symbol the classification can only stub? | WP-56's slice order and its named acceptance package. Infrastructure landed 2026-08-31; the run over the 4855-name worklist is in progress. |
+| 13 | `spike/reent-bringup/` | Which host shape makes a reent-consuming libc body work across the face? | WP-56's `reent-tls-bringup` road-to-green row. Run 2026-09-01: the real-process shape (crt0/`_dll_crt0`) carries it — a body sets `errno` through the caller's reent — while the cygload shape's bring-up call hangs; DR records the certification path. |
 
 Spike 1 was an afternoon and it decided a layer, against us. Spike 2 came back
 yes and moved a question from whether to when. Spike 3 was the expensive one,
