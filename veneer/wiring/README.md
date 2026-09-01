@@ -1078,3 +1078,47 @@ crossings to show the bodies stay correct rather than degrading -- status
 controls the earlier crossings use. `t/live-stdlib.sh` records it. WP-56's
 overall done-when is unchanged: still the vendor package's own test suite,
 run and passed.
+
+## The sockets slice: live crossing
+
+stdlib was all forwards with a struct-by-value return; sockets is the sixth
+crossing and adds a weak-alias thunk. Its 66 rows are all forwards with no
+shim, the largest all-forward table bound live so far, so the bind check is
+math's and stdlib's -- every row must resolve, `missing == 0` -- not string's
+exactly-one-null, and the bind loop resolves all 66 against the real
+`elfsysv1.dll` with none missing.
+
+What the slice carries that the others did not is the byte-order family.
+glibc exports `ntohl` and `ntohs` as weak aliases of `htonl` and `htons` --
+on a little-endian target the two are the same permutation over the same body
+-- and `gen-wire.py` carries that weakness through: `htonl` (w00028) and
+`htons` (w00029) are `.globl` thunks, `ntohl` (w00044) and `ntohs` (w00045)
+are `.weak` ones. The specimen is the first to call a weak thunk directly and
+show it reaches the same real body its strong twin does, agreeing value for
+value. The family also returns narrower than a register -- `htons` and
+`ntohs` hand back `uint16_t`, `htonl` and `ntohl` `uint32_t` -- so the caller
+reads only the defined low bits of whatever the thunk forwards, a return
+shape the earlier scalar-returning crossings did not exercise. The
+self-inverse check closes it without assuming an endianness in the assertion:
+`ntohl(htonl(v)) == v` and `htons(ntohs(w)) == w`, the pair composing back to
+identity.
+
+The NOSIGFE boundary string found still holds and still bounds what the
+crossing may call. `htonl`, `htons`, `ntohl` and `ntohs` are NOSIGFE
+(`runtime/exports/cygwin-exports.tsv`) and, like string's `ffs` family and
+stdlib's `abs` family, stand alone -- each is a pure byte permutation over
+its argument with no memory, reent or locale behind it -- so they cross a
+freestanding harness that never established Cygwin's thread pointer. The
+reent-touching rest of sockets -- the resolver, the socket calls, everything
+whose body reads reent or touches a descriptor -- is left for the same
+process bring-up `runtime/face/t/fault.c` performs that the SIGFE-fenced
+slices already wait on, exactly as string left `memcpy` and `strverscmp`.
+
+Five checks, one bit each: the all-forward bind, then `htonl`, `htons`, the
+weak `ntohl`/`ntohs` aliases agreeing with their strong twins, and the
+self-inverse round trips with a second pass of the whole set after the
+crossings to show the bodies stay correct rather than degrading -- status 31,
+the only pass, with the same refuse-before-entry and no-runtime controls the
+earlier crossings use. `t/live-sockets.sh` records it. WP-56's overall
+done-when is unchanged: still the vendor package's own test suite, run and
+passed.
