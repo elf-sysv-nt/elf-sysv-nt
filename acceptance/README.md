@@ -34,33 +34,50 @@ Each symbol the package imports falls into one of the veneer's buckets:
 
 - **forward** (buckets 1 and 2) — resolves to a runtime export, same-name or
   aliased. Works now.
-- **shim** (bucket 3) — a runtime export exists but the ABI differs, so a
-  translation is needed. WP-56 writes these slice by slice; functional once written.
+- **wired** (bucket 3, slice crossed) — a translation the wiring layer wrote and
+  the live crossing certified stands behind it. Functional now (DR for the
+  certified-shim rule).
+- **shim** (bucket 3, slice not crossed) — a runtime export exists but the ABI
+  differs and no crossed slice covers it yet. WP-56 writes these slice by slice;
+  functional once written and crossed.
+- **filled** (bucket 4, in the filled manifest) — a synthesized, certified body
+  stands behind a name Cygwin does not export (DR-0052). Works now.
 - **stub** (bucket 4) — nothing behind it. Fails predictably until something is.
 
 The overall reading is `does-not-build` if the cross build fails, `needs-wiring`
-if any shim or stub remains, and `ready` when every symbol forwards. Only a
+if any unwritten shim or bare stub remains, and `ready` when every symbol
+forwards, is a wired shim, or is a filled stub. Only a
 `ready` package is worth trying to run, and running it — the green — needs the
 loader's dynamic-exec path to stand in for `ld-linux` and the runtime to resolve
 `libc.so.6`. That path is WP-56's surface and the loader's, not this harness's,
 so until a package reads ready the run stage reports what it waits on.
 
-## bzip2, on 2026-08-31
+## bzip2
 
 bzip2 is the first pin: pure C, no external library dependency, a hand-written
 Makefile, its own `make test`, and a libc surface of forty symbols in the
 earliest-demand slices. It is the cleanest leaf — a failure points at the
-runtime, not at the package.
+runtime, not at the package. It cross-builds to a proper el8 ELF — `EXEC`,
+System V OS/ABI, `NEEDED libc.so.6`, `INTERP /lib64/ld-linux-x86-64.so.2`.
 
-Its verdict today is `needs-wiring`. It cross-builds to a proper el8 ELF — `EXEC`,
-System V OS/ABI, `NEEDED libc.so.6`, `INTERP /lib64/ld-linux-x86-64.so.2` — and
-of its forty libc symbols, thirty-four forward, five want shims
-(`__errno_location`, `__lxstat64`, `__xstat64`, `open64`, `signal` — the
-large-file stat, errno and signal family), and one is a filled stub (`__ctype_b_loc`,
-glibc's ctype-table accessor, with no matching Cygwin export, but a synthesized,
-certified body behind it (DR-0052). So bzip2 links and
-loads against the runtime as it stands; it is five shims away from
-running. `results-2026-08-31.txt` records the run.
+On 2026-08-31 its verdict was `needs-wiring`. Of its forty libc symbols,
+thirty-four forwarded, five wanted shims (`__errno_location`, `__lxstat64`,
+`__xstat64`, `open64`, `signal` — the large-file stat, errno and signal family),
+and one was a filled stub (`__ctype_b_loc`, glibc's ctype-table accessor, no
+matching Cygwin export, a synthesized and certified body behind it — DR-0052).
+It linked and loaded but was five shims away from running.
+`results-2026-08-31.txt` records that run.
+
+On 2026-09-01 its verdict is `ready`. Nothing about bzip2 or the veneer's export
+surface changed; the five shims did. Their slices — string, filesystem, and
+signal — were written and live-crossed against a real el8 userland as WP-56
+finished wiring, and the harness now credits a shim whose slice has crossed as
+`wired`, the way it already credited a filled stub (see the certified-shim
+decision). So the surface reads 34 forward, 5 wired, 1 filled, 0 shim, 0 stub:
+every symbol has a certified body behind it. `results-2026-09-01.txt` records
+this run. What `ready` still withholds is the green — running `make test` under
+the loader's dynamic-exec path — which is the loader's surface, not the
+harness's.
 
 The pins live in `packages.tsv`, one row per package with its mirror path,
 sha256, build command and built binary. bzip2 is enough to stand the harness up;

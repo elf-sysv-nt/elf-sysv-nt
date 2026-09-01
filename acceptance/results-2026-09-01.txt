@@ -1,0 +1,15 @@
+# WP-T4 acceptance (embryo) -- 2026-09-01
+
+bzip2        ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim, 0 stub, 1 filled
+    wired (a written translation the live crossing certified stands behind them):
+      __errno_location
+      __lxstat64
+      __xstat64
+      open64
+      signal
+    filled (a synthesized, certified body stands behind them -- DR-0052):
+      __ctype_b_loc
+    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite is the next step, which needs the loader's dynamic-exec path to stand in for ld-linux.
+bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,verdict:ready
+
+accept: 1 classified, 0 did not build
