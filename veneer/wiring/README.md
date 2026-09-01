@@ -822,3 +822,67 @@ these five against the wired veneer still awaits the runtime the rest of
 this document keeps deferring to; what changed in this increment is that
 the face itself, its routing, and its differential case are now written,
 generated, pinned and reviewed rather than merely specified.
+
+## The jmp_buf shims: live crossing
+
+The five jmp_buf-translating rows the runtime slice's live crossing left
+open are the next thing tried, per that section's own closing line, and
+setjmp/longjmp's plainer contract does turn out to prove live where
+`setcontext`/`swapcontext` did not: `t/live-jmpbuf.c` and
+`t/live-jmpbuf.sh` adapt live-runtime's shape -- the same freestanding
+entry, the same PE-export resolver, `__esn_wire_bind` run over the real,
+committed `wire-runtime.gen.c` table -- and add `wire-jmpbuf-faces.gen.S`
+to the link so the frameless face's own generated labels
+(`__jmpbuf_setjmp`, `__jmpbuf_longjmp`) can be called directly. Unlike
+every earlier live specimen, this one supplies its own `malloc`: a plain
+bump allocator over a static arena, since the frameless save macro's
+lazy-allocation branch calls through `malloc@GOTPCREL` and this
+freestanding, `-nostdlib` specimen has no other libc to provide it.
+
+The check asks a harder question than the runtime slice's did: not
+merely whether the real body is reached, but whether calling through the
+face actually resumes execution at the setjmp call site carrying the
+longjmp'd value -- a full round trip, not a reached-the-body probe.  Run
+through WP-41's branch against the real DLL: the bind loop resolves all
+10 runtime rows, the setjmp face's first return is 0 with a real Cygwin
+buffer pointer stashed in the caller's el8-shaped buffer, the longjmp
+face's call is never seen to return normally, and the setjmp call site's
+second return carries the value 42 with the stashed pointer unchanged --
+status 15, the only pass, with the same refuse-before-entry and
+no-runtime controls the earlier live specimens use.
+
+Getting a reproducible pass took two rounds of the same lesson C's own
+setjmp contract states and this specimen's first drafts didn't fully
+honor: every value read after the first return and depended on after the
+second must be `volatile`, and that includes values the specimen itself
+computes and mutates around the jump, not only the jmp_buf's own
+contents. `__jmpbuf_setjmp` needed `__attribute__((returns_twice))` on
+its extern declaration before GCC would even keep the caller's frame
+state honest across the call. Once that was in place, the status
+accumulator (`status`, built up with `|=` both before the setjmp call and
+after the resumed return) still came back missing bits set in the direct
+branch: a plain automatic variable modified after `setjmp` and read after
+`longjmp` is indeterminate by the C standard, and GCC's own
+`-Wclobbered` said as much before this was tracked down. Marking `status`
+`volatile` fixed it. The stashed-pointer reads were changed from a
+`(void * volatile *)`-cast dereference of the el8 buffer to a plain
+byte-by-byte accumulation for the same reason type-punning a volatile
+object invites in the first place -- not because the cast read was ever
+shown wrong, but because the byte-wise form leaves nothing for alignment
+or strict-aliasing to arguably license optimizing around. None of this
+touches the frameless face itself, which needed no changes once the
+specimen calling it was correct; the finding is entirely in what a
+C caller owes a function the compiler must be told can return twice, one
+seam up from the face's own hand-written assembly.
+
+This is the first slice whose shim rows, not just its thunk rows, are
+proven live end to end -- the buffer-identity mechanism DR-0051 designed
+and the previous increment only pinned by construction now has a real
+Cygwin `setjmp`/`longjmp` pair executing through it on NT. The other
+three jmp_buf rows (`_setjmp`, `_longjmp`, `siglongjmp`) share the same
+two macro bodies with only a symver alias differing, so this is evidence
+for the mechanism those rows depend on too, not an independent proof of
+each. WP-56's overall done-when -- a vendor package's own test suite,
+run and passed -- still needs the SIGFE-fenced slices' fuller process
+bring-up and a hosted candidate environment, neither of which this
+increment attempts.
