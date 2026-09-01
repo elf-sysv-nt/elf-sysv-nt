@@ -417,6 +417,62 @@ static void test_window_plan(void)
 	}
 }
 
+/* The placement-time release plan, as a pure decision. elf_window_yield calls
+ * elf_window_release_plan to name the reserved allocations it must release
+ * before it bares the window for the placer; since DR-0068 the window may be
+ * several reservations -- the child's own low region and the parent's around
+ * it -- so the release is per-constituent. These are that decision with no
+ * process anywhere, on the same low-window constants test_window_plan uses. */
+static void test_window_release_plan(void)
+{
+	uint64_t rel[8];
+	int n;
+
+	{
+		elf_region r[] = { { 0x400000, 0x3FC00000, elf_region_reserved } };
+		n = elf_window_release_plan(0x400000, 0x3FC00000, r, 1, rel, 8);
+		ck("release: a single-reservation window releases its one base",
+		   n == 1 && rel[0] == 0x400000);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x200000,   elf_region_reserved },
+			{ 0x600000, 0x3FA00000, elf_region_reserved },
+		};
+		n = elf_window_release_plan(0x400000, 0x3FC00000, r, 2, rel, 8);
+		ck("release: the child's low region and the parent's are each released",
+		   n == 2 && rel[0] == 0x400000 && rel[1] == 0x600000);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x200000,   elf_region_committed },
+			{ 0x600000, 0x3FA00000, elf_region_reserved },
+		};
+		ck("release: a committed occupant is refused, not released",
+		   elf_window_release_plan(0x400000, 0x3FC00000, r, 2, rel, 8) == -1);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x200000,   elf_region_reserved },
+			{ 0x600000, 0x100000,   elf_region_free },
+			{ 0x700000, 0x3F900000, elf_region_reserved },
+		};
+		n = elf_window_release_plan(0x400000, 0x3FC00000, r, 3, rel, 8);
+		ck("release: a free hole is skipped, reserved spans are released",
+		   n == 2 && rel[0] == 0x400000 && rel[1] == 0x700000);
+	}
+	{
+		elf_region r[] = { { 0x400000, 0x40000000, elf_region_reserved } };
+		ck("release: a reservation overrunning the window's top is refused",
+		   elf_window_release_plan(0x400000, 0x3FC00000, r, 1, rel, 8) == -1);
+	}
+	{
+		elf_region r[] = { { 0x300000, 0x200000, elf_region_reserved } };
+		ck("release: a reservation straddling in from below the base is refused",
+		   elf_window_release_plan(0x400000, 0x3FC00000, r, 1, rel, 8) == -1);
+	}
+}
+
 int main(void)
 {
 	printf("  WP-41 unit: the branch and the chain\n");
@@ -427,6 +483,7 @@ int main(void)
 	test_quoting();
 	test_image_operand();
 	test_window_plan();
+	test_window_release_plan();
 	if (failures)
 		printf("  %d check(s) failed\n", failures);
 	else

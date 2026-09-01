@@ -106,6 +106,49 @@ int elf_window_plan(uint64_t base, uint64_t size,
 	return n;
 }
 
+/* Decide which of the reservations composing the window must be released
+ * before the placer can bare its span. Since DR-0068 the window is not always
+ * a single reservation: a cygwin-linked child's own low region stands beside
+ * the parent's reservations around it, and each is its own MEM_RELEASE unit.
+ * regs[0..nreg) describe the window as VirtualQuery reports it; this writes the
+ * base of each reserved region within [base,base+size) into rel[0..maxrel) and
+ * returns the count, or -1 if a committed region overlaps the window -- a real
+ * occupant, not a bare reservation -- if a reservation reaches outside the
+ * window and so is not the window's to release, or if rel does not fit. A free
+ * region contributes nothing. Distinct reservations are never merged: the
+ * caller releases each base on its own. This is the placement-time companion
+ * to elf_window_plan and, like it, a pure decision. */
+int elf_window_release_plan(uint64_t base, uint64_t size,
+                            const elf_region *regs, int nreg,
+                            uint64_t *rel, int maxrel)
+{
+	uint64_t end = base + size;
+	int i, n = 0;
+
+	if (!regs || nreg < 0 || !rel || maxrel <= 0 || end <= base)
+		return -1;
+
+	for (i = 0; i < nreg; i++) {
+		uint64_t rb = regs[i].base, re = regs[i].base + regs[i].size;
+
+		if (re <= base || rb >= end)
+			continue;              /* wholly outside the window */
+		if (regs[i].state == elf_region_committed)
+			return -1;             /* an occupant, not a bare reservation */
+		if (regs[i].state == elf_region_free)
+			continue;              /* nothing there to release */
+		/* reserved, and releasable only as a whole allocation, so it must
+		 * lie within the window; one that overruns either edge is foreign
+		 * and cannot be released to bare the span. */
+		if (rb < base || re > end)
+			return -1;
+		if (n >= maxrel)
+			return -1;
+		rel[n++] = rb;
+	}
+	return n;
+}
+
 /* The reconciling reservation. VirtualQueryEx walks the child's window, the
  * planner decides which sub-spans are still the parent's to take, and each is
  * reserved on its own. This is the path a cygwin-linked child needs: it holds
@@ -182,28 +225,41 @@ win_err elf_window_reserve_in(void *proc, elf_window *w,
 win_err elf_window_adopt(elf_window *w, uint64_t base, uint64_t size)
 {
 	MEMORY_BASIC_INFORMATION m;
-	uint64_t g = granule(), lo, hi;
+	uint64_t g = granule(), lo, hi, at;
 
 	if (!w || !size)
 		return win_err_arg;
 
 	lo = base & ~(g - 1);
 	hi = (base + size + g - 1) & ~(g - 1);
+	if (hi <= lo)
+		return win_err_arg;
 
-	if (!VirtualQuery((void *)(UINT_PTR) lo, &m, sizeof m))
-		return win_err_refused;
-	if (m.State != MEM_RESERVE)
-		return win_err_refused;
-	if ((uint64_t)(UINT_PTR) m.AllocationBase != lo)
-		return win_err_refused;
-	if ((uint64_t)(UINT_PTR) m.BaseAddress + m.RegionSize < hi)
-		return win_err_refused;
+	/* The window may be one reservation or, since DR-0068, several: a
+	 * cygwin-linked child's own low region with the parent's reservations
+	 * around it. Either way every byte of the window must stand reserved,
+	 * with no committed occupant and no free hole, for the stub to adopt
+	 * it. A stub started with no parent to arm it finds the span free and
+	 * is refused. */
+	for (at = lo; at < hi; ) {
+		uint64_t rb, re;
+		if (!VirtualQuery((void *)(UINT_PTR) at, &m, sizeof m))
+			return win_err_refused;
+		if (m.State != MEM_RESERVE)
+			return win_err_refused;
+		rb = (uint64_t)(UINT_PTR) m.BaseAddress;
+		re = rb + (uint64_t) m.RegionSize;
+		if (re <= at)
+			return win_err_refused;
+		at = re;
+	}
 
 	w->base = lo;
 	w->size = hi - lo;
 	w->held = 1;
 	return win_ok;
 }
+
 
 void elf_window_release(elf_window *w)
 {
@@ -222,7 +278,11 @@ void elf_window_release(elf_window *w)
  * with no requested base is given. */
 win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx)
 {
-	uint64_t base, size, took_lo = 0, took_hi = 0, g;
+	MEMORY_BASIC_INFORMATION m;
+	elf_region regs[64];
+	uint64_t rel[64];
+	uint64_t base, size, took_lo = 0, took_hi = 0, g, at, end;
+	int nreg = 0, nrel, i;
 
 	if (!w || !place)
 		return win_err_arg;
@@ -232,11 +292,44 @@ win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx)
 	base = w->base;
 	size = w->size;
 	g = granule();
+	end = base + size;
 
-	if (!VirtualFree((void *)(UINT_PTR) base, 0, MEM_RELEASE)) {
+	/* Survey the window before releasing it. Since DR-0068 it may be one
+	 * reservation -- the plain-PE child, whose parent took the whole span
+	 * in a single call -- or several, when the parent reserved around a
+	 * cygwin-linked child's own low region. Each reservation is its own
+	 * MEM_RELEASE unit, so the release below is per-constituent rather than
+	 * one VirtualFree of the base. */
+	for (at = base; at < end && nreg < (int)(sizeof regs / sizeof regs[0]); ) {
+		if (!VirtualQuery((void *)(UINT_PTR) at, &m, sizeof m)) {
+			w->held = 0;
+			return win_err_release;
+		}
+		regs[nreg].base  = (uint64_t)(UINT_PTR) m.BaseAddress;
+		regs[nreg].size  = (uint64_t) m.RegionSize;
+		regs[nreg].state = m.State == MEM_COMMIT  ? elf_region_committed :
+		                   m.State == MEM_RESERVE ? elf_region_reserved  :
+		                                            elf_region_free;
+		at = (uint64_t)(UINT_PTR) m.BaseAddress + m.RegionSize;
+		nreg++;
+	}
+	if (at < end) {                        /* more fragments than we can survey */
 		w->held = 0;
 		return win_err_release;
 	}
+
+	nrel = elf_window_release_plan(base, size, regs, nreg, rel,
+	                               (int)(sizeof rel / sizeof rel[0]));
+	if (nrel < 0) {
+		w->held = 0;
+		return win_err_release;
+	}
+
+	for (i = 0; i < nrel; i++)
+		if (!VirtualFree((void *)(UINT_PTR) rel[i], 0, MEM_RELEASE)) {
+			w->held = 0;
+			return win_err_release;
+		}
 	w->held = 0;
 
 	if (place(ctx, base, size, &took_lo, &took_hi) != 0)
@@ -263,6 +356,7 @@ win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx)
 	w->held = 1;
 	return win_ok;
 }
+
 
 void elf_window_arm(void)
 {

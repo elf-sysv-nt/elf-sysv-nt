@@ -84,6 +84,18 @@ int elf_window_plan(uint64_t base, uint64_t size,
                     const elf_region *regs, int nreg,
                     elf_span *gaps, int maxgaps);
 
+/* The placement-time companion to elf_window_plan, and like it a pure
+ * decision. Given the window's regions as VirtualQuery reports them, this
+ * names the reserved allocations the caller must MEM_RELEASE to bare the span
+ * for the placer: it writes each reserved region's base within the window
+ * into rel[0..maxrel) and returns the count, or -1 on a committed occupant, a
+ * reservation overrunning the window, or an overflow. A window carved by
+ * DR-0068 into the child's own low region plus the parent's reservations is
+ * several such bases; a single-reservation window is one. */
+int elf_window_release_plan(uint64_t base, uint64_t size,
+                            const elf_region *regs, int nreg,
+                            uint64_t *rel, int maxrel);
+
 /* Called with the window released and the address space bare. Returns 0 if it
  * placed something and nonzero if it did not; on success it reports the span
  * it actually took through took_lo/took_hi so the surrounding space can be
@@ -131,8 +143,9 @@ win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx);
 
 /* Adopt a window this process did not make. The stub's window was reserved
  * into it by its parent, so there is nothing for the stub to reserve and
- * everything for it to confirm: this checks that a single reservation actually
- * covers base..base+size and records it if it does. A stub that was started
+ * everything for it to confirm: this checks that one or more reservations
+ * actually cover base..base+size with no gap and no committed occupant
+ * (DR-0068 lets the window be several reservations) and records it if they do. A stub that was started
  * without a parent to arm it -- by hand, or by a test -- gets win_err_refused
  * and can decide whether it wants to try reserving for itself. */
 win_err elf_window_adopt(elf_window *w, uint64_t base, uint64_t size);
