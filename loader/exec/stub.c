@@ -45,8 +45,10 @@
 
 #include "reserve.h"
 #include "exec_kind.h"
+#include "dyn_exec.h"
 #include "../elf/elf_parse.h"
 #include "../map/elf_map.h"
+#include "../reloc/elf_reloc.h"
 #include "../process/process_image.h"
 
 #include <inttypes.h>
@@ -81,8 +83,9 @@ void elf_terminate_host(int status)
 static struct {
 	unsigned long long stack;
 	const char *runtime;
+	const char *elf_runtime;
 	int self_window, dry_run, verbose;
-} opt = { 0x800000, NULL, 0, 0, 0 };
+} opt = { 0x800000, NULL, NULL, 0, 0, 0 };
 
 static void say(const char *fmt, ...)
 {
@@ -247,6 +250,8 @@ static void usage(FILE *to)
 "  -s N, --stack=N     Bytes for the image's stack. [default: 0x800000]\n"
 "  -r P, --runtime=P   Load the runtime DLL at host path P; its base goes\n"
 "                      to the image through AT_BASE.\n"
+"  -R P, --elf-runtime=P  Map the ELF runtime at host path P and link a\n"
+"                      dynamic image against its exports (DR-0058).\n"
 "  -w, --self-window   Reserve the window here rather than adopting one.\n"
 "  -n, --dry-run       Do everything but the entry, and report.\n"
 "  -v, --verbose       Report each step.\n"
@@ -295,6 +300,11 @@ int main(int argc, char **argv)
 			opt.runtime = argv[i];
 		} else if (!strncmp(a, "--runtime=", 10)) {
 			opt.runtime = a + 10;
+		} else if (!strcmp(a, "-R") || !strcmp(a, "--elf-runtime")) {
+			if (++i >= argc) { usage(stderr); return 2; }
+			opt.elf_runtime = argv[i];
+		} else if (!strncmp(a, "--elf-runtime=", 14)) {
+			opt.elf_runtime = a + 14;
 		} else if (!strcmp(a, "-w") || !strcmp(a, "--self-window")) {
 			opt.self_window = 1;
 		} else if (!strcmp(a, "-n") || !strcmp(a, "--dry-run")) {
@@ -463,17 +473,63 @@ int main(int argc, char **argv)
 	}
 
 	/* A dynamic image is mapped and its stack is built the same way, but it
-	 * may not be entered at e_entry: its _start reads libc.so.6 through a GOT
-	 * nothing has relocated yet. The crossing that relocates it against the
-	 * runtime (DR-0058) runs between here and the entry, and is staged behind
-	 * this branch rather than wired into the stub yet, so a dynamic image is
-	 * refused with its reason rather than entered into a fault. */
-	if (kind == EXEC_KIND_DYNAMIC)
-		return refuse("%s is a dynamic image; its entry runs before the GOT "
-			      "is relocated against the runtime, so the crossing "
-			      "(DR-0058) must run first. That crossing is not yet "
-			      "wired into the stub, so the image is refused rather "
-			      "than entered into a fault", path);
+	 * may not be entered at e_entry: its _start reads its runtime's symbols
+	 * through a GOT nothing has relocated yet. The crossing (DR-0058) runs
+	 * between here and the entry -- it maps the ELF runtime, composes the pair
+	 * through dyn_exec_link so the image's GOT and PLT resolve against the
+	 * runtime's exports, and hands back a process-lifetime scope the lazy PLT
+	 * depends on. The runtime is mapped above the low window, out of the way
+	 * of the image the window holds. Its own DT_INIT chain, in WP-33's order,
+	 * is the step after this one; a specimen with no initializers reaches the
+	 * entry without it. */
+	if (kind == EXEC_KIND_DYNAMIC) {
+		unsigned char *rt_image;
+		size_t rt_size = 0;
+		elf_parsed rt_parsed;
+		elf_map_diag rt_mdiag;
+		elf_map_err rt_rc;
+		elf_mapping rt_map;
+		dyn_exec_req req;
+		dyn_exec_diag ddiag;
+		dyn_exec_err de;
+
+		if (!opt.elf_runtime || !*opt.elf_runtime)
+			return refuse("%s is a dynamic image and needs an ELF runtime "
+				      "to resolve its imports against; give one with "
+				      "--elf-runtime (DR-0058)", path);
+		if (!(rt_image = slurp(opt.elf_runtime, &rt_size)))
+			return 1;
+		memset(&pdiag, 0, sizeof pdiag);
+		if ((perr = elf_parse(rt_image, rt_size, &rt_parsed, &pdiag)) != elf_ok)
+			return refuse("%s: %s at %s: %s", opt.elf_runtime,
+				      elf_err_name(perr),
+				      pdiag.field ? pdiag.field : "?", pdiag.msg);
+		memset(&rt_mdiag, 0, sizeof rt_mdiag);
+		rt_rc = elf_map(rt_image, rt_size, &rt_parsed,
+				UINT64_C(0x100000000), &rt_map, &rt_mdiag);
+		if (rt_rc != elf_map_ok)
+			return refuse("%s: %s at %s: %s", opt.elf_runtime,
+				      elf_map_err_name(rt_rc),
+				      rt_mdiag.field ? rt_mdiag.field : "?", rt_mdiag.msg);
+		say("runtime %s mapped at 0x%" PRIx64 " for 0x%" PRIx64,
+		    opt.elf_runtime, rt_map.base, rt_map.size);
+
+		memset(&req, 0, sizeof req);
+		req.main_map = &pl.mapping;
+		req.main_p   = &parsed;
+		req.rt_map   = &rt_map;
+		req.rt_p     = &rt_parsed;
+		req.rt_name  = NULL;
+		memset(&ddiag, 0, sizeof ddiag);
+		de = dyn_exec_link(&req, NULL, &ddiag);
+		if (de != dyn_exec_ok)
+			return refuse("%s: the dynamic crossing failed: %s at %s: %s%s%s",
+				      path, dyn_exec_err_name(de),
+				      ddiag.stage ? ddiag.stage : "?", ddiag.msg,
+				      ddiag.reloc.msg[0] ? " -- " : "",
+				      ddiag.reloc.msg[0] ? ddiag.reloc.msg : "");
+		say("crossing done: GOT and PLT resolve against %s", opt.elf_runtime);
+	}
 
 	fflush(NULL);
 	elf_enter((void *) (UINT_PTR) pl.mapping.entry,
