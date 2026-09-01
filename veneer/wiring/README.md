@@ -1725,3 +1725,42 @@ repointed, the LFS `*64` rows already aliased onto their base exports. WP-56's
 per-slice done-when is unchanged: still the differential against a real el8
 userland, with the live crossing the added NT check, and for this slice that
 added check is the bind.
+
+The identity slice crosses next, the fifth crossed by its bind alone and the
+plainest no-shim case yet. Its table is seventeen rows, all forwards and no
+shim: the passwd database (`getpwent`, `getpwnam`, `getpwuid` and their `_r`
+forms, `setpwent`, `endpwent`), the group database (`getgrent`, `getgrnam`,
+`getgrgid` and their `_r` forms, `setgrent`, `endgrent`, `getgrouplist`), and
+the two supplementary-group calls (`initgroups`, `setgroups`). Every row is a
+forward-same: the name glibc versions at `GLIBC_2.2.5` is the name Cygwin
+exports, and every row's export_name is its own plain symbol. So the crossing
+asks memory's question and gets memory's answer in its plainest form: does a
+Cygwin-faced DLL export the whole set, or does the bind leave rows a shim must
+synthesise? Measurement leaves no row null. Where process's four `getrlimit64`
+and `setrlimit64` rows looked like a gap until their export_name aliases closed
+it, identity has no such gap to explain away -- no LFS `*64` variant to
+reconcile, no System V disposition as signal had, no struct translation as
+filesystem's stat family had. The finding is the absence of a shim with nothing
+standing in for one.
+
+identity crosses by its bind alone all the same, not by call: no identity row is
+stateless. The passwd and group readers walk `/etc/passwd`, `/etc/group` and
+Cygwin's account mapping and keep an enumeration cursor across
+`getpwent`/`getgrent`; `initgroups` and `setgroups` mutate the process's
+supplementary-group set; every one is SIGFE, entering the runtime's `cygtls` on
+the way in. A freestanding harness brings none of that up, so a body called here
+would read or mutate account state the harness never initialised -- the trap
+`fnmatch` sprang in filesystem. So the specimen calls nothing and reads the
+table the bind filled. Five checks, one bit each, so 31 is the only pass -- the
+bind leaving no row null, every filled slot landing inside the mapped image span
+`[base, base + SizeOfImage)`, the resolver discriminating while the no-alias
+finding holds (`getpwnam` resolves, a junk name resolves null, and the row whose
+export_name is `getpwnam` bound to exactly that export),
+`getpwnam`/`getgrgid`/`initgroups` reaching three distinct bodies, and a second
+bind idempotent, per DR-0049's contract. The same refuse-before-entry and
+no-runtime controls the earlier crossings use bound it. `t/live-identity.sh`
+records it. The crossing adds no decision: it confirms DR-0055's rule on a slice
+that is SIGFE throughout yet needs no shim placeholder repointed at all, every
+row already a plain forward onto its own export. WP-56's per-slice done-when is
+unchanged: still the differential against a real el8 userland, with the live
+crossing the added NT check, and for this slice that added check is the bind.
