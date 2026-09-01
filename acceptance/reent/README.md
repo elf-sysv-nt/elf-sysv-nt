@@ -47,8 +47,13 @@ loader, and three things stand between the reproduced probe and that:
    implementing relink has landed: `loader/exec/stub.c` now includes the
    `loader/exec/realproc/` seam and routes its option parsing and `--version`
    output through it, proven not to regress the WP-41 exec-* bar
-   (`loader/exec/realproc/RELINK.md`). What item 1 still owes is the stub's
-   remaining libc use, behind item 3's live crossing.
+   (`loader/exec/realproc/RELINK.md`). And the face-base half that shape turns
+   on is now measured: `spike/reent-stub-faceload` builds the real-process host
+   and finds its `--runtime` `LoadLibraryA` of the faced `elfsysv1.dll` returns
+   the runtime's base -- the host's own module, brought up by `crt0` -- with no
+   `error 1114` cygheap wedge (measure.sh, 2026-09-01). What item 1 still owes
+   is the full relink of `loader/exec/stub.c` into that shape and its remaining
+   libc use, behind item 3's live crossing.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
@@ -88,8 +93,11 @@ loader, and three things stand between the reproduced probe and that:
    `elfsysv1.dll`, so its base reaches the veneer's resolver through `AT_BASE`,
    is the cygload shape that wedges (`error 1114`, heap-at-wrong-address), so
    `AT_BASE` carries no face base and the thunk null-faults. That is item 1's
-   real-process face-load, not the crossing. The spike's `verdict` stays
-   `staged` and it stays out of `test/spike-regen.tsv` until that half lands and
+   real-process face-load, not the crossing, and its base-reachability half is
+   now measured cleared in the sanctioned shape (`spike/reent-stub-faceload`): a
+   real process of the faced runtime loads it without the `1114` wedge, leaving
+   the full relink of the loader stub into that shape as the remaining step. The
+   spike's `verdict` stays `staged` and it stays out of `test/spike-regen.tsv` until that half lands and
    the thunk resolves and returns the reent -- the live run that wires the
    signal below.
 
