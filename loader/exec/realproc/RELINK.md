@@ -68,6 +68,16 @@ so want a separate stderr crossing before they reroute; the Windows placement
 path; and `slurp`'s file I/O. None is on the `--version` or `--dry-run` path or
 needed for it.
 
+The stderr crossing those diagnostics wait on is now measured, so the deferral
+is the implementing reroute, not an open question. `spike/reent-stub-stderr-crossing`
+finds the faced `elfsysv1.dll` exports no `stderr` `FILE*`, so an
+`fputs`-to-stderr twin of `rp_puts` has nothing to name; the crossing must take
+an fd-2 body, and both that exist cross the faced runtime (`write(2,s,n)` raw and
+`dprintf(2,"%s",s)` variadic, `results-2026-09-01.txt`, reproduced). `write` is
+the route -- non-variadic, no `FILE*`, and the diagnostics format host-side with
+`RP_SNPRINTF` first, as `report()` does -- leaving a plain `sysv_abi` `write`
+thunk and the reroute of the five diagnostic paths through it as the next step.
+
 Item 3 -- a reent-consuming ELF body reached across the loader, the
 `to-green.tsv` `reent-tls-bringup` signal -- stays deferred behind the WP-53
 `libc.so.6` veneer's forwarding bodies.
