@@ -97,7 +97,18 @@ loader, and three things stand between the reproduced probe and that:
    reconciliation is identification, not eviction: recognize the child's low
    reservation (adopt it, or reserve the window above it) rather than reserve
    over it. That design step is item 1's last, and its constraint is now
-   measured rather than guessed.
+   measured rather than guessed. That design step has now landed (DR-0068): the
+   parent's `elf_window_reserve_in` keeps the DR-0028 whole-window call as
+   its fast path -- the plain-PE stub takes it unchanged -- and adds a
+   fallback, taken only when that call is refused, that walks the child's
+   window with `VirtualQueryEx`, plans the free sub-spans with the pure
+   `elf_window_plan` (recognizing the child's own `MEM_RESERVE` low region
+   and refusing only a committed occupant), and reserves each on its own.
+   The planner is certified as a pure decision against the low window's own
+   constants in `loader/exec/t/unit.c`. What item 1 still owes is the
+   placement-time half: `elf_window_yield`'s release-and-place must now
+   account for a window whose low region is the child's, reconciled within
+   the child at placement rather than at reservation.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
