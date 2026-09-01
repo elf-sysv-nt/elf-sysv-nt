@@ -934,3 +934,15 @@ slices or the `unassigned`/`dl` rows, and WP-56's overall done-when -- a
 vendor package's own test suite, run and passed -- is unchanged by this
 increment: still pending the fuller process bring-up and a hosted
 candidate environment neither this nor the increment before it attempts.
+
+The dl slice closes the slice order without wiring a row at the libc
+face. dlopen, dlsym, dlclose, dlerror, dlvsym, dlinfo, dlmopen and the
+dladdr pair -- everything dlfcn.h declares -- live in libdl.so.2 on el8,
+and link.h's dl_iterate_phdr and the la_* auditing hooks belong to the
+dynamic loader rather than libc; so the libc forward map carries none of
+them, exactly as it carries none of io's aio family or terminal's pty
+helpers, all of them WP-54's DSOs rather than this one's. gen-wire
+reports the slice empty (WIP: the pin below and this paragraph land
+together). The two names the slice map does place in libc --
+dl_iterate_phdr and _dl_mcount_wrapper_check -- are stub in the forward
+map, not wired.
