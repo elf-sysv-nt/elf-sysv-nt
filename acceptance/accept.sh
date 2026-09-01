@@ -173,9 +173,16 @@ run_suite() {
 	local rc=$?
 	local obstacle
 	obstacle=$(grep -m1 -E 'elfsysv-stub:|_err|reloc' "$probe" 2>/dev/null | sed 's#^elfsysv-stub: [^:]*: ##; s#^elfsysv-stub: ##')
+	# Translate a known loader refusal into the build-side fix, so the halt reads
+	# as an action rather than a raw error code. The granule refusal (DR-0008) is
+	# satisfied by linking the image granule-separable (DR-0061).
+	local hint=
+	case "$obstacle" in
+		*granule*) hint=" -- fix build-side: link granule-separable, -Wl,-z,max-page-size=0x10000 or the toolchain default (DR-0061)";;
+	esac
 	if grep -qE 'elfsysv-stub:|_err|reloc' "$probe" 2>/dev/null || [ "$rc" -ge 128 ]; then
 		run_state="halted"
-		run_note="    run stage: launched $name through the crossing; it halts before entry -- ${obstacle:-terminated, exit $rc}. The image does not yet run; acceptance/to-green.tsv names the ladder from here."
+		run_note="    run stage: launched $name through the crossing; it halts before entry -- ${obstacle:-terminated, exit $rc}$hint. The image does not yet run; acceptance/to-green.tsv names the ladder from here."
 		return 0
 	fi
 	# Entered and left without a loader diagnostic: run the package's own suite

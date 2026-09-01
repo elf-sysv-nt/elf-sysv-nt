@@ -55,6 +55,28 @@ layout, set the default where it falls short, and confirm the rebuilt bzip2
 clears the granule halt and reaches entry. That measurement is the done-when for
 the segment-mapping rung in `acceptance/to-green.tsv`.
 
+## The enforcement is layered, not rigid
+
+Three cooperating layers hold this, and the requirement deliberately sits in none
+of them alone. The loader's refusal is the authoritative one: it runs at load
+time and holds for every image whatever built it -- a package this harness
+compiled, a stock el8 binary, a prebuilt vendor object -- so it, not the
+toolchain, is the guarantee. The toolchain default is a convenience that makes
+images this project builds succeed without tripping the loader; the cleanest
+value for it is the stock x86-64 2 MB default el8 already carries, not a custom
+constant, so our images stay shaped like the vendor's. The acceptance harness
+adds the third layer: when a run halts on the granule refusal it names the
+build-side fix rather than surfacing the raw error, turning the backstop into a
+diagnosis.
+
+The default is not baked in rigidly, and must not be. A linker is meant to honor
+`-z max-page-size`, and the project's own certification of the loader's refusal
+(DR-0008) depends on it: a test proves the refusal fires only by deliberately
+linking a sub-granule image to feed it. A toolchain that could not emit one could
+not build that fixture, so it could no longer test the guarantee it exists to
+support. Rigidity would harden the layer that is not the safeguard while
+disarming the test of the layer that is.
+
 ## What it does not decide
 
 The granule value itself, which the mapper reads from the host at run time
