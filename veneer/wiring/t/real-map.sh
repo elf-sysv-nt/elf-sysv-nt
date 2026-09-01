@@ -26,16 +26,23 @@ test "$(count forward-same)" = 1077
 test "$(count forward-alias)" = 185
 test "$(count shim)" = 136
 
-# Wired function rows the slice map does not place. 275 today: the
-# underscore internals no public header declares, gets (hidden from a
-# _GNU_SOURCE scan, as el8's stdio.h is C11), and the SunRPC xdr_*
-# family, whose headers el8 moved out of glibc into libtirpc.
+# Wired function rows the slice map does not place: 275 today, in three
+# documented residues and nothing else -- 231 underscore internals no
+# public header declares, 43 of the SunRPC xdr* family whose headers el8
+# moved out of glibc into libtirpc, and gets, hidden from a _GNU_SOURCE
+# scan since el8's stdio.h is C11. gen-wire.py is never asked to generate
+# the slice; the pin certifies the partition, so a symbol moving between
+# residues -- or a public name falling in -- is a conscious re-pin.
 awk -F'\t' 'NR==FNR{m[$1]=1;next}
     ($7=="forward-same"||$7=="forward-alias"||$7=="shim") &&
     ($4=="func"||$4=="ifunc") && !($1 in m){print $1}' \
     ../symbol-slice.tsv "$tmp/fwd.tsv" | sort -u > "$tmp/unassigned.txt"
 test "$(wc -l < "$tmp/unassigned.txt")" = 275
-# and every non-underscore one is on the two documented residues
+test "$(grep -c '^_'   "$tmp/unassigned.txt")" = 231
+test "$(grep -c '^xdr' "$tmp/unassigned.txt")" = 43
+test "$(grep -cx gets  "$tmp/unassigned.txt")" = 1
+# nothing outside the three residues -- a new public symbol here is a
+# slice-map gap to place, not a residue to wave through
 if grep -v '^_' "$tmp/unassigned.txt" | grep -v '^xdr' | grep -qvx gets
 then
     echo 'real-map: a new public symbol fell into unassigned:' >&2
