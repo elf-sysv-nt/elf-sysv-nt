@@ -52,7 +52,14 @@ loader, and three things stand between the reproduced probe and that:
    not as emitted forwarding code. So it resolves the crossing at link time but
    consults no reent at run time; item 2 is generating the forwarding bodies
    that reach `elfsysv1.dll` -- where the WP-27 face brings the reent up -- not
-   merely building the veneer.
+   merely building the veneer. The codegen for those bodies has landed
+   (recorded in `doc/decisions/` as the runtime-resolving veneer thunk):
+   `veneer/libc/generate.py` now emits each `forward-same`/`forward-alias`
+   FUNC as a runtime-resolving thunk -- the shape `spike/reent-veneer-thunk`
+   pinned -- and `veneer/libc/t/run-tests.sh` certifies the four link-time facts
+   on the built `libc.so.6`. What item 2 still owes is the run: the thunks name
+   their exports and hold no ELF self-import, but reaching the face and
+   returning the reent-consuming result is item 3, behind the built face DLL.
 
 3. A reent-consuming ELF specimen entered through the crossing (strtol on an
    overflow, or a string/locale body) whose call returns `LONG_MAX` and sets
