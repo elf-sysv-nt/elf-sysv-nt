@@ -99,10 +99,18 @@ brings the faced runtime up as the sole runtime, its `mmap` performing the
 DR-0008 mapping — and to run bzip2's image inside it. This touches the
 WP-41-certified entry path and the DR-0008 fork-replay contract, so it is built
 and certified as its own step, not folded into an existing spike; the plain-PE
-exec-* bar must remain unregressed. The next measurement on this path is whether
+exec-* bar must remain unregressed. The measurement this path turns on — whether
 a real process of the faced runtime, on its `_dll_crt0`-brought-up main thread,
 maps a fixed low region through its own `mmap` where the parent handover to a
-foreign child was refused; that measurement, not another window reconcile, is
-the one the resolved shape turns on. The `to-green.tsv` `reent-tls-bringup`
-signal stays `-` until a reent-consuming body reached through this crossing
-returns its result, per DR-0060.
+foreign child was refused — is now taken and clears
+(`spike/reent-realproc-low-window`, `verdict=cleared`): the low window
+`[0x400000,0x600000)` reads free in a sole-runtime process, not the
+reserved+committed occupant the suspended-child handover fought
+(`spike/reent-stub-realproc-window-reconcile`), and the faced `mmap` places
+`MAP_FIXED` at `0x400000` for bzip2's span. The low occupant the reconcile
+fought was an artifact of the foreign-parent / suspended-child arrangement, not
+of a cygwin runtime as such; the sole-runtime process does not carry it, so this
+shape's finishing code step rests on a measured constraint rather than an
+inferred one. The `to-green.tsv` `reent-tls-bringup` signal stays `-` until a
+reent-consuming body reached through this crossing returns its result, per
+DR-0060.

@@ -111,3 +111,11 @@ reent-stub-realproc-window-occupant	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc
 # planner models but reserved+committed, and elf_window_plan refuses a
 # committed occupant. Re-aims item 1. Needs the WP-26 build tree.
 reent-stub-realproc-window-reconcile	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/winsup/cygwin/crt0.o	results-2026-[0-9]*.txt	bash measure.sh
+
+# reent-realproc-low-window drives the faced runtime's own mmap, as a real
+# process of it (WP-26 crt0 + -lcygwin), placing MAP_FIXED at ELF_WINDOW_BASE
+# on the _dll_crt0 main thread. Cleared: the low window is free in a sole-runtime
+# process, so the fixed low region maps where the foreign-child handover was
+# refused. The measurement the faced-runtime-hosting shape turns on. Needs the
+# WP-26 build tree.
+reent-realproc-low-window	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/winsup/cygwin/crt0.o	results-2026-[0-9]*.txt	bash measure.sh

@@ -1,0 +1,15 @@
+script  reent-realproc-low-window 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_build=ok
+realproc_mmap_export=found
+realproc_mmap_anon=live at 0x6fffffff0000
+  region base=0x400000 size=0x200000 free
+realproc_low_window_occupant=free
+realproc_mmap_fixed_free=ok at 0x10000000
+realproc_mmap_fixed_window=ok at 0x400000
+verdict=cleared
