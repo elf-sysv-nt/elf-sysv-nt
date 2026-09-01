@@ -27,6 +27,10 @@ Usage:
       progress.py wp-56 stdio shim    the shim symbols of stdio, with targets
       progress.py wp-56 stdio shim __xstat64    one symbol, in full
     --depth N   expand N levels below the addressed node (default: 1)
+
+  Acceptance (WP-T4 embryo), a second tree over the same classification:
+      progress.py accept              both KPIs, per-package table, blocking symbols
+      progress.py accept bzip2        one package: verdict, surface, unresolved -> slice
 """
 import os, re, sys, subprocess, time, glob
 
@@ -317,6 +321,231 @@ def render_symbol(model, sl, bucket, sym):
     return 0
 
 
+# ---- acceptance (WP-T4 embryo) -------------------------------------------
+#
+# The harness (acceptance/accept.sh) builds each pinned package, reads the
+# built ELF's undefined libc symbols, and classifies them against the veneer:
+# forward and wired (a certified shim) and filled resolve today; shim, stub and
+# unclassified do not. Its per-package machine line and its named-symbol block
+# are the git truth this view reads. Two KPIs fall out of the same data: a
+# checklist (packages by verdict) and a coverage (veneer symbols a package has
+# actually exercised), reported against two denominators.
+
+ACCEPT_DIR  = os.path.join(REPO, 'acceptance')
+SURFACE_DIR = os.path.join(ACCEPT_DIR, 'surface')
+FILLED_GLOB = os.path.join(REPO, 'veneer', 'wiring', '*-filled.tsv')
+SHIMS_GLOB  = os.path.join(REPO, 'veneer', 'wiring', 'wire-*.shims.tsv')
+
+RESOLVED = ('forward', 'wired', 'filled')     # the runtime answers these today
+BLOCKING = ('shim', 'stub', 'unclassified')   # these keep a package from ready
+PASSING  = ('passing', 'green')               # verdicts the run stage will emit
+
+
+def pinned_packages():
+    return [r[0] for r in _rows(os.path.join(ACCEPT_DIR, 'packages.tsv')) if r and r[0]]
+
+
+def newest_results():
+    best = None
+    for p in glob.glob(os.path.join(ACCEPT_DIR, 'results-*.txt')):
+        if best is None or p > best:          # results-YYYY-MM-DD sorts by date
+            best = p
+    return best
+
+
+def parse_results(path):
+    """pkg -> {verdict, total, counts{bucket:n}, named{bucket:[sym]}, shape}.
+    The machine line carries counts and verdict; the indented block names every
+    non-forward symbol (forwards are counted there, not named -- the sidecar is
+    what names them)."""
+    pkgs, cur, bucket = {}, None, None
+    label = [('wired', 'wired'), ('shim', 'shim'), ('stub', 'stub'),
+             ('filled', 'filled'), ('unclassified', 'unclassified')]
+    if not path:
+        return pkgs
+    for line in open(path, encoding='utf-8', errors='replace'):
+        raw = line.rstrip('\n')
+        m = re.match(r'^(?P<name>\S+)=surface:(?P<surface>\d+),forward:(?P<forward>\d+),'
+                     r'(?:wired:(?P<wired>\d+),)?shim:(?P<shim>\d+),stub:(?P<stub>\d+),'
+                     r'filled:(?P<filled>\d+),unclassified:(?P<unclassified>\d+),'
+                     r'(?:shape:(?P<shape>\S+),)?verdict:(?P<verdict>\S+)', raw)
+        if m:
+            g = m.groupdict()
+            d = pkgs.setdefault(g['name'], {'named': {}})
+            d['total'] = int(g['surface'])
+            d['counts'] = dict(forward=int(g['forward']), wired=int(g['wired'] or 0),
+                               shim=int(g['shim']), stub=int(g['stub']),
+                               filled=int(g['filled']), unclassified=int(g['unclassified']))
+            d['shape'], d['verdict'] = g['shape'] or '-', g['verdict']
+            cur = None
+            continue
+        hm = re.match(r'^(\S+)\s+(ready|needs-wiring|shape-mismatch|does-not-build|passing|green)\s+builds;', raw)
+        if hm:
+            cur, bucket = pkgs.setdefault(hm.group(1), {'named': {}}), None
+            continue
+        lm = re.match(r'^    (\w[\w -]*?) *\(', raw)
+        if lm and cur is not None:
+            key, bucket = lm.group(1).strip().lower(), None
+            for pref, name in label:
+                if key.startswith(pref):
+                    bucket = name; break
+            continue
+        sm = re.match(r'^      (\S+)$', raw)
+        if sm and cur is not None and bucket:
+            cur['named'].setdefault(bucket, []).append(sm.group(1))
+    return pkgs
+
+
+def surface_sidecar(pkg):
+    """[(symbol, bucket)] from acceptance/surface/<pkg>.tsv, or None. accept.sh
+    writes the full classified surface there, forwards included, so coverage can
+    count symbol identities rather than only the named non-forwards."""
+    p = os.path.join(SURFACE_DIR, '%s.tsv' % pkg)
+    if not os.path.isfile(p):
+        return None
+    return [(r[0], r[1]) for r in _rows(p) if len(r) >= 2]
+
+
+def resolvable_surface(model):
+    """Distinct libc symbols the veneer answers today: forwards (buckets 1, 2),
+    filled bodies, and shims a crossed slice has wired. The denominator for
+    runtime coverage."""
+    syms = {s for s, (b, _, _) in model['cls'].items() if b in ('1', '2')}
+    for p in glob.glob(FILLED_GLOB):
+        for r in _rows(p):
+            if r and r[0]:
+                syms.add(r[0])
+    for p in glob.glob(SHIMS_GLOB):
+        sl = os.path.basename(p)[len('wire-'):-len('.shims.tsv')]
+        if sl in model['crossed']:
+            for r in _rows(p):
+                if r and r[0]:
+                    syms.add(r[0])
+    return len(syms)
+
+
+def _slice_of(ss, sym):
+    return ss.get(sym, '?')
+
+
+def render_accept(model):
+    ss = symbol_slice()
+    pinned = pinned_packages()
+    pkgs = parse_results(newest_results())
+    counted = {n: d for n, d in pkgs.items() if 'counts' in d}
+
+    def has(v):
+        return [n for n, d in counted.items() if d.get('verdict') == v]
+    built = [n for n in counted]
+    ready, needw = has('ready'), has('needs-wiring')
+    shapem, dnb = has('shape-mismatch'), has('does-not-build')
+    passing = [n for n, d in counted.items() if d.get('verdict') in PASSING]
+
+    print('Acceptance — WP-T4 embryo')
+    print('  done-when: a pinned vendor package builds, links, runs its own suite, and passes')
+    print()
+    print('  KPI-A  packages   pinned %d · built %d · ready %d · passing %d'
+          % (len(pinned), len(built), len(ready), len(passing)))
+    tail = []
+    if needw:  tail.append('needs-wiring %d' % len(needw))
+    if shapem: tail.append('shape-mismatch %d' % len(shapem))
+    if dnb:    tail.append('does-not-build %d' % len(dnb))
+    unclassified = [p for p in pinned if p not in counted]
+    if unclassified: tail.append('not-yet-run %d' % len(unclassified))
+    if tail:
+        print('                    (%s)' % ', '.join(tail))
+
+    # KPI-B, two denominators.
+    dem_total = sum(d['total'] for d in counted.values())
+    dem_res = sum(sum(d['counts'][b] for b in RESOLVED) for d in counted.values())
+    exercised, missing_sidecar = set(), []
+    for n in passing:
+        sc = surface_sidecar(n)
+        if sc is None:
+            missing_sidecar.append(n)
+        else:
+            exercised.update(s for s, _ in sc)
+    R = resolvable_surface(model)
+    print()
+    if dem_total:
+        print('  KPI-B  suite      %d/%d symbol demands across the pinned suite are resolved (%.0f%%)'
+              % (dem_res, dem_total, 100.0 * dem_res / dem_total))
+    print('         runtime    %d/%d veneer symbols proven by a passing package (%.1f%%)'
+          % (len(exercised), R, 100.0 * len(exercised) / R if R else 0.0))
+    if not passing:
+        print('                    no package passes yet; the suite-run stage is not live, so runtime coverage stays 0')
+    elif missing_sidecar:
+        print('                    (%s: no surface sidecar yet; rerun acceptance/accept.sh to count its symbols)'
+              % ', '.join(missing_sidecar))
+
+    print()
+    print('  package       verdict         surface  fwd/wired/shim/stub/filled   shape')
+    for n in pinned:
+        d = counted.get(n)
+        if not d:
+            print('  %-12s  %-14s  (pinned, not yet classified)' % (n, '-'))
+            continue
+        c = d['counts']
+        print('  %-12s  %-14s  %-7d  %d / %d / %d / %d / %d          %s'
+              % (n, d['verdict'], d['total'], c['forward'], c['wired'],
+                 c['shim'], c['stub'], c['filled'], d.get('shape', '-')))
+
+    # Cross-package: which unresolved symbol blocks the most packages.
+    blockers = {}
+    for n, d in counted.items():
+        for b in BLOCKING:
+            for sym in d['named'].get(b, []):
+                blockers.setdefault(sym, {'pkgs': set(), 'bucket': b})['pkgs'].add(n)
+    print()
+    if blockers:
+        print('  blocking symbols (ranked by packages waiting -> slice that owns the fix):')
+        rank = sorted(blockers.items(), key=lambda kv: (-len(kv[1]['pkgs']), kv[0]))
+        for sym, info in rank[:20]:
+            print('    %-26s %2d pkg  %-6s %s'
+                  % (sym, len(info['pkgs']), info['bucket'], _slice_of(ss, sym)))
+    else:
+        print('  blocking symbols: none — every pinned package resolves against the veneer as it stands')
+    print()
+    print('  drill down:  progress.py accept <package>')
+    return 0
+
+
+def render_accept_package(model, pkg):
+    ss = symbol_slice()
+    d = parse_results(newest_results()).get(pkg)
+    print('Acceptance / %s' % pkg)
+    if not d or 'counts' not in d:
+        if pkg in pinned_packages():
+            print('  pinned, not yet classified (run acceptance/accept.sh %s)' % pkg)
+        else:
+            print('  not a pinned package (see acceptance/packages.tsv)')
+        return 0
+    c = d['counts']
+    res = sum(c[b] for b in RESOLVED)
+    blk = sum(c[b] for b in BLOCKING)
+    print('  verdict     %s' % d['verdict'])
+    print('  shape       %s' % d.get('shape', '-'))
+    print('  surface     %d libc symbols' % d['total'])
+    print('  resolved    %d  (%d forward, %d wired shim, %d filled)'
+          % (res, c['forward'], c['wired'], c['filled']))
+    print('  blocking    %d  (%d shim, %d stub, %d unclassified)'
+          % (blk, c['shim'], c['stub'], c['unclassified']))
+
+    named = d['named']
+    if blk:
+        print('\n  unresolved symbols, by slice (the wiring each waits on):')
+        rows = [(sym, b, _slice_of(ss, sym)) for b in BLOCKING for sym in named.get(b, [])]
+        for sym, b, sl in sorted(rows, key=lambda r: (r[2], r[0])):
+            print('    %-26s %-6s %s' % (sym, b, sl))
+    else:
+        print('\n  every symbol resolves. The suite run is next; it waits on the loader\'s')
+        print('  dynamic-exec path to stand in for ld-linux, which is WP-56\'s to land.')
+    sc = surface_sidecar(pkg)
+    if sc:
+        print('\n  full surface sidecar present: %d symbols classified in acceptance/surface/%s.tsv' % (len(sc), pkg))
+    return 0
+
+
 def main(argv):
     depth = 1
     path = []
@@ -332,6 +561,12 @@ def main(argv):
         i += 1
 
     model = build()
+
+    if path and path[0].lower() == 'accept':
+        if len(path) == 1:
+            return render_accept(model)
+        return render_accept_package(model, path[1])
+
     # normalise a leading "wp-56"
     if path and path[0].lower() in ('wp-56', 'wp56'):
         path = path[1:]
