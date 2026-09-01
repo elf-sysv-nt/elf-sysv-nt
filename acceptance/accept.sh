@@ -211,6 +211,12 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	nu=$(printf '%s\n' "$surface" | grep -c '^unclassified ')
 	total=$((nf+nw+ns+nb+nfill+nu))
 
+	# The full classified surface as a committed sidecar, forwards included.
+	# The results block names only the non-forwards; bin/progress.py reads this
+	# to count coverage by symbol identity, not by totals alone.
+	mkdir -p "$here/surface"
+	printf '%s\n' "$surface" | awk 'NF>=2{print $2"\t"$1}' | sort > "$here/surface/$name.tsv"
+
 	# Two gates, in order. A package whose symbols do not all resolve waits on
 	# wiring. One whose symbols resolve but whose image the loader's classifier
 	# does not call dynamic is not the shape the crossing driver runs, and is
