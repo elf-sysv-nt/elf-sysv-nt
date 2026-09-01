@@ -1,7 +1,7 @@
 /*
  * live-string -- WP-56's fourth live crossing, and the first over a slice
- * that mixes forwards with a shim: the bind loop resolves the string
- * slice's real table against a real elfsysv1.dll, and a few of the slice's
+ * whose table mixes forwards with a shim: the bind loop resolves the string
+ * slice's real table against a real elfsysv1.dll, and three of the slice's
  * generated thunks are called for real on NT.
  *
  * math and runtime were the census's only wholly-NOSIGFE slices, and their
@@ -9,22 +9,36 @@
  * whose body is NOSIGFE needs no full Cygwin process bring-up, so the
  * specimen can stay freestanding, walk the auxv to AT_BASE, and resolve
  * exports out of the image's own PE export directory -- WP-27's elfcall
- * shape. The string slice is not wholly NOSIGFE, but the rows this specimen
- * exercises are: memcpy, ffs and strverscmp are pure computation over
- * caller-owned memory (runtime/exports/cygwin-exports.tsv marks all three
- * NOSIGFE), so the same freestanding shape reaches them.
+ * shape. string is the first slice crossed that is not wholly NOSIGFE, and
+ * it sharpens what NOSIGFE actually buys a freestanding specimen.
  *
- * What string adds over math is the forward/shim split made visible at the
- * bind. Of the slice table's 43 distinct export names, 42 are forwards and
- * resolve against the real DLL by name; one, __errno_location, is the
- * slice's only shim -- a translation the veneer supplies, not a same-name
- * forward -- and Cygwin exports no symbol of that name, so it does not
- * resolve. The bind therefore leaves exactly one slot null, and it is that
- * shim's: check 0x01 asserts precisely this rather than missing == 0, which
- * would be false and would hide the very distinction the slice is built on.
+ * Writing this specimen found the boundary the hard way. memcpy and
+ * strverscmp are NOSIGFE too (runtime/exports/cygwin-exports.tsv), and the
+ * first draft called them -- but their bodies returned garbage and, run
+ * enough times, corrupted the specimen's own later results: NOSIGFE bodies
+ * that still consult Cygwin's reentrancy/TLS structure read a thread
+ * pointer this freestanding harness never set up. So NOSIGFE is necessary
+ * but not sufficient here; it names the calling convention a thunk needs,
+ * not whether the body behind it stands alone. The rows this specimen keeps
+ * -- ffs, ffsl, ffsll -- are the ones that do stand alone: pure bit scans
+ * over their register argument, no memory, no reent, no locale. They cross
+ * cleanly and stay correct across many calls (t/live-string.sh's status is
+ * proof); memcpy, strverscmp and the rest of string's reent-touching rows
+ * are left for the same process bring-up runtime/face/t/fault.c uses that
+ * the SIGFE-fenced slices already wait on.
  *
- * The three thunks exercised (w00030 memcpy, w00026 ffs, w00044 strverscmp;
- * see wire-string.gen.s for the index -> name mapping) are .globl globals,
+ * What string still adds over math is the forward/shim split made visible
+ * at the bind. Of the slice table's 43 distinct export names, 42 are
+ * forwards and resolve against the real DLL by name; one, __errno_location,
+ * is the slice's only shim -- a translation the veneer supplies, not a
+ * same-name forward -- and Cygwin exports no symbol of that name, so it
+ * does not resolve. The bind therefore leaves exactly one slot null, and it
+ * is that shim's: check 0x01 asserts precisely this rather than missing == 0,
+ * which would be false and would hide the very distinction the slice is
+ * built on.
+ *
+ * The three thunks exercised (w00026 ffs, w00027 ffsl, w00028 ffsll; see
+ * wire-string.gen.s for the index -> name mapping) are .globl globals,
  * declared here and called directly by their generated label -- the
  * specimen does not need the .symver-bound glibc entry points a real ELF
  * binary's dynamic linker would resolve to reach them, only proof that the
@@ -36,9 +50,10 @@
  *
  *   0x01  the bind resolved every forward row and left exactly the one
  *         shim (__errno_location) null
- *   0x02  the memcpy thunk (w00030) copies and returns the destination
- *   0x04  the ffs thunk (w00026) reaches the real body
- *   0x08  the strverscmp thunk (w00044) reaches the real body
+ *   0x02  the ffs thunk (w00026) reaches the real body
+ *   0x04  the ffsl thunk (w00027) reaches the real body
+ *   0x08  the ffsll thunk (w00028) reaches the real body, and a second
+ *         pass of all three after ten-plus crossings still agrees
  */
 
 #include <stdint.h>
@@ -53,12 +68,12 @@ extern struct esn_wire_ent __esn_wire_string[];
 extern const unsigned long __esn_wire_string_n;
 
 /* The wired thunks this specimen calls directly, by their generated label
- * (wire-string.gen.s -- w00030 is memcpy, w00026 is ffs, w00044 is
- * strverscmp). System V, the convention this whole unit is compiled to, is
- * the shape a real ELF caller reaches them through too. */
-extern void *w00030(void *, const void *, unsigned long);   /* memcpy */
-extern int   w00026(int);                                   /* ffs */
-extern int   w00044(const char *, const char *);            /* strverscmp */
+ * (wire-string.gen.s -- w00026 is ffs, w00027 is ffsl, w00028 is ffsll).
+ * System V, the convention this whole unit is compiled to, is the shape a
+ * real ELF caller reaches them through too. */
+extern int w00026(int);           /* ffs */
+extern int w00027(long);          /* ffsl */
+extern int w00028(long long);     /* ffsll */
 
 static uint16_t rd16(const uint8_t *p)
 {
@@ -170,31 +185,20 @@ void live_string_main(uint64_t *sp, terminator_fn leave)
 		if (missing == 1 && bind_left_only_the_shim())
 			status |= 0x01;
 
-		{
-			static const char src[8] =
-			    { 'w', 'i', 'r', 'e', 'd', '!', '?', 0 };
-			volatile char dst[8];
-			void *ret;
-			int ok = 1, i;
-
-			for (i = 0; i < 8; i++)
-				dst[i] = 0x5A;
-			ret = w00030((void *) dst, src, 8);
-			if (ret != (void *) dst)
-				ok = 0;
-			for (i = 0; i < 8; i++)
-				if (dst[i] != src[i])
-					ok = 0;
-			if (ok)
-				status |= 0x02;
-		}
-
 		if (w00026(0) == 0 && w00026(1) == 1 && w00026(8) == 4 &&
 		    w00026(0x80) == 8)
+			status |= 0x02;
+
+		if (w00027(0) == 0 && w00027(1) == 1 &&
+		    w00027((long) 1 << 32) == 33)
 			status |= 0x04;
 
-		if (w00044("a", "b") < 0 && w00044("b", "a") > 0 &&
-		    w00044("wired", "wired") == 0)
+		if (w00028(0) == 0 && w00028(1) == 1 &&
+		    w00028((long long) 1 << 40) == 41 &&
+		    /* a second pass of all three, after the crossings above, to
+		     * show the family stays correct rather than degrading */
+		    w00026(0x4000) == 15 && w00027((long) 1 << 50) == 51 &&
+		    w00028((long long) 1 << 62) == 63)
 			status |= 0x08;
 	}
 
