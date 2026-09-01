@@ -75,6 +75,7 @@ is a record nobody will find.
 | [0062](0062-cet-opt-out-is-a-toolchain-default.md) | CET opt-out belongs in the toolchain default, not only the rpm macros | accepted 2026-09-01 | none |
 | [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
 | [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01 | none |
+| [0065](0065-veneer-func-forward-is-a-runtime-resolving-thunk.md) | a veneer FUNC forward is a runtime-resolving thunk | accepted 2026-09-01 | none |
 
 ## What earns a record
 

@@ -1,4 +1,4 @@
-# DR-XXXX — a veneer FUNC forward is a runtime-resolving thunk
+# DR-0065 — a veneer FUNC forward is a runtime-resolving thunk
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 item 2 of `acceptance/reent/README.md`.
