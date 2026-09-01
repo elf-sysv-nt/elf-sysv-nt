@@ -19,17 +19,19 @@ The witness is `spike/reent-bringup`'s: `strtol` on an overflow returns
 measured this time across the veneer→face resolution rather than in a
 hand-built probe.
 
-## What the skeleton measures today (0.2), and what it still stages
+## What the spike measures (0.3): the link target, then the live run
 
 The terminal witness is a RUN — the veneer's own runtime-resolving thunk,
 entered through the loader crossing (`enter.S`), resolving the face export from
-`AT_BASE` and returning the reent-consuming result. That run is not yet written,
-so `measure.sh` reports `verdict=staged`.
+`AT_BASE` and returning the reent-consuming result. 0.3 writes that run
+(`live-run.sh`) and measures how far it gets; it does not yet pass, so
+`measure.sh` still reports `verdict=staged`, but the obstacle is now measured,
+not assumed.
 
-What 0.2 adds over the file-existence check it replaced is the reachable half
-measured rather than assumed. With all three prerequisites present, `measure.sh`
-builds the veneer and records that the veneer→face crossing *target* is real and
-matched end to end — the precondition the live run rests on:
+The link-target half (carried from 0.2) records that the veneer→face crossing
+*target* is real and matched end to end — the precondition the live run rests
+on. With all three prerequisites present, `measure.sh` builds the veneer and
+records:
 
   - `strtol_body_is_thunk=yes` — the reent-consuming body is a real
     runtime-resolving thunk (12 bytes, entry `0x4c` `lea`, not the single-byte
@@ -59,14 +61,49 @@ measurement rests on are scratch build products, not committed:
 So `measure.sh` SKIPs to `verdict=staged` when the cross toolchain or the face
 DLL is absent, as the sibling reent spikes do.
 
+## The live run (0.3), and where it halts
+
+`live-run.sh` builds the loader (the WP-41 stub with the DR-0058 crossing), the
+WP-53 veneer, and a reent-consuming forward specimen (`reent-spec.S` +
+`reent-body.c`, dyn-cross-spec.S's shape carried to the reent), then takes the
+specimen through the loader three ways and records what each reaches:
+
+  - `veneer_maps_as_elf_runtime=yes` — the veneer maps as an `--elf-runtime`.
+    This needed a fix: `veneer/libc/build-libc` linked with `ld` directly and so
+    missed the cross gcc's `max-page-size=0x10000` default, leaving two PT_LOAD
+    segments of unlike protection on one 64K granule; the loader correctly
+    refused it (`elf_map_err_granule`, DR-0008). The build now sets it, and the
+    veneer maps. This unblocks the bzip2 run stage too, which maps the same
+    veneer.
+  - `crossing_enters=yes` — with the veneer mapped, the specimen enters through
+    `enter.S` and its `strtol` PLT call reaches the veneer's own thunk, which
+    runs and null-faults *only because no face base was supplied* — resolver.c's
+    honest failure for an unresolved export, not a crossing failure.
+  - `face_base_via_runtime=no` — the one step not yet wired. `--runtime`
+    `LoadLibraryA`s the faced `elfsysv1.dll` so its base reaches the veneer's
+    resolver through `AT_BASE`; from the Cygwin stub this is the cygload shape
+    `reent-bringup` found wedges, and it does — `error 1114`,
+    `heap allocated at wrong address` (DR-0060). So `AT_BASE` carries no face
+    base, the thunk cannot resolve `strtol`, and `reent_live_run=faulted`.
+
+The measured picture: the ELF crossing is no longer the obstacle — it enters and
+runs the reent-consuming forward thunk. What stands between here and green is the
+real-process face-load (item 1's remaining half): bringing the faced runtime up
+so its base reaches the image, without the `LoadLibraryA` heap-reservation
+wedge. The `errno` read-back is a further step behind the errno value-translation
+shim (DR-0000), which the veneer does not emit — `reent-body.c` measures the
+forward `strtol` return as the reachable witness and records why.
+
 ## Why it is not yet registered
 
-It is deliberately NOT in `test/spike-regen.tsv`: the terminal live-run witness
-is unmeasured, so this is a staged characterization of the crossing target, not
-a certified run — and an unrun spike registered with the runner is an INCOMPLETE
-certification, not a pass. Until the veneer thunk resolves and returns the reent
-across the loader crossing, `to-green`'s `reent-tls-bringup` row stays `-`. It is
-registered, and its transcript recorded, once that run runs.
+It is deliberately NOT in `test/spike-regen.tsv`: the live run is now written and
+measured, but it does not yet pass — it halts at the face-load
+(`reent_live_run=faulted`), so this is a staged characterization of where the
+crossing stops, not a certified reent run. A staged spike registered with the
+runner would pin a fault as if it were the answer. Until the veneer thunk
+resolves and returns the reent across the loader crossing (`verdict=pass`),
+`to-green`'s `reent-tls-bringup` row stays `-`. The spike is registered, and its
+transcript pinned, once that run passes.
 
 ## The subtlety this spike is where to measure, not assume
 

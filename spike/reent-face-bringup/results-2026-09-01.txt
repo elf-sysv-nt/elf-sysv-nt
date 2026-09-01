@@ -1,0 +1,32 @@
+script  reent-face-bringup 0.3
+
+host        ins-15
+cross gcc   x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+date        2026-09-01
+
+veneer_libc_builds=yes
+strtol_body_is_thunk=yes  (size 12, entry byte 0x4c != 0xc3 ret)
+reent_thunk_keys_on_face_name=yes
+reent_carrier_present=yes
+face_exports_reent_target=yes
+veneer_face_target_matched=yes
+
+veneer_maps_as_elf_runtime=yes
+crossing_enters=yes  (entered; the veneer thunk ran and null-faulted with no face base, status 5)
+face_base_via_runtime=no  (cannot load the runtime elfsysv1.dll: error 1114)
+    stub:       0 [main] elfsysv-stub (33460) C:\-\repo\elf-sysv-nt\a\build\wp27-face\elfsysv-stub.exe: *** fatal error - heap allocated at wrong address 0x0 (mapped) != 0xA00000000 (expected)
+    stub: elfsysv-stub: cannot load the runtime elfsysv1.dll: error 1114
+enter_status=1
+reent_live_run=faulted  (exit 1: the crossing did not return the body's byte)
+
+remaining=the face-base half. The granule fix to veneer/libc/build-libc
+          makes the veneer map as an ELF runtime, so the crossing now
+          enters and the veneer's own strtol thunk runs (crossing_enters
+          =yes); it null-faults only because no face base was supplied.
+          What is not yet wired is --runtime's LoadLibraryA of the faced
+          DLL, which the cygload shape wedges on (error 1114, heap-at-
+          wrong-address; DR-0060), so AT_BASE carries no face base. That
+          is item 1's real-process face-load, not the ELF crossing.
+          Until it lands, to-green's reent-tls-bringup row stays '-' and
+          this spike stays unregistered.
+verdict=staged

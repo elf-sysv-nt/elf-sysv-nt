@@ -57,7 +57,7 @@ GCC=$prefix/bin/$target-gcc
 RE=$prefix/bin/$target-readelf
 dll=$repo/a/build/wp27-face/elfsysv1.dll
 
-emit "script  reent-face-bringup 0.2-wip"
+emit "script  reent-face-bringup 0.3"
 emit ""
 emit "host        $(hostname)"
 emit "cross gcc   $($GCC --version 2>/dev/null | head -1)"
@@ -136,10 +136,34 @@ emit "veneer_face_target_matched=no"
 fi
 
 emit ""
-emit "remaining=the live run: the veneer thunk resolving strtol from AT_BASE and"
-emit "          returning LONG_MAX with errno ERANGE in the reent, entered"
-emit "          through the loader crossing (enter.S) rather than measured here"
-emit "          at the link/export level. Until that run, to-green's"
-emit "          reent-tls-bringup row stays '-' and this spike stays unregistered."
+
+# The live run (live-run.sh): build the loader, the granule-separable veneer,
+# and the reent-consuming forward specimen, and take the specimen through the
+# loader crossing -- the ELF half alone, the face-base half alone, and both
+# together. It reports veneer_maps_as_elf_runtime, crossing_enters,
+# face_base_via_runtime, enter_status, and reent_live_run.
+here=$(cd "$(dirname "$0")" && pwd)
+live=$(bash "$here/live-run.sh" 2>&1)
+printf '%s\n' "$live" | emit_lines
+emit ""
+
+if printf '%s' "$live" | grep -q '^reent_live_run=pass'; then
+emit "remaining=none for the ELF crossing: the reent-consuming forward body"
+emit "          crossed the veneer into the face and returned LONG_MAX across"
+emit "          enter.S. The errno read-back is the next witness, behind the"
+emit "          errno value-translation shim (DR-0000)."
+emit "verdict=pass"
+else
+emit "remaining=the face-base half. The granule fix to veneer/libc/build-libc"
+emit "          makes the veneer map as an ELF runtime, so the crossing now"
+emit "          enters and the veneer's own strtol thunk runs (crossing_enters"
+emit "          =yes); it null-faults only because no face base was supplied."
+emit "          What is not yet wired is --runtime's LoadLibraryA of the faced"
+emit "          DLL, which the cygload shape wedges on (error 1114, heap-at-"
+emit "          wrong-address; DR-0060), so AT_BASE carries no face base. That"
+emit "          is item 1's real-process face-load, not the ELF crossing."
+emit "          Until it lands, to-green's reent-tls-bringup row stays '-' and"
+emit "          this spike stays unregistered."
 emit "verdict=staged"
+fi
 exit 0
