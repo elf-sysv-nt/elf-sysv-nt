@@ -1805,3 +1805,48 @@ plain forward onto its own export with the four `.symver` tags playing no part
 in the resolution. WP-56's per-slice done-when is unchanged: still the
 differential against a real el8 userland, with the live crossing the added NT
 check, and for this slice that added check is the bind.
+
+The threads slice crosses next, the seventh crossed by its bind alone and the
+nineteenth crossing overall. Its table is 42 rows -- 41 forwards and one shim.
+The forwards are the POSIX threads surface `pthread.h` and `semaphore.h` name
+(the attribute, condition-variable, mutex and scheduling families,
+`pthread_self`, `pthread_equal`, `pthread_exit`, the cancellation setters) and
+the four C11 `threads.h` entries (`thrd_current`, `thrd_equal`, `thrd_sleep`,
+`thrd_yield`). Two things are new here, neither a System V gap. The one shim is
+a setjmp-family rename: its thunk is `__sigsetjmp`, `setjmp.h`'s versioned entry
+at `GLIBC_2.2.5`, but its export_name is the plain `sigsetjmp`, so it binds onto
+Cygwin's own `sigsetjmp` export like a forward -- unlike signal's two System V
+rows, which had no Cygwin export at all and left the table null for a shim to
+synthesise. threads' shim is a name the DLL already carries; signal's were names
+it did not. And the version spread here is a compat pair, not distinct names:
+the six `pthread_cond_*` entries (`broadcast`, `destroy`, `init`, `signal`,
+`timedwait`, `wait`) each carry two rows, one at `GLIBC_2.2.5` and one at
+`GLIBC_2.3.2`, the compat pair glibc shipped when the condvar ABI changed.
+Where io-mux's spread put four tags on eight distinct names, threads puts two
+tags on one name twice over.
+
+The tag lives in the thunk's `.symver`, not in the export name the bind
+resolves, so both rows of a pair resolve to the single Cygwin export of that
+plain name and the bind fills both. So the crossing asks memory's question and
+gets memory's answer across a slice with a rename and a compat pair: does a
+Cygwin-faced DLL export the whole set, or does the bind leave rows a shim must
+synthesise? Measurement leaves no row null -- no System V disposition as signal
+had, no struct translation as filesystem's stat family had. threads crosses by
+its bind alone all the same, not by call: every `pthread` and `thrd` body is
+SIGFE, entering the runtime's `cygtls` and its thread registry on the way in,
+and `sigsetjmp` saves a signal mask against machinery a freestanding harness
+never brought up -- the trap `fnmatch` sprang in filesystem. So the specimen
+calls nothing and reads the table the bind filled. Five checks, one bit each, so
+31 is the only pass -- the bind leaving no row null, every filled slot landing
+inside the mapped image span `[base, base + SizeOfImage)`, the resolver
+discriminating while the no-alias finding holds (`pthread_self` resolves, a junk
+name resolves null, and the row whose export_name is `pthread_self` bound to
+exactly that export), `pthread_self`/`pthread_mutex_lock`/`sigsetjmp` reaching
+three distinct bodies, and a second bind idempotent, per DR-0049's contract. The
+same refuse-before-entry and no-runtime controls the earlier crossings use
+bound it. `t/live-threads.sh` records it. The crossing adds no decision: it
+confirms DR-0055's rule on a slice carrying a rename and a compat pair, every
+row a plain forward onto its own export with the `.symver` tags playing no part
+in the resolution. WP-56's per-slice done-when is unchanged: still the
+differential against a real el8 userland, with the live crossing the added NT
+check, and for this slice that added check is the bind.
