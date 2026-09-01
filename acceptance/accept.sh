@@ -167,6 +167,14 @@ for live in "$root"/veneer/wiring/t/live-*.sh; do
 done
 sort -u "$wired" -o "$wired"
 
+# A fingerprint of the veneer's resolution inputs -- the classification map and
+# the set of crossed slices -- stamped into each surface sidecar, so a reader can
+# tell whether a stored surface's verdict still reflects today's veneer or has
+# gone stale. bin/progress.py recomputes the same value the same way and compares.
+_ch=$(sha256sum "$classification" | cut -d' ' -f1)
+_cr=$(for _l in "$root"/veneer/wiring/t/live-*.sh; do [ -e "$_l" ] || continue; _b=$(basename "$_l"); _b=${_b#live-}; echo "${_b%.sh}"; done | sort | paste -sd, -)
+vfp=$(printf '%s|%s' "$_ch" "$_cr" | sha256sum | cut -c1-12)
+
 while IFS=$'\t' read -r name relpath want build binary <&3; do
 	case $name in ''|\#*) continue ;; esac
 	[ -z "$only" ] || case " $only " in *" $name "*) ;; *) continue ;; esac
@@ -215,7 +223,7 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	# The results block names only the non-forwards; bin/progress.py reads this
 	# to count coverage by symbol identity, not by totals alone.
 	mkdir -p "$here/surface"
-	printf '%s\n' "$surface" | awk 'NF>=2{print $2"\t"$1}' | sort > "$here/surface/$name.tsv"
+	{ echo "# veneer-fingerprint $vfp"; printf '%s\n' "$surface" | awk 'NF>=2{print $2"\t"$1}' | sort; } > "$here/surface/$name.tsv"
 
 	# Two gates, in order. A package whose symbols do not all resolve waits on
 	# wiring. One whose symbols resolve but whose image the loader's classifier
