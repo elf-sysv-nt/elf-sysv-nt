@@ -1,0 +1,11 @@
+script  reent-stub-realproc-version 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+startup_faults_without_bridge=yes
+version_print_plain_crosses=no
+version_print_thunked_crosses=yes
+verdict=yes
