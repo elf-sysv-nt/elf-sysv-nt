@@ -77,6 +77,14 @@ loader, and three things stand between the reproduced probe and that:
    `errno` to `ERANGE` in the reent `__errno` hands back -- the spike's
    `realproc_body_sets_errno_erange`, measured across the loader.
 
+   `spike/reent-face-bringup` (item 3's spike) now measures the reachable
+   half of this: with all three artifacts built, its `strtol` thunk in the WP-53
+   veneer keys on a name the built `elfsysv1.dll` face actually exports
+   (`veneer_face_target_matched=yes`), so the crossing target is real end to
+   end. Its `verdict` stays `staged` and it stays out of `test/spike-regen.tsv`
+   until the thunk resolves and returns the reent across `enter.S` -- the live
+   run that wires the signal below.
+
 Only then is the `to-green.tsv` `reent-tls-bringup` signal wired, to that live
 test's positive result, replacing the `-`.
 
