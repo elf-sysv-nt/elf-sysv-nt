@@ -12,9 +12,18 @@
 
 #include <stddef.h>
 
-/* The (argc, argv, envp) form DT_INIT and the array entries are called with on
- * this platform; WP-38's dl_run_init calls them the same way. */
-typedef void (*init_fn)(int, char **, char **);
+/* The (argc, argv, envp) form DT_INIT and the array entries are called with,
+ * and -- this is load-bearing -- the System V AMD64 calling convention they use,
+ * which the stub that calls them does not. The stub is a Windows PE built for
+ * the Microsoft x64 ABI (see enter.S), where %rsi and %rdi are callee-saved and
+ * arguments arrive in %rcx/%rdx/%r8; a System V initializer takes its arguments
+ * in %rdi/%rsi/%rdx and treats %rsi and %rdi as scratch. Called as an ordinary
+ * pointer the mismatch passes the wrong argument registers and lets the callee
+ * clobber registers the caller trusts, which corrupts the stub after the init
+ * returns. The sysv_abi attribute makes the compiler emit the cross-ABI call --
+ * marshalling the arguments and preserving the Microsoft-callee-saved registers
+ * around it -- the same bridge enter.S writes by hand for the one-way entry. */
+typedef void __attribute__((sysv_abi)) (*init_fn)(int, char **, char **);
 
 /* Turn a validated file offset into the link vaddr the loaded image carries it
  * at, by finding the PT_LOAD that backs it. Returns 1 on success. This mirrors
