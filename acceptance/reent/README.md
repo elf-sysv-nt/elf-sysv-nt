@@ -43,8 +43,16 @@ loader, and three things stand between the reproduced probe and that:
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
    needing one; the bare ELF runtime specimens (`libgreet.so`) carry no reent.
    The WP-53 `libc.so.6` veneer -- an ET_DYN forwarding into `elfsysv1.dll` --
-   is the runtime this rung and the run stage both wait on, and it is not built
-   yet.
+   is the runtime this rung and the run stage both wait on. `spike/reent-veneer-runtime/`
+   measures what it provides today (measure.sh, 2026-09-01): `veneer/libc/build-libc`
+   builds `libc.so.6` and it carries the whole reent surface -- the
+   `errno@@GLIBC_PRIVATE` TLS carrier and `strtol` at its el8 node -- but every
+   FUNC/IFUNC body is a single-byte `ret` (`reent_body_is_stub=yes`): the
+   `elfsysv1.dll` export each entry reaches lives in `libc-forward.tsv` as data,
+   not as emitted forwarding code. So it resolves the crossing at link time but
+   consults no reent at run time; item 2 is generating the forwarding bodies
+   that reach `elfsysv1.dll` -- where the WP-27 face brings the reent up -- not
+   merely building the veneer.
 
 3. A reent-consuming ELF specimen entered through the crossing (strtol on an
    overflow, or a string/locale body) whose call returns `LONG_MAX` and sets

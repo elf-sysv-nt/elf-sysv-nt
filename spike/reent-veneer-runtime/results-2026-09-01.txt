@@ -1,0 +1,10 @@
+script  reent-veneer-runtime 1.0
+
+host        ins-15
+cross gcc   x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+date        2026-09-01
+
+veneer_libc_builds=yes
+reent_surface_present=yes
+reent_body_is_stub=yes  (0 non-stub FUNC/IFUNC bodies; strtol entry byte 0xc3 = ret)
+verdict=yes
