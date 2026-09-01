@@ -38,8 +38,18 @@ that they do not regress. Two facts hold that bar, measured not asserted:
 
 Item 1's scope here is the version path -- the one reent-consuming body the
 empirical phase composed end to end. The stub's other libc use (the Windows
-placement path, the `fprintf` diagnostics, `slurp`'s file I/O) is not rerouted;
-it is not on the `--version` path and not needed for it. Item 3 -- a
-reent-consuming ELF body reached across the loader, the `to-green.tsv`
-`reent-tls-bringup` signal -- stays deferred behind the WP-53 `libc.so.6`
-veneer's forwarding bodies.
+placement path, the `fprintf` diagnostics, `slurp`'s file I/O) is not rerouted
+in `stub.c` yet; it is not on the `--version` path and not needed for it.
+
+The formatting half of that remaining use now has its foundation, though:
+`realproc-fmt.c`'s `rp_snprintf` formats host-side over the conversions the
+stub prints, certified against the platform `snprintf`, so the capstone relink
+can turn `stub.c`'s `fprintf`/`printf` diagnostics into a host-side format
+followed by the existing `rp_puts` crossing, rather than a `va_list` across the
+ABI boundary. Adding the primitive left `stub.c` untouched -- the plain-PE
+`stub.o` is cmp-equal before and after -- so it does not itself change the
+program the WP-41 exec-* certifications drive.
+
+Item 3 -- a reent-consuming ELF body reached across the loader, the
+`to-green.tsv` `reent-tls-bringup` signal -- stays deferred behind the WP-53
+`libc.so.6` veneer's forwarding bodies.

@@ -16,6 +16,13 @@ this rung: the stub does its own work host-safe and crosses only for output.
   - `realproc-str.c` -- the stub's own string and option parsing, freestanding:
     pure over its inputs, no call into any libc, so no ABI crossing. Scope is
     what `stub.c` parses, not a general libc.
+  - `realproc-fmt.c` -- the stub's own formatted output, freestanding for the
+    same reason: `rp_vsnprintf` / `rp_snprintf` do the `printf`-family work
+    host-side with no libc call, so only the finished bytes cross, through the
+    `rp_puts` thunk. Scope is the conversions `stub.c` prints, not a general
+    `printf`. Carrying a Microsoft-ABI `va_list` into the faced runtime's
+    System V `vfprintf` would cross two register-save-area layouts that
+    disagree, so the formatting stays host-side; DR-0066 draws that line.
   - `realproc-cross.c` -- the two crossings into the faced runtime: the
     `sysv_abi` `cygwin_internal` startup bridge (DR-0066's `-DBRIDGE` shape) and
     a `sysv_abi` `puts` thunk resolved from `elfsysv1.dll` for output.
