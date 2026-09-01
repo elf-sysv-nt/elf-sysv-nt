@@ -1,0 +1,3 @@
+live-sysv-ipc: WP-56 crossing scaffold
+
+The sysv-ipc slice crossing, WIP. See veneer/wiring/t/live-sysv-ipc.sh once landed.
