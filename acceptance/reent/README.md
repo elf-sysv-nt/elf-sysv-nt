@@ -53,8 +53,14 @@ loader, and three things stand between the reproduced probe and that:
    the runtime's base -- the host's own module, brought up by `crt0` -- with no
    `error 1114` cygheap wedge (measure.sh, 2026-09-01). The stderr diagnostics
    have since been rerouted through the measured fd-2 `write(2)` crossing
-   (`loader/exec/realproc/STDERR-REROUTE.md`), so what item 1 still owes is
-   `slurp`'s file I/O, behind item 3's live crossing.
+   (`loader/exec/realproc/STDERR-REROUTE.md`) and the image read (`slurp`)
+   through the measured host-safe Win32 read (`SLURP-REROUTE.md`), closing the
+   stub's last direct libc file use. That read opens a Windows-form path, and
+   `spike/reent-stub-path` measures how the loader's POSIX input reaches it:
+   the parent (a host Cygwin process) converts the mount path with
+   `cygwin_conv_path`, the stub's host-safe `GetFullPathName` cannot, so the
+   parent passes the Windows path. What item 1 still owes is wiring that
+   conversion into the front end's operand for the real-process shape.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
