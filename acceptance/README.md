@@ -90,15 +90,22 @@ the next leaves are added a row at a time.
 
 ## Running it through the crossing
 
-On 2026-09-01 bzip2 reads `ready` and the run stage launches it, but it halts
-before entry: `elf_map_err_granule` — its two `PT_LOAD` segments carry unlike
-protection across a shared `0x10000` granule, which the map layer refuses. This
-is the first obstacle a real vendor image hits, and it sits earlier on the
-ladder than the reent/TLS and syscall bring-up the crossing specimens deferred.
-`acceptance/to-green.tsv` names that ladder and `bin/progress.py green` renders
-it; the run stage turns each rung from a claim into a run that either clears it
-or names where it stops. `t/run-stage.sh` certifies that the stage launches a
-ready package and that `passing` is reported only when a suite actually passed.
+On 2026-09-01 bzip2 reads `ready` and the run stage launches it. Its first
+halt was `elf_map_err_granule` — its two `PT_LOAD` segments carried unlike
+protection across a shared `0x10000` granule, which the map layer refuses
+(DR-0008). That halt was build-side, not a loader gap: bzip2's hand-written
+Makefile passed no max-page-size, so the image inherited a sub-granule default.
+DR-0061 makes granule-separable linking a toolchain default — the cross gcc now
+ships a `specs` file setting `max-page-size=0x10000`, so a package built through
+the harness is separable whether or not its own build asks — and the rebuilt
+bzip2 clears the granule halt and the map layer takes the image. It now halts
+one rung further on, before entry, needing an ELF runtime to resolve its
+imports against (`--elf-runtime`, DR-0058); the reent/TLS and syscall bring-up
+the crossing specimens deferred follow. `acceptance/to-green.tsv` names that
+ladder and `bin/progress.py green` renders it; the run stage turns each rung
+from a claim into a run that either clears it or names where it stops.
+`t/run-stage.sh` certifies that the stage launches a ready package and that
+`passing` is reported only when a suite actually passed.
 
 ## Image shape
 

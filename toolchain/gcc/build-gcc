@@ -200,6 +200,18 @@ stage install make install-gcc
 stage libgcc make -j"$jobs" all-target-libgcc
 stage libgcc-install make install-target-libgcc
 
+# DR-0061: the toolchain carries a granule-separable link default. gcc reads a
+# `specs` file placed beside libgcc at startup, so install the committed one to
+# make max-page-size >= the host granule (0x10000) the toolchain default -- an
+# image built with this gcc is granule-separable whether or not its own build
+# passes -z max-page-size, and the loader's sub-granule refusal (DR-0008) is the
+# backstop. A per-link flag still overrides for a build that needs a larger page.
+chat "install default.specs"
+specsdir=$prefix/lib/gcc/$target/$version
+[ -d "$specsdir" ] || die "no gcc install dir at $specsdir for the link spec"
+install -m 644 "$here/default.specs" "$specsdir/specs" ||
+    die "cannot install default.specs into $specsdir"
+
 [ -x "$prefix/bin/$target-gcc" ] || [ -x "$prefix/bin/$target-gcc.exe" ] ||
     die "install left no $target-gcc"
 

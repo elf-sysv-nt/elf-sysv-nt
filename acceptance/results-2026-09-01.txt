@@ -10,7 +10,7 @@ bzip2        ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim,
       signal
     filled (a synthesized, certified body stands behind them -- DR-0052):
       __ctype_b_loc
-    run stage: launched bzip2 through the crossing; it halts before entry -- elf_map_err_granule at p_vaddr: PT_LOAD[0] and PT_LOAD[1] carry unlike protection and share a 0x10000 granule. The image does not yet run; acceptance/to-green.tsv names the ladder from here.
+    run stage: launched bzip2 through the crossing; the granule halt is cleared. With the toolchain's max-page-size default (DR-0061) bzip2's PT_LOAD segments are granule-separable -- no two of unlike protection share a 0x10000 granule -- and the map layer now takes the image where it refused it before. It halts one rung further on, before entry, needing an ELF runtime to resolve its imports against (--elf-runtime, DR-0058); reent/TLS and the syscall surface follow. The image does not yet run; acceptance/to-green.tsv names the ladder from here.
 bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,shape:dynamic,verdict:ready,run:halted
 
 accept: 1 classified, 0 did not build
