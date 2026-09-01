@@ -9,6 +9,7 @@
  */
 #include "../binfmt.h"
 #include "../dispatch.h"
+#include "../reserve.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -349,6 +350,73 @@ static void test_image_operand(void)
 	ck("operand: no buffer falls back", got == posix);
 }
 
+/* The low-window planner, as a pure decision. reserve.c's reconciling
+ * reservation calls elf_window_plan to decide which sub-spans of the window a
+ * cygwin-linked child leaves for the parent to reserve; these are that
+ * decision without a process existing anywhere. The window's own constants are
+ * used where they carry the point: the child's low 2 MB reservation at the
+ * 0x400000 base, the case DR-0067 exists for. */
+static void test_window_plan(void)
+{
+	elf_span gaps[8];
+	int n;
+
+	{
+		elf_region r[] = { { 0x400000, 0x3FC00000, elf_region_free } };
+		n = elf_window_plan(0x400000, 0x3FC00000, r, 1, gaps, 8);
+		ck("plan: an empty window is one gap over the whole span",
+		   n == 1 && gaps[0].base == 0x400000 &&
+		   gaps[0].size == 0x3FC00000);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x200000,   elf_region_reserved },
+			{ 0x600000, 0x3FA00000, elf_region_free },
+		};
+		n = elf_window_plan(0x400000, 0x3FC00000, r, 2, gaps, 8);
+		ck("plan: the child's low reservation is recognized, not retaken",
+		   n == 1 && gaps[0].base == 0x600000 &&
+		   gaps[0].size == 0x3FA00000);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x200000,   elf_region_committed },
+			{ 0x600000, 0x3FA00000, elf_region_free },
+		};
+		ck("plan: a committed occupant is refused, not reconciled",
+		   elf_window_plan(0x400000, 0x3FC00000, r, 2, gaps, 8) == -1);
+	}
+	{
+		elf_region r[] = { { 0x400000, 0x3FC00000, elf_region_reserved } };
+		ck("plan: a fully reserved window needs no gap",
+		   elf_window_plan(0x400000, 0x3FC00000, r, 1, gaps, 8) == 0);
+	}
+	{
+		elf_region r[] = {
+			{ 0x400000, 0x100000, elf_region_reserved },
+			{ 0x500000, 0x100000, elf_region_free },
+			{ 0x600000, 0x100000, elf_region_reserved },
+			{ 0x700000, 0x100000, elf_region_free },
+		};
+		n = elf_window_plan(0x400000, 0x400000, r, 4, gaps, 8);
+		ck("plan: interleaved reservations leave only the free spans",
+		   n == 2 && gaps[0].base == 0x500000 && gaps[0].size == 0x100000 &&
+		   gaps[1].base == 0x700000 && gaps[1].size == 0x100000);
+	}
+	{
+		/* A free region that begins below the window and reaches into it is
+		 * clipped to the base, and abutting free spans merge to one gap. */
+		elf_region r[] = {
+			{ 0x300000, 0x180000,   elf_region_free },
+			{ 0x480000, 0x3FB80000, elf_region_free },
+		};
+		n = elf_window_plan(0x400000, 0x3FC00000, r, 2, gaps, 8);
+		ck("plan: a region straddling the low edge is clipped and merged",
+		   n == 1 && gaps[0].base == 0x400000 &&
+		   gaps[0].size == 0x3FC00000);
+	}
+}
+
 int main(void)
 {
 	printf("  WP-41 unit: the branch and the chain\n");
@@ -358,6 +426,7 @@ int main(void)
 	test_depth_boundary();
 	test_quoting();
 	test_image_operand();
+	test_window_plan();
 	if (failures)
 		printf("  %d check(s) failed\n", failures);
 	else
