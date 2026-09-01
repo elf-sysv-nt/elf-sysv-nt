@@ -1007,3 +1007,40 @@ side resolves through this body once the runtime links it. `CTYPE-TABLE-SHIM.md`
 records the layout, the negative-index and EOF rule, the C-locale scope, and
 the one follow-up: the acceptance harness still reads the classification, which
 still says stub, so bzip2's verdict does not yet reflect the fill.
+
+## The string slice: live crossing
+
+math and runtime were the two slices whose whole table is NOSIGFE, and their
+live crossings leaned on that. string is the first crossed slice that is not
+wholly NOSIGFE, and it carries one shim among its forwards, so it tests two
+things the earlier crossings could not: whether the bind loop tells a forward
+from a shim against a real DLL, and whether NOSIGFE alone is enough to call a
+body from the freestanding harness.
+
+The bind answer is exact. Of the slice table's 43 distinct export names, 42 are
+forwards, and the resolver -- the same PE-export walk live-math uses -- finds
+every one of them in `elfsysv1.dll`. The forty-third, `__errno_location`, is
+the slice's only shim: a name the veneer translates rather than forwards, and
+one Cygwin exports no symbol for, so it does not resolve. The specimen asserts
+that shape directly -- exactly one slot null, and that slot the shim's -- not
+`missing == 0`, which would be false here and would erase the forward/shim
+distinction the slice is built on.
+
+The NOSIGFE answer is a boundary, and writing the specimen found it the hard
+way. The first draft called memcpy and strverscmp, both NOSIGFE. Both returned
+garbage, and called enough times both corrupted the specimen's own later
+results: their bodies read Cygwin's reentrancy and thread-local state through a
+thread pointer this freestanding harness never established. NOSIGFE names the
+calling convention a thunk needs, not whether the body behind it stands on its
+own; a reent-touching body needs the same process bring-up
+`runtime/face/t/fault.c` performs that the SIGFE-fenced slices already wait on.
+The thunks the specimen keeps -- ffs, ffsl, ffsll -- are pure register bit
+scans with no memory, reent, or locale behind them, and they cross cleanly:
+run through WP-41's branch against the real DLL, the bind resolves the table,
+and all three return the real body's answer, including a second pass of all
+three after a dozen crossings to show the family stays correct rather than
+degrading -- status 15, the only pass, with the same refuse-before-entry and
+no-runtime controls the earlier crossings use. `t/live-string.sh` records it.
+The rest of string's reent-touching rows, memcpy and strverscmp among them,
+are left for that process bring-up, and WP-56's overall done-when is unchanged:
+still the vendor package's own test suite, run and passed.
