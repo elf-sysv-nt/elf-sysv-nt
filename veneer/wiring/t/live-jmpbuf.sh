@@ -84,10 +84,10 @@ ELFSYSV_STUB_OPTIONS="--runtime=$(cygpath -w "$dll")"
 export ELFSYSV_STUB_OPTIONS
 got=0
 timeout 30 "$tmp/elfsysv-exec" "$specimen" > "$tmp/live.out" 2>&1 || got=$?
-if [ "$got" = 15 ]; then
-  say "ok: the frameless jmp_buf face round-tripped setjmp/longjmp for real against the real DLL (status 15)"
+if [ "$got" = 247 ]; then
+  say "ok: the frameless jmp_buf face round-tripped all three curated row pairs (setjmp/longjmp, _setjmp/_longjmp, setjmp/siglongjmp) for real against the real DLL (status 247)"
 else
-  bad "the live-jmpbuf specimen returned $got, wanted 15:"
+  bad "the live-jmpbuf specimen returned $got, wanted 247:"
   sed 's/^/     /' "$tmp/live.out"
 fi
 
@@ -95,7 +95,7 @@ fi
 export ELFSYSV_STUB_OPTIONS='--runtime=C:\no-such-elfsysv-runtime.dll'
 got=0
 timeout 30 "$tmp/elfsysv-exec" "$specimen" > "$tmp/refuse.out" 2>&1 || got=$?
-if [ "$got" != 15 ] && [ "$got" != 0 ] &&
+if [ "$got" != 247 ] && [ "$got" != 0 ] &&
    grep -q "cannot load the runtime" "$tmp/refuse.out"; then
   say "ok: a missing runtime is refused before entry (status $got)"
 else
