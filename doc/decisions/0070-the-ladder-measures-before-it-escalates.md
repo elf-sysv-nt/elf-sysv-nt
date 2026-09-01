@@ -19,6 +19,15 @@ a fork that needs the operator — a value, an authority call, or a reserved
 decision — reaches tier 8. Proportionality gates it: spike when the fork is
 empirical and the measurement is cheap against how hard the decision is to undo.
 
+And an empirical tier narrows only after EVERY surviving candidate is measured,
+not the first: spike them all, then apply the tier to the evidence together.
+Measuring one candidate and adopting it is not the tier speaking; it is the guess
+the ladder exists to prevent, carrying a transcript. This clause completes the
+amendment in the same session it was taken, before ratification: correctness
+cannot discard the wrong candidate until the right one is known, so "measure
+before escalating" is only sound as "measure the survivors, then let the tiers
+read the evidence."
+
 ## Why
 
 The ladder said, at tier 8, ask when it "has not discriminated" — but it did not

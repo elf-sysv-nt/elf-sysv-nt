@@ -45,6 +45,15 @@ call does not — try it and read the result. This is the same boundary AGENTS.m
 draws by calling a spike the evidence behind a decision; the ladder names when
 the evidence must be got before the tiers can speak.
 
+An empirical tier narrows only after every surviving candidate is measured, not
+after the first. Spike them all — proportionate to the blast radius — and then
+apply the tier to the evidence together: correctness cannot discard the wrong
+candidate until the right one is known, and where more than one proves correct
+the tiers below it (reliability, robustness, battle-tested, diagnosability) read
+the measured evidence, not a guess. Measuring one candidate and adopting it is
+not the tier speaking; it is the same guess the ladder exists to prevent, now
+carrying a transcript.
+
 Spend effort in proportion to how hard the decision is to undo.
 
 ## How it composes with this repository
