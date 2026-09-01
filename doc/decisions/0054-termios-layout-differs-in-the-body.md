@@ -1,4 +1,4 @@
-# DR-XXXX — struct termios is laid out differently in the body than the face
+# DR-0054 — struct termios is laid out differently in the body than the face
 
 Accepted 2026-09-01. Source: WP-56, the terminal slice's live crossing.
 
