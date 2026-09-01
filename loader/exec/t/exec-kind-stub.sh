@@ -72,6 +72,7 @@ $loader/reloc/elf_reloc.c $loader/reloc/reloc_resolve.S"
 say "$prog: build the stub and front end with $cc"
 $cc $cflags $stubldflags -o "$bin/elfsysv-stub" \
 	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/dyn_exec.c" \
+	"$exec_dir/dyn_init.c" \
 	"$exec_dir/enter.S" $loader_srcs \
 	|| fail "stub build failed"
 $cc $cflags -o "$bin/elfsysv-exec" "$exec_dir/exec_main.c" \

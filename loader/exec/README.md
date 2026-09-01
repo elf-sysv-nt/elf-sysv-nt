@@ -92,11 +92,14 @@ before the GOT is relocated against the runtime, so entered that way it faults
 on its first library call. So the stub runs the crossing first — DR-0058's
 `dyn_exec_link`, over the loader packages already delivered — which maps the ELF
 runtime named by `--elf-runtime`, links the image against it so its GOT and PLT
-resolve into the runtime's exports, and only then enters. With no runtime named
-the image is refused rather than entered into the fault. Running the image's
-`DT_INIT` chain between the link and the entry is the step after this one; a
-specimen with no initializers reaches the entry without it. An image this route
-does not run at all — a relocatable object, a core, a bare shared object — is
+resolve into the runtime's exports, runs its initializers, and only then enters.
+With no runtime named the image is refused rather than entered into the fault.
+`dyn_init` runs the image's `DT_INIT` chain — DT_PREINIT_ARRAY, DT_INIT,
+DT_INIT_ARRAY, the ABI's order — between the link and the entry, so a program
+reaches `e_entry` with its constructors run, the way `ld-linux` would have run
+them (a DR settles the step, and the Microsoft-to-System V ABI bridge the call
+crosses). A specimen with no initializers reaches the entry having run none. An
+image this route does not run at all — a relocatable object, a core, a bare shared object — is
 refused before it is even mapped.
 
 ## What is certified
@@ -127,6 +130,17 @@ was relocated into the runtime. The same image with no runtime supplied is
 refused rather than entered into the fault. The runtime here is a bare specimen,
 not the WP-53 `libc.so.6` veneer; standing the branch up against a specimen is
 this step, and the veneer and bzip2 are the ones it carries.
+
+The initializers are certified the same way, by a specimen that can only reach
+its status through the right order. Its DT_INIT sets a global to 2 from 0, and
+its DT_INIT_ARRAY entry, seeing that 2 and `greet()` returning across the
+crossing, sets it to 42, which the entry carries out; any other order, a skipped
+stage, or an unresolved call poisons it off 42. The global is 0 in the image, so
+42 is reached only when the loader ran DT_INIT first and DT_INIT_ARRAY second,
+both before the entry — and, because the initializers are System V code called
+from the Microsoft-ABI stub, only when that call crossed the ABI boundary
+without losing its arguments or corrupting its caller, which an ordinary call
+does and the measured first cut did.
 
 The quoting has its own tests for a reason worth repeating. It is sized with no
 buffer and then written into one, and the first version did that with a macro
