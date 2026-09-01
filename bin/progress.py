@@ -44,7 +44,20 @@ Usage:
   Road to green (WP-56 completion burndown), status derived from git truth:
       progress.py green               the capabilities between bzip2 ready and passing, N of M
 """
-import os, re, sys, subprocess, time, glob, json
+import os, re, sys, subprocess, time, glob, json, shutil
+
+
+def term_width(default=100):
+    """The terminal's column count, for clipping wide lines. Falls back to a
+    sane default when output is not a tty (a pipe or a file)."""
+    try:
+        return shutil.get_terminal_size((default, 24)).columns
+    except Exception:
+        return default
+
+
+def _clip(s, width):
+    return s if len(s) <= width else s[:max(0, width - 1)] + '…'
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
@@ -928,14 +941,14 @@ def render_green(model):
     print('  %d of %d capabilities in place%s (acceptance/to-green.tsv; status derived, not hand-set)'
           % (done, len(road), tail))
     print()
+    w = term_width()
     box = {'done': '[x]', 'inflight': '[~]', 'open': '[ ]'}
     for cid, state, sig, desc in road:
-        d = desc if len(desc) <= 96 else desc[:93] + '...'
-        print('  %s %-18s %s' % (box[state], cid, d))
+        print(_clip('  %s %-18s %s' % (box[state], cid, desc), w))
         if state == 'inflight':
-            print('  %s%-18s   in flight in a worktree now, not yet landed' % ('    ', ''))
+            print(_clip('  %-22s in flight in a worktree now, not yet landed' % '', w))
         elif state == 'open' and sig and sig != '-':
-            print('  %s%-18s   flips on: %s' % ('    ', '', sig))
+            print(_clip('  %-22s flips on: %s' % ('', sig), w))
     print()
     deliv = wp56_delivered()
     if done == len(road) and deliv:
