@@ -35,6 +35,11 @@ Usage:
   Dynamic-exec path (DR-0058), read from the worker's .smon/log, no build:
       progress.py dynexec             driver stages + the crossing certification steps
       progress.py dynexec dyn-cross   one step: the commands it ran, with exit codes
+
+  Done-when clauses, aggregated from the same ledger:
+      progress.py clauses             outstanding (unmet, partial) done-when clauses
+      progress.py clauses wp-31       clauses whose id matches a substring
+      progress.py clauses --all       include the met clauses too
 """
 import os, re, sys, subprocess, time, glob, json
 
@@ -584,9 +589,12 @@ CROSS_STEP = {
 def smon_runs(limit=100):
     """[run] newest-first from .smon/log. Each run: {ts, plan, steps{id:state},
     items[(id,state,text)], file}. The last state written for a step id is its
-    final one, so a step that started but never finished stays 'start'."""
+    final one, so a step that started but never finished stays 'start'. limit
+    None reads the whole history (clause tracking wants every run, not the
+    recent window certification tracking uses)."""
     runs = []
-    for path in sorted(glob.glob(os.path.join(SMON_DIR, '*.jsonl')), reverse=True)[:limit]:
+    files = sorted(glob.glob(os.path.join(SMON_DIR, '*.jsonl')), reverse=True)
+    for path in (files if limit is None else files[:limit]):
         plan, steps, items, cmds, ts0 = [], {}, [], [], None
         try:
             fh = open(path, encoding='utf-8', errors='replace')
@@ -725,6 +733,81 @@ def render_dynexec_step(model, step):
     return 0
 
 
+# ---- done-when clauses ---------------------------------------------------
+#
+# Beyond steps, each smon run stamps an `item` per done-when clause it checked,
+# with a state: met, partial, or unmet. Those are the plan's "Done when:" prose
+# turned into things a suite asserts. This view aggregates them across the whole
+# ledger -- the latest state each clause was left in -- so the outstanding
+# clauses (unmet, partial) read as the honest "what is left" list, per work
+# package. Clause ids are free-form labels the suites chose (WP-31, wp41,
+# map.verdict); filter by substring to focus on one.
+
+CLAUSE_MET = ('met', 'ok')
+# A failing step stamps a generic item ("a mapping case did not reach its
+# expected result") that is a transient failure marker, not a done-when clause.
+# It pollutes the outstanding list -- a delivered WP shows a stale unmet -- so
+# the clause view drops it and keeps the real, textful clauses.
+GENERIC_ITEM = re.compile(r'did not reach its expected result', re.I)
+
+
+def clause_ledger():
+    """{(id, key_text): (state, ts, display_text)} with the latest state each
+    clause was left in, over the whole run history. smon_runs is newest-first,
+    so the first time a clause is seen is its latest verdict. Generic failure
+    stamps are dropped, and digits are normalized for the key so one clause
+    re-asserted at different scales (100000 fuzz cases, then 2000000) collapses
+    to a single row carrying its latest text."""
+    out = {}
+    for r in smon_runs(limit=None):
+        for cid, state, text in r['items']:
+            if not text or GENERIC_ITEM.search(text):
+                continue
+            key = (cid or '', re.sub(r'\d+', 'N', text))
+            if key not in out:
+                out[key] = (state, r['ts'], text)
+    return out
+
+
+def render_clauses(model, args):
+    filt, show_met = None, False
+    for a in args:
+        if a in ('--all', '-a', 'met'):
+            show_met = True
+        else:
+            filt = a
+    rows = [(cid, disp, st, ts) for (cid, _key), (st, ts, disp) in clause_ledger().items()
+            if not filt or filt.lower() in cid.lower()]
+    met = [r for r in rows if r[2] in CLAUSE_MET]
+    partial = [r for r in rows if r[2] == 'partial']
+    unmet = [r for r in rows if r[2] == 'unmet']
+
+    print("Done-when clauses — from .smon/log, the worker's own certification record")
+    if filt:
+        print('  filter: clause id contains %r' % filt)
+    print('  %d clauses recorded (latest state each): %d met, %d partial, %d unmet'
+          % (len(rows), len(met), len(partial), len(unmet)))
+
+    def show(title, group):
+        if not group:
+            return
+        print('\n  %s:' % title)
+        for cid, txt, st, ts in sorted(group, key=lambda r: (r[0], r[1])):
+            t = txt if len(txt) <= 92 else txt[:89] + '...'
+            print('    [%-7s] %-24s %s' % (st, cid or '-', t))
+
+    show('unmet', unmet)
+    show('partial', partial)
+    if show_met:
+        show('met', met)
+    elif met:
+        print('\n  %d met clauses hidden — progress.py clauses --all to list them,'
+              ' or clauses <id> to filter' % len(met))
+    if not rows:
+        print('\n  no clauses match; the ledger records ids like WP-31, wp41, map.verdict')
+    return 0
+
+
 def main(argv):
     depth = 1
     path = []
@@ -740,6 +823,9 @@ def main(argv):
         i += 1
 
     model = build()
+
+    if path and path[0].lower() in ('clauses', 'done-when', 'donewhen'):
+        return render_clauses(model, path[1:])
 
     if path and path[0].lower() in ('dynexec', 'dyn'):
         if len(path) == 1:
