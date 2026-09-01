@@ -89,15 +89,49 @@ static struct {
 	int self_window, dry_run, verbose;
 } opt = { 0x800000, NULL, NULL, 0, 0, 0 };
 
+/* The stderr diagnostics, host-side. The faced runtime exports no `stderr`
+ * FILE* (spike/reent-stub-stderr-crossing), so a real-process stub cannot
+ * fputs to it: the line is composed here with the freestanding RP_ formatter
+ * -- no va_list across the ABI boundary -- and the finished bytes, the PROG
+ * prefix and trailing newline included, cross verbatim through the sysv_abi
+ * write(2) thunk RP_EPUTS carries. In the plain-PE build the seam is the
+ * identity, so this is snprintf into a buffer then fputs to stderr: the same
+ * bytes the former fprintf/vfprintf/fputc trio emitted. The diagnostics are
+ * short -- the longest a mitigation refusal, well under 256 -- so 512 bytes
+ * holds them and RP_ truncates rather than overruns. */
+static void ediag(const char *fmt, va_list ap)
+{
+	char line[512];
+	size_t k = 0, n;
+	int r = RP_SNPRINTF(line, sizeof line, "%s: ", PROG);
+	if (r > 0)
+		k = (size_t) r < sizeof line ? (size_t) r : sizeof line - 1;
+	RP_VSNPRINTF(line + k, sizeof line - k, fmt, ap);
+	n = RP_STRLEN(line);
+	if (n > sizeof line - 2)
+		n = sizeof line - 2;
+	line[n] = '\n';
+	line[n + 1] = '\0';
+	RP_EPUTS(line);
+}
+
+/* The variadic front the inline diagnostics use; say and refuse pass their
+ * own va_list to ediag directly. */
+static void ediagf(const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	ediag(fmt, ap);
+	va_end(ap);
+}
+
 static void say(const char *fmt, ...)
 {
 	va_list ap;
 	if (!opt.verbose)
 		return;
 	va_start(ap, fmt);
-	fprintf(stderr, "%s: ", PROG);
-	vfprintf(stderr, fmt, ap);
-	fputc('\n', stderr);
+	ediag(fmt, ap);
 	va_end(ap);
 }
 
@@ -105,9 +139,7 @@ static int refuse(const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	fprintf(stderr, "%s: ", PROG);
-	vfprintf(stderr, fmt, ap);
-	fputc('\n', stderr);
+	ediag(fmt, ap);
 	va_end(ap);
 	return 1;
 }
@@ -159,7 +191,7 @@ static int mitigations_ok(char *why, size_t n)
 	get_policy = (get_policy_fn) (void *) GetProcAddress(
 		GetModuleHandleA("kernel32.dll"), "GetProcessMitigationPolicy");
 	if (!get_policy) {
-		snprintf(why, n, "the host has no GetProcessMitigationPolicy, "
+		RP_SNPRINTF(why, n, "the host has no GetProcessMitigationPolicy, "
 			 "so neither mitigation can be ruled out");
 		return 0;
 	}
@@ -167,7 +199,7 @@ static int mitigations_ok(char *why, size_t n)
 	memset(&cfg, 0, sizeof cfg);
 	if (get_policy(GetCurrentProcess(), policy_cfg,
 		       &cfg, sizeof cfg) && (cfg.flags & 1)) {
-		snprintf(why, n, "Control Flow Guard is enabled, and it would "
+		RP_SNPRINTF(why, n, "Control Flow Guard is enabled, and it would "
 			 "refuse the indirect jump into the image entry");
 		return 0;
 	}
@@ -175,7 +207,7 @@ static int mitigations_ok(char *why, size_t n)
 	memset(&shadow, 0, sizeof shadow);
 	if (get_policy(GetCurrentProcess(), policy_shadow,
 		       &shadow, sizeof shadow) && (shadow.flags & 1)) {
-		snprintf(why, n, "user-mode shadow stacks are enabled, and the "
+		RP_SNPRINTF(why, n, "user-mode shadow stacks are enabled, and the "
 			 "image's first return would fault");
 		return 0;
 	}
@@ -261,9 +293,9 @@ static DWORD WINAPI load_runtime_thread(void *arg)
 	return 0;
 }
 
-static void usage(FILE *to)
+static void usage(int to_stderr)
 {
-	fprintf(to,
+	static const char text[] =
 "Usage:\n"
 "  elfsysv-stub [options] ELF [ARG]...\n"
 "\n"
@@ -277,7 +309,17 @@ static void usage(FILE *to)
 "  -n, --dry-run       Do everything but the entry, and report.\n"
 "  -v, --verbose       Report each step.\n"
 "  -V, --version       Print the version and exit.\n"
-"  -h, --help          Print this message and exit.\n");
+"  -h, --help          Print this message and exit.";
+	/* The text carries no trailing newline: the stdout seam's puts supplies
+	 * it, and the stderr seam takes it as a second write, so both emit the
+	 * same bytes the former fprintf(to, ...\n) did. stderr has no FILE* to
+	 * name across the crossing, so it takes the write(2) thunk. */
+	if (to_stderr) {
+		RP_EPUTS(text);
+		RP_EPUTS("\n");
+	} else {
+		RP_PUTS(text);
+	}
 }
 
 int main(int argc, char **argv)
@@ -306,23 +348,23 @@ int main(int argc, char **argv)
 	for (i = 1; i < argc; i++) {
 		char *a = argv[i];
 		if (!RP_STRCMP(a, "--")) { i++; break; }
-		if (!RP_STRCMP(a, "-h") || !RP_STRCMP(a, "--help")) { usage(stdout); return 0; }
+		if (!RP_STRCMP(a, "-h") || !RP_STRCMP(a, "--help")) { usage(0); return 0; }
 		if (!RP_STRCMP(a, "-V") || !RP_STRCMP(a, "--version")) {
 			RP_PUTS(RELEASE);
 			return 0;
 		}
 		if (!RP_STRCMP(a, "-s") || !RP_STRCMP(a, "--stack")) {
-			if (++i >= argc) { usage(stderr); return 2; }
+			if (++i >= argc) { usage(1); return 2; }
 			opt.stack = RP_STRTOULL(argv[i], NULL, 0);
 		} else if (!RP_STRNCMP(a, "--stack=", 8)) {
 			opt.stack = RP_STRTOULL(a + 8, NULL, 0);
 		} else if (!RP_STRCMP(a, "-r") || !RP_STRCMP(a, "--runtime")) {
-			if (++i >= argc) { usage(stderr); return 2; }
+			if (++i >= argc) { usage(1); return 2; }
 			opt.runtime = argv[i];
 		} else if (!RP_STRNCMP(a, "--runtime=", 10)) {
 			opt.runtime = a + 10;
 		} else if (!RP_STRCMP(a, "-R") || !RP_STRCMP(a, "--elf-runtime")) {
-			if (++i >= argc) { usage(stderr); return 2; }
+			if (++i >= argc) { usage(1); return 2; }
 			opt.elf_runtime = argv[i];
 		} else if (!RP_STRNCMP(a, "--elf-runtime=", 14)) {
 			opt.elf_runtime = a + 14;
@@ -333,14 +375,14 @@ int main(int argc, char **argv)
 		} else if (!RP_STRCMP(a, "-v") || !RP_STRCMP(a, "--verbose")) {
 			opt.verbose = 1;
 		} else if (a[0] == '-' && a[1]) {
-			fprintf(stderr, "%s: unknown option %s\n", PROG, a);
+			ediagf("unknown option %s", a);
 			return 2;
 		} else {
 			break;
 		}
 	}
 	if (i >= argc) {
-		fprintf(stderr, "%s: nothing to run. Give an ELF file.\n", PROG);
+		ediagf("nothing to run. Give an ELF file.");
 		return 2;
 	}
 	path = argv[i];

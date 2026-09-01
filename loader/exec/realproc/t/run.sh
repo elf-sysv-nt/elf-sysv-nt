@@ -18,6 +18,10 @@
 #           sysv_abi puts thunk, control surviving. SKIPs (verdict yes) when the
 #           faced elfsysv1.dll or the WP-26 build tree are absent, both being
 #           uncommitted build products.
+#   ecross  stderr-cross.c -- the stub's stderr diagnostics reach fd 2
+#           across the faced runtime through RP_EPUTS's sysv_abi write(2)
+#           thunk, the route spike/reent-stub-stderr-crossing measured. Same
+#           build gate as cross.
 #
 # The faced runtime wedges on a host pty, so the cross probe is run detached via
 # cmd with stdin from NUL, as the reent-stub-* spikes do.
@@ -90,6 +94,26 @@ say "cross=fail"; printf '%s\n' "$o" | sed 's/^/    out: /'; fail=1
 fi
 else
 say "cross=fail (build)"; sed 's/^/    /' "$t/err"; fail=1
+fi
+
+# --- ecross: stderr diagnostics across the faced runtime ----------------
+if gcc $CF -I"$dir" -o "$t/ec.exe" \
+     "$here/stderr-cross.c" "$dir/realproc-str.c" "$dir/realproc-cross.c" \
+     $LIBS 2>"$t/eerr"; then
+cp "$t/ec.exe" "$out/rp-ec.exe"
+( cd "$out" && rm -f rp-ec.out \
+  && timeout 40 cmd /c "rp-ec.exe > rp-ec.out 2>&1 < NUL" ) 2>/dev/null
+eo=$(tr -d '\r' < "$out/rp-ec.out" 2>/dev/null)
+rm -f "$out/rp-ec.exe" "$out/rp-ec.out"
+if printf '%s' "$eo" | grep -q '^A:reached-main' \
+   && printf '%s' "$eo" | grep -q '^D:crossed-stderr' \
+   && printf '%s' "$eo" | grep -q '^E:after-eputs'; then
+say "ecross=pass"
+else
+say "ecross=fail"; printf '%s\n' "$eo" | sed 's/^/    out: /'; fail=1
+fi
+else
+say "ecross=fail (build)"; sed 's/^/    /' "$t/eerr"; fail=1
 fi
 
 say "verdict=$([ $fail -eq 0 ] && echo yes || echo no)"
