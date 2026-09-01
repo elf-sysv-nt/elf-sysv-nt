@@ -112,6 +112,25 @@ static int refuse(const char *fmt, ...)
 	return 1;
 }
 
+/* A dry-run report line to stdout. The report is the stub's own text, so it
+ * is formatted host-side -- through the RP_ seam, never a libc format call
+ * that a real-process build cannot cross (DR-0066) -- and only the finished
+ * bytes cross, through RP_PUTS, which supplies the trailing newline. In the
+ * plain-PE build the seam is the identity, so this is snprintf into a buffer
+ * followed by puts: the same bytes the former print("...\n") emitted. The
+ * lines are short (a key and one address, size, or short name); 128 bytes
+ * holds the longest with room to spare, and RP_SNPRINTF truncates rather
+ * than overruns were one ever longer. */
+static void report(const char *fmt, ...)
+{
+	char line[128];
+	va_list ap;
+	va_start(ap, fmt);
+	RP_VSNPRINTF(line, sizeof line, fmt, ap);
+	va_end(ap);
+	RP_PUTS(line);
+}
+
 /* The mitigations the ELF world cannot survive, checked rather than switched
  * off. Neither is something this image opts into: Control Flow Guard is a
  * link-time property and gcc emits no guard tables, and shadow stacks are
@@ -462,15 +481,15 @@ int main(int argc, char **argv)
 	    pl.mapping.entry, layout.sp);
 
 	if (opt.dry_run) {
-		printf("stub_window_base=0x%" PRIx64 "\n", w->base);
-		printf("stub_map_base=0x%" PRIx64 "\n", pl.mapping.base);
-		printf("stub_map_size=0x%" PRIx64 "\n", pl.mapping.size);
-		printf("stub_entry=0x%" PRIx64 "\n", pl.mapping.entry);
-		printf("stub_exec_kind=%s\n", exec_kind_name(kind));
-		printf("stub_runtime_base=0x%" PRIx64 "\n", runtime_base);
-		printf("stub_sp=0x%" PRIx64 "\n", layout.sp);
-		printf("stub_argc=%" PRIu64 "\n", layout.argc);
-		printf("stub_result=ready\n");
+		report("stub_window_base=0x%" PRIx64, w->base);
+		report("stub_map_base=0x%" PRIx64, pl.mapping.base);
+		report("stub_map_size=0x%" PRIx64, pl.mapping.size);
+		report("stub_entry=0x%" PRIx64, pl.mapping.entry);
+		report("stub_exec_kind=%s", exec_kind_name(kind));
+		report("stub_runtime_base=0x%" PRIx64, runtime_base);
+		report("stub_sp=0x%" PRIx64, layout.sp);
+		report("stub_argc=%" PRIu64, layout.argc);
+		report("stub_result=ready");
 		return 0;
 	}
 
