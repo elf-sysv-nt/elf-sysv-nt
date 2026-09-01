@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# WP-56 -- pin and certify the C-locale ctype tables the veneer fills the
+# __ctype_b_loc stub with. Two checks:
+#
+#   1. Regenerate ctype-table.gen.c from gen-ctype-table.py and require
+#      byte-identity with the committed file, so the table cannot drift from
+#      its generator (the xlat-core discipline, applied here).
+#   2. Where WSL supplies the pinned el8 image, compile a dumper against el8's
+#      own ctype.h (reading glibc's real __ctype_b_loc / _tolower_loc /
+#      _toupper_loc) and a probe against this body's accessors, run both on
+#      the image, and require the two dumps identical across all 384 indices
+#      of all three tables. This certifies the synthesized body against the
+#      real reference, not merely against its own construction.
+#
+# Exit: 0 both checks passed (or check 2 skipped for want of the image or the
+#       cross compiler, with check 1 still enforced), 1 a divergence.
+set -u
+here=$(cd "$(dirname "$0")" && pwd)
+wiring=$(dirname "$here")
+cc=${ESN_CC:-x86_64-elfsysvnt-linux-gnu-gcc}
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# 1. byte-identity with the generator.
+python3 "$wiring/gen-ctype-table.py" --out "$tmp"
+if ! diff -u "$wiring/ctype-table.gen.c" "$tmp/ctype-table.gen.c"; then
+echo "ctype-table: generated output drifted from the committed file" >&2
+exit 1
+fi
+echo "ctype-table: byte-identical to its generator"
+
+# The cross compiler is needed for both remaining checks.
+if ! command -v "$cc" >/dev/null 2>&1; then
+echo "ctype-table: no cross compiler; skipping the el8 certification"
+exit 0
+fi
+
+# The three .symver bindings must be present in the assembled body.
+"$cc" -O2 -c -o "$tmp/body.o" "$wiring/ctype-table.gen.c"
+for sym in __ctype_b_loc __ctype_tolower_loc __ctype_toupper_loc; do
+if ! "${cc%-gcc}-nm" "$tmp/body.o" 2>/dev/null | grep -q "$sym@@GLIBC_2.3"; then
+echo "ctype-table: $sym@@GLIBC_2.3 missing from the body" >&2
+exit 1
+fi
+done
+echo "ctype-table: the three accessors bind at GLIBC_2.3"
+
+# 2. certify against el8's real tables, if the image is reachable.
+if ! command -v wsl.exe >/dev/null 2>&1; then
+echo "ctype-table: no WSL; skipping the el8 certification"
+exit 0
+fi
+
+cat > "$tmp/dump.c" <<'EOF'
+#include <ctype.h>
+#include <locale.h>
+#include <stdio.h>
+int main(void){
+  setlocale(LC_ALL,"C");
+  const unsigned short *b=*__ctype_b_loc();
+  const int *lo=*__ctype_tolower_loc();
+  const int *up=*__ctype_toupper_loc();
+  for(int i=-128;i<256;i++) printf("b %d %u\n", i,(unsigned)b[i]);
+  for(int i=-128;i<256;i++) printf("lo %d %d\n", i, lo[i]);
+  for(int i=-128;i<256;i++) printf("up %d %d\n", i, up[i]);
+  return 0;
+}
+EOF
+# The probe strips the .symver aliases so it can link without a version
+# script; it reads the same three tables through their internal names.
+sed '/\.symver/d' "$wiring/ctype-table.gen.c" > "$tmp/body-plain.c"
+cat > "$tmp/probe.c" <<'EOF'
+#include <stdio.h>
+extern const unsigned short **__esn_ctype_b_loc(void);
+extern const int **__esn_ctype_tolower_loc(void);
+extern const int **__esn_ctype_toupper_loc(void);
+int main(void){
+  const unsigned short *b=*__esn_ctype_b_loc();
+  const int *lo=*__esn_ctype_tolower_loc();
+  const int *up=*__esn_ctype_toupper_loc();
+  for(int i=-128;i<256;i++) printf("b %d %u\n", i,(unsigned)b[i]);
+  for(int i=-128;i<256;i++) printf("lo %d %d\n", i, lo[i]);
+  for(int i=-128;i<256;i++) printf("up %d %d\n", i, up[i]);
+  return 0;
+}
+EOF
+"$cc" -O2 -o "$tmp/dump" "$tmp/dump.c"
+"$cc" -O2 -o "$tmp/probe" "$tmp/probe.c" "$tmp/body-plain.c"
+if ! sh "$here/el8-run.sh" "$tmp/dump" > "$tmp/ref.txt" 2>/dev/null || [ ! -s "$tmp/ref.txt" ]; then
+echo "ctype-table: el8 image unavailable; skipping the certification"
+exit 0
+fi
+sh "$here/el8-run.sh" "$tmp/probe" > "$tmp/cand.txt" 2>/dev/null
+if diff -u "$tmp/ref.txt" "$tmp/cand.txt"; then
+echo "ctype-table: certified byte-for-byte against el8's real tables"
+else
+echo "ctype-table: the synthesized tables diverge from el8" >&2
+exit 1
+fi
