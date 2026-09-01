@@ -1225,3 +1225,58 @@ would show it there. Status 31 is the only pass, with the same
 refuse-before-entry and no-runtime controls the earlier crossings use.
 `t/live-posix.sh` records it. WP-56's overall done-when is unchanged: still
 the vendor package's own test suite, run and passed.
+
+## The time slice: live crossing
+
+posix was the largest all-forward table bound live and the first crossed
+row whose result landed in caller memory; time is the ninth crossing and the
+first crossed forward whose answer comes back in a floating-point register.
+Its 40 rows are all forwards with no shim, so the bind check is math's,
+stdlib's, sockets's, locale's and posix's shape -- every row must resolve,
+`missing == 0` -- not string's exactly-one-null, and the bind loop resolves
+all 40 against the real `elfsysv1.dll` with none missing.
+
+What time is, that the earlier crossed slices were not, is a slice whose
+bodies overwhelmingly read a clock, a timezone, or Cygwin's reent and thread
+state: clock_gettime, the gmtime/localtime family and their `_r` twins,
+mktime, strftime, tzset and the timer calls all reach the kernel face, the tz
+rules, or the current thread through the thread pointer this freestanding
+harness never establishes. Calling any of them here would corrupt the way
+string's memcpy and strverscmp did, and for the same reason -- NOSIGFE names
+the calling convention a thunk needs, not whether the body behind it stands
+on its own. timegm, the slice's other NOSIGFE row, reads the tz-independent
+conversion tables and is not argument-only, so it is off-limits here too.
+
+difftime (w00015) is the one row that stands entirely alone. POSIX and
+Cygwin's body both fix it as the arithmetic difference of two calendar times
+returned as a double -- on this target time_t is a signed integer and the
+body is `(double)(time1 - time0)`, with no table, clock, reent or locale
+behind it -- and `runtime/exports/cygwin-exports.tsv` marks it NOSIGFE. So it
+crosses a freestanding harness cleanly, exactly as string's ffs family,
+stdlib's abs family, sockets's byte-order family, locale's toascii and
+posix's swab did. The rest of time is left for the process bring-up
+`runtime/face/t/fault.c` performs that the SIGFE-fenced slices already wait
+on.
+
+What difftime adds that the earlier crossed rows did not is its result class.
+ffs, abs, htonl and toascii each returned an integer in `%rax` and swab wrote
+its result through a caller pointer; difftime returns a double, handed back
+in `%xmm0` by the psABI, from two integer time_t arguments. It is the first
+crossed forward whose inputs are integers in the general registers and whose
+answer comes back in a floating-point register. math's own crossing returned
+doubles, but math was the all-NOSIGFE slice that proved the bind mechanism;
+difftime is the first of the demand-ranked, reent-heavy slices to exercise
+the xmm return path. The crossing keeps to values every one of which is
+exactly representable as a double -- small integers and a 10^9-second span,
+all well under 2^53 -- so the checks compare for exact equality without a
+tolerance.
+
+Five checks, one bit each: the all-forward bind, then difftime of two equal
+instants returning 0.0, difftime(later, earlier) as the positive span,
+difftime(earlier, later) as that span negated so the sign is the body's and
+not the harness's, and difftime against a local `(double)(a - b)` reference
+over a set of pairs including the 10^9-second span, the last run after the
+crossings above so a body that had degraded would show it there. Status 31 is
+the only pass, with the same refuse-before-entry and no-runtime controls the
+earlier crossings use. `t/live-time.sh` records it. WP-56's overall done-when
+is unchanged: still the vendor package's own test suite, run and passed.
