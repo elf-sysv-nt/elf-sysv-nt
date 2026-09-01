@@ -1,0 +1,14 @@
+script  reent-stub-path 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+probe_builds=yes
+probe_input=/bin/echo.exe
+parent_cygwin_conv_opens=yes  (-> C:\-\cygwin\root\bin\echo.exe)
+stub_getfullpath_opens=no  (-> C:\bin\echo.exe)
+probe_ran_to_end=yes
+route=parent-passes-windows-path
+verdict=yes
