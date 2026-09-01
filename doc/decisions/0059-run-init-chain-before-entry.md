@@ -1,4 +1,4 @@
-# DR-XXXX — the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary
+# DR-0059 — the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary
 
 Status: accepted
 Date: 2026-09-01
