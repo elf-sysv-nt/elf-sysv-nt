@@ -44,6 +44,7 @@
 #include <windows.h>
 
 #include "reserve.h"
+#include "exec_kind.h"
 #include "../elf/elf_parse.h"
 #include "../map/elf_map.h"
 #include "../process/process_image.h"
@@ -261,6 +262,7 @@ int main(int argc, char **argv)
 	elf_parsed parsed;
 	elf_diag pdiag;
 	elf_err perr;
+	exec_kind kind;
 	struct placement pl;
 	proc_image_params pr;
 	proc_layout layout;
@@ -363,6 +365,22 @@ int main(int argc, char **argv)
 			      pdiag.field ? pdiag.field : "?", pdiag.msg);
 	say("parsed: %u PT_LOAD, entry 0x%" PRIx64, parsed.load_count, parsed.e_entry);
 
+	/* Which crossing the image is owed, decided before it is entered. WP-41
+	 * entered every image at e_entry, which is right only for a static
+	 * executable; a dynamic image -- bzip2's shape, an interp-bearing image
+	 * -- runs its _start before its GOT is relocated, so entered that way it
+	 * faults on its first library call. exec_kind_of() is that decision, one
+	 * classifier over the parse WP-31 already did, and DR-0058 fixes it here,
+	 * between the map and the entry. An image this route does not run at all
+	 * -- a relocatable object, a core, a bare shared object -- is refused
+	 * rather than mapped and entered on a guess. */
+	kind = exec_kind_of(&parsed);
+	if (kind == EXEC_KIND_UNSUPPORTED)
+		return refuse("%s is not a program this route runs: a relocatable "
+			      "object, a core, or a bare shared object has no entry "
+			      "to cross to", path);
+	say("exec kind: %s", exec_kind_name(kind));
+
 	memset(&pl, 0, sizeof pl);
 	pl.image = image;
 	pl.size = size;
@@ -436,12 +454,26 @@ int main(int argc, char **argv)
 		printf("stub_map_base=0x%" PRIx64 "\n", pl.mapping.base);
 		printf("stub_map_size=0x%" PRIx64 "\n", pl.mapping.size);
 		printf("stub_entry=0x%" PRIx64 "\n", pl.mapping.entry);
+		printf("stub_exec_kind=%s\n", exec_kind_name(kind));
 		printf("stub_runtime_base=0x%" PRIx64 "\n", runtime_base);
 		printf("stub_sp=0x%" PRIx64 "\n", layout.sp);
 		printf("stub_argc=%" PRIu64 "\n", layout.argc);
 		printf("stub_result=ready\n");
 		return 0;
 	}
+
+	/* A dynamic image is mapped and its stack is built the same way, but it
+	 * may not be entered at e_entry: its _start reads libc.so.6 through a GOT
+	 * nothing has relocated yet. The crossing that relocates it against the
+	 * runtime (DR-0058) runs between here and the entry, and is staged behind
+	 * this branch rather than wired into the stub yet, so a dynamic image is
+	 * refused with its reason rather than entered into a fault. */
+	if (kind == EXEC_KIND_DYNAMIC)
+		return refuse("%s is a dynamic image; its entry runs before the GOT "
+			      "is relocated against the runtime, so the crossing "
+			      "(DR-0058) must run first. That crossing is not yet "
+			      "wired into the stub, so the image is refused rather "
+			      "than entered into a fault", path);
 
 	fflush(NULL);
 	elf_enter((void *) (UINT_PTR) pl.mapping.entry,

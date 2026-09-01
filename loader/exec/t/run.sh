@@ -132,7 +132,7 @@ fi
 
 smon_step_start stub
 if smon_cmd $cc $cflags $stubldflags -o "$bin/elfsysv-stub" \
-	"$exec_dir/stub.c" "$exec_dir/enter.S" $loader_srcs; then
+	"$exec_dir/stub.c" "$exec_dir/exec_kind.c" "$exec_dir/enter.S" $loader_srcs; then
 	smon_step_ok stub
 else
 	smon_step_fail stub $?; fail "stub build failed"
