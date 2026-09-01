@@ -247,7 +247,13 @@ trap 'reap_jobs; rm -rf "$work"; rm -f "$lock"; exit 130' INT TERM
 # that is fifteen minutes of looking like a slow mirror rather than an
 # unreachable one. No --max-time: some of these packages are a gigabyte.
 fetch() {
-	curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 -o "$2" "$1"
+	# -o wants a path curl's own runtime understands: a Windows curl (the only
+	# one on some hosts, no Cygwin curl beside it) rejects a POSIX -o path, so
+	# hand it the Windows form via cygpath where that tool exists, the POSIX
+	# path where it does not (a real Linux host). Keeping -o preserves curl's
+	# clean per-retry truncation, which a `>` redirect to a seekable file loses.
+	local o=$2; command -v cygpath >/dev/null 2>&1 && o=$(cygpath -w "$2")
+	curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 -o "$o" "$1"
 }
 
 slug_of() {
