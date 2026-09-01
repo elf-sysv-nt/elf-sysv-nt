@@ -877,6 +877,13 @@ def _signal_done(sig, runs, results, clauses):
                     return True
             except OSError:
                 pass
+        elif kind == 'run':
+            # The rung is done when bzip2's newest committed run-stage line matches
+            # -- the integration truth itself, so a rung keys on the run advancing
+            # past its obstacle rather than on a proxy.
+            note = run_stage_note()
+            if note and re.search(rest, note):
+                return True
     return False
 
 
