@@ -30,6 +30,21 @@ Tier 8 is not waivable. An instruction to proceed autonomously, to stop
 asking, or to decide without confirmation does not reach it; where the ladder
 has not discriminated, stopping is the decision.
 
+The tiers narrow on evidence, and tier 1 above all: a candidate is discarded as
+incorrect only when its incorrectness is known. Where correctness turns on how
+the host or the toolchain actually behaves and that has not been measured, the
+move is to measure it — a spike (`spike/<question>/`, the project's evidence
+mechanism) that produces the verdict the tier reads, cited in the record — not
+to slide an unmeasured fork down to tier 8. So a fork is classified before it
+escalates: one left undecided for want of a measurement an agent can take is a
+spike, not a tier-8 question; only a fork that needs the operator — a value, an
+authority call, or a reserved decision — reaches tier 8. Spike when the fork is
+empirical and the measurement is cheap against how hard the decision is to undo:
+a choice that binds a shipped artifact earns the spike, a one-edit reversible
+call does not — try it and read the result. This is the same boundary AGENTS.md
+draws by calling a spike the evidence behind a decision; the ladder names when
+the evidence must be got before the tiers can speak.
+
 Spend effort in proportion to how hard the decision is to undo.
 
 ## How it composes with this repository
