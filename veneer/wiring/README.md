@@ -1591,3 +1591,36 @@ placeholders the generator must repoint at the Cygwin calls a translating body
 reaches. WP-56's per-slice done-when is unchanged: still the differential
 against a real el8 userland, with the live crossing the added NT check, and for
 this slice that added check is the bind.
+
+The memory slice crosses next, and it is the first to cross with an empty
+unresolved set. Its table is twenty-one rows, all forwards and no shim: the
+allocator (`malloc`, `calloc`, `realloc`, `reallocarray`, `free`, `memalign`,
+`valloc`) with its `mallopt`/`mallinfo`/`malloc_*` introspection family, and the
+`mman` calls (`mmap`, `munmap`, `mprotect`, `msync`, `madvise`, `posix_madvise`,
+`mlock`, `munlock`). Every name glibc exports here, Cygwin exports under the same
+name -- the whole malloc introspection family included, though Cygwin's
+allocator is its own. The one apparent gap is not one: glibc's `mmap64` is a
+distinct versioned symbol and the bare name is absent from a Cygwin DLL, which
+being LP64 has no separate `*64` export, but the `mmap64` row already carries
+export_name `mmap`, a forward-alias onto the single call, so the row binds
+through `mmap` and only the bare name -- which no row asks the resolver for --
+is missing. So memory needs no shim at all, and the finding is the absence of
+one: where filesystem left eleven rows for a shim to synthesise, memory leaves
+none.
+
+memory crosses by its bind alone all the same, not by call: no memory row is
+stateless. `malloc` and `free` stand on the allocator's arena, its growth and
+its locks; the `mman` calls are syscalls into the kernel's address space. A
+freestanding harness brings none of that up, so a body called here would read or
+mutate state the harness never initialised -- the trap `fnmatch` sprang in
+filesystem. So the specimen calls nothing and reads the table the bind filled.
+Five checks, one bit each, so 31 is the only pass -- the bind leaving no row
+null, every filled slot landing inside the mapped image span, the resolver
+discriminating while the `mmap64` alias holds (`malloc` resolves, the bare name
+`mmap64` and a junk name resolve null, yet the `mmap64` row binds through its
+`mmap` export_name), `malloc`/`free`/`mmap` reaching three distinct bodies, and
+a second bind idempotent, per DR-0049's contract. The same refuse-before-entry
+and no-runtime controls the earlier crossings use bound it. `t/live-memory.sh`
+records it. The crossing adds no decision: it confirms DR-0055's rule on a slice
+that has NOSIGFE rows but no stateless one, and finds the pure-forward case that
+needs no shim placeholder repointed, so there is nothing for it to change.
