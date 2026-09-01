@@ -40,6 +40,9 @@ Usage:
       progress.py clauses             outstanding (unmet, partial) done-when clauses
       progress.py clauses wp-31       clauses whose id matches a substring
       progress.py clauses --all       include the met clauses too
+
+  Road to green (WP-56 completion burndown), status derived from git truth:
+      progress.py green               the capabilities between bzip2 ready and passing, N of M
 """
 import os, re, sys, subprocess, time, glob, json
 
@@ -242,7 +245,10 @@ def render_top(model, depth):
     dmark, dts = dynexec_state()
     print('  phase dynamic-exec  dyn-cross %s%s   (progress.py dynexec)'
           % (dmark, ('  ' + _ts(dts)) if dts else ''))
-    print('  phase acceptance    pending  (a vendor package builds, links, runs its suite, passes)')
+    gd, gi, gt = green_summary()
+    gtail = (' +%d in flight' % gi) if gi else ''
+    print('  phase acceptance    pending  (road to green %d/%d%s — progress.py green)'
+          % (gd, gt, gtail))
 
     remaining = [s for s in wireable if s in model['wired'] and s not in model['crossed']]
     v = velocity()
@@ -808,6 +814,138 @@ def render_clauses(model, args):
     return 0
 
 
+# ---- road to green (WP-56 completion burndown) ---------------------------
+#
+# The curated ladder from bzip2 `ready` to `passing` lives in
+# acceptance/to-green.tsv; each row names a capability and a signal. This view
+# evaluates the signal against git truth so the burndown flips itself, and never
+# a number by hand.
+
+TO_GREEN = os.path.join(REPO, 'acceptance', 'to-green.tsv')
+VERDICT_RANK = {'does-not-build': 0, 'needs-wiring': 1, 'shape-mismatch': 2,
+                'ready': 3, 'passing': 4, 'green': 4}
+
+
+def _met_clause_texts():
+    return [disp for (_cid, _k), (st, _ts, disp) in clause_ledger().items()
+            if st in CLAUSE_MET]
+
+
+def _signal_done(sig, runs, results, clauses):
+    """True if any comma-separated alternative in `sig` holds against git truth."""
+    for alt in sig.split(','):
+        alt = alt.strip()
+        if not alt or alt == '-':
+            continue
+        kind, _, rest = alt.partition(':')
+        if kind == 'smon':
+            step, _, want = rest.partition(':')
+            st, _ts, _f = latest_step(runs, step)
+            if st == (want or 'ok'):
+                return True
+        elif kind == 'accept':
+            pkg, _, want = rest.partition(':')
+            d = results.get(pkg)
+            if d and VERDICT_RANK.get(d.get('verdict'), -1) >= VERDICT_RANK.get(want, 99):
+                return True
+        elif kind == 'clause':
+            needle = rest.lower()
+            if any(needle in (t or '').lower() for t in clauses):
+                return True
+        elif kind == 'grep':
+            relpath, _, rx = rest.partition(':')
+            try:
+                text = open(os.path.join(REPO, relpath), encoding='utf-8', errors='replace').read()
+                if re.search(rx, text, re.MULTILINE):
+                    return True
+            except OSError:
+                pass
+    return False
+
+
+def road_to_green():
+    """[(id, done, signal, desc)] in file order, status derived from git truth."""
+    rows = [r for r in _rows(TO_GREEN) if len(r) >= 3 and r[0] != 'id']
+    runs = smon_runs()
+    results = parse_results(newest_results())
+    clauses = _met_clause_texts()
+    out = []
+    for r in rows:
+        out.append((r[0], _signal_done(r[1], runs, results, clauses), r[1], r[2]))
+    return out
+
+
+def active_worktree_slugs():
+    """The branch slug of every live session worktree, from git. This is where
+    the worker's in-flight work lives before it lands on march, so an open road
+    item whose capability is being built right now shows as in-flight rather than
+    simply not-started -- current, without counting unlanded work as done."""
+    out = []
+    for line in git(['worktree', 'list', '--porcelain']).splitlines():
+        if line.startswith('branch '):
+            out.append(line[len('branch '):].rsplit('/', 1)[-1])
+    return out
+
+
+def _item_inflight(cid, slugs):
+    tok = cid.replace('-bringup', '').replace('-wired', '')
+    return any(cid in s or tok in s for s in slugs)
+
+
+def road_with_state():
+    """[(id, state, signal, desc)] where state is done / inflight / open. Done is
+    landed truth (march); inflight is read from the worktrees."""
+    slugs = active_worktree_slugs()
+    out = []
+    for cid, done, sig, desc in road_to_green():
+        state = 'done' if done else ('inflight' if _item_inflight(cid, slugs) else 'open')
+        out.append((cid, state, sig, desc))
+    return out
+
+
+def green_summary():
+    road = road_with_state()
+    done = sum(1 for _i, s, _g, _x in road if s == 'done')
+    infl = sum(1 for _i, s, _g, _x in road if s == 'inflight')
+    return done, infl, len(road)
+
+
+def wp56_delivered():
+    try:
+        return any(l.strip() in ('WP-56', '56')
+                   for l in open(os.path.join(REPO, 'doc', 'status', 'delivered.txt'),
+                                 encoding='utf-8', errors='replace'))
+    except OSError:
+        return False
+
+
+def render_green(model):
+    road = road_with_state()
+    done = sum(1 for _i, s, _g, _x in road if s == 'done')
+    infl = sum(1 for _i, s, _g, _x in road if s == 'inflight')
+    tail = ('  (+%d in flight)' % infl) if infl else ''
+    print('Road to green — bzip2 ready -> passing, which is WP-56\'s overall done-when')
+    print('  %d of %d capabilities in place%s (acceptance/to-green.tsv; status derived, not hand-set)'
+          % (done, len(road), tail))
+    print()
+    box = {'done': '[x]', 'inflight': '[~]', 'open': '[ ]'}
+    for cid, state, sig, desc in road:
+        d = desc if len(desc) <= 96 else desc[:93] + '...'
+        print('  %s %-18s %s' % (box[state], cid, d))
+        if state == 'inflight':
+            print('  %s%-18s   in flight in a worktree now, not yet landed' % ('    ', ''))
+        elif state == 'open' and sig and sig != '-':
+            print('  %s%-18s   flips on: %s' % ('    ', '', sig))
+    print()
+    deliv = wp56_delivered()
+    if done == len(road) and deliv:
+        print('  WP-56 is complete: every capability in place and WP-56 in delivered.txt')
+    else:
+        print('  WP-56 completes when bzip2-passes flips and WP-56 lands in delivered.txt (now: %s)'
+              % ('yes' if deliv else 'not yet'))
+    return 0
+
+
 def main(argv):
     depth = 1
     path = []
@@ -823,6 +961,9 @@ def main(argv):
         i += 1
 
     model = build()
+
+    if path and path[0].lower() in ('green', 'road', 'to-green'):
+        return render_green(model)
 
     if path and path[0].lower() in ('clauses', 'done-when', 'donewhen'):
         return render_clauses(model, path[1:])

@@ -1,0 +1,34 @@
+# The road from bzip2 `ready` to `passing` -- WP-56's overall done-when.
+#
+# WP-56's per-slice clause is met (24/24 live-crossed) and bzip2 reads `ready`:
+# it builds, links, and every libc symbol it imports resolves. What stands
+# between `ready` and `passing` is not more wiring but a runtime that can start
+# a real dynamic program and carry its live calls -- a short ladder of loader
+# capabilities the crossing specimens deliberately deferred. This file names
+# them, in dependency order. It is a curated roadmap (the denominator), but each
+# row's status is derived, never hand-set: bin/progress.py green evaluates the
+# `signal` against git truth -- the .smon ledger, the accept verdict, the
+# done-when clauses -- so a row flips itself the moment its capability lands.
+#
+# Columns, TAB-separated:  id <TAB> signal <TAB> description
+#
+# signal grammar (comma-separated alternatives; the row is done if ANY holds):
+#   smon:<step>:<state>       a session-monitor step reached a state (e.g. ok)
+#   accept:<pkg>:<verdict>    the package's accept verdict is at least <verdict>
+#                             (does-not-build < needs-wiring < shape-mismatch < ready < passing)
+#   clause:<substring>        a met done-when clause's text contains the substring (case-insensitive)
+#   grep:<relpath>:<regex>    the regex matches somewhere in the file
+#   -                         no automatic signal yet; the row stays open until one is added
+#
+# A signal must be SPECIFIC to this package's road, not a substring that also
+# matches an unrelated WP's clause. So these rows key on the code or the verdict
+# that proves the capability for bzip2's crossing, and a capability with no
+# reliable signal yet carries `-` (stays open) until one is wired -- never a
+# generic clause match that another WP would trip.
+id	signal	description
+dynamic-crossing	smon:dyn-cross:ok	the driver relocates a dynamic image's GOT and PLT against the runtime and enters it (DR-0058); certified on a bzip2-shaped, no-syscall specimen
+init-chain	smon:dyn-init:ok,grep:loader/exec/dyn_init.c:DT_INIT_ARRAY	the image's DT_INIT and DT_INIT_ARRAY constructors run across the crossing, in WP-33's load order, before control reaches _start
+reent-tls-bringup	-	the runtime's reent/TLS structure is set up so libc calls that consult it (errno, the string and locale rows) work at runtime, not merely link; the crossing specimens never set it up (live-string.sh)
+syscall-surface	-	the raw syscall path bzip2's own test suite exercises (the read/write/open a make-test run performs) reaches the host; the dynamic-crossing specimen makes no syscall, that surface being a later package (dyn-cross-spec.S)
+run-stage-wired	grep:acceptance/accept.sh:run[_-]suite	accept.sh launches the pinned package's own suite through the crossing rather than stopping at `ready` (today its run stage reports what it waits on)
+bzip2-passes	accept:bzip2:passing	bzip2 builds, links, runs its own test suite, and passes it -- WP-56's overall done-when, the terminal gate
