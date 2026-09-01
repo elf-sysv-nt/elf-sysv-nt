@@ -28,7 +28,7 @@
 id	signal	description
 dynamic-crossing	smon:dyn-cross:ok	the driver relocates a dynamic image's GOT and PLT against the runtime and enters it (DR-0058); certified on a bzip2-shaped, no-syscall specimen
 init-chain	smon:dyn-init:ok,grep:loader/exec/dyn_init.c:DT_INIT_ARRAY	the image's DT_INIT and DT_INIT_ARRAY constructors run across the crossing, in WP-33's load order, before control reaches _start
-segment-mapping	-	bzip2's PT_LOAD segments map when two of unlike protection share one 64K NT granule (elf_map_err_granule); the single-segment crossing specimen never hit this, the real image halts before entry on it -- the first defect the live run surfaced
+segment-mapping	-	bzip2 is linked granule-separable so no two PT_LOAD segments of unlike protection share a 64K NT granule; the loader correctly refuses otherwise (DR-0008), so the fix is build-side (max-page-size >= granule, ideally the toolchain default), not a loader change. bzip2's Makefile sets none, inherited a sub-granule default, and halts before entry (elf_map_err_granule)
 reent-tls-bringup	-	the runtime's reent/TLS structure is set up so libc calls that consult it (errno, the string and locale rows) work at runtime, not merely link; the crossing specimens never set it up (live-string.sh)
 syscall-surface	-	the raw syscall path bzip2's own test suite exercises (the read/write/open a make-test run performs) reaches the host; the dynamic-crossing specimen makes no syscall, that surface being a later package (dyn-cross-spec.S)
 run-stage-wired	grep:acceptance/accept.sh:run[_-]suite	accept.sh launches the pinned package's own suite through the crossing rather than stopping at `ready` (today its run stage reports what it waits on)
