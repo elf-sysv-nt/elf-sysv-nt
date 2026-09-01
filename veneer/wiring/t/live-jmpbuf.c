@@ -212,3 +212,7 @@ void live_jmpbuf_main(uint64_t *sp, terminator_fn leave)
 
 	leave(status);
 }
+/* WIP: WP-56 increment scaffold -- extending live-jmpbuf.c to also
+ * round-trip _setjmp/_longjmp and setjmp/siglongjmp, the three jmp_buf
+ * rows the plain setjmp/longjmp pass above did not independently
+ * exercise. Placeholder line removed by the next commit. */
