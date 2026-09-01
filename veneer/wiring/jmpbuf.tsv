@@ -1,0 +1,17 @@
+# WP-56: the runtime slice's jmp_buf-translating shims -- curated, not
+# derived, in the pattern of runtime/face/ctx.tsv. Each row names the
+# glibc-ABI symbol wire-runtime.shims.tsv already carries (version,
+# binding, target Cygwin export and bind-table index), plus the two
+# properties that table does not: which shape of frameless face the row
+# takes (save allocates lazily and reads one argument; restore reads two
+# and never allocates) and the row's sbind (weak/global), which the
+# forward map carries but the generated shims worklist does not. A drift
+# between this table and wire-runtime.shims.tsv (a symbol renamed, added
+# or dropped) is caught by gen-jmpbuf-face.sh refusing to run rather than
+# silently emitting a stale or partial face.
+# symbol	direction	sbind
+_longjmp	restore	weak
+_setjmp	save	global
+longjmp	restore	weak
+setjmp	save	global
+siglongjmp	restore	weak
