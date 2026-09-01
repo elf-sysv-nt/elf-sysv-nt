@@ -110,7 +110,7 @@ int elf_window_plan(uint64_t base, uint64_t size,
  * planner decides which sub-spans are still the parent's to take, and each is
  * reserved on its own. This is the path a cygwin-linked child needs: it holds
  * its low reservation before any user code runs, so the window that starts on
- * it cannot be taken in one call. DR-0067. */
+ * it cannot be taken in one call. DR-0068. */
 static win_err reserve_in_around(HANDLE proc, elf_window *w,
                                  uint64_t lo, uint64_t size)
 {
@@ -175,7 +175,7 @@ win_err elf_window_reserve_in(void *proc, elf_window *w,
 	/* The whole-window reservation was refused. A cygwin-linked child
 	 * already holds its own low reservation before its first instruction,
 	 * so the span that starts on it cannot be taken in one call. Recognize
-	 * what the child holds and reserve only the free remainder. DR-0067. */
+	 * what the child holds and reserve only the free remainder. DR-0068. */
 	return reserve_in_around((HANDLE) proc, w, lo, hi - lo);
 }
 

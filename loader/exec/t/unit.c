@@ -355,7 +355,7 @@ static void test_image_operand(void)
  * cygwin-linked child leaves for the parent to reserve; these are that
  * decision without a process existing anywhere. The window's own constants are
  * used where they carry the point: the child's low 2 MB reservation at the
- * 0x400000 base, the case DR-0067 exists for. */
+ * 0x400000 base, the case DR-0068 exists for. */
 static void test_window_plan(void)
 {
 	elf_span gaps[8];

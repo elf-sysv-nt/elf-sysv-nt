@@ -73,7 +73,7 @@ typedef struct {
  * already carries regs[0..nreg). A cygwin-linked child holds its own low
  * reservation before any user code runs (spike reent-stub-realproc-window-
  * occupant), so the whole-window reservation is refused where it starts on
- * that region. DR-0067 has the parent recognize the child's reservation rather
+ * that region. DR-0068 has the parent recognize the child's reservation rather
  * than reserve over it; this decides, as pure arithmetic, which free sub-spans
  * the parent must still reserve. It writes them into gaps[0..maxgaps) and
  * returns the count, or -1 if a committed region overlaps the window -- an
