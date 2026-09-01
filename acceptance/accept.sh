@@ -60,8 +60,11 @@ mirror=${ACCEPT_MIRROR:-https://dl.rockylinux.org/pub/rocky/8.10}
 out=-
 terse=0
 cross=x86_64-elfsysvnt-linux-gnu-gcc
+host=${CC:-gcc}
 classification=$root/veneer/classification/classification.tsv
 classifier=$here/classify.awk
+shape_src=$here/t/img_shape.c
+shape_bin=
 
 die() { echo "$prog: $*" >&2; exit 1; }
 say() { [ "$terse" = 1 ] || echo "$@"; }
@@ -102,6 +105,26 @@ classify_surface() {
 		"$filled" "$wired" "$dest/.needs" "$classification" | sort
 }
 
+# The loader's own reading of a built ELF: elf_parse() (WP-31) validates it and
+# exec_kind_of() (WP-56) classifies it, so the harness gates a package on the
+# same verdict the dynamic crossing driver stands behind (DR-0058) rather than
+# on a second reading of our own. img_shape is built once, over the loader
+# packages, with the host compiler. Prints three key=value lines: kind, interp,
+# needed.
+build_shape() {
+	[ -n "$shape_bin" ] && return 0
+	local w=$dest/.shape
+	mkdir -p "$w"
+	local hf="-std=gnu11 -Wall -Wextra -O2 -Wno-unused-parameter"
+	$host $hf -c "$root/loader/elf/elf_parse.c"  -o "$w/elf_parse.o" 2>/dev/null || return 1
+	$host $hf -c "$root/loader/exec/exec_kind.c" -o "$w/exec_kind.o" 2>/dev/null || return 1
+	$host $hf -Werror -c "$shape_src"             -o "$w/img_shape.o" 2>/dev/null || return 1
+	$host -o "$w/img_shape" "$w/img_shape.o" "$w/elf_parse.o" "$w/exec_kind.o" 2>/dev/null || return 1
+	shape_bin=$w/img_shape
+}
+
+shape_of() { "$shape_bin" "$1" 2>/dev/null; }
+
 fetch() {
 	local relpath=$1 want=$2 file=$3
 	if [ -f "$file" ] && [ "$(sha256 "$file")" = "$want" ]; then return 0; fi
@@ -114,6 +137,7 @@ pass=0; fail=0
 say "# WP-T4 acceptance (embryo) -- $(date +%F)"
 say ""
 mkdir -p "$dest"
+build_shape || die "cannot build the image-shape helper from $shape_src"
 
 # The wiring layer's filled stubs: bucket-4 names it answers with a
 # synthesized, certified body (DR-0052). A filled stub is not a stub that
@@ -172,6 +196,12 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	[ -x "$bin" ] || bin=$(find "$sdir" -type f -name "$binary" | head -1)
 	[ -n "$bin" ] && [ -f "$bin" ] || { printf '%-12s does-not-build  built, but no %s produced\n' "$name" "$binary"; fail=$((fail+1)); continue; }
 
+	shp=$(shape_of "$bin")
+	skind=$(printf '%s\n' "$shp" | sed -n 's/^kind=//p')
+	sinterp=$(printf '%s\n' "$shp" | sed -n 's/^interp=//p')
+	sneeded=$(printf '%s\n' "$shp" | sed -n 's/^needed=//p')
+	[ -n "$skind" ] || skind=unread
+
 	surface=$(classify_surface "$bin")
 	nf=$(printf '%s\n' "$surface" | grep -c '^forward ')
 	nw=$(printf '%s\n' "$surface" | grep -c '^wired ')
@@ -181,10 +211,18 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	nu=$(printf '%s\n' "$surface" | grep -c '^unclassified ')
 	total=$((nf+nw+ns+nb+nfill+nu))
 
-	if [ "$ns" = 0 ] && [ "$nb" = 0 ] && [ "$nu" = 0 ]; then
-		verdict="ready"
-	else
+	# Two gates, in order. A package whose symbols do not all resolve waits on
+	# wiring. One whose symbols resolve but whose image the loader's classifier
+	# does not call dynamic is not the shape the crossing driver runs, and is
+	# not ready however clean its surface -- the harness says so rather than
+	# crediting a shape the runtime would refuse. Only a package that clears
+	# both reads ready.
+	if [ "$ns" != 0 ] || [ "$nb" != 0 ] || [ "$nu" != 0 ]; then
 		verdict="needs-wiring"
+	elif [ "$skind" != dynamic ]; then
+		verdict="shape-mismatch"
+	else
+		verdict="ready"
 	fi
 
 	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d wired, %d shim, %d stub%s%s\n' \
@@ -192,6 +230,11 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		"$([ "$nfill" -gt 0 ] && echo ", $nfill filled")" \
 		"$([ "$nu" -gt 0 ] && echo ", $nu unclassified")"
 	if [ "$terse" != 1 ]; then
+		printf '    image shape: %s' "$skind"
+		[ "$skind" = dynamic ] && printf ' (the shape the crossing driver runs -- DR-0058)'
+		printf '; interp %s, needs %s\n' "${sinterp:--}" "${sneeded:--}"
+		[ "$skind" != dynamic ] && [ "$skind" != unread ] && \
+			echo "    the loader's classifier does not call this image dynamic, so the crossing driver would not run it; not ready whatever its surface."
 		[ "$nw" -gt 0 ] && { echo "    wired (a written translation the live crossing certified stands behind them):"; printf '%s\n' "$surface" | awk '$1=="wired"{print "      "$2}'; }
 		[ "$ns" -gt 0 ] && { echo "    shims still to write (a runtime export exists; the ABI differs; no crossed slice covers them):"; printf '%s\n' "$surface" | awk '$1=="shim"{print "      "$2}'; }
 		[ "$nb" -gt 0 ] && { echo "    stubs (nothing behind them yet):"; printf '%s\n' "$surface" | awk '$1=="stub"{print "      "$2}'; }
@@ -203,8 +246,8 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 			echo "    waits on the named shims to be written and stubs filled; it links and loads against the runtime as it stands."
 		fi
 	fi
-	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,verdict:%s\n' \
-		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$verdict"
+	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,shape:%s,verdict:%s\n' \
+		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$skind" "$verdict"
 	pass=$((pass+1))
 done 3< "$pins"
 

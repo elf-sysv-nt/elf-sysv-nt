@@ -1,6 +1,7 @@
 # WP-T4 acceptance (embryo) -- 2026-09-01
 
 bzip2        ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim, 0 stub, 1 filled
+    image shape: dynamic (the shape the crossing driver runs -- DR-0058); interp /lib64/ld-linux-x86-64.so.2, needs libc.so.6
     wired (a written translation the live crossing certified stands behind them):
       __errno_location
       __lxstat64
@@ -10,6 +11,6 @@ bzip2        ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim,
     filled (a synthesized, certified body stands behind them -- DR-0052):
       __ctype_b_loc
     every symbol resolves -- forwards, certified shims, filled stubs; running its test suite is the next step, which needs the loader's dynamic-exec path to stand in for ld-linux.
-bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,verdict:ready
+bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,shape:dynamic,verdict:ready
 
 accept: 1 classified, 0 did not build
