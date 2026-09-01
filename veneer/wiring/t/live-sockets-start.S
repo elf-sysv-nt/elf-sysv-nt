@@ -8,12 +8,12 @@
  * WP-41's specimen. The call leaves %rsp eight past sixteen-aligned, which
  * is exactly the state the psABI promises a function on entry.
  */
-.text
-.globl _start
+	.text
+	.globl _start
 _start:
-movq%rsp, %rdi
-movq%rdx, %rsi
-calllive_sockets_main
-hlt
+	movq	%rsp, %rdi
+	movq	%rdx, %rsi
+	call	live_sockets_main
+	hlt
 
-.section .note.GNU-stack,"",@progbits
+	.section .note.GNU-stack,"",@progbits
