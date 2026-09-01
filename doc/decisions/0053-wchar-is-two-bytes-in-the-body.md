@@ -1,4 +1,4 @@
-# DR-XXXX — wchar_t is two bytes in the body, four in the face
+# DR-0053 — wchar_t is two bytes in the body, four in the face
 
 Accepted 2026-09-01. Source: WP-56, the wchar slice's live crossing.
 
