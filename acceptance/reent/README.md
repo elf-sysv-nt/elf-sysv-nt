@@ -192,3 +192,25 @@ reent test is the first time that mechanism is exercised for a body that reads
 and writes the reent, so it is where the ELF-frame reent shape is measured
 rather than asserted -- the "runtime face at a DLL's width" line the plan's
 `Not verified` section keeps open.
+
+## Resolution of item 1's hosting question (DR-XXXX)
+
+The faced-runtime hosting item 1 halts on is resolved, not open: the acceptance
+crossing hosts the faced runtime as its own process -- a real process of
+`elfsysv1.dll` brought up through the WP-26 `crt0` `_dll_crt0` protocol, so the
+faced runtime is the process's sole Cygwin runtime, its own `mmap` performs the
+DR-0008 mapping, and bzip2 runs inside it. This is the same real-process shape
+DR-0060 named for reent; hosting the runtime and bringing reent up are one act.
+It supersedes, for this shape, the host-Cygwin stub plus separate faceload
+DR-0060/DR-0066/DR-0067 left in place, and sets aside the parent window handover
+(DR-0028) and its cygwin-child reconcile (DR-0068/DR-0069): a process that is the
+faced runtime lays its own address space at startup rather than receiving a low
+window from a parent. The reserve and adopt verbs are refused against a real
+cygwin-linked child (`spike/reent-stub-realproc-window-reconcile`,
+`low_window_occupant=reserved+committed`) because they belong to the parent-
+handover path this shape does not take. The finishing work is to move
+`accept.sh`'s `build_loader` crossing onto that host and run bzip2 inside it,
+built and certified as its own step against the WP-41 exec-* bar; the next
+measurement is whether that process's own `mmap`, on its `_dll_crt0`-brought-up
+main thread, maps a fixed low region where the parent handover to a foreign
+child was refused.
