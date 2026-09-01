@@ -105,10 +105,16 @@ loader, and three things stand between the reproduced probe and that:
    `elf_window_plan` (recognizing the child's own `MEM_RESERVE` low region
    and refusing only a committed occupant), and reserves each on its own.
    The planner is certified as a pure decision against the low window's own
-   constants in `loader/exec/t/unit.c`. What item 1 still owes is the
-   placement-time half: `elf_window_yield`'s release-and-place must now
-   account for a window whose low region is the child's, reconciled within
-   the child at placement rather than at reservation.
+   constants in `loader/exec/t/unit.c`. The placement-time half has since
+   landed (DR-XXXX): `elf_window_yield` surveys the window and releases each
+   constituent reservation before it bares the span, and `elf_window_adopt`
+   accepts a window covered by one or more reservations, with the release
+   decision `elf_window_release_plan` certified as a pure decision beside
+   `elf_window_plan` and the whole WP-41 exec bar (unit, fuzz, when, the
+   exec-* routes, exec-kind, dyn-cross, dyn-init) unregressed. What item 1
+   still owes is the live measurement: driving reserve, adopt, yield and
+   place through a real cygwin-linked child rather than the in-process unit
+   fixtures.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
