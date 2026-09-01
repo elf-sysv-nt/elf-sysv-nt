@@ -1674,3 +1674,54 @@ must repoint at a translating body over Cygwin's `signal`/`sigaction` rather
 than at a plain Cygwin call. WP-56's per-slice done-when is unchanged: still the
 differential against a real el8 userland, with the live crossing the added NT
 check, and for this slice that added check is the bind.
+
+
+The process slice crosses next, the fourth crossed by its bind alone. Its table
+is forty-three rows, thirty-nine forwards and four shims: the wait family
+(`wait`, `wait3`, `wait4`, `waitpid`), the POSIX spawn surface (`posix_spawn`,
+`posix_spawnp` and the `posix_spawn_file_actions_*` and `posix_spawnattr_*`
+families), the scheduler calls (`sched_yield`, `sched_getparam`,
+`sched_setscheduler`, `sched_getaffinity` and its two versions, and the rest of
+`sched_*`), the priority pair (`getpriority`, `setpriority`) as forwards, and
+the resource limits (`getrlimit`, `getrlimit64`, `setrlimit`, `setrlimit64`) as
+the four shims. Every row is SIGFE and none is stateless, so the crossing asks
+the question memory and signal did: does a Cygwin-faced DLL export the whole
+set, or does the bind leave rows a shim body must synthesise?
+
+Measurement answers cleanly, and it puts process alongside memory rather than
+signal: the bind leaves no row null. Every process export glibc names, Cygwin
+exports under the same name. The four shims are the apparent gap and are not
+one. glibc splits the resource-limit calls into a base and an LFS `*64` variant;
+Cygwin, being LP64, has one call each and no separate `getrlimit64` or
+`setrlimit64` export, so the bare `*64` names are absent from the DLL. But the
+generator already knew that: the `getrlimit64` row carries export_name
+`getrlimit` and the `setrlimit64` row `setrlimit`, forward-aliases onto the
+single call, so those rows bind through the base name and only the unused bare
+`*64` names -- which no row asks the resolver for -- are missing. This is
+memory's `mmap64` case a second time, and on a 64-bit target the `*64` alias is
+the base call unchanged, no translation left to do. So process needs no shim,
+and the finding is the absence of one: where signal left two System V rows for a
+shim to synthesise, process leaves none.
+
+process crosses by its bind alone all the same, not by call: no process row is
+stateless. `wait` and `waitpid` stand on the process's children and its signal
+state; `posix_spawn` forks and execs; the scheduler and rlimit calls are
+syscalls into the kernel's per-process state, and every one is SIGFE, entering
+the runtime's `cygtls` on the way in. A freestanding harness brings none of that
+up, so a body called here would read or mutate state the harness never
+initialised -- the trap `fnmatch` sprang in filesystem. So the specimen calls
+nothing and reads the table the bind filled. Five checks, one bit each, so 31 is
+the only pass -- the bind leaving no row null, every filled slot landing inside
+the mapped image span `[base, base + SizeOfImage)`, the resolver discriminating
+while the `getrlimit64` alias holds (`getrlimit` resolves, the bare name
+`getrlimit64` and a junk name resolve null, yet the `getrlimit64` row binds
+through its `getrlimit` export_name), `waitpid`/`posix_spawn`/`sched_yield`
+reaching three distinct bodies, and a second bind idempotent, per DR-0049's
+contract. The same refuse-before-entry and no-runtime controls the earlier
+crossings use bound it. `t/live-process.sh` records it. The crossing adds no
+decision: it confirms DR-0055's rule on a slice that has NOSIGFE rows but no
+stateless one, and finds the pure-bind case that needs no shim placeholder
+repointed, the LFS `*64` rows already aliased onto their base exports. WP-56's
+per-slice done-when is unchanged: still the differential against a real el8
+userland, with the live crossing the added NT check, and for this slice that
+added check is the bind.
