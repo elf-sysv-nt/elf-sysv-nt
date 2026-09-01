@@ -1,0 +1,13 @@
+script  reent-stub-realproc-run 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_stub_links=yes
+plain_stub_links=yes
+realproc_stub_reaches_version=yes  (elfsysv-stub 1.0)
+realproc_stub_diag_crosses=yes  (reached the low-window check; its diagnostic crossed fd 2)
+plain_stub_reaches_version=yes  (the seam as identity; the WP-41 shape unaffected)
+verdict=yes
