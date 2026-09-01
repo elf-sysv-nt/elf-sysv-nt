@@ -7,11 +7,14 @@
 # into the versioned .dynsym and the .gnu.version_d ladder. Nothing about the
 # symbol set is written by hand here, and nothing is patched afterwards.
 #
-# The shared object is the trunk the veneer hangs from. Its bodies are stubs
-# for now: every entry is a `ret`, and the forward map records which
-# elfsysv1.dll export each one is to reach. What is real, and what the rest of
-# the tree depends on, is the surface: the soname, the node ladder, and the
-# symbol-to-node assignment, all of them el8's own.
+# The shared object is the trunk the veneer hangs from. Its FUNC forwards are
+# now runtime-resolving thunks (WP-56 reent-tls-bringup, item 2): each names its
+# elfsysv1.dll export as a .rodata string and tail-calls one hidden per-veneer
+# resolver (resolver.c) that reaches it at run time. The IFUNC, shim, and stub
+# bodies are still `ret` and convert on their own rungs. The forward map records
+# which elfsysv1.dll export each one is to reach. What the rest of the tree
+# depends on is the surface: the soname, the node ladder, and the symbol-to-node
+# assignment, all of them el8's own.
 #
 # libc.a carries the same symbols under their bare names, since an archive has
 # no version table to put them in and a static link resolves by name alone.
@@ -98,7 +101,8 @@ done
 as=$prefix/bin/$target-as
 ld=$prefix/bin/$target-ld
 ar=$prefix/bin/$target-ar
-for t in "$as" "$ld" "$ar"; do
+cc=$prefix/bin/$target-gcc
+for t in "$as" "$ld" "$ar" "$cc"; do
     command -v "$t" >/dev/null 2>&1 || [ -x "$t" ] \
         || die "no $t; WP-12's binutils is not installed under $prefix"
 done
@@ -141,9 +145,21 @@ python3 "$here/generate.py" --soname "$soname" \
 chat "assembling $(basename "$asm")"
 "$as" --64 -o "$obj" "$asm" || die 'assembly failed'
 
+# The generated FUNC forwards tail-call one hidden per-veneer resolver
+# (resolver.c): the run-time PE-export walk, the constructor that finds the
+# faced base, and the argument-preserving trampoline. Compiled freestanding so
+# it links beside the symbols object under a plain -nostdlib -shared link, with
+# no libc of its own. `ret`-stub-only symbol sets link it in harmlessly (its
+# constructor runs and its bodies go uncalled), so it is always part of the
+# shared object.
+robj=$build/$stem-resolver.o
+chat "compiling $(basename "$root/veneer/libc/resolver.c")"
+"$cc" -c -O2 -ffreestanding -fPIC -fno-stack-protector \
+    -o "$robj" "$root/veneer/libc/resolver.c" || die 'resolver compile failed'
+
 chat "linking $soname"
-"$ld" -shared -soname "$soname" --version-script "$vs" -o "$out" "$obj" \
-    || die 'link failed'
+"$ld" -shared -soname "$soname" --version-script "$vs" -o "$out" \
+    "$obj" "$robj" || die 'link failed'
 
 chat "assembling and archiving $(basename "$archive")"
 "$as" --64 -o "$build/$stem-static.o" "$build/$stem-static.s" \

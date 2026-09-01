@@ -6,7 +6,12 @@ emits, for one soname (libc.so.6 by default):
 
   - an assembly source: one internally-named, independently-addressable defined
     symbol per map row, bound to its GLIBC_2.x node by a .symver directive
-    (@@ for the default binding, @ for a hidden compat binding);
+    (@@ for the default binding, @ for a hidden compat binding). A FUNC row with
+    a forward disposition gets a runtime-resolving thunk body (WP-56, the
+    reent-tls-bringup rung, item 2): it names its elfsysv1.dll export as a
+    .rodata string and tail-calls the one hidden per-veneer resolver
+    (resolver.c), the shape spike/reent-veneer-thunk pinned. IFUNC, shim, and
+    stub bodies stay a bare `ret`, converting on their own rungs;
   - a linker version script: the base node is left to the linker (it names it
     after the -soname, which keeps DT_SONAME and the base verdef node in sync,
     the invariant spike 4's trap turns on), the 29 GLIBC_2.x nodes declared in
@@ -140,6 +145,7 @@ def main():
     per_node = {}
     static = []
     scaffold = 0
+    thunk = 0
     for i, f in enumerate(rows):
         # soname symbol version binding type bind
         symbol, version, binding, styp, sbind = f[1], f[2], f[3], f[4], f[5]
@@ -168,7 +174,32 @@ def main():
         decl = "\t.weak\t%s" % label if sbind == "weak" else "\t.globl\t%s" % label
         sep = "@@" if binding == "default" else "@"
         symver = "\t.symver\t%s, %s%s%s" % (label, symbol, sep, version)
-        if styp in ("func", "ifunc"):
+        forwards = disp in ("forward-same", "forward-alias") and target != "-"
+        if styp == "func" and forwards:
+            # A runtime-resolving thunk, the shape spike/reent-veneer-thunk
+            # pinned. The body names its elfsysv1.dll export (`target`) as a
+            # .rodata string and tail-jumps to the one hidden per-veneer
+            # trampoline (_elfsysv_thunk in resolver.c), which resolves the
+            # name against the faced runtime at run time and tail-calls it with
+            # the arguments intact. No ELF symbol named `target` is referenced,
+            # so there is nothing for the linker to self-bind (the WP-27
+            # crossing resolves the PE export at run time, not at link time).
+            asm.append("\t.text")
+            asm.append(decl)
+            asm.append("\t.type\t%s, %s" % (label, TYPE_ELF[styp]))
+            asm.append("%s:" % label)
+            asm.append("\tlea\t.Lnm%05d(%%rip), %%r11" % i)
+            asm.append("\tjmp\t_elfsysv_thunk")
+            asm.append("\t.size\t%s, .-%s" % (label, label))
+            asm.append('\t.section\t.rodata,"a",@progbits')
+            asm.append('.Lnm%05d:\t.asciz\t"%s"' % (i, target))
+            thunk += 1
+        elif styp in ("func", "ifunc"):
+            # A `ret` stub still, for the bodies item 2 does not yet forward:
+            # every IFUNC (its resolver runs at load time, before the face base
+            # is brought up -- a separate ordering the crossing owns), and the
+            # `shim` and `stub` dispositions (a shim needs a translation, a stub
+            # names no export). These convert on their own rungs.
             asm.append("\t.text")
             asm.append(decl)
             asm.append("\t.type\t%s, %s" % (label, TYPE_ELF[styp]))
@@ -236,8 +267,8 @@ def main():
             fh.write("\n".join(static_asm(static)) + "\n")
 
     sys.stderr.write(
-        "soname=%s rows=%d nodes=%d (base=%s) scaffold=%d\n"
-        % (args.soname, len(rows), len(ladder), base, scaffold))
+        "soname=%s rows=%d nodes=%d (base=%s) scaffold=%d thunk=%d\n"
+        % (args.soname, len(rows), len(ladder), base, scaffold, thunk))
     sys.stderr.write(
         "types: func=%d ifunc=%d object=%d tls=%d\n"
         % (counts["func"], counts["ifunc"], counts["object"], counts["tls"]))
