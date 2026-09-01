@@ -936,6 +936,22 @@ def wp56_delivered():
         return False
 
 
+def run_stage_note(pkg='bzip2'):
+    """The newest committed run-stage line -- where the package's live launch
+    actually halts, or that it ran -- from acceptance/results-*.txt. This is the
+    integration truth beneath the rungs: it advances on its own as the worker
+    clears each obstacle, even before a rung has a completion signal to flip on."""
+    p = newest_results()
+    if not p:
+        return None
+    try:
+        txt = open(p, encoding='utf-8', errors='replace').read()
+    except OSError:
+        return None
+    notes = re.findall(r'run stage:\s*(.+)', txt)
+    return notes[-1].strip() if notes else None
+
+
 def render_green(model):
     road = road_with_state()
     done = sum(1 for _i, s, _g, _x in road if s == 'done')
@@ -946,6 +962,10 @@ def render_green(model):
           % (done, len(road), tail))
     print()
     w = term_width()
+    note = run_stage_note()
+    if note:
+        print(_clip('  bzip2 now: %s' % note, w))
+        print()
     box = {'done': '[x]', 'inflight': '[~]', 'open': '[ ]'}
     for cid, state, sig, desc in road:
         print(_clip('  %s %-18s %s' % (box[state], cid, desc), w))
