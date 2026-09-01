@@ -131,8 +131,17 @@ static char *env_block(char *const envp[], int *failed)
 	return block;
 }
 
+const char *exec_image_operand(const exec_config *cfg, const char *posix,
+                               char *buf, size_t n)
+{
+	if (cfg && cfg->image_path && buf && n &&
+	    cfg->image_path(posix, buf, n) == 0)
+		return buf;
+	return posix;
+}
+
 static char *build_command(const char *stub, const char *stub_options,
-                           const binfmt_resolved *r)
+                           const char *image, const binfmt_resolved *r)
 {
 	size_t need = 1, used = 0;
 	unsigned i;
@@ -141,11 +150,14 @@ static char *build_command(const char *stub, const char *stub_options,
 	need += exec_quote_arg(stub, NULL, 0) + 1;
 	if (stub_options)
 		need += strlen(stub_options) + 1;
-	/* The image is named once as the stub's operand and then again as the
-	 * program's own argv[0], because the two are not the same thing: the
-	 * kernel's rebuild can leave a script's path in argv[0] while the file
-	 * being run is the interpreter's. */
-	need += exec_quote_arg(r->file, NULL, 0) + 1;
+	/* The image is named once as the stub's operand -- image, which may be
+	 * the host form of the path the real-process stub opens -- and then
+	 * again in the program's own vector, because the two are not the same
+	 * thing: the kernel's rebuild can leave a script's path in argv[0]
+	 * while the file being run is the interpreter's, and the operand is the
+	 * front end's to name for the stub while the vector is the program's to
+	 * see. */
+	need += exec_quote_arg(image, NULL, 0) + 1;
 	for (i = 0; i < r->argc; i++)
 		need += exec_quote_arg(r->argv[i], NULL, 0) + 1;
 
@@ -158,7 +170,7 @@ static char *build_command(const char *stub, const char *stub_options,
 					  stub_options);
 	}
 	cmd[used++] = ' ';
-	used += exec_quote_arg(r->file, cmd + used, need - used);
+	used += exec_quote_arg(image, cmd + used, need - used);
 	for (i = 0; i < r->argc; i++) {
 		cmd[used++] = ' ';
 		used += exec_quote_arg(r->argv[i], cmd + used, need - used);
@@ -176,6 +188,8 @@ exec_err elf_exec(const char *path, char *const argv[], char *const envp[],
 	PROCESS_INFORMATION pi;
 	uint64_t base, size;
 	char *cmd, *block;
+	const char *image;
+	char image_win[4096];
 	int env_failed;
 	win_err werr;
 
@@ -199,7 +213,14 @@ exec_err elf_exec(const char *path, char *const argv[], char *const envp[],
 	base = cfg->window_base ? cfg->window_base : ELF_WINDOW_BASE;
 	size = cfg->window_size ? cfg->window_size : ELF_WINDOW_SIZE;
 
-	if (!(cmd = build_command(cfg->stub, cfg->stub_options, &out->resolved)))
+	/* The stub opens the image itself, so the operand is named in the form
+	 * that stub resolves: the real-process stub is handed the host path a
+	 * converter produces, the plain-PE stub the Cygwin path unchanged. The
+	 * program's own vector (out->resolved.argv) is untouched either way. */
+	image = exec_image_operand(cfg, out->resolved.file,
+				   image_win, sizeof image_win);
+	if (!(cmd = build_command(cfg->stub, cfg->stub_options, image,
+				  &out->resolved)))
 		return fault(diag, exec_err_spawn, "command line",
 			     "no room for the command line");
 	block = env_block(envp, &env_failed);

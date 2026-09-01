@@ -54,6 +54,15 @@ typedef struct {
 	uint64_t    window_size;   /* 0 for ELF_WINDOW_SIZE */
 	int         inherit;       /* pass the host's inheritable handles down */
 	const char *stub_options;  /* appended before the image path, or null */
+	/* Convert the resolved image path to the host form the stub opens it
+	 * by, or null to hand the stub the Cygwin path unchanged. The plain-PE
+	 * stub's inline fopen resolves the mount through the host cygwin1.dll,
+	 * so it takes the path as given; the real-process stub opens with
+	 * CreateFileA, which knows nothing of Cygwin's mount table, so the
+	 * front end resolves the path with cygwin_conv_path and hands it the
+	 * result. Writes to out (n bytes) and returns 0 on success.
+	 * spike/reent-stub-path: route=parent-passes-windows-path. */
+	int (*image_path)(const char *posix, char *out, size_t n);
 } exec_config;
 
 typedef struct {
@@ -94,6 +103,14 @@ void elf_exec_close(exec_spawned *s);
  * Returns the number of bytes it would have written, whether or not they fit,
  * so a caller can size a buffer by calling it with n of zero. */
 size_t exec_quote_arg(const char *arg, char *out, size_t n);
+
+/* The path the stub is handed to open the image by: cfg->image_path's output
+ * when a converter is set and it succeeds, else the resolved path unchanged.
+ * buf is scratch of n bytes for the converted form. Returns buf or posix, so
+ * the result is valid only while both live. Exported so the operand decision
+ * can be held to a test without a spawn. */
+const char *exec_image_operand(const exec_config *cfg, const char *posix,
+                               char *buf, size_t n);
 
 /* A stable name for a code, for test output. */
 const char *exec_err_name(exec_err code);
