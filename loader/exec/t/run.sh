@@ -81,7 +81,7 @@ $loader/elf/elf_parse.c $loader/process/process_image.c"
 
 smon_session build wp41-exec-dispatch
 smon_plan unit fuzz when specimen stub frontend exec-elf exec-script \
-	exec-chain exec-loop exec-nonelf
+	exec-chain exec-loop exec-nonelf exec-kind
 
 rc=0
 say() { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
@@ -191,6 +191,19 @@ smon_step_start exec-nonelf
 got=$("$run" -r /bin/echo.exe 2>&1 | sed -n 's/^exec_kind=//p')
 check "exec-nonelf" "$got" host
 smon_step_ok exec-nonelf
+
+# The stub classifies a parsed image before it enters: a static executable
+# keeps this direct-entry path, a dynamic one (bzip2's shape) is refused as
+# owed the crossing rather than entered into a fault, and a bare shared object
+# is refused as no program on this route. DR-0058.
+smon_step_start exec-kind
+if smon_cmd bash "$here/exec-kind-stub.sh" -q; then
+	say "    ok        exec-kind: the stub classifies before it enters"
+	smon_step_ok exec-kind
+else
+	say "    FAILED    exec-kind: the stub's classification branch"
+	smon_step_fail exec-kind $?; rc=1
+fi
 
 if [ "$rc" = 0 ]; then
 	smon_item wp41 met "an ELF binary runs from a Cygwin program through the \
