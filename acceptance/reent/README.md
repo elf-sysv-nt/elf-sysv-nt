@@ -59,8 +59,20 @@ loader, and three things stand between the reproduced probe and that:
    `spike/reent-stub-path` measures how the loader's POSIX input reaches it:
    the parent (a host Cygwin process) converts the mount path with
    `cygwin_conv_path`, the stub's host-safe `GetFullPathName` cannot, so the
-   parent passes the Windows path. What item 1 still owes is wiring that
-   conversion into the front end's operand for the real-process shape.
+   parent passes the Windows path. That conversion has since landed: the front
+   end converts the resolved image path for the real-process shape
+   (`loader/exec/IMAGE-WINPATH-REROUTE.md`). And the full relink is now measured
+   on the actual stub, not a probe: `spike/reent-stub-realproc-run` builds
+   `loader/exec/stub.c` and its whole translation-unit set with the seam on
+   (`-DELFSYSV_REALPROC`) in the real-process shape and finds it links
+   (`realproc_stub_links=yes`), reaches `--version` across the faced runtime
+   (`realproc_stub_reaches_version=yes`, `rp_puts` past the crt0 startup
+   bridge), and crosses fd 2 for its window diagnostic
+   (`realproc_stub_diag_crosses=yes`, `rp_eputs`), while the plain-PE control
+   still reaches `--version`. So the stub itself links and runs in the shape;
+   what item 1 still owes is the `--runtime` face-load driven through the front
+   end, since the stub loads `--runtime` only after the low window the parent
+   reserves is held.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
