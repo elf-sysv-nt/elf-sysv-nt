@@ -47,10 +47,15 @@ Each symbol the package imports falls into one of the veneer's buckets:
 The overall reading is `does-not-build` if the cross build fails, `needs-wiring`
 if any unwritten shim or bare stub remains, and `ready` when every symbol
 forwards, is a wired shim, or is a filled stub. Only a
-`ready` package is worth trying to run, and running it — the green — needs the
-loader's dynamic-exec path to stand in for `ld-linux` and the runtime to resolve
-`libc.so.6`. That path is WP-56's surface and the loader's, not this harness's,
-so until a package reads ready the run stage reports what it waits on.
+`ready` package is worth trying to run. The run stage runs it: it builds the
+loader's dynamic-exec front end and PE host stub (WP-41), which stand in for
+`ld-linux`, and enters the built image through the crossing. If the image enters
+and exits clean the package's own `make test` runs through the same crossing and
+a clean suite is the `passing` verdict WP-56's done-when names; until it enters,
+the stage names the obstacle it halts at rather than the wait. `accept.sh -R`
+skips the stage, and every launch is under a hard timeout so a wedged loader
+cannot wedge the harness. The `run:` field on the key=value line records the
+outcome — `passed`, `ran`, `halted`, `no-loader`, or `skipped`.
 
 ## bzip2
 
@@ -82,6 +87,18 @@ harness's.
 The pins live in `packages.tsv`, one row per package with its mirror path,
 sha256, build command and built binary. bzip2 is enough to stand the harness up;
 the next leaves are added a row at a time.
+
+## Running it through the crossing
+
+On 2026-09-01 bzip2 reads `ready` and the run stage launches it, but it halts
+before entry: `elf_map_err_granule` — its two `PT_LOAD` segments carry unlike
+protection across a shared `0x10000` granule, which the map layer refuses. This
+is the first obstacle a real vendor image hits, and it sits earlier on the
+ladder than the reent/TLS and syscall bring-up the crossing specimens deferred.
+`acceptance/to-green.tsv` names that ladder and `bin/progress.py green` renders
+it; the run stage turns each rung from a claim into a run that either clears it
+or names where it stops. `t/run-stage.sh` certifies that the stage launches a
+ready package and that `passing` is reported only when a suite actually passed.
 
 ## Image shape
 

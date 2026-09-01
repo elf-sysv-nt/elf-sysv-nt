@@ -10,7 +10,7 @@ bzip2        ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim,
       signal
     filled (a synthesized, certified body stands behind them -- DR-0052):
       __ctype_b_loc
-    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite is the next step, which needs the loader's dynamic-exec path to stand in for ld-linux.
-bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,shape:dynamic,verdict:ready
+    run stage: launched bzip2 through the crossing; it halts before entry -- elf_map_err_granule at p_vaddr: PT_LOAD[0] and PT_LOAD[1] carry unlike protection and share a 0x10000 granule. The image does not yet run; acceptance/to-green.tsv names the ladder from here.
+bzip2=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,shape:dynamic,verdict:ready,run:halted
 
 accept: 1 classified, 0 did not build
