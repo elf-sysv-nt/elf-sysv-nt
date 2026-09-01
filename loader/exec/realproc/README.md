@@ -27,7 +27,10 @@ shape and confirms it reaches main and emits its `RELEASE` line across the faced
 runtime, skipping when the faced `elfsysv1.dll` or the WP-26 build tree -- both
 uncommitted build products -- are absent.
 
-What remains for item 1 is the relink of `loader/exec/stub.c` itself against this
-layer and its certification against the WP-41 exec-* bar. The `to-green.tsv`
+The relink of `loader/exec/stub.c` itself against this layer has landed:
+`stub.c` includes `realproc.h` and routes its option parsing and `--version`
+output through the `RP_*` macros. `RELINK.md` records it and its proof against
+the WP-41 exec-* bar -- object-code equality for the parsing, behavioural
+equality for the output, and a clean `loader/exec/t/run.sh`. The `to-green.tsv`
 `reent-tls-bringup` signal stays wired to a reent-consuming body reached across
 the loader (item 3), not to this host-side layer.

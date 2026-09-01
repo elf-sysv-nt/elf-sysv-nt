@@ -43,7 +43,12 @@ loader, and three things stand between the reproduced probe and that:
    `printf` into the faced libc then still does not cross. So item 1 is not a
    window reconciliation but crossing the Microsoft <-> System V ABI boundary at
    every host-to-faced-runtime call -- the reframing the decision record and
-   `acceptance/reent/stub-realproc.md` carry -- not a link flag.
+   `acceptance/reent/stub-realproc.md` carry -- not a link flag. The
+   implementing relink has landed: `loader/exec/stub.c` now includes the
+   `loader/exec/realproc/` seam and routes its option parsing and `--version`
+   output through it, proven not to regress the WP-41 exec-* bar
+   (`loader/exec/realproc/RELINK.md`). What item 1 still owes is the stub's
+   remaining libc use, behind item 3's live crossing.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
