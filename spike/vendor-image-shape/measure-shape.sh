@@ -130,7 +130,12 @@ while IFS="$(printf '\t')" read -r repo location want; do
     else
         rm -f "$path"
         chat "fetch $file"
-        curl -fsS --retry 3 --retry-delay 2 -o "$path" \
+        # -o wants a path curl's own runtime understands: a Windows curl (with
+        # no Cygwin curl beside it) rejects a POSIX -o path, so give it the
+        # Windows form via cygpath where that exists, the POSIX path where it
+        # does not. -o keeps curl's clean per-retry truncation a redirect loses.
+        o=$path; command -v cygpath >/dev/null 2>&1 && o=$(cygpath -w "$path")
+        curl -fsS --retry 3 --retry-delay 2 -o "$o" \
             "$mirror/$repo/$location" || die "cannot fetch $file"
         got=$(sha256 "$path")
         [ "$got" = "$want" ] || die "checksum mismatch on $file: $got"
