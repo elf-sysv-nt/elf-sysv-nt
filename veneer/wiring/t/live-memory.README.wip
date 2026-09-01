@@ -1,0 +1,5 @@
+# live-memory (WP-56) — WIP
+
+The fifteenth live crossing: bind the memory slice's real wire table
+(wire-memory.gen.c, 21 rows, all forwards) against a real elfsysv1.dll and
+call no memory body. Scaffold commit; the specimen, harness and finding follow.
