@@ -1,4 +1,4 @@
-# DR-XXXX — the real-process stub does its own work host-safe, and crosses only for output
+# DR-0067 — the real-process stub does its own work host-safe, and crosses only for output
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 item 1 of `acceptance/reent/README.md`.
