@@ -1,0 +1,5 @@
+the syslog slice live crossing -- WIP
+
+Crossing the syslog slice (openlog, syslog, vsyslog, closelog, setlogmask)
+by its bind alone, the ninth so crossed. All forwards, no shim, one version
+(GLIBC_2.2.5) -- no rename and no compat pair, the plainest slice yet.
