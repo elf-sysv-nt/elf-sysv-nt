@@ -1481,3 +1481,55 @@ the two libcs size differently and unlikely to be the last, so every later
 struct-bearing slice must be crossed against the real DLL before its struct rows
 are trusted as forwards. WP-56's overall done-when is unchanged: still the
 vendor package's own test suite, run and passed.
+
+## The stdio slice: live crossing
+
+The thirteenth live crossing is the first that crosses a slice by its bind
+alone. stdio is the highest-demand real slice -- rank three behind string and
+the unassigned internals, 24513 in the demand census -- and the first whose
+bodies are categorically beyond a freestanding caller. Its table is
+`wire-stdio.gen.c`: 97 rows, no shim, all forwards. The bind holds -- all 88
+distinct export names the rows reach (`fopen`, `vfprintf`, `fread`, and the
+version and large-file aliases collapsed onto their base, `fopen64` onto
+`fopen`, `fgetpos64` onto `fgetpos`, and their kin) are exported by the real
+DLL, `missing` is zero.
+
+What stdio does not offer is a body the specimen may enter. Every earlier
+crossing exercised a body by choosing the slice's NOSIGFE forwards, the rows
+standing on no reent, locale, table or kernel. stdio has none to choose. Of its
+97 rows exactly one is marked NOSIGFE -- `cuserid` -- and `cuserid` is no pure
+mask: its body reads the process's user through the cygheap this freestanding
+specimen never brings up, so calling it would fault or read uninitialised state
+the way calling `setlocale` would. The other 96 are SIGFE, wanting the
+signal-frame entry the specimen compiles without, and the `printf`/`scanf`/
+`FILE` families behind them stand on `_REENT` besides. `NOSIGFE` names the
+calling convention a thunk needs, not whether the body behind it stands on its
+own; locale's crossing kept one pure exception, `toascii`, and stdio keeps
+none.
+
+So the specimen calls nothing. It reads the table the bind filled and the DLL's
+own PE header -- never a libc datum, never a generated thunk -- and certifies
+the one thing a freestanding harness can certify of stdio against a real DLL:
+that the bind is real and faithful. Five checks, one bit each, so 31 is the
+only pass -- the all-row bind with `missing` zero; every filled slot landing
+inside the DLL's mapped image span `[base, base + SizeOfImage)`, so a resolved
+thunk tail-jumps into the real body region and not off into unmapped space; the
+resolver discriminating, `fopen` resolving while the un-collapsed alias name
+`fopen64` and a junk name resolve null, so `missing` zero is a fact about the
+names; `fopen`, `fclose` and `vfprintf` reaching three distinct bodies; and a
+second bind idempotent, `missing` zero again with every slot equal to a fresh
+resolve, per DR-0049's contract. The same refuse-before-entry and no-runtime
+controls the earlier crossings use bound it. `t/live-stdio.sh` records it.
+
+The consequence is a decision this crossing adds: a SIGFE slice with no pure
+NOSIGFE row crosses live by its bind alone, its bodies left to `diff-slice.sh`
+on el8 and to process bring-up, neither of which is a freestanding harness's to
+give. The SIGFE-heavy slices still uncrossed -- memory, signal, process,
+identity, io-mux, threads, regex, syslog, sysv-ipc, io, system -- inherit the
+rule: each presents its own worklist to the same question, and where the answer
+matches stdio's the crossing is the bind and the finding is that the bodies
+wait. This is where the freestanding-harness technique reaches its limit and
+hands the bodies to the differential and to bring-up, which is where they were
+always going to be certified. WP-56's per-slice done-when is unchanged: still
+the differential against a real el8 userland, with the live crossing the added
+NT check, and for a SIGFE slice that added check is the bind.
