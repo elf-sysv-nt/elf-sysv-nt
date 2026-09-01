@@ -886,3 +886,51 @@ each. WP-56's overall done-when -- a vendor package's own test suite,
 run and passed -- still needs the SIGFE-fenced slices' fuller process
 bring-up and a hosted candidate environment, neither of which this
 increment attempts.
+
+## The remaining jmp_buf alias rows: live crossing
+
+The predecessor section's own closing line named the gap directly: proving
+setjmp/longjmp live is evidence for the mechanism the other three jmp_buf
+rows (`_setjmp`, `_longjmp`, `siglongjmp`) share, not an independent proof
+of each. This increment closes that gap the same way the runtime slice's
+was closed -- by asking the harder question directly rather than resting
+on the inference. `t/live-jmpbuf.c` now runs three round trips instead of
+one, each through its own 64-byte el8-shaped buffer so a later round's
+save can never overwrite an earlier round's already-allocated real Cygwin
+buffer: setjmp/longjmp (unchanged from the predecessor), _setjmp/_longjmp
+(`__jmpbuf__setjmp` / `__jmpbuf__longjmp`), and setjmp/siglongjmp
+(`__jmpbuf_setjmp` saving, `__jmpbuf_siglongjmp` restoring). The third
+pairing needs a word: there is no sigsetjmp row in the five-row jmp_buf
+census, so siglongjmp has no save counterpart of its own to pair with in
+this specimen; restoring a buffer that plain setjmp saved is a legitimate
+probe of `wire_jmpbuf_restore`'s macro instantiation for the siglongjmp
+symver alias even though no real caller mixes the two spellings this way.
+
+All three rounds share one body now, `JMPBUF_ROUND`, a macro rather than a
+function because the save half of each round calls a function the compiler
+must be told `returns_twice`, and that attribute's obligations fall on the
+frame containing the direct call -- the same lesson the predecessor
+increment's README account already worked out for the single setjmp call
+it had. Folding three copies of that call into a macro expanded inline at
+each of the three call sites keeps that obligation where it belongs
+without hand-duplicating the round-trip logic three times.
+
+Run through WP-41's branch against the real DLL: all three rounds pass --
+each one's forward leg stashes a nonzero real-buffer pointer that survives
+unchanged to the restore leg, and each restore leg's return value carries
+the sent value (42), the same live proof-of-transfer the predecessor
+increment established for the first pair alone. The status word's bit
+layout changed to fit three rounds' worth of checks in one byte: the
+stash-unchanged check that used to be its own bit (0x08) is now folded
+into the same bit as the forward-leg check per round, freeing 0x10/0x20
+and 0x40/0x80 for the second and third rounds. The only passing status is
+now 0xF7 (247), not 0x0F (15); 0x08 itself is retired and nothing sets it.
+`t/live-jmpbuf.sh` was updated to match.
+
+This is the first evidence, not just inference, that all five jmp_buf rows
+-- the full set DR-0051's frameless face was built to cover -- round-trip
+live against a real Cygwin body on NT. It does not touch the SIGFE-fenced
+slices or the `unassigned`/`dl` rows, and WP-56's overall done-when -- a
+vendor package's own test suite, run and passed -- is unchanged by this
+increment: still pending the fuller process bring-up and a hosted
+candidate environment neither this nor the increment before it attempts.
