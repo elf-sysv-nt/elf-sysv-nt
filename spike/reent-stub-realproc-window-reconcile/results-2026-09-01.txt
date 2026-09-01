@@ -1,0 +1,31 @@
+script  reent-stub-realproc-window-reconcile 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_stub_links=yes
+plain_stub_links=yes
+probe_builds=yes
+
+# plain-PE child (control: whole-window fast path)
+  plain_raw_whole_window=ok
+  plain_reserve_in=win_ok
+    region base=0x400000 size=0x3fc00000 reserved
+  plain_low_window_occupant=reserved
+  plain_window_covered=yes
+
+# real-process child (cygwin-linked: -nostdlib crt0.o -lcygwin)
+  realproc_raw_whole_window=refused
+  realproc_reserve_in=win_err_refused
+    region base=0x400000 size=0x1fc000 reserved
+    region base=0x5fc000 size=0x3000 committed
+    region base=0x5ff000 size=0x1000 committed
+    region base=0x600000 size=0x7f9e0000 free
+  realproc_low_window_occupant=reserved+committed
+  realproc_window_covered=no
+
+control_plain     raw_whole_window=ok reserve_in=win_ok window_covered=yes
+measured_realproc raw_whole_window=refused reserve_in=win_err_refused window_covered=no low_window_occupant=reserved+committed
+verdict=blocked-by-committed-occupant  (the raw whole-window handover is refused against the cygwin-linked child, as the occupant spike found, but elf_window_reserve_in's reconciling fallback ALSO fails: reserve_in=win_err_refused, window_covered=no. The child's low window is not the bare MEM_RESERVE DR-0068 models -- it is low_window_occupant=reserved+committed: a private reservation PLUS committed pages below the free tail. elf_window_plan refuses any committed occupant (returns -1), so the fallback returns win_err_refused. Item 1's reserve verb does not yet clear a real cygwin-linked child; the design must account for a committed low occupant, not only a reserved one)
