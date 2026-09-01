@@ -31,6 +31,11 @@
 #   fuzz       provides.py refuses mutated libraries rather than crashing on
 #              them. It is the one thing here that reads a file it did not
 #              write, and every offset in its walk comes out of that file.
+#   thunk      a FUNC forward (strtol) is a runtime-resolving thunk, not a
+#              `ret` stub -- the four link-time facts spike/reent-veneer-thunk
+#              pinned for the reent-tls-bringup rung: a versioned FUNC with a
+#              real body, no ELF self-import of the faced name, that name in
+#              .rodata as the resolver key, and the resolver kept out of .dynsym.
 #
 # Usage:
 #   run-tests.sh [options]
@@ -87,7 +92,7 @@ type smon_session >/dev/null 2>&1 || {
 }
 
 smon_session build wp53-libc
-smon_plan build bindings surface ladder elfdeps archive fuzz
+smon_plan build bindings surface ladder elfdeps archive fuzz thunk
 
 readelf=$prefix/bin/$target-readelf
 nm=$prefix/bin/$target-nm
@@ -239,7 +244,32 @@ out=$(python3 "$here/fuzz-provides.py" "$so" 2>&1) || { smon_step_fail fuzz 1
 say "${out#fuzz-provides: }"
 smon_step_ok fuzz
 
+# --- thunk -------------------------------------------------------------------
+# The reent-tls-bringup rung, item 2: a FUNC forward is a runtime-resolving
+# thunk (spike/reent-veneer-thunk's contract), not a `ret` stub. strtol is the
+# reent-consuming exemplar the spike used. Assert its four link-time facts on
+# the built library, so the codegen rests on the file rather than on the spike's
+# hand-built probe.
+smon_step_start thunk
+tsym=strtol; tnode=GLIBC_2.2.5
+tsize=$("$readelf" --dyn-syms -W "$so" | awk -v s="$tsym@@$tnode" \
+	'$8==s && $4=="FUNC" && $7!="UND"{print $3; exit}')
+[ "${tsize:-0}" -gt 1 ] 2>/dev/null || { smon_step_fail thunk 1
+	fail "$tsym@@$tnode is not a defined FUNC with a real body (size=${tsize:-0}), the ret stub is not gone"; }
+undef=$("$readelf" --dyn-syms -W "$so" | awk -v s="$tsym" '$8==s && $7=="UND"{c++}END{print c+0}')
+rels=$("$readelf" -r -W "$so" 2>/dev/null | grep -cw "$tsym" || true)
+[ "$undef" = 0 ] && [ "${rels:-0}" = 0 ] || { smon_step_fail thunk 1
+	fail "$tsym self-imports: undef=$undef relocs=$rels (the body binds to itself)"; }
+"$readelf" -p .rodata "$so" 2>/dev/null | grep -qw "$tsym" || { smon_step_fail thunk 1
+	fail "$tsym is not in .rodata as the run-time resolver's key"; }
+for r in _elfsysv_resolve _elfsysv_thunk _elfsysv_face_base; do
+	"$readelf" --dyn-syms -W "$so" | grep -qw "$r" && { smon_step_fail thunk 1
+		fail "the private resolver symbol $r leaked into .dynsym"; }
+done
+say "thunk: $tsym@@$tnode a $tsize-byte forward, no self-import, keyed on .rodata, resolver private"
+smon_step_ok thunk
+
 smon_item WP-53 met "libc.so.6 carries the vendor surface; both memcpy bindings independent; provides reproduce spike 4"
 smon_end 0
-say "all seven checks passed"
+say "all eight checks passed"
 exit 0
