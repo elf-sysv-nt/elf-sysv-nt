@@ -1,4 +1,4 @@
-# DR-XXXX — the low window is reconciled with a cygwin-linked child, not reserved over it
+# DR-0068 — the low window is reconciled with a cygwin-linked child, not reserved over it
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 item 1 of `acceptance/reent/README.md`.
