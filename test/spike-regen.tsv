@@ -70,3 +70,7 @@ reent-stub-realproc-window	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	
 # call crosses through a sysv_abi thunk -- reent-free (strlen) and reent-
 # consuming stdio (puts) both -- so the boundary is the ABI direction, not reent.
 reent-stub-libc-crossing	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
+# reent-stub-realproc-version composes the two fixes at the version path
+# reent-stub-link found faulting: bridge + a sysv_abi-thunked stdio print,
+# so a real-process stub reaches and completes its --version.
+reent-stub-realproc-version	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
