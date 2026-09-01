@@ -784,13 +784,41 @@ sv2ms face, already found that setjmp/longjmp must never be wrapped in an
 out-of-line call-style function, because the pair captures the literal
 calling frame, not a value handed to it. A call-style wiring shim for this
 family would reproduce that dead-frame bug regardless of whether the buffer
-sizes were reconciled. DR-XXXX (the jmp_buf shims take a frameless face)
+sizes were reconciled. DR-0051 (the jmp_buf shims take a frameless face)
 connects the two findings and specifies the shape: a hand-written frameless
 thunk, the wiring layer's counterpart to `sv2ms-ctx.inc`, that stashes the
 real 256-byte Cygwin buffer's address in the caller's own 64-byte el8-shaped
 `jmp_buf` (lazily allocated on first use) and `jmp`s into Cygwin's real
-`setjmp`/`longjmp` rather than calling them. The five rows are specified,
-not yet built; the next increment writes the generated face, teaches the
-generator (or a curated table in `ctx.tsv`'s pattern) to route this family
-to it, and adds a diff case for the lazy-allocation and repeated-`setjmp`
-shapes.
+`setjmp`/`longjmp` rather than calling them.
+
+The five rows are built now: `wire-jmpbuf-face.inc` holds the two macros
+(`wire_jmpbuf_save`, `wire_jmpbuf_restore`) as hand-written assembly, one
+per direction, and `gen-jmpbuf-face.sh` emits `wire-jmpbuf-faces.gen.S` from
+a curated table, `jmpbuf.tsv`, cross-referenced against the slice's own
+generated `wire-runtime.shims.tsv` for each row's version, binding and
+bind-table offset. DR-0051 left open whether the generator should grow a
+third generated category or take a curated exception list in `ctx.tsv`'s
+pattern; the curated-table route was chosen, matching `ctx.tsv` and
+`gen-ctx-faces.sh` at the sv2ms seam exactly rather than teaching
+`gen-wire.py` itself a call-vs-jump distinction it has never needed before.
+`gen-wire.py` did not need to change: it already leaves every shim row out
+of a slice's `.gen.s` thunks (a shim's body is hand-written, not a
+generated tail jump), so the jmp_buf rows were already absent from
+`wire-runtime.gen.s` and the frameless face is the only body that binds
+those five `.symver` names. `t/real-map.sh` re-derives
+`wire-jmpbuf-faces.gen.S` from `jmpbuf.tsv` and the freshly re-derived
+`wire-runtime.shims.tsv` and pins it byte-identical, so a drift in the real
+forward map's five jmp_buf rows -- a table-index shift, a binding change --
+is caught the same way the ordinary thunks are; where the cross compiler is
+available it also assembles the face and checks the five `.symver` names,
+the `malloc` and `__esn_wire_runtime` externs, and the lazy-allocation
+branch by name. `diff/runtime/jmpbuf-lifecycle.c` exercises the two shapes
+this face adds beyond el8's own contract -- a fresh, explicitly zeroed
+`jmp_buf`'s first use, and one `jmp_buf` reused across two hundred
+setjmp/longjmp round trips -- and needs no separate registration:
+`diff-slice.sh`'s glob over `diff/runtime/*.c` picks it up alongside
+`jmpfam.c`, `sigmask.c`, `ucontext.c` and `assertok.c`. Running any of
+these five against the wired veneer still awaits the runtime the rest of
+this document keeps deferring to; what changed in this increment is that
+the face itself, its routing, and its differential case are now written,
+generated, pinned and reviewed rather than merely specified.
