@@ -74,6 +74,18 @@ loader, and three things stand between the reproduced probe and that:
    end, since the stub loads `--runtime` only after the low window the parent
    reserves is held.
 
+   That front-end-driven run is now measured
+   (`spike/reent-stub-realproc-faceload`): driven through the front end, the
+   plain-PE control stub receives the low-window handover and runs past it,
+   but the real-process stub is refused it. Linked against `cygwin1.dll`, the
+   suspended child already holds the low region before any user code runs, so
+   the DR-0028 `VirtualAllocEx` of the `0x400000` window into it fails
+   (`win_err_refused`). So item 1's last step is not the faceload -- its base
+   reachability is clear in the sanctioned shape (`spike/reent-stub-faceload`)
+   -- but reconciling the low-window handover with a cygwin-linked child, the
+   child that holds the low region being the same runtime the window is
+   reserved for.
+
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
    needing one; the bare ELF runtime specimens (`libgreet.so`) carry no reent.
