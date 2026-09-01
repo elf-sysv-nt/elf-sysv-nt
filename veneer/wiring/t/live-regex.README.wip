@@ -1,0 +1,5 @@
+the regex slice live crossing -- WIP
+
+Crossing the regex slice (regcomp, regerror, regexec x2, regfree) by its
+bind alone, the eighth so crossed. All forwards, no shim, one compat pair
+on regexec (GLIBC_2.2.5 and GLIBC_2.3.4).
