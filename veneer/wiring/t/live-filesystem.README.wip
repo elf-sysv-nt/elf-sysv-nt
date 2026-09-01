@@ -1,0 +1,12 @@
+WP-56 filesystem slice live crossing -- work in progress.
+
+filesystem is the highest-demand slice still uncrossed (slice-order.tsv rank 6,
+demand 13195). Its wire table is 103 rows: 67 forwards and 36 shims, every row
+naming a real elfsysv1.dll export. DR-0055 lists the SIGFE-heavy slices that
+cross by their bind alone and pointedly omits filesystem: the slice carries pure
+NOSIGFE rows a freestanding harness can call. This crossing calls one -- fnmatch
+-- through its generated thunk against the real DLL, the body-exercising shape
+math/string/sockets/terminal used.
+
+Next: live-filesystem.c (the specimen), live-filesystem.sh (the harness), and
+the decision the crossing's finding earns.
