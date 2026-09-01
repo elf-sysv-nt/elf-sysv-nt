@@ -1624,3 +1624,53 @@ and no-runtime controls the earlier crossings use bound it. `t/live-memory.sh`
 records it. The crossing adds no decision: it confirms DR-0055's rule on a slice
 that has NOSIGFE rows but no stateless one, and finds the pure-forward case that
 needs no shim placeholder repointed, so there is nothing for it to change.
+
+
+The signal slice crosses next, the third crossed by its bind alone. Its table
+is twenty-nine rows, twelve forwards and seventeen shims: the sigset operators
+(`sigemptyset`, `sigfillset`, `sigaddset`, `sigdelset`, `sigismember`) and the
+disposition and delivery calls (`signal`, `sigaction`, `sigprocmask`,
+`sigpending`, `sigsuspend`, `sigqueue`, `sigtimedwait`, `sigwaitinfo`,
+`sigaltstack`) as shims, with `kill`, `killpg`, `raise`, `psignal` and the
+System V XSI conveniences (`sighold`, `sigrelse`, `sigignore`, `sigset`,
+`sigpause`) as forwards. Every row is SIGFE and none is stateless, so the
+crossing asks the question memory and filesystem did: does a Cygwin-faced DLL
+export the whole set, or does the bind leave rows a shim body must synthesise?
+
+Measurement answers cleanly, and it places signal between filesystem's eleven
+and memory's none: the bind leaves exactly two rows null, and they are exactly
+the rows a real shim must synthesise -- `__sysv_signal` and `sysv_signal`, the
+System V unreliable-signal disposition setters, which glibc exports but Cygwin
+has no ABI for. Cygwin exports plain `signal` with BSD reliable semantics and
+`sigaction`, and a translating body must build the System V one-shot, no-mask
+disposition on top of them; there is no export to alias onto, as memory's
+`mmap64` aliased onto `mmap`. Every other row -- every forward, and the fifteen
+shims whose export exists under its own name, the sigset operators and the
+delivery calls alike -- binds.
+
+signal crosses by its bind alone all the same, not by call: no signal row is
+stateless. The sigset operators look pure -- `sigemptyset` only clears a
+caller's mask -- but Cygwin's are SIGFE, entering the runtime's `cygtls` on the
+way in, and a freestanding harness never brings that up; the delivery calls
+stand on the process's signal state outright. So a body called here would read
+or mutate state the harness never initialised -- the trap `fnmatch` sprang in
+filesystem. So the specimen calls nothing and reads the table the bind filled.
+Five checks, one bit each, so 31 is the only pass -- the bind leaving exactly
+the two System V rows null, identified by name so it is exactly the rows a shim
+must reach and no others, and every other row filled; every filled slot landing
+inside the mapped image span `[base, base + SizeOfImage)`; the resolver
+discriminating, `sigaction` resolving while `__sysv_signal` and a junk name
+resolve null; `sigaction`, `sigprocmask` and `kill` reaching three distinct
+bodies; and a second bind idempotent, the same two null again with every filled
+slot equal to a fresh resolve, per DR-0049's contract. The same
+refuse-before-entry and no-runtime controls the earlier crossings use bound it.
+`t/live-signal.sh` records it.
+
+The consequence is the same shape as filesystem's: signal crosses by its bind
+alone, confirming DR-0055's rule on a slice that has NOSIGFE rows but no
+stateless one, and the two System V disposition rows are wired to glibc export
+names a Cygwin face does not carry, so they are shim placeholders the generator
+must repoint at a translating body over Cygwin's `signal`/`sigaction` rather
+than at a plain Cygwin call. WP-56's per-slice done-when is unchanged: still the
+differential against a real el8 userland, with the live crossing the added NT
+check, and for this slice that added check is the bind.
