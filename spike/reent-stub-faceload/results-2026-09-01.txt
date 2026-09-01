@@ -1,0 +1,15 @@
+script  reent-stub-faceload 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_host_links=yes
+startup_gated_without_bridge=yes
+startup_reached_main=yes
+own_runtime_base_present=yes  (own-runtime-base=0x7ff995870000)
+faceload_via_loadlibrary=succeeds  (loadlibrary-base=0x7ff995870000)
+faceload_base_matches_own_runtime=yes
+host_survives_faceload=yes
+verdict=yes
