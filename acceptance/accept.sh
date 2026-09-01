@@ -45,6 +45,7 @@
 #   -m URL    the mirror root                 [default: Rocky 8.10]
 #   -o FILE   write the report here           [default: stdout]
 #   -t        terse: the key=value lines only
+#   -R        do not run a ready package's suite through the crossing
 #   -h        this message
 # Exit: 0 if every package built and was classified, 1 if one did not build.
 
@@ -59,6 +60,7 @@ pins=$here/packages.tsv
 mirror=${ACCEPT_MIRROR:-https://dl.rockylinux.org/pub/rocky/8.10}
 out=-
 terse=0
+run_stage=1
 cross=x86_64-elfsysvnt-linux-gnu-gcc
 host=${CC:-gcc}
 classification=$root/veneer/classification/classification.tsv
@@ -76,6 +78,7 @@ while [ $# -gt 0 ]; do
 		-m) mirror=${2:?}; shift 2 ;;
 		-o) out=${2:?}; shift 2 ;;
 		-t) terse=1; shift ;;
+		-R) run_stage=0; shift ;;
 		-h|--help) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		-V|--version) echo "$release"; exit 0 ;;
 		-*) die "unknown option $1" ;;
@@ -124,6 +127,76 @@ build_shape() {
 }
 
 shape_of() { "$shape_bin" "$1" 2>/dev/null; }
+
+# The loader's dynamic-exec front end and its PE host stub (WP-41), built once
+# from the loader packages with the host compiler, exactly as loader/exec/t/
+# run.sh builds them. ELFSYSV_STUB names the stub the front end starts; the
+# 0x100000 stack reserve keeps the kernel's initial stack out of the ELF
+# window (DR-0028). Sets loader_exec on success; a failure is reported by the
+# caller and leaves the classify verdict untouched.
+build_loader() {
+	[ -n "${loader_exec:-}" ] && return 0
+	local w=$dest/.loader e=$root/loader/exec
+	mkdir -p "$w"
+	local cf="-std=gnu11 -Wall -Wextra -O2 -Wno-unused-parameter"
+	local ls="$e/reserve.c $root/loader/map/elf_map.c $root/loader/map/host_mem.c $root/loader/elf/elf_parse.c $root/loader/process/process_image.c $root/loader/reloc/elf_reloc.c $root/loader/reloc/reloc_resolve.S"
+	$host $cf -Wl,--stack,0x100000 -o "$w/elfsysv-stub" \
+		"$e/stub.c" "$e/exec_kind.c" "$e/dyn_exec.c" "$e/dyn_init.c" "$e/enter.S" $ls \
+		> "$w/build.log" 2>&1 || return 1
+	$host $cf -o "$w/elfsysv-exec" \
+		"$e/exec_main.c" "$e/dispatch.c" "$e/binfmt.c" "$e/reserve.c" >> "$w/build.log" 2>&1 || return 1
+	loader_exec="$w/elfsysv-exec"
+	export ELFSYSV_STUB="$w/elfsysv-stub.exe"
+	return 0
+}
+
+# Launch a ready package through the loader's crossing -- standing in for
+# ld-linux -- rather than stopping at `ready`. A liveness probe enters the
+# image; if it enters and exits without a loader diagnostic the package's own
+# suite runs through the same crossing, its binary swapped for a wrapper that
+# re-enters it, and a clean suite is the `passing` verdict WP-56's done-when
+# names. Until the image enters, the stage names the obstacle it halts at --
+# today the map layer, then reent/TLS and the syscall surface
+# (acceptance/to-green.tsv) -- so the harness reports where the crossing stands,
+# not merely that it waits. Every launch is under a hard timeout, so a loader
+# that wedges cannot wedge the harness. Sets run_state and run_note.
+run_suite() {
+	local name=$1 sdir=$2 bin=$3 binary=$4
+	run_state=""; run_note=""
+	if ! build_loader; then
+		run_state="no-loader"
+		run_note="    run stage: the loader front end did not build (see $dest/.loader/build.log); cannot launch the crossing."
+		return 0
+	fi
+	local w=$dest/$name probe=$dest/$name/run-probe.out
+	timeout -k 3 30 "$loader_exec" "$bin" --help > "$probe" 2>&1
+	local rc=$?
+	local obstacle
+	obstacle=$(grep -m1 -E 'elfsysv-stub:|_err|reloc' "$probe" 2>/dev/null | sed 's#^elfsysv-stub: [^:]*: ##; s#^elfsysv-stub: ##')
+	if grep -qE 'elfsysv-stub:|_err|reloc' "$probe" 2>/dev/null || [ "$rc" -ge 128 ]; then
+		run_state="halted"
+		run_note="    run stage: launched $name through the crossing; it halts before entry -- ${obstacle:-terminated, exit $rc}. The image does not yet run; acceptance/to-green.tsv names the ladder from here."
+		return 0
+	fi
+	# Entered and left without a loader diagnostic: run the package's own suite
+	# through the same crossing. Its binary is swapped for a wrapper that
+	# re-enters it, and -o keeps make from rebuilding over the wrapper.
+	local real=$bin.real
+	cp -f "$bin" "$real" 2>/dev/null || { run_state="ran"; run_note="    run stage: $name entered the crossing and ran; could not stage its suite (binary not writable)."; return 0; }
+	printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$loader_exec" "$real" > "$bin"
+	chmod +x "$bin"
+	( cd "$sdir" && timeout -k 5 180 make -o "$binary" test ) > "$w/run-suite.out" 2>&1
+	local trc=$?
+	cp -f "$real" "$bin" 2>/dev/null; rm -f "$real"
+	if [ "$trc" = 0 ]; then
+		run_state="passed"
+		run_note="    run stage: $name ran its own test suite through the crossing and passed -- WP-56's overall done-when is met."
+	else
+		run_state="ran"
+		run_note="    run stage: $name entered the crossing and ran, but its suite did not pass (exit $trc; see $w/run-suite.out)."
+	fi
+	return 0
+}
 
 fetch() {
 	local relpath=$1 want=$2 file=$3
@@ -231,6 +304,12 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		verdict="ready"
 	fi
 
+	run_state=""; run_note=""
+	if [ "$run_stage" = 1 ] && [ "$verdict" = ready ]; then
+		run_suite "$name" "$sdir" "$bin" "$binary"
+		[ "$run_state" = passed ] && verdict=passing
+	fi
+
 	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d wired, %d shim, %d stub%s%s\n' \
 		"$name" "$verdict" "$total" "$nf" "$nw" "$ns" "$nb" \
 		"$([ "$nfill" -gt 0 ] && echo ", $nfill filled")" \
@@ -246,14 +325,15 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		[ "$nb" -gt 0 ] && { echo "    stubs (nothing behind them yet):"; printf '%s\n' "$surface" | awk '$1=="stub"{print "      "$2}'; }
 		[ "$nfill" -gt 0 ] && { echo "    filled (a synthesized, certified body stands behind them -- DR-0052):"; printf '%s\n' "$surface" | awk '$1=="filled"{print "      "$2}'; }
 		[ "$nu" -gt 0 ] && { echo "    unclassified (not in the veneer map):"; printf '%s\n' "$surface" | awk '$1=="unclassified"{print "      "$2}'; }
-		if [ "$verdict" = ready ]; then
-			echo "    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite is the next step, which needs the loader's dynamic-exec path to stand in for ld-linux."
+		if [ "$verdict" = ready ] || [ "$verdict" = passing ]; then
+			if [ -n "$run_note" ]; then printf '%s\n' "$run_note"; else
+			echo "    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite through the crossing is the next step (accept.sh -R skips it)."; fi
 		else
 			echo "    waits on the named shims to be written and stubs filled; it links and loads against the runtime as it stands."
 		fi
 	fi
-	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,shape:%s,verdict:%s\n' \
-		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$skind" "$verdict"
+	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,shape:%s,verdict:%s,run:%s\n' \
+		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$skind" "$verdict" "${run_state:-skipped}"
 	pass=$((pass+1))
 done 3< "$pins"
 
