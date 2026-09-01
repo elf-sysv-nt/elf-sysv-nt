@@ -62,6 +62,7 @@ is a record nobody will find.
 | [0049](0049-wiring-crosses-a-bound-table.md) | the wiring crosses through a load-time bound table | accepted 2026-08-31 | none |
 | [0050](0050-retire-mno-red-zone.md) | `-mno-red-zone` is retired; the red zone is honored at the delivery site | accepted 2026-08-31 | none |
 | [0051](0051-the-jmp_buf-shims-take-a-frameless-face.md) | the jmp_buf shims take a frameless face, not a call-style wrapper | accepted 2026-08-31 | none |
+| [0052](0052-a-stub-may-be-filled-with-a-synthesized-body.md) | a stub may be filled with a synthesized body, not only left to fail | accepted 2026-08-31 | none |
 
 ## What earns a record
 

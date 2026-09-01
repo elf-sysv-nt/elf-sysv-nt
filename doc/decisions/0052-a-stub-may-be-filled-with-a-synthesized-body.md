@@ -1,4 +1,4 @@
-# DR-XXXX — a stub may be filled with a synthesized body, not only left to fail
+# DR-0052 — a stub may be filled with a synthesized body, not only left to fail
 
 Accepted 2026-08-31. Source: WP-56, the acceptance harness's first leaf.
 
