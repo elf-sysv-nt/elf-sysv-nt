@@ -1,0 +1,12 @@
+script  reent-stub-stderr-crossing 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+stderr_file_export_present=no
+startup_reached_main=yes
+sysv_thunk_write_fd2_crosses=yes
+sysv_thunk_dprintf_fd2_crosses=yes
+verdict=yes
