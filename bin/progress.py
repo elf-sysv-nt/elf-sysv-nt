@@ -43,8 +43,12 @@ Usage:
 
   Road to green (WP-56 completion burndown), status derived from git truth:
       progress.py green               the capabilities between bzip2 ready and passing, N of M
+
+  Acceptance matrix, reusing stored surfaces (no rebuild), recomputed against today's veneer:
+      progress.py matrix              pinned packages x resolution buckets, with fingerprint freshness
+      progress.py matrix bzip2        one package's stored symbols, resolved now, blocked ones by slice
 """
-import os, re, sys, subprocess, time, glob, json, shutil
+import os, re, sys, subprocess, time, glob, json, shutil, hashlib
 
 
 def term_width(default=100):
@@ -959,6 +963,162 @@ def render_green(model):
     return 0
 
 
+# ---- acceptance matrix (packages x veneer resolution, reusing sidecars) ---
+#
+# A package's undefined-symbol surface is stable for its pinned version and
+# expensive to get (a cross-build). accept.sh persists it to
+# acceptance/surface/<pkg>.tsv with a veneer fingerprint. This view reuses those
+# stored surfaces -- no rebuild -- and recomputes each symbol's resolution
+# against TODAY's veneer, so a cell re-flips when a shim is wired without
+# rebuilding the package. The fingerprint says whether a stored surface's own
+# verdict still matches the current veneer or has gone stale.
+
+
+def veneer_fingerprint(model):
+    """The resolution inputs -- the classification map and the crossed-slice set
+    -- hashed the same way acceptance/accept.sh does, so the two agree."""
+    try:
+        ch = hashlib.sha256(open(CLASSIFICATION, 'rb').read()).hexdigest()
+    except OSError:
+        ch = ''
+    cr = ','.join(sorted(model['crossed']))
+    return hashlib.sha256(('%s|%s' % (ch, cr)).encode()).hexdigest()[:12]
+
+
+def surface_fingerprint(pkg):
+    """The veneer fingerprint stamped in a package's sidecar, or None."""
+    p = os.path.join(SURFACE_DIR, '%s.tsv' % pkg)
+    try:
+        for line in open(p, encoding='utf-8', errors='replace'):
+            m = re.match(r'#\s*veneer-fingerprint\s+(\S+)', line)
+            if m:
+                return m.group(1)
+            if not line.startswith('#'):
+                break
+    except OSError:
+        pass
+    return None
+
+
+def _filled_syms():
+    s = set()
+    for p in glob.glob(FILLED_GLOB):
+        for r in _rows(p):
+            if r and r[0]:
+                s.add(r[0])
+    return s
+
+
+def _wired_shim_syms(model):
+    s = set()
+    for p in glob.glob(SHIMS_GLOB):
+        sl = os.path.basename(p)[len('wire-'):-len('.shims.tsv')]
+        if sl in model['crossed']:
+            for r in _rows(p):
+                if r and r[0]:
+                    s.add(r[0])
+    return s
+
+
+def classify_now(sym, cls, filled, wired):
+    """A symbol's resolution against the current veneer: forward, wired, filled,
+    shim, stub, or unclassified. Mirrors accept.sh's classify order."""
+    if sym in filled:
+        return 'filled'
+    b = cls.get(sym)
+    if not b:
+        return 'unclassified'
+    bucket = b[0]
+    if bucket in ('1', '2'):
+        return 'forward'
+    if bucket == '3':
+        return 'wired' if sym in wired else 'shim'
+    if bucket == '4':
+        return 'stub'
+    return 'unclassified'
+
+
+def package_matrix(pkg, model, filled, wired):
+    """Recompute a stored surface against today's veneer. Returns None when no
+    sidecar exists, else {counts, blocked[(sym,status,slice)], fresh, stored_fp}."""
+    sc = surface_sidecar(pkg)
+    if sc is None:
+        return None
+    ss = symbol_slice()
+    counts = {k: 0 for k in ('forward', 'wired', 'filled', 'shim', 'stub', 'unclassified')}
+    blocked = []
+    for sym, _stored_bucket in sc:
+        status = classify_now(sym, model['cls'], filled, wired)
+        counts[status] += 1
+        if status in ('shim', 'stub', 'unclassified'):
+            blocked.append((sym, status, ss.get(sym, '?')))
+    stored = surface_fingerprint(pkg)
+    return {'counts': counts, 'total': len(sc), 'blocked': blocked,
+            'stored_fp': stored, 'fresh': stored == veneer_fingerprint(model)}
+
+
+def render_matrix(model, args):
+    pkg = args[0] if args else None
+    filled, wired = _filled_syms(), _wired_shim_syms(model)
+    cur = veneer_fingerprint(model)
+    if pkg:
+        return render_matrix_package(model, pkg, filled, wired, cur)
+    w = term_width()
+    print('Acceptance matrix — pinned packages x veneer resolution (reuses stored surfaces, no rebuild)')
+    print('  current veneer fingerprint: %s' % cur)
+    print()
+    print('  %-12s %5s  %4s %5s %4s %4s %6s %7s  %-11s %s'
+          % ('package', 'surf', 'fwd', 'wired', 'shim', 'stub', 'filled', 'unclass',
+             'resolves', 'sidecar'))
+    any_pkg = False
+    for name in pinned_packages():
+        m = package_matrix(name, model, filled, wired)
+        if m is None:
+            print('  %-12s  (no stored surface — run acceptance/accept.sh %s)' % (name, name))
+            continue
+        any_pkg = True
+        c = m['counts']
+        blockers = c['shim'] + c['stub'] + c['unclassified']
+        resolves = 'yes' if blockers == 0 else 'no (%d)' % blockers
+        tag = 'fresh' if m['fresh'] else ('stale %s' % (m['stored_fp'] or '?'))
+        print(_clip('  %-12s %5d  %4d %5d %4d %4d %6d %7d  %-11s %s'
+                    % (name, m['total'], c['forward'], c['wired'], c['shim'],
+                       c['stub'], c['filled'], c['unclassified'], resolves, tag), w))
+    print()
+    if not any_pkg:
+        print('  no stored surfaces yet. accept.sh writes acceptance/surface/<pkg>.tsv on each run;')
+        print('  once committed, this matrix recomputes them against the current veneer without a rebuild.')
+    else:
+        print('  a stale row: the surface is trusted, but its resolution was recomputed against the')
+        print('  current veneer, which has moved since the run. progress.py matrix <pkg> for symbols.')
+    return 0
+
+
+def render_matrix_package(model, pkg, filled, wired, cur):
+    m = package_matrix(pkg, model, filled, wired)
+    print('Acceptance matrix / %s' % pkg)
+    if m is None:
+        if pkg in pinned_packages():
+            print('  no stored surface — run acceptance/accept.sh %s to write its sidecar' % pkg)
+        else:
+            print('  not a pinned package (see acceptance/packages.tsv)')
+        return 0
+    c = m['counts']
+    print('  surface     %d symbols (stored; reused without a rebuild)' % m['total'])
+    print('  resolution  %d forward, %d wired, %d filled | %d shim, %d stub, %d unclassified'
+          % (c['forward'], c['wired'], c['filled'], c['shim'], c['stub'], c['unclassified']))
+    print('  fingerprint %s (%s)' % (m['stored_fp'] or '-',
+                                     'fresh' if m['fresh'] else 'stale; veneer now %s' % cur))
+    if m['blocked']:
+        w = term_width()
+        print('\n  blocked symbols, by slice:')
+        for sym, status, sl in sorted(m['blocked'], key=lambda r: (r[2], r[0])):
+            print(_clip('    %-26s %-6s %s' % (sym, status, sl), w))
+    else:
+        print('\n  every stored symbol resolves against the current veneer')
+    return 0
+
+
 def main(argv):
     depth = 1
     path = []
@@ -974,6 +1134,9 @@ def main(argv):
         i += 1
 
     model = build()
+
+    if path and path[0].lower() == 'matrix':
+        return render_matrix(model, path[1:])
 
     if path and path[0].lower() in ('green', 'road', 'to-green'):
         return render_green(model)
