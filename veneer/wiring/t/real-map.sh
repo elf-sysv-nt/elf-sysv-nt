@@ -607,3 +607,27 @@ if command -v "$XCC" >/dev/null 2>&1; then
 fi
 
 echo 'real-map: math ok'
+
+# The dl slice wires nothing at the libc face. dlopen, dlsym and the rest
+# of dlfcn.h/link.h live in libdl.so.2 on el8 -- WP-54 territory, like the
+# aio family in io and the pty helpers in terminal -- so the libc forward
+# map never carries them, and gen-wire reports the slice empty and writes
+# no files. The two names the slice map does place, dl_iterate_phdr and
+# _dl_mcount_wrapper_check, are stub in the forward map. Pinned so a dlfcn
+# symbol wrongly added to the libc map is caught here the same way a drift
+# in any wired slice is.
+python3 ../gen-wire.py --forward-map "$tmp/fwd.tsv" \
+    --slice-map ../symbol-slice.tsv --slice dl \
+    --table "$tmp/wire-dl.gen.c" --thunks "$tmp/wire-dl.gen.s" \
+    --shims "$tmp/wire-dl.shims.tsv" 2>&1 | grep -q 'nothing to wire'
+test ! -f "$tmp/wire-dl.gen.c"
+for s in dlopen dlsym dlclose dlerror dlvsym dlinfo dlmopen dladdr dladdr1; do
+    if awk -F'\t' -v s="$s" '$1==s' "$tmp/fwd.tsv" | grep -q .; then
+        echo "real-map: $s unexpectedly present in the libc forward map" >&2
+        exit 1
+    fi
+done
+test "$(awk -F'\t' '$1=="dl_iterate_phdr"{print $7}' "$tmp/fwd.tsv")" = stub
+test "$(awk -F'\t' '$1=="_dl_mcount_wrapper_check"{print $7}' "$tmp/fwd.tsv")" = stub
+
+echo 'real-map: dl ok'

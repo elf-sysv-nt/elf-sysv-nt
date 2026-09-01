@@ -942,7 +942,12 @@ and link.h's dl_iterate_phdr and the la_* auditing hooks belong to the
 dynamic loader rather than libc; so the libc forward map carries none of
 them, exactly as it carries none of io's aio family or terminal's pty
 helpers, all of them WP-54's DSOs rather than this one's. gen-wire
-reports the slice empty (WIP: the pin below and this paragraph land
-together). The two names the slice map does place in libc --
-dl_iterate_phdr and _dl_mcount_wrapper_check -- are stub in the forward
-map, not wired.
+reports the slice empty and writes no files. The two names the slice
+map does place in libc -- dl_iterate_phdr and _dl_mcount_wrapper_check
+-- are stub in the forward map, not wired. There is nothing at this
+face to run a differential against, so the slice's bar is the pin
+instead: t/real-map.sh asserts gen-wire finds nothing to wire, that no
+public dlfcn entry has crept into the libc map, and that the two
+libc-resident dl names stay stub -- a dlopen wrongly added to libc is
+caught the same way a drift in any wired slice is. The dl surface
+itself is judged where it is implemented, in WP-54's libdl.
