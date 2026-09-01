@@ -31,8 +31,12 @@ Usage:
   Acceptance (WP-T4 embryo), a second tree over the same classification:
       progress.py accept              both KPIs, per-package table, blocking symbols
       progress.py accept bzip2        one package: verdict, surface, unresolved -> slice
+
+  Dynamic-exec path (DR-0058), read from the worker's .smon/log, no build:
+      progress.py dynexec             driver stages + the crossing certification steps
+      progress.py dynexec dyn-cross   one step: the commands it ran, with exit codes
 """
-import os, re, sys, subprocess, time, glob
+import os, re, sys, subprocess, time, glob, json
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
@@ -230,6 +234,9 @@ def render_top(model, depth):
     print('  phase live-crossing %s %d/%d slices%s'
           % (bar(len(crossed), len(wireable)), len(crossed), len(wireable),
              ('  (in flight: %s)' % infl) if infl else ''))
+    dmark, dts = dynexec_state()
+    print('  phase dynamic-exec  dyn-cross %s%s   (progress.py dynexec)'
+          % (dmark, ('  ' + _ts(dts)) if dts else ''))
     print('  phase acceptance    pending  (a vendor package builds, links, runs its suite, passes)')
 
     remaining = [s for s in wireable if s in model['wired'] and s not in model['crossed']]
@@ -546,6 +553,178 @@ def render_accept_package(model, pkg):
     return 0
 
 
+# ---- dynamic-exec path (DR-0058) -----------------------------------------
+#
+# The crossing that runs a real dynamic ELF is one driver, loader/exec/dyn_exec.c,
+# composing the loader packages already delivered (WP-33/34/35/36/38/39). Its
+# progress is not a file count -- the driver is written -- but a certification:
+# the loader/exec suite's `dyn-cross` step. session-monitor records every run to
+# .smon/log/*.jsonl (one file per run: a `plan` of steps, a `step` event per
+# step with ok/fail/skip, an `item` per done-when clause met). This view reads
+# that ledger -- what the worker has already certified -- and never builds.
+
+SMON_DIR = os.path.join(REPO, '.smon', 'log')
+
+DYNEXEC_STAGES = [
+    ('guard',       "args valid, the image is the dynamic shape, a runtime was supplied"),
+    ('add-main',    "the main image enters WP-38's object table as obj[0], the load root"),
+    ('add-runtime', "the runtime enters as its one satisfied DT_NEEDED"),
+    ('apply',       "the main image's GOT and PLT relocate against the runtime (WP-34/35/36)"),
+    ('enter',       "the stub transfers to e_entry, the crossing the static path already owns"),
+]
+
+CROSS_STEP = {
+    'specimen':  "a bzip2-shaped dynamic image builds",
+    'stub':      "the stub composes the crossing between map and entry",
+    'dyn-cross': "an interp-bearing image calls across into the runtime and returns",
+    'dyn-link':  "the driver links the main image against the runtime (unit over dyn_exec)",
+}
+
+
+def smon_runs(limit=100):
+    """[run] newest-first from .smon/log. Each run: {ts, plan, steps{id:state},
+    items[(id,state,text)], file}. The last state written for a step id is its
+    final one, so a step that started but never finished stays 'start'."""
+    runs = []
+    for path in sorted(glob.glob(os.path.join(SMON_DIR, '*.jsonl')), reverse=True)[:limit]:
+        plan, steps, items, cmds, ts0 = [], {}, [], [], None
+        try:
+            fh = open(path, encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if ts0 is None:
+                    ts0 = e.get('ts')
+                ev = e.get('ev')
+                if ev == 'plan':
+                    plan = e.get('steps', [])
+                elif ev == 'step' and e.get('state') in ('ok', 'fail', 'skip', 'start'):
+                    steps[e.get('id')] = e.get('state')
+                elif ev == 'cmd' and e.get('state') in ('ok', 'fail'):
+                    cmds.append((e.get('id'), e.get('state'), e.get('rc'), e.get('cmd', '')))
+                elif ev == 'item':
+                    items.append((e.get('id'), e.get('state'), e.get('text', '')))
+        runs.append({'ts': ts0, 'plan': plan, 'steps': steps, 'items': items,
+                     'cmds': cmds, 'file': os.path.basename(path)})
+    return runs
+
+
+def latest_step(runs, step_id):
+    """(state, ts, file) for a step id, from the newest run that ran it."""
+    for r in runs:
+        if step_id in r['steps']:
+            return r['steps'][step_id], r['ts'], r['file']
+    return None, None, None
+
+
+def crossing_run(runs):
+    """The newest run that certified the dynamic crossing (its plan or steps
+    name dyn-cross)."""
+    for r in runs:
+        if 'dyn-cross' in r['plan'] or 'dyn-cross' in r['steps']:
+            return r
+    return None
+
+
+def _ts(ts):
+    import datetime
+    try:
+        return datetime.datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return '?'
+
+
+def dynexec_state(runs=None):
+    """(mark, ts) for the dyn-cross certification, for the one-line summaries."""
+    runs = runs if runs is not None else smon_runs()
+    st, ts, _ = latest_step(runs, 'dyn-cross')
+    return {'ok': 'certified', 'fail': 'FAILING', 'start': 'running',
+            None: 'pending'}.get(st, st or 'pending'), ts
+
+
+def render_dynexec(model):
+    runs = smon_runs()
+    print('Dynamic-exec path — the loader crossing that runs a real dynamic ELF')
+    print('  DR-0058; loader/exec/dyn_exec.c, one driver over the loader packages')
+    print('  already delivered (WP-33 closure, 34 reloc, 35 lookup, 36 version, 38 table, 39 r_debug)')
+    print()
+    print('  driver stages (committed in dyn_exec.c):')
+    for name, desc in DYNEXEC_STAGES:
+        print('    %-11s %s' % (name, desc))
+
+    cr = crossing_run(runs)
+    print()
+    if not cr:
+        print('  certification: no dyn-cross run found in .smon/log yet')
+        print('  detail: loader/exec/t/run.sh (the smon suite)')
+        return 0
+    print('  certification — .smon/log/%s, %s (the worker\'s own run, no build):'
+          % (cr['file'], _ts(cr['ts'])))
+    mark = {'ok': 'ok', 'fail': 'FAIL', 'skip': 'skip', 'start': '…running'}
+    for sid in (cr['plan'] or list(cr['steps'])):
+        st = cr['steps'].get(sid)
+        if st is None:
+            continue
+        desc = CROSS_STEP.get(sid, '')
+        arrow = '  <- the done-when' if sid == 'dyn-cross' else ''
+        print('    %-12s %-9s %s%s' % (sid, mark.get(st, st), desc, arrow))
+
+    st, ts, _ = latest_step(runs, 'dyn-cross')
+    print()
+    if st == 'ok':
+        print('  verdict: dyn-cross certifies (%s). The crossing works; running a real' % _ts(ts))
+        print('           package\'s own suite through it is the acceptance run stage,')
+        print('           which turns KPI-A passing and KPI-B runtime off zero.')
+    elif st == 'fail':
+        print('  verdict: dyn-cross FAILS as of %s — read the run log below.' % _ts(ts))
+    else:
+        print('  verdict: dyn-cross not yet certified in the ledger.')
+    print()
+    print('  drill down:  progress.py dynexec <step>   (the commands a step ran, with exit codes)')
+    print('  detail: loader/exec/t/run.sh ; a/build-logs/wp56-*crossing*.log')
+    return 0
+
+
+def render_dynexec_step(model, step):
+    """The finest grain the ledger holds: the commands a certification step ran,
+    with exit codes, from the newest run that ran it."""
+    runs = smon_runs()
+    src = None
+    for r in runs:
+        if step in r['steps'] or any(c[0] == step for c in r['cmds']):
+            src = r; break
+    print('Dynamic-exec / %s' % step)
+    if not src:
+        print('  no run in .smon/log has a step named %r' % step)
+        print('  known crossing steps: specimen, stub, dyn-cross, unit, fuzz')
+        return 0
+    st = src['steps'].get(step, '?')
+    print('  step verdict   %s   (.smon/log/%s, %s)' % (st, src['file'], _ts(src['ts'])))
+    desc = CROSS_STEP.get(step)
+    if desc:
+        print('  what it proves %s' % desc)
+    cmds = [c for c in src['cmds'] if c[0] == step]
+    print()
+    if not cmds:
+        print('  the step recorded no commands (it gated or noted only)')
+        return 0
+    print('  commands run (exit code):')
+    for _id, state, rc, cmd in cmds:
+        mark = 'ok' if state == 'ok' else ('FAIL rc=%s' % rc)
+        # keep the command readable: drop the long worktree prefix
+        short = re.sub(r'/c/-/repo/elf-sysv-nt/a/wt/[^/]+/', '', cmd)
+        print('    [%-9s] %s' % (mark, short))
+    return 0
+
+
 def main(argv):
     depth = 1
     path = []
@@ -561,6 +740,11 @@ def main(argv):
         i += 1
 
     model = build()
+
+    if path and path[0].lower() in ('dynexec', 'dyn'):
+        if len(path) == 1:
+            return render_dynexec(model)
+        return render_dynexec_step(model, path[1])
 
     if path and path[0].lower() == 'accept':
         if len(path) == 1:
