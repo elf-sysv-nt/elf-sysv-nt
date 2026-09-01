@@ -951,3 +951,32 @@ public dlfcn entry has crept into the libc map, and that the two
 libc-resident dl names stay stub -- a dlopen wrongly added to libc is
 caught the same way a drift in any wired slice is. The dl surface
 itself is judged where it is implemented, in WP-54's libdl.
+
+## The first filled stub: the ctype tables
+
+Every slice above wires forwards (thunks) and shims (translations over a real
+Cygwin export). The acceptance harness's first leaf, bzip2, needs one thing
+neither of those covers: `__ctype_b_loc`, glibc's character-class accessor,
+and its two case-map kin. They are bucket-4 stubs -- glibc-internal, absent
+from Cygwin's export surface, nothing to forward to and nothing to translate.
+But what they return is determinate: in the C and POSIX locales the three
+tables they front are fixed by the language, so the veneer fills the stub with
+the table rather than leaving a body that only fails. This is a fourth kind of
+wiring body beside the thunk and the shim, and the decision recording when it
+is allowed -- determinate data the veneer can produce and certify without a
+Cygwin call behind it -- is its own DR; a stub whose answer needs state the
+veneer lacks stays a stub that fails.
+
+`gen-ctype-table.py` emits `ctype-table.gen.c` -- the three tables synthesized
+from the standard's class and case rules, indexed `[-128..255]`, bound to
+their `GLIBC_2.3` accessors -- as a shared component beside `xlat-core.gen.c`,
+not in any slice's bind table, since it forwards to nothing. `t/ctype-table.sh`
+pins it byte-identical to its generator and, over the pinned el8 image,
+compiles a dumper against glibc's own `ctype.h` and a probe against this body
+and requires the two identical across all 384 entries of all three tables:
+certified byte-for-byte against the real reference, not merely by construction.
+The behavioural surface is already `diff/locale/ctype.c`'s, whose candidate
+side resolves through this body once the runtime links it. `CTYPE-TABLE-SHIM.md`
+records the layout, the negative-index and EOF rule, the C-locale scope, and
+the one follow-up: the acceptance harness still reads the classification, which
+still says stub, so bzip2's verdict does not yet reflect the fill.
