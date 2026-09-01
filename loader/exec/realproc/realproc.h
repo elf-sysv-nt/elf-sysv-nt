@@ -41,16 +41,20 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #define RP_STRCMP(a, b)          strcmp((a), (b))
 #define RP_STRNCMP(a, b, n)      strncmp((a), (b), (n))
 #define RP_STRLEN(s)             strlen((s))
 #define RP_STRTOULL(s, e, base)  strtoull((s), (e), (base))
 #define RP_PUTS(s)               puts((s))
+#define RP_SNPRINTF(b, n, ...)   snprintf((b), (n), __VA_ARGS__)
+#define RP_VSNPRINTF(b, n, f, a) vsnprintf((b), (n), (f), (a))
 
 #else /* ELFSYSV_REALPROC */
 
 #include <stddef.h>
+#include <stdarg.h>
 
 /* Freestanding, host-safe: these never call the faced libc, so they carry no
  * ABI crossing. They are the stub's own string and parsing work. */
@@ -58,6 +62,14 @@ int                rp_strcmp(const char *a, const char *b);
 int                rp_strncmp(const char *a, const char *b, size_t n);
 size_t             rp_strlen(const char *s);
 unsigned long long rp_strtoull(const char *s, char **end, int base);
+
+/* Freestanding formatting, likewise host-safe: the finished bytes cross
+ * through rp_puts, the formatting itself calls no libc. snprintf semantics --
+ * NUL-terminate within size, return the length a large-enough buffer would
+ * hold. Scope is realproc-fmt.c's conversions, the ones the stub prints. */
+int                rp_vsnprintf(char *buf, size_t size, const char *fmt,
+                                va_list ap);
+int                rp_snprintf(char *buf, size_t size, const char *fmt, ...);
 
 /* Output the one way that must reach the faced runtime: a sysv_abi puts thunk
  * resolved from elfsysv1.dll's export directory, the crossing the ELF world
@@ -68,6 +80,8 @@ int                rp_puts(const char *s);
 #define RP_STRNCMP(a, b, n)      rp_strncmp((a), (b), (n))
 #define RP_STRLEN(s)             rp_strlen((s))
 #define RP_STRTOULL(s, e, base)  rp_strtoull((s), (e), (base))
+#define RP_SNPRINTF(b, n, ...)   rp_snprintf((b), (n), __VA_ARGS__)
+#define RP_VSNPRINTF(b, n, f, a) rp_vsnprintf((b), (n), (f), (a))
 #define RP_PUTS(s)               rp_puts((s))
 
 #endif /* ELFSYSV_REALPROC */

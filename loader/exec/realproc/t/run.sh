@@ -33,7 +33,7 @@ say() { printf '%s\n' "$*"; }
 # --- unit: freestanding primitives, native ------------------------------
 u=$(mktemp -d "${TMPDIR:-/tmp}/rp-unit.XXXXXX")
 if gcc -O2 -Wall -Wextra -Werror -DELFSYSV_REALPROC \
-     "$here/unit.c" "$dir/realproc-str.c" -o "$u/unit" 2>"$u/err"; then
+     "$here/unit.c" "$dir/realproc-str.c" "$dir/realproc-fmt.c" -o "$u/unit" 2>"$u/err"; then
 if "$u/unit"; then say "unit=pass"; else say "unit=fail"; fail=1; fi
 else
 say "unit=fail (build)"; sed 's/^/    /' "$u/err"; fail=1
@@ -46,6 +46,8 @@ cat > "$p/plain.c" <<'CEOF'
 #include "realproc.h"
 int probe(const char *a, const char *b) { return RP_STRCMP(a, b); }
 size_t probe_len(const char *s) { return RP_STRLEN(s); }
+int probe_fmt(char *b, size_t n, unsigned long long v)
+{ return RP_SNPRINTF(b, n, "0x%llx", v); }
 CEOF
 if gcc -O2 -Wall -Wextra -Werror -I"$dir" -c "$p/plain.c" -o "$p/plain.o" 2>"$p/err"; then
 say "plain=pass"
