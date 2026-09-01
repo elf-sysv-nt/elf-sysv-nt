@@ -1,0 +1,19 @@
+script  reent-stub-realproc-faceload 1.0
+
+host        ins-15
+compiler    gcc (GCC) 14.4.0
+cross       x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+binutils    GNU ld (GNU Binutils) 2.47.20260726
+date        2026-09-01
+
+realproc_stub_links=yes
+frontend_builds=yes
+veneer_builds=yes
+specimen_builds=yes
+plain_stub_links=yes
+plain_stub_gets_window=yes  (the front end reserved the low window into the plain-PE child; it ran past it)
+realproc_stub_gets_window=no  (the low window at 0x400000 is refused in the real-process child: win_err_refused; the cygwin-linked child already holds the low region at suspend, so the DR-0028 handover the plain-PE stub receives does not carry to this shape)
+    stub: elfsysv-exec: exec_err_window: the low window at 0x400000 for 0x3fc00000 could not be reserved in the child (win_err_refused); the stub must be linked with a stack reserve of 0x100000 or less (window)
+enter_status=125
+reent_faceload_run=blocked  (halted at the low-window handover, before the faceload; the obstacle is now measured)
+verdict=staged

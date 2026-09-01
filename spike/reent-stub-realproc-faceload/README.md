@@ -29,5 +29,23 @@ that spike found wedges on the face base (`error 1114`).
 real-process host's `LoadLibraryA` returns the runtime's base, no `1114` wedge);
 this measures it on the actual stub, front-end-driven.
 
-WIP: scaffold only. The harness (`live-run.sh`, `measure.sh`) and its recorded
-transcript follow in this branch.
+## What it found (measure.sh, 2026-09-01)
+
+The stub, the front end, the veneer, and the reent-consuming specimen all build.
+Driven through the front end, the plain-PE control stub receives the low-window
+handover and runs past it (`plain_stub_gets_window=yes`) -- so the DR-0028
+handover and this harness both work. The real-process stub does not:
+`realproc_stub_gets_window=no`. The front end's `VirtualAllocEx` of the low
+`0x400000` window into the suspended child is refused (`win_err_refused`),
+because the real-process stub is linked against `cygwin1.dll`, which the Windows
+loader maps into the suspended child and which already holds the low region at
+suspend -- before any user code runs. So the terminal run halts at the window
+handover, before the `--runtime` faceload (`reent_faceload_run=blocked`,
+`verdict=staged`).
+
+This relocates item 1's last owed step: not the faceload itself (its base
+reachability is already clear in the sanctioned shape, `spike/reent-stub-faceload`),
+but reconciling the low-window handover with a cygwin-linked child -- the child
+that holds the low region is the same runtime the window is being reserved for.
+That is the next rung this measures the ground for; the face-base half stays
+measured in miniature until it lands.
