@@ -1122,3 +1122,42 @@ the only pass, with the same refuse-before-entry and no-runtime controls the
 earlier crossings use. `t/live-sockets.sh` records it. WP-56's overall
 done-when is unchanged: still the vendor package's own test suite, run and
 passed.
+
+## The locale slice: live crossing
+
+sockets was all forwards with a weak-alias thunk; locale is the seventh
+crossing and the first of a slice whose family is almost entirely
+off-limits to a freestanding harness. Its 83 rows are all forwards with no
+shim, so the bind check is math's, stdlib's and sockets's -- every row must
+resolve, `missing == 0` -- not string's exactly-one-null, and the bind loop
+resolves all 83 against the real `elfsysv1.dll` with none missing.
+
+What locale is, that the earlier crossed slices were not, is a slice whose
+bodies overwhelmingly read locale or ctype state through the thread pointer
+this harness never establishes. The classifiers and their `_l` twins,
+setlocale, localeconv, nl_langinfo, strfmon and the message catalogs all
+reach the current locale object or the ctype tables it fronts; calling any
+of them here would corrupt the way string's memcpy and strverscmp did, and
+for the same reason -- NOSIGFE names the calling convention a thunk needs,
+not whether the body behind it stands on its own. So the slice with the
+largest still-uncrossed family contributes exactly one live row.
+
+That row is toascii (w00067). POSIX fixes it as `c & 0x7f` -- a pure
+argument-only mask with no table, reent or locale behind it -- and
+`runtime/exports/cygwin-exports.tsv` marks it NOSIGFE, so it crosses a
+freestanding harness cleanly, exactly as string's `ffs` family, stdlib's
+`abs` family and sockets's byte-order family did. It is the whole of what
+locale offers a specimen that cannot set up a thread pointer, and the rest
+of the slice is left for the process bring-up the SIGFE-fenced slices
+already wait on, exactly as string left memcpy and strverscmp.
+
+Five checks, one bit each: the all-forward bind, then toascii stripping bit
+7 from a value that carries it, passing a value already inside 0..127
+through untouched, masking EOF and negative inputs by their low seven bits
+rather than treating them as errors (`(-1)&0x7f` is `0x7f`, `(-128)&0x7f` is
+`0`), and finally agreeing with `c & 0x7f` over every c in -128..255 -- the
+full range re-checked after the crossings above, so a body that had degraded
+would show it there. Status 31 is the only pass, with the same
+refuse-before-entry and no-runtime controls the earlier crossings use.
+`t/live-locale.sh` records it. WP-56's overall done-when is unchanged: still
+the vendor package's own test suite, run and passed.
