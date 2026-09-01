@@ -255,6 +255,29 @@ def verdict(rows, lock_held):
     return 'BLOCKED — %d undelivered, none buildable right now%s' % (len(undone), tail)
 
 
+def wp56_summary():
+    """One line on WP-56's internal progress, computed the same way bin/progress.py
+    does so the two can never disagree: wired = wire-<slice>.gen.c present,
+    crossed = live-<slice>.sh present, denominator = census slices minus the two
+    that are not wireable (unassigned residue, dl the runtime's own job)."""
+    wiring = os.path.join(REPO, 'veneer', 'wiring')
+    order_tsv = os.path.join(REPO, 'spike', 'demand-census', 'results', 'slice-order.tsv')
+    try:
+        slices = [l.split('\t')[0] for l in open(order_tsv, encoding='utf-8')
+                  if l.strip() and not l.startswith('#')]
+    except OSError:
+        return None
+    wireable = {s for s in slices if s not in ('unassigned', 'dl')}
+    wired = {os.path.basename(p)[len('wire-'):-len('.gen.c')]
+             for p in glob.glob(os.path.join(wiring, 'wire-*.gen.c'))} & wireable
+    crossed = {os.path.basename(p)[len('live-'):-len('.sh')]
+               for p in glob.glob(os.path.join(wiring, 't', 'live-*.sh'))} & wireable
+    n = len(wireable)
+    return ('WP-56: wiring %d/%d, live-crossing %d/%d, acceptance pending'
+            '   (bin/progress.py for the slice/bucket/symbol tree)'
+            % (len(wired), n, len(crossed), n))
+
+
 def main():
     rows = inflight()
     lock_held = os.path.isdir(LOCK)
@@ -273,6 +296,9 @@ def main():
     else:
         print('  (none)')
     print('verdict: %s' % verdict(rows, lock_held))
+    s56 = wp56_summary()
+    if s56:
+        print(s56)
     if rows:
         print()
         print('logs (relative to project root):')
