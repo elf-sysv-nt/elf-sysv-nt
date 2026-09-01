@@ -66,8 +66,8 @@ front end (`loader/exec/dispatch.c`, a normal Cygwin process) converts the
 resolved image path with `cygwin_conv_path` and hands the real-process stub a
 Windows-form operand, which this read opens with no faced-libc call. Wiring that
 conversion into the front end's operand for the real-process shape -- the
-plain-PE stub keeping the POSIX path its inline `fopen` resolves -- is item 1's
-next implementing step. This slice landed the read itself, correct and host-safe
+plain-PE stub keeping the POSIX path its inline `fopen` resolves -- has landed
+(`../IMAGE-WINPATH-REROUTE.md`). This slice landed the read itself, correct and host-safe
 over a Windows-form path, and closed the stub's libc file I/O behind the seam.
 The `to-green.tsv` `reent-tls-bringup` signal stays wired to a reent-consuming
 body reached across the loader (item 3), not to this read.

@@ -47,7 +47,9 @@ path with `cygwin_conv_path` and hands the real-process stub a Windows-form
 operand, which `rp_slurp`'s `CreateFileA` opens with no faced-libc call. The
 implementing step wires that conversion into the front end's `build_command`
 operand for the real-process shape; the plain-PE stub keeps the POSIX path its
-inline `fopen` resolves through the host `cygwin1.dll`.
+inline `fopen` resolves through the host `cygwin1.dll`. It has landed:
+`loader/exec/IMAGE-WINPATH-REROUTE.md` records the `exec_image_operand` seam,
+the `--real-stub` converter, and the unit test that holds the operand decision.
 
 Native only: no faced runtime, no build products, so it always runs. It SKIPs
 (verdict yes) only if `/bin/echo.exe` is absent. Registered in
