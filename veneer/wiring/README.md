@@ -708,3 +708,70 @@ jmp_buf-translating rows this specimen did not attempt are the next thing to
 try, and setjmp/longjmp's simpler save/restore contract (no signal mask, no
 stack switch) may turn out to be easier to prove live than context switching
 was.
+
+## The jmp_buf shims: layout investigation
+
+Before touching the five jmp_buf-translating rows the runtime slice left
+open (`_setjmp`, `setjmp`, `_longjmp`, `longjmp`, `siglongjmp`), this
+increment checked what each side's buffer actually looks like, since the
+earlier note's guess -- that setjmp's "simpler save/restore contract" might
+be easier to prove live than context switching -- turns out to understate
+the problem.
+
+El8's `jmp_buf` is `bits/setjmp.h`'s `__jmp_buf`: 8 `long`s, 64 bytes on
+x86_64, holding the callee-saved registers (rbx, rbp, r12-r15, rsp, rip)
+with rsp and rip mangled against a per-thread guard glibc keeps at
+`%fs:0x30` (`PTR_MANGLE`/`PTR_DEMANGLE`) -- a security hardening this
+project's translation tables have not needed to account for anywhere
+else, since nothing else crossing the bound table carries a
+pointer-obfuscated field. `sigjmp_buf` is the same `__jmp_buf_tag`
+layout plus a saved-mask flag and a 128-byte `sigset_t`, matching the
+signal slice's mask width.
+
+Cygwin's `jmp_buf`, read from this root's own
+`/usr/include/machine/setjmp.h` (the newlib header the project's own
+runtime build compiles against, so this is the real target-side layout,
+not a guess): on `__x86_64__` with `__CYGWIN__` defined, `_JBTYPE` is
+`long` and `_JBLEN` is 32 -- 256 bytes, four times el8's. Cygwin has
+carried real `sigsetjmp`/`siglongjmp` functions since 2.2.0 rather than
+glibc's macro pair, and its `sigjmp_buf` appends a save-mask slot and a
+`sigset_t`-sized run of words after the 32-long body via the same
+`_SAVEMASK`/`_SIGMASK` scheme el8 uses, so the two sides agree on the
+*shape* of that convention while disagreeing by 4x on the body it is
+appended to.
+
+That size mismatch is the actual blocker, not the register set. A
+forward's caller on the el8 side allocates 64 bytes of stack (or struct
+space) for its `jmp_buf` -- callers never inspect a `jmp_buf`'s fields,
+POSIX only requires it round-trip through the same implementation's own
+`setjmp`/`longjmp`, so its interior is opaque to every conforming
+caller. A shim that simply tail-called Cygwin's real `setjmp` against
+that same 64-byte region would let Cygwin's body write up to 256 bytes
+into a 64-byte allocation -- corrupting whatever the caller placed next
+on its stack, silently, on the first call. This is a different kind of
+divergence than any shim wired so far: every existing shim (the stat
+family's structs, sigaction's mask, rlimit, ioctl's request codes)
+translates a *representation* of the same conceptual size class field
+by field; here the two sides' opaque blobs are not just laid out
+differently, one is categorically larger than the other, so there is no
+in-place translation to write.
+
+The shim therefore needs an out-of-line real buffer: allocate a real
+256-byte Cygwin `jmp_buf` somewhere the el8-shaped 64-byte buffer can
+lead back to (a pointer stashed in the caller's buffer, or a table keyed
+by the buffer's address), call Cygwin's `setjmp` against the real
+buffer, and record enough state that the matching `longjmp` can find the
+same real buffer and call Cygwin's real `longjmp` on it. That surfaces
+its own open questions this increment does not resolve: where the real
+buffer lives (thread-local slot vs. a table, and its capacity if a
+caller nests several live jumps), what happens when a `jmp_buf` is
+copied by value (POSIX allows storing one in a struct and copying the
+struct; a pointer-based side table would then point two names at one
+real buffer, silently sharing state the caller believes are
+independent copies), and whether the pointer-guard mangling on el8's
+side needs to be reproduced at all given that no code but this shim
+ever reads the mangled bits directly. None of this is close to the
+mechanical, thunk-only translations the earlier 23 slices needed, so it
+is left as scoped-out groundwork rather than an attempted implementation
+this run -- the finding is that the shim is a buffer-identity problem,
+not a field-translation one, before any register layout work starts.
