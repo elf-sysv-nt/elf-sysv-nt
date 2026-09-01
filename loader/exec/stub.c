@@ -51,6 +51,7 @@
 #include "../map/elf_map.h"
 #include "../reloc/elf_reloc.h"
 #include "../process/process_image.h"
+#include "realproc/realproc.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -285,32 +286,32 @@ int main(int argc, char **argv)
 
 	for (i = 1; i < argc; i++) {
 		char *a = argv[i];
-		if (!strcmp(a, "--")) { i++; break; }
-		if (!strcmp(a, "-h") || !strcmp(a, "--help")) { usage(stdout); return 0; }
-		if (!strcmp(a, "-V") || !strcmp(a, "--version")) {
+		if (!RP_STRCMP(a, "--")) { i++; break; }
+		if (!RP_STRCMP(a, "-h") || !RP_STRCMP(a, "--help")) { usage(stdout); return 0; }
+		if (!RP_STRCMP(a, "-V") || !RP_STRCMP(a, "--version")) {
 			printf("%s\n", RELEASE);
 			return 0;
 		}
-		if (!strcmp(a, "-s") || !strcmp(a, "--stack")) {
+		if (!RP_STRCMP(a, "-s") || !RP_STRCMP(a, "--stack")) {
 			if (++i >= argc) { usage(stderr); return 2; }
-			opt.stack = strtoull(argv[i], NULL, 0);
-		} else if (!strncmp(a, "--stack=", 8)) {
-			opt.stack = strtoull(a + 8, NULL, 0);
-		} else if (!strcmp(a, "-r") || !strcmp(a, "--runtime")) {
+			opt.stack = RP_STRTOULL(argv[i], NULL, 0);
+		} else if (!RP_STRNCMP(a, "--stack=", 8)) {
+			opt.stack = RP_STRTOULL(a + 8, NULL, 0);
+		} else if (!RP_STRCMP(a, "-r") || !RP_STRCMP(a, "--runtime")) {
 			if (++i >= argc) { usage(stderr); return 2; }
 			opt.runtime = argv[i];
-		} else if (!strncmp(a, "--runtime=", 10)) {
+		} else if (!RP_STRNCMP(a, "--runtime=", 10)) {
 			opt.runtime = a + 10;
-		} else if (!strcmp(a, "-R") || !strcmp(a, "--elf-runtime")) {
+		} else if (!RP_STRCMP(a, "-R") || !RP_STRCMP(a, "--elf-runtime")) {
 			if (++i >= argc) { usage(stderr); return 2; }
 			opt.elf_runtime = argv[i];
-		} else if (!strncmp(a, "--elf-runtime=", 14)) {
+		} else if (!RP_STRNCMP(a, "--elf-runtime=", 14)) {
 			opt.elf_runtime = a + 14;
-		} else if (!strcmp(a, "-w") || !strcmp(a, "--self-window")) {
+		} else if (!RP_STRCMP(a, "-w") || !RP_STRCMP(a, "--self-window")) {
 			opt.self_window = 1;
-		} else if (!strcmp(a, "-n") || !strcmp(a, "--dry-run")) {
+		} else if (!RP_STRCMP(a, "-n") || !RP_STRCMP(a, "--dry-run")) {
 			opt.dry_run = 1;
-		} else if (!strcmp(a, "-v") || !strcmp(a, "--verbose")) {
+		} else if (!RP_STRCMP(a, "-v") || !RP_STRCMP(a, "--verbose")) {
 			opt.verbose = 1;
 		} else if (a[0] == '-' && a[1]) {
 			fprintf(stderr, "%s: unknown option %s\n", PROG, a);
