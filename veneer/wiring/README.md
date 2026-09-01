@@ -1044,3 +1044,37 @@ no-runtime controls the earlier crossings use. `t/live-string.sh` records it.
 The rest of string's reent-touching rows, memcpy and strverscmp among them,
 are left for that process bring-up, and WP-56's overall done-when is unchanged:
 still the vendor package's own test suite, run and passed.
+
+## The stdlib slice: live crossing
+
+string proved a shim's null slot and a scalar return; stdlib is the fifth
+crossing and adds the return shape the earlier four could not. Its 97 rows
+are all forwards with no shim, so the bind check is math's -- every row must
+resolve, `missing == 0` -- not string's exactly-one-null. What the slice
+carries that the others did not is `div`, `ldiv` and `lldiv`: functions that
+return `div_t`, `ldiv_t` and `lldiv_t` by value. The psABI hands those back
+in registers -- the eight-byte `div_t` in `%rax`, the two sixteen-byte
+structs in `%rax:%rdx` -- and a thunk is a bare tail jump, so it forwards
+that pair untouched. The specimen is the first to prove the pair survives
+the bind loop and the branch: `div(17,5)`, `div(-17,5)`, `ldiv(100,7)` and
+`lldiv(1000003,7)` all return both fields at C's truncation-toward-zero
+answer.
+
+The NOSIGFE boundary string found still holds and still bounds what the
+crossing may call. `abs`, `labs`, `llabs`, `div`, `ldiv` and `lldiv` are
+NOSIGFE (`runtime/exports/cygwin-exports.tsv`) and, like string's `ffs`
+family, stand alone -- each is pure arithmetic over its arguments with no
+memory, reent or locale behind it -- so they cross a freestanding harness
+that never established Cygwin's thread pointer. The reent-touching rest of
+stdlib -- `strtol` and the conversions, the environment, the seeded
+generators, `qsort` -- is left for the same process bring-up
+`runtime/face/t/fault.c` performs that the SIGFE-fenced slices already wait
+on, exactly as string left `memcpy` and `strverscmp`.
+
+Five checks, one bit each: the all-forward bind, then `abs`, `labs`,
+`llabs`, and the div family with a second pass of the whole set after the
+crossings to show the bodies stay correct rather than degrading -- status
+31, the only pass, with the same refuse-before-entry and no-runtime
+controls the earlier crossings use. `t/live-stdlib.sh` records it. WP-56's
+overall done-when is unchanged: still the vendor package's own test suite,
+run and passed.
