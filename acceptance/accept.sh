@@ -57,6 +57,7 @@ out=-
 terse=0
 cross=x86_64-elfsysvnt-linux-gnu-gcc
 classification=$root/veneer/classification/classification.tsv
+classifier=$here/classify.awk
 
 die() { echo "$prog: $*" >&2; exit 1; }
 say() { [ "$terse" = 1 ] || echo "$@"; }
@@ -90,20 +91,8 @@ classify_surface() {
 	local bin=$1
 	"${cross%gcc}nm" -D --undefined-only "$bin" 2>/dev/null \
 	| awk '{print $NF}' | sed 's/@.*//' | sort -u > "$dest/.needs"
-	awk -F'\t' '
-		NR==FNR { want[$1]=1; next }
-		($2 in want) && !($2 in disp) { disp[$2]=$4 }
-		END {
-			for (s in want) {
-				b = (s in disp) ? disp[s] : "none"
-				if (b=="1" || b=="2") k="forward"
-				else if (b=="3")      k="shim"
-				else if (b=="4")      k="stub"
-				else                  k="unclassified"
-				print k, s
-			}
-		}
-	' "$dest/.needs" "$classification" | sort
+	awk -v filled="$filled" -v needs="$dest/.needs" -f "$classifier" \
+		"$filled" "$dest/.needs" "$classification" | sort
 }
 
 fetch() {
@@ -118,6 +107,17 @@ pass=0; fail=0
 say "# WP-T4 acceptance (embryo) -- $(date +%F)"
 say ""
 mkdir -p "$dest"
+
+# The wiring layer's filled stubs: bucket-4 names it answers with a
+# synthesized, certified body (DR-0052). A filled stub is not a stub that
+# fails, so the classifier counts it apart from the stubs that do.
+filled=$dest/.filled
+: > "$filled"
+for f in "$root"/veneer/wiring/*-filled.tsv; do
+	[ -e "$f" ] || continue
+	awk -F'\t' '!/^#/ && $1 != "" { print $1 }' "$f" >> "$filled"
+done
+sort -u "$filled" -o "$filled"
 
 while IFS=$'\t' read -r name relpath want build binary <&3; do
 	case $name in ''|\#*) continue ;; esac
@@ -152,8 +152,9 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	nf=$(printf '%s\n' "$surface" | grep -c '^forward ')
 	ns=$(printf '%s\n' "$surface" | grep -c '^shim ')
 	nb=$(printf '%s\n' "$surface" | grep -c '^stub ')
+	nfill=$(printf '%s\n' "$surface" | grep -c '^filled ')
 	nu=$(printf '%s\n' "$surface" | grep -c '^unclassified ')
-	total=$((nf+ns+nb+nu))
+	total=$((nf+ns+nb+nfill+nu))
 
 	if [ "$ns" = 0 ] && [ "$nb" = 0 ] && [ "$nu" = 0 ]; then
 		verdict="ready"
@@ -161,12 +162,14 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		verdict="needs-wiring"
 	fi
 
-	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d shim, %d stub%s\n' \
+	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d shim, %d stub%s%s\n' \
 		"$name" "$verdict" "$total" "$nf" "$ns" "$nb" \
+		"$([ "$nfill" -gt 0 ] && echo ", $nfill filled")" \
 		"$([ "$nu" -gt 0 ] && echo ", $nu unclassified")"
 	if [ "$terse" != 1 ]; then
 		[ "$ns" -gt 0 ] && { echo "    shims needed (a runtime export exists; the ABI differs):"; printf '%s\n' "$surface" | awk '$1=="shim"{print "      "$2}'; }
 		[ "$nb" -gt 0 ] && { echo "    stubs (nothing behind them yet):"; printf '%s\n' "$surface" | awk '$1=="stub"{print "      "$2}'; }
+		[ "$nfill" -gt 0 ] && { echo "    filled (a synthesized, certified body stands behind them -- DR-0052):"; printf '%s\n' "$surface" | awk '$1=="filled"{print "      "$2}'; }
 		[ "$nu" -gt 0 ] && { echo "    unclassified (not in the veneer map):"; printf '%s\n' "$surface" | awk '$1=="unclassified"{print "      "$2}'; }
 		if [ "$verdict" = ready ]; then
 			echo "    every symbol forwards; running its test suite is the next step (needs the loader's dynamic-exec path)."
@@ -174,8 +177,8 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 			echo "    waits on WP-56 to wire these slices; it links and loads, and runs once the shims are written and the stubs filled."
 		fi
 	fi
-	printf '%s=surface:%d,forward:%d,shim:%d,stub:%d,unclassified:%d,verdict:%s\n' \
-		"$name" "$total" "$nf" "$ns" "$nb" "$nu" "$verdict"
+	printf '%s=surface:%d,forward:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,verdict:%s\n' \
+		"$name" "$total" "$nf" "$ns" "$nb" "$nfill" "$nu" "$verdict"
 	pass=$((pass+1))
 done 3< "$pins"
 
