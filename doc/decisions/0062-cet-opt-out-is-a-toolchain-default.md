@@ -1,4 +1,4 @@
-# DR-XXXX — CET opt-out belongs in the toolchain default, not only the rpm macros
+# DR-0062 — CET opt-out belongs in the toolchain default, not only the rpm macros
 
 Status: accepted
 Date: 2026-09-01

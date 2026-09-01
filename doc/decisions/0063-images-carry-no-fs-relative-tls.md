@@ -1,4 +1,4 @@
-# DR-XXXX — no image the platform loads carries a %fs-relative thread-pointer access
+# DR-0063 — no image the platform loads carries a %fs-relative thread-pointer access
 
 Status: accepted
 Date: 2026-09-01

@@ -1,4 +1,4 @@
-# DR-XXXX — a program's own protection changes land at the granule, not the page
+# DR-0064 — a program's own protection changes land at the granule, not the page
 
 Status: accepted
 Date: 2026-09-01

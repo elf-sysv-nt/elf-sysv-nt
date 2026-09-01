@@ -72,6 +72,9 @@ is a record nobody will find.
 | [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01 | none |
 | [0060](0060-reent-bringup-is-the-real-process-shape.md) | reent bring-up is the real-process shape, not a cygload call | accepted 2026-09-01 | none |
 | [0061](0061-images-are-linked-granule-separable.md) | every image the platform loads is linked granule-separable | accepted 2026-09-01 | none |
+| [0062](0062-cet-opt-out-is-a-toolchain-default.md) | CET opt-out belongs in the toolchain default, not only the rpm macros | accepted 2026-09-01 | none |
+| [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
+| [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01 | none |
 
 ## What earns a record
 
