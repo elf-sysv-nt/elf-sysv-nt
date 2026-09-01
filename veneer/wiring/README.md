@@ -1533,3 +1533,61 @@ hands the bodies to the differential and to bring-up, which is where they were
 always going to be certified. WP-56's per-slice done-when is unchanged: still
 the differential against a real el8 userland, with the live crossing the added
 NT check, and for a SIGFE slice that added check is the bind.
+
+## The filesystem slice: live crossing
+
+The fourteenth live crossing is the second crossed by its bind alone, and it
+reaches that shape by measurement rather than by category. filesystem is the
+highest-demand slice still uncrossed -- rank six, 13195 in the demand census --
+and DR-0055, in listing the SIGFE-heavy slices that cross by their bind alone,
+left filesystem off, on the reading that it carries a callable pure row. It has
+NOSIGFE argument-only rows that look the part -- `fnmatch`, `alphasort`,
+`versionsort` -- but none is stateless. `fnmatch` consults the locale's ctype
+and collation; `alphasort` and `versionsort` run `strcoll` and `strverscmp`
+over a `struct dirent`, standing on locale and on a header layout the crossing
+discipline keeps out of a specimen. Calling `fnmatch` proved the point
+directly: built byte-identical and run three times against the real DLL it
+returned three different five-check verdicts, 30 then 5 then 31, the signature
+of a body reading uninitialised state. `NOSIGFE` names the calling convention a
+thunk needs, not whether the body behind it stands on its own -- DR-0055's own
+words -- and filesystem is a slice with NOSIGFE rows and no stateless one. So it
+crosses by its bind alone, as stdio did, and its bodies wait on `diff-slice.sh`
+and process bring-up.
+
+The bind carries a finding stdio's did not. Of the table's 103 rows, eleven do
+not resolve against a Cygwin-faced DLL, and they are exactly the rows a real
+shim must synthesise. Ten are the stat family: glibc's versioned wrappers
+`__xstat`, `__fxstat`, `__lxstat`, `__xmknod`, their `*at` forms and their `*64`
+forms -- the `(int version, ...)` entry points el8 binaries import, an ABI
+Cygwin has no counterpart for. Cygwin exports the plain calls instead --
+`stat`, `fstat`, `lstat`, `fstatat`, `mknod`, `mknodat`, all present in the DLL
+-- and, being LP64 with a single 64-bit `off_t`, carries no separate `*64`
+symbol. The eleventh is `getdirentries`, which Cygwin exports neither as itself
+nor as `getdents`. The generator left the glibc name in each row's export_name
+as a placeholder; a real shim body drops the version argument, translates the
+`struct stat` layout and calls the Cygwin function, with the `*64` rows mapping
+onto the same call and `getdirentries` composed from `readdir`/`seekdir`/
+`telldir` or left a documented stub. Every other row -- every forward, and the
+twenty-five shims whose export exists -- binds.
+
+So the specimen calls nothing and reads the table the bind filled and the DLL's
+own PE header. Five checks, one bit each, so 31 is the only pass -- the bind
+leaving exactly those eleven rows null and every other row filled, the null set
+identified by name so it is exactly the rows a shim must reach and no others;
+every filled slot landing inside the mapped image span `[base, base +
+SizeOfImage)`, the eleven expected-null slots skipped; the resolver
+discriminating, `chmod` resolving while `__xstat` and a junk name resolve null,
+so the all-but-eleven result is a fact about the names; `chmod`, `closedir` and
+`fnmatch` reaching three distinct bodies; and a second bind idempotent, the same
+eleven null again with every filled slot equal to a fresh resolve, per DR-0049's
+contract. The same refuse-before-entry and no-runtime controls the earlier
+crossings use bound it. `t/live-filesystem.sh` records it.
+
+The consequence is a decision this crossing adds: filesystem crosses by its
+bind alone -- extending DR-0055's rule to a slice that has NOSIGFE rows but no
+stateless one -- and the stat family and `getdirentries` are wired to glibc
+export names a Cygwin face does not carry, so those eleven rows are shim
+placeholders the generator must repoint at the Cygwin calls a translating body
+reaches. WP-56's per-slice done-when is unchanged: still the differential
+against a real el8 userland, with the live crossing the added NT check, and for
+this slice that added check is the bind.
