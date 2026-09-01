@@ -1,0 +1,11 @@
+WP-56, system slice: live crossing in flight.
+
+The twenty-fourth and last live crossing, crossed by its bind alone. The
+system slice is six rows, every one a plain forward-same onto its own export
+at GLIBC_2.2.5: get_avphys_pages, get_nprocs, get_nprocs_conf, get_phys_pages
+and sysinfo from sys/sysinfo.h, and uname from sys/utsname.h. No shim, no
+stub, no librt exile -- the census counts six and the table wires all six, so
+the whole slice is wired with no residue for real-map.sh's partition to own.
+
+Delivers: t/live-system.c, t/live-system-start.S, t/live-system.sh, and the
+README record. This file goes when the record lands.
