@@ -239,31 +239,18 @@ static int place(void *ctx, uint64_t base, uint64_t size,
 	return 0;
 }
 
+/* The image read goes through the realproc seam (rp_slurp): the plain-PE
+ * build gets the fopen/fread it always had, the real-process build a
+ * host-safe Win32 read that carries no ABI crossing (loader/exec/realproc/).
+ * The three failure kinds keep the three diagnostics slurp always emitted. */
 static unsigned char *slurp(const char *path, size_t *size)
 {
-	unsigned char *buffer;
-	long length;
-	FILE *file = fopen(path, "rb");
+	static const char *const step[] = { "read", "size", "load" };
+	int err = RP_SLURP_OPEN;
+	unsigned char *buffer = rp_slurp(path, size, &err);
 
-	if (!file) {
-		refuse("cannot read %s", path);
-		return NULL;
-	}
-	if (fseek(file, 0, SEEK_END) || (length = ftell(file)) < 0) {
-		refuse("cannot size %s", path);
-		fclose(file);
-		return NULL;
-	}
-	rewind(file);
-	buffer = malloc((size_t) length ? (size_t) length : 1);
-	if (!buffer || fread(buffer, 1, (size_t) length, file) != (size_t) length) {
-		refuse("cannot load %s", path);
-		free(buffer);
-		fclose(file);
-		return NULL;
-	}
-	fclose(file);
-	*size = (size_t) length;
+	if (!buffer)
+		refuse("cannot %s %s", step[err], path);
 	return buffer;
 }
 
