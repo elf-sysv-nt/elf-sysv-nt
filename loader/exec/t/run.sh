@@ -227,6 +227,20 @@ else
 	smon_step_fail dyn-cross $?; rc=1
 fi
 
+# The crossed image's DT_INIT chain runs before entry: a dynamic ET_EXEC whose
+# DT_INIT then DT_INIT_ARRAY write a global only the right order reaches, carried
+# out as the exit status, so 42 means both ran, in order, before the entry. The
+# initializers cross the Microsoft-to-System V ABI boundary the stub lives on
+# either side of. WP-56, dyn_init.
+smon_step_start dyn-init
+if smon_cmd bash "$here/dyn-init-stub.sh" -q; then
+	say "    ok        dyn-init: the stub runs the crossed image's initializers before entry"
+	smon_step_ok dyn-init
+else
+	say "    FAILED    dyn-init: the stub's DT_INIT chain"
+	smon_step_fail dyn-init $?; rc=1
+fi
+
 if [ "$rc" = 0 ]; then
 	smon_item wp41 met "an ELF binary runs from a Cygwin program through the \
 magic-byte branch, with the low window reserved into the stub while it was \
