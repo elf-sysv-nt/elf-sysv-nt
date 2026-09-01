@@ -21,10 +21,11 @@
 #            package that does not compile and link stops here with does-not-build.
 #   classify the built ELF's undefined libc symbols are read and matched against
 #            veneer/classification -- forwards that resolve to a runtime export,
-#            shims that need a written translation, and stubs with nothing
-#            behind them, save the stubs the wiring layer fills with a
-#            synthesized, certified body (DR-0052). That match is the readiness
-#            the runtime has for this package.
+#            wired shims whose translation a crossed slice has written and
+#            certified, shims still to write, and stubs with nothing behind
+#            them, save the stubs the wiring layer fills with a synthesized,
+#            certified body (DR-0052). That match is the readiness the runtime
+#            has for this package.
 #   verdict  builds; surface size; forwards, shims, stubs and filled bodies;
 #            and the overall
 #            reading -- does-not-build, needs-wiring (with the shims and stubs
@@ -97,8 +98,8 @@ classify_surface() {
 	local bin=$1
 	"${cross%gcc}nm" -D --undefined-only "$bin" 2>/dev/null \
 	| awk '{print $NF}' | sed 's/@.*//' | sort -u > "$dest/.needs"
-	awk -v filled="$filled" -v needs="$dest/.needs" -f "$classifier" \
-		"$filled" "$dest/.needs" "$classification" | sort
+	awk -v filled="$filled" -v wired="$wired" -v needs="$dest/.needs" -f "$classifier" \
+		"$filled" "$wired" "$dest/.needs" "$classification" | sort
 }
 
 fetch() {
@@ -124,6 +125,23 @@ for f in "$root"/veneer/wiring/*-filled.tsv; do
 	awk -F'\t' '!/^#/ && $1 != "" { print $1 }' "$f" >> "$filled"
 done
 sort -u "$filled" -o "$filled"
+
+# The certified-shim manifest: a bucket-3 shim is written when its slice carries
+# a wire-<slice>.shims.tsv, and certified when that slice carries a
+# live-<slice>.sh crossing. The union of the shims named by the crossed slices
+# is the set a package may lean on -- a written translation stands behind each,
+# exactly as a synthesized body stands behind a filled stub. A shim whose slice
+# has not been crossed is not in this set and still blocks.
+wired=$dest/.wired
+: > "$wired"
+for live in "$root"/veneer/wiring/t/live-*.sh; do
+	[ -e "$live" ] || continue
+	slice=$(basename "$live"); slice=${slice#live-}; slice=${slice%.sh}
+	shims=$root/veneer/wiring/wire-$slice.shims.tsv
+	[ -e "$shims" ] || continue
+	awk -F'\t' '!/^#/ && $1 != "" { print $1 }' "$shims" >> "$wired"
+done
+sort -u "$wired" -o "$wired"
 
 while IFS=$'\t' read -r name relpath want build binary <&3; do
 	case $name in ''|\#*) continue ;; esac
@@ -156,11 +174,12 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 
 	surface=$(classify_surface "$bin")
 	nf=$(printf '%s\n' "$surface" | grep -c '^forward ')
+	nw=$(printf '%s\n' "$surface" | grep -c '^wired ')
 	ns=$(printf '%s\n' "$surface" | grep -c '^shim ')
 	nb=$(printf '%s\n' "$surface" | grep -c '^stub ')
 	nfill=$(printf '%s\n' "$surface" | grep -c '^filled ')
 	nu=$(printf '%s\n' "$surface" | grep -c '^unclassified ')
-	total=$((nf+ns+nb+nfill+nu))
+	total=$((nf+nw+ns+nb+nfill+nu))
 
 	if [ "$ns" = 0 ] && [ "$nb" = 0 ] && [ "$nu" = 0 ]; then
 		verdict="ready"
@@ -168,23 +187,24 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		verdict="needs-wiring"
 	fi
 
-	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d shim, %d stub%s%s\n' \
-		"$name" "$verdict" "$total" "$nf" "$ns" "$nb" \
+	printf '%-12s %-13s builds; %d libc symbols: %d forward, %d wired, %d shim, %d stub%s%s\n' \
+		"$name" "$verdict" "$total" "$nf" "$nw" "$ns" "$nb" \
 		"$([ "$nfill" -gt 0 ] && echo ", $nfill filled")" \
 		"$([ "$nu" -gt 0 ] && echo ", $nu unclassified")"
 	if [ "$terse" != 1 ]; then
-		[ "$ns" -gt 0 ] && { echo "    shims needed (a runtime export exists; the ABI differs):"; printf '%s\n' "$surface" | awk '$1=="shim"{print "      "$2}'; }
+		[ "$nw" -gt 0 ] && { echo "    wired (a written translation the live crossing certified stands behind them):"; printf '%s\n' "$surface" | awk '$1=="wired"{print "      "$2}'; }
+		[ "$ns" -gt 0 ] && { echo "    shims still to write (a runtime export exists; the ABI differs; no crossed slice covers them):"; printf '%s\n' "$surface" | awk '$1=="shim"{print "      "$2}'; }
 		[ "$nb" -gt 0 ] && { echo "    stubs (nothing behind them yet):"; printf '%s\n' "$surface" | awk '$1=="stub"{print "      "$2}'; }
 		[ "$nfill" -gt 0 ] && { echo "    filled (a synthesized, certified body stands behind them -- DR-0052):"; printf '%s\n' "$surface" | awk '$1=="filled"{print "      "$2}'; }
 		[ "$nu" -gt 0 ] && { echo "    unclassified (not in the veneer map):"; printf '%s\n' "$surface" | awk '$1=="unclassified"{print "      "$2}'; }
 		if [ "$verdict" = ready ]; then
-			echo "    every symbol forwards; running its test suite is the next step (needs the loader's dynamic-exec path)."
+			echo "    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite is the next step, which needs the loader's dynamic-exec path to stand in for ld-linux."
 		else
-			echo "    waits on WP-56 to wire these slices; it links and loads, and runs once the shims are written and the stubs filled."
+			echo "    waits on the named shims to be written and stubs filled; it links and loads against the runtime as it stands."
 		fi
 	fi
-	printf '%s=surface:%d,forward:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,verdict:%s\n' \
-		"$name" "$total" "$nf" "$ns" "$nb" "$nfill" "$nu" "$verdict"
+	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,verdict:%s\n' \
+		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$verdict"
 	pass=$((pass+1))
 done 3< "$pins"
 
