@@ -775,3 +775,22 @@ mechanical, thunk-only translations the earlier 23 slices needed, so it
 is left as scoped-out groundwork rather than an attempted implementation
 this run -- the finding is that the shim is a buffer-identity problem,
 not a field-translation one, before any register layout work starts.
+
+## The jmp_buf shims: a frameless face, not a call-style wrapper
+
+The buffer-identity investigation above framed the open problem as sizing
+alone. It is not the whole problem: DR-0041, recorded one seam down at the
+sv2ms face, already found that setjmp/longjmp must never be wrapped in an
+out-of-line call-style function, because the pair captures the literal
+calling frame, not a value handed to it. A call-style wiring shim for this
+family would reproduce that dead-frame bug regardless of whether the buffer
+sizes were reconciled. DR-XXXX (the jmp_buf shims take a frameless face)
+connects the two findings and specifies the shape: a hand-written frameless
+thunk, the wiring layer's counterpart to `sv2ms-ctx.inc`, that stashes the
+real 256-byte Cygwin buffer's address in the caller's own 64-byte el8-shaped
+`jmp_buf` (lazily allocated on first use) and `jmp`s into Cygwin's real
+`setjmp`/`longjmp` rather than calling them. The five rows are specified,
+not yet built; the next increment writes the generated face, teaches the
+generator (or a curated table in `ctx.tsv`'s pattern) to route this family
+to it, and adds a diff case for the lazy-allocation and repeated-`setjmp`
+shapes.
