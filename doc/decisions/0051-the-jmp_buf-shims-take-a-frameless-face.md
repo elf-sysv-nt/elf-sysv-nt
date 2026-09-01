@@ -1,4 +1,4 @@
-# DR-XXXX — the jmp_buf shims take a frameless face, not a call-style wrapper
+# DR-0051 — the jmp_buf shims take a frameless face, not a call-style wrapper
 
 Accepted 2026-08-31. Source: WP-56, the runtime slice's shim worklist.
 
