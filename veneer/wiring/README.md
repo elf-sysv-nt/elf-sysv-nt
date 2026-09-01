@@ -952,6 +952,33 @@ libc-resident dl names stay stub -- a dlopen wrongly added to libc is
 caught the same way a drift in any wired slice is. The dl surface
 itself is judged where it is implemented, in WP-54's libdl.
 
+## The unassigned slice
+
+The dl slice was one of the census's two the generator never wires; the
+unassigned residue is the other, and it closes the same way -- by
+accounting for every row and pinning that account, not by producing a
+body. `cut-slices.py` credits a wired function to the header that
+declares it, and 275 of the forward map's wired function rows are
+declared by no header the map scans, so they land in no slice.
+`t/real-map.sh` has always counted them; this increment certifies what
+they are. 231 are the underscore-reserved internals glibc exports but no
+public header declares -- the `__cxa_*`, `__*_chk`, and leading-underscore
+call spellings the demand census ranks among the most-wanted bindings of
+all, wired by their own forward-map rows and reached by name rather than
+through a slice. 43 are the SunRPC `xdr*` family, whose headers el8 moved
+out of glibc into libtirpc, so no glibc header the map scans declares them
+though libc still exports the bodies. 1 is `gets`, which el8's C11
+`stdio.h` no longer declares and a `_GNU_SOURCE` scan therefore never
+sees. The three residues sum to 275 with nothing left over, and the pin
+now asserts each count, not only the total and a membership rule, so a
+name shifting from one residue to another -- an `xdr` entry retired, an
+internal newly declared by a header -- is a conscious re-pin, the same
+way a public name falling in already was. With this, both slices the
+census leaves unwired are accounted for at the libc face; what remains of
+WP-56 is its overall done-when, which needs the runtime the wired slices
+wait on.
+
+
 ## The first filled stub: the ctype tables
 
 Every slice above wires forwards (thunks) and shims (translations over a real
