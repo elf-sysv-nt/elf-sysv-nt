@@ -84,7 +84,20 @@ loader, and three things stand between the reproduced probe and that:
    reachability is clear in the sanctioned shape (`spike/reent-stub-faceload`)
    -- but reconciling the low-window handover with a cygwin-linked child, the
    child that holds the low region being the same runtime the window is
-   reserved for.
+   reserved for. `spike/reent-stub-realproc-window-occupant` measures what that
+   held region is, replacing the inference: walking the child at
+   `CREATE_SUSPENDED`, before any user code, the low window is already a
+   private `MEM_RESERVE` region over the ~2 MB at `0x400000`
+   (`occupant=private-reserved`, `covers-window-base`), so the parent's
+   `VirtualAllocEx` of the whole window is refused with `err=487`
+   (`ERROR_INVALID_ADDRESS`), while the plain-PE control's window is free and
+   its handover succeeds. The collision is only the low ~2 MB -- from
+   `0x600000` the window is free -- so the handover fails because it *starts*
+   on the child's own low reservation, not because the window is occupied. The
+   reconciliation is identification, not eviction: recognize the child's low
+   reservation (adopt it, or reserve the window above it) rather than reserve
+   over it. That design step is item 1's last, and its constraint is now
+   measured rather than guessed.
 
 2. The crossing needs a reent-bearing ELF runtime to resolve `libc.so.6`
    against. `accept.sh`'s run stage passes no `--elf-runtime` and bzip2 halts
