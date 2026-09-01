@@ -53,6 +53,37 @@ typedef struct {
 	int      held;     /* nonzero while the reservation stands */
 } elf_window;
 
+/* A free sub-span of the window, described in the child's address space: the
+ * parent reserves each of these and leaves everything between them alone. */
+typedef struct {
+	uint64_t base;
+	uint64_t size;
+} elf_span;
+
+/* One region of the child's window as VirtualQueryEx reports it, reduced to
+ * the one fact the planner needs: whose it is. */
+enum { elf_region_free = 0, elf_region_reserved, elf_region_committed };
+typedef struct {
+	uint64_t base;
+	uint64_t size;
+	int      state;
+} elf_region;
+
+/* Plan the parent's reservation of [base,base+size) over a child whose window
+ * already carries regs[0..nreg). A cygwin-linked child holds its own low
+ * reservation before any user code runs (spike reent-stub-realproc-window-
+ * occupant), so the whole-window reservation is refused where it starts on
+ * that region. DR-0067 has the parent recognize the child's reservation rather
+ * than reserve over it; this decides, as pure arithmetic, which free sub-spans
+ * the parent must still reserve. It writes them into gaps[0..maxgaps) and
+ * returns the count, or -1 if a committed region overlaps the window -- an
+ * occupant that is not the child's own bare reservation and cannot be
+ * reconciled -- or if the gaps do not fit. Base and size are taken already
+ * granularity-aligned by the caller. */
+int elf_window_plan(uint64_t base, uint64_t size,
+                    const elf_region *regs, int nreg,
+                    elf_span *gaps, int maxgaps);
+
 /* Called with the window released and the address space bare. Returns 0 if it
  * placed something and nonzero if it did not; on success it reports the span
  * it actually took through took_lo/took_hi so the surrounding space can be

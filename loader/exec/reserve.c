@@ -54,6 +54,103 @@ win_err elf_window_reserve(elf_window *w, uint64_t base, uint64_t size)
 	return win_ok;
 }
 
+/* Emit a gap, merging it into the previous one when they abut so the child
+ * sees the fewest reservations. Returns the new count, or -1 if gaps is full. */
+static int plan_emit(elf_span *gaps, int n, int maxgaps,
+                     uint64_t base, uint64_t size)
+{
+	if (size == 0)
+		return n;
+	if (n > 0 && gaps[n - 1].base + gaps[n - 1].size == base) {
+		gaps[n - 1].size += size;
+		return n;
+	}
+	if (n >= maxgaps)
+		return -1;
+	gaps[n].base = base;
+	gaps[n].size = size;
+	return n + 1;
+}
+
+int elf_window_plan(uint64_t base, uint64_t size,
+                    const elf_region *regs, int nreg,
+                    elf_span *gaps, int maxgaps)
+{
+	uint64_t end = base + size, cur = base;
+	int i, n = 0;
+
+	if (!regs || nreg < 0 || !gaps || maxgaps <= 0 || end <= base)
+		return -1;
+
+	for (i = 0; i < nreg && cur < end; i++) {
+		uint64_t rb = regs[i].base, re = regs[i].base + regs[i].size, chi;
+
+		if (re <= cur || rb >= end)
+			continue;              /* wholly outside the window */
+		if (rb > cur) {                /* a hole the query skipped: free */
+			if ((n = plan_emit(gaps, n, maxgaps, cur, rb - cur)) < 0)
+				return -1;
+			cur = rb;
+		}
+		chi = re < end ? re : end;
+		if (regs[i].state == elf_region_committed)
+			return -1;             /* an occupant, not a bare reservation */
+		if (regs[i].state == elf_region_free &&
+		    (n = plan_emit(gaps, n, maxgaps, cur, chi - cur)) < 0)
+			return -1;
+		/* reserved: recognized as the child's own, left in place */
+		cur = chi;
+	}
+	if (cur < end && (n = plan_emit(gaps, n, maxgaps, cur, end - cur)) < 0)
+		return -1;
+	return n;
+}
+
+/* The reconciling reservation. VirtualQueryEx walks the child's window, the
+ * planner decides which sub-spans are still the parent's to take, and each is
+ * reserved on its own. This is the path a cygwin-linked child needs: it holds
+ * its low reservation before any user code runs, so the window that starts on
+ * it cannot be taken in one call. DR-0067. */
+static win_err reserve_in_around(HANDLE proc, elf_window *w,
+                                 uint64_t lo, uint64_t size)
+{
+	MEMORY_BASIC_INFORMATION m;
+	elf_region regs[64];
+	elf_span gaps[64];
+	uint64_t at = lo, end = lo + size;
+	int nreg = 0, ngap, i;
+
+	while (at < end && nreg < (int)(sizeof regs / sizeof regs[0])) {
+		if (!VirtualQueryEx(proc, (void *)(UINT_PTR) at, &m, sizeof m))
+			return win_err_refused;
+		regs[nreg].base  = (uint64_t)(UINT_PTR) m.BaseAddress;
+		regs[nreg].size  = (uint64_t) m.RegionSize;
+		regs[nreg].state = m.State == MEM_COMMIT  ? elf_region_committed :
+		                   m.State == MEM_RESERVE ? elf_region_reserved  :
+		                                            elf_region_free;
+		at = (uint64_t)(UINT_PTR) m.BaseAddress + m.RegionSize;
+		nreg++;
+	}
+	if (at < end)
+		return win_err_refused;        /* more fragments than we can plan */
+
+	ngap = elf_window_plan(lo, size, regs, nreg, gaps,
+	                       (int)(sizeof gaps / sizeof gaps[0]));
+	if (ngap < 0)
+		return win_err_refused;
+
+	for (i = 0; i < ngap; i++)
+		if (!VirtualAllocEx(proc, (void *)(UINT_PTR) gaps[i].base,
+		                    (SIZE_T) gaps[i].size, MEM_RESERVE,
+		                    PAGE_NOACCESS))
+			return win_err_refused;
+
+	w->base = lo;
+	w->size = size;
+	w->held = 1;
+	return win_ok;
+}
+
 win_err elf_window_reserve_in(void *proc, elf_window *w,
                               uint64_t base, uint64_t size)
 {
@@ -67,14 +164,19 @@ win_err elf_window_reserve_in(void *proc, elf_window *w,
 	if (hi <= lo)
 		return win_err_arg;
 
-	if (!VirtualAllocEx((HANDLE) proc, (void *)(UINT_PTR) lo,
-			    (SIZE_T)(hi - lo), MEM_RESERVE, PAGE_NOACCESS))
-		return win_err_refused;
+	if (VirtualAllocEx((HANDLE) proc, (void *)(UINT_PTR) lo,
+			   (SIZE_T)(hi - lo), MEM_RESERVE, PAGE_NOACCESS)) {
+		w->base = lo;
+		w->size = hi - lo;
+		w->held = 1;
+		return win_ok;
+	}
 
-	w->base = lo;
-	w->size = hi - lo;
-	w->held = 1;
-	return win_ok;
+	/* The whole-window reservation was refused. A cygwin-linked child
+	 * already holds its own low reservation before its first instruction,
+	 * so the span that starts on it cannot be taken in one call. Recognize
+	 * what the child holds and reserve only the free remainder. DR-0067. */
+	return reserve_in_around((HANDLE) proc, w, lo, hi - lo);
 }
 
 win_err elf_window_adopt(elf_window *w, uint64_t base, uint64_t size)
