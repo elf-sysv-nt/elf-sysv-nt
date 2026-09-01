@@ -79,6 +79,7 @@ is a record nobody will find.
 | [0066](0066-real-process-stub-obstacle-is-the-abi-boundary.md) | the real-process stub's obstacle is the ABI boundary, not the window | accepted 2026-09-01 | none |
 | [0067](0067-real-process-stub-does-its-own-work-host-safe.md) | the real-process stub does its own work host-safe, and crosses only for output | accepted 2026-09-01 | none |
 | [0068](0068-the-low-window-is-reconciled-with-a-cygwin-child.md) | the low window is reconciled with a cygwin-linked child, not reserved over it | accepted 2026-09-01 | none |
+| [0069](0069-the-low-window-is-reconciled-at-placement.md) | the low window is reconciled at placement, not only at reservation | accepted 2026-09-01 | none |
 
 ## What earns a record
 

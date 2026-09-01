@@ -1,4 +1,4 @@
-# DR-XXXX — the low window is reconciled at placement, not only at reservation
+# DR-0069 — the low window is reconciled at placement, not only at reservation
 
 Accepted 2026-09-01. Source: WP-56, the road-to-green `reent-tls-bringup` row,
 the last step of item 1 in `acceptance/reent/README.md`. Follows DR-0068.
