@@ -158,7 +158,14 @@ chat "compiling $(basename "$root/veneer/libc/resolver.c")"
     -o "$robj" "$root/veneer/libc/resolver.c" || die 'resolver compile failed'
 
 chat "linking $soname"
-"$ld" -shared -soname "$soname" --version-script "$vs" -o "$out" \
+# max-page-size=0x10000 keeps no two PT_LOAD segments of unlike protection on a
+# shared 64K NT granule, the separation elf_map requires (DR-0008). The cross
+# gcc carries this as a default.specs default, but this link calls ld directly
+# and so must set it itself; without it the loader correctly refuses the veneer
+# (elf_map_err_granule) when it is mapped as an ELF runtime -- which the reent
+# live run and the bzip2 run stage both do.
+"$ld" -shared -soname "$soname" --version-script "$vs" \
+    -z max-page-size=0x10000 -o "$out" \
     "$obj" "$robj" || die 'link failed'
 
 chat "assembling and archiving $(basename "$archive")"
