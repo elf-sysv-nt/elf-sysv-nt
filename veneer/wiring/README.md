@@ -464,6 +464,13 @@ reporting the orientation). Exercised end to end with both sides on
 el8: four cases, all match; judging the wired veneer awaits the
 runtime the earlier slices wait on.
 
+A later measurement supersedes the value-preserving claim just above.
+"wchar_t is 4 bytes on both sides" was read face-against-glibc, both on
+el8; the wchar slice's live crossing below -- the first time these rows meet
+the real elfsysv1.dll -- finds the body's wchar_t two bytes wide, so the wide
+rows do not cross as forwards after all. See "The wchar slice: live
+crossing" at the end and the wchar-width decision it records.
+
 The regex slice is the smallest yet: 5 rows, all thunks, no shims,
 generated and committed as `wire-regex.gen.c` / `.gen.s` /
 `.shims.tsv` and pinned byte-identical — counts included — by
@@ -1346,3 +1353,59 @@ crossings above would show it there. Status 31 is the only pass, with the
 same refuse-before-entry and no-runtime controls the earlier crossings use.
 `t/live-misc.sh` records it. WP-56's overall done-when is unchanged: still the
 vendor package's own test suite, run and passed.
+
+
+## The wchar slice: live crossing
+
+misc was the tenth crossing and every one before it passed: the bind held and
+the crossed rows came back correct. wchar is the eleventh and the first whose
+finding is negative. Its 87 rows are all forwards with no shim, so the bind
+check is math's, stdlib's, sockets's, locale's, posix's, time's and misc's
+shape -- every row must resolve, `missing == 0`, not string's exactly-one-null
+-- and it holds: all 87 wide names are exported by the real DLL, so a resolved
+thunk reaches the real body. What the ten crossings before it went on to
+confirm, and this one refutes, is that a resolved row then crosses as a plain
+tail jump.
+
+wmemcpy (w00082), wmemmove (w00083) and wmempcpy (w00084; see `wire-wchar.gen.s`
+for the index -> name mapping) are the rows the specimen calls. All three are
+the wide analogues of memcpy/memmove/mempcpy, marked NOSIGFE in
+`runtime/exports/cygwin-exports.tsv`, standing on no conversion state, stream,
+reent, locale or kernel -- exactly the freestanding shape string's ffs family,
+stdlib's abs family, sockets's byte-order family, locale's toascii, posix's
+swab, time's difftime and misc's insque/remque were chosen for. So the thunk
+reaches the body cleanly. The body then moves by its own idea of how wide a
+wchar_t is, and that idea is the finding.
+
+The face this tree presents is el8's, where wchar_t is four bytes, the System V
+width; the body inside `elfsysv1.dll` is Cygwin's newlib, whose wchar_t is two
+bytes, the width Windows uses. The paragraph on the wchar wiring above recorded
+the surface as value-preserving because its diff cases ran with both sides on
+el8, glibc against glibc, both four bytes. Face against the real DLL,
+`wmemcpy(dst, src, 5)` moves ten bytes, not twenty: five two-byte elements. A
+caller that built its source as four-byte elements, as the face's wchar_t is,
+hands the body five words it reads as ten narrow ones. The payload the specimen
+uses sets the high bits of every element, so a two-byte move drops the high
+half rather than coinciding with the four-byte result by luck, and every buffer
+is the specimen's own array of a plain four-byte word, so what the checks read
+is the body's own width and not a header the two sides lay out differently.
+
+Five checks, one bit each, so 31 is the only pass -- and here a pass means the
+negative finding holds and reproduces: the all-forward bind with every wide name
+exported, then wmemcpy reaching the real body (its destination no longer the
+sentinel), then the move matching a two-byte-wchar_t body exactly -- ten bytes
+for five elements, the rest untouched -- and not the four-byte model the slice
+assumed, then wmempcpy returning the destination advanced by ten bytes, 2 * n,
+the body striding in its own element rather than the twenty the face's wchar_t
+would give, and finally a second length, wmemcpy of three elements moving six
+bytes, run last so a body that had drifted would show it there. Status 31 is the
+only pass, with the same refuse-before-entry and no-runtime controls the earlier
+crossings use. `t/live-wchar.sh` records it.
+
+The consequence is a decision this crossing adds: the wchar slice is
+reclassified from forward to shim, every wchar_t-bearing row needing a
+width-translating shim -- narrowing four-byte face elements to the body's two on
+the way down, widening on the way up, scaling counts and returned end pointers by
+the ratio -- not a tail jump. The wire table's thunks stay in place only until
+that shim generator replaces them. WP-56's overall done-when is unchanged: still
+the vendor package's own test suite, run and passed.
