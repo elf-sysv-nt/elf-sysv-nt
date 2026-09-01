@@ -35,6 +35,13 @@
 #ifndef ELFSYSV_LOADER_EXEC_REALPROC_H
 #define ELFSYSV_LOADER_EXEC_REALPROC_H
 
+/* rp_slurp's failure kind, shared by both builds: which step of the image
+ * read failed, so the caller emits the same three diagnostics slurp always
+ * did -- cannot read (open), cannot size, cannot load (read). */
+#define RP_SLURP_OPEN 0
+#define RP_SLURP_SIZE 1
+#define RP_SLURP_READ 2
+
 #ifndef ELFSYSV_REALPROC
 
 /* Plain (WP-41) build: the seam is the identity. Name the libc directly. */
@@ -51,6 +58,30 @@
 #define RP_EPUTS(s)              fputs((s), stderr)
 #define RP_SNPRINTF(b, n, ...)   snprintf((b), (n), __VA_ARGS__)
 #define RP_VSNPRINTF(b, n, f, a) vsnprintf((b), (n), (f), (a))
+
+
+/* The image read, over the plain libc: the fopen/fread slurp stub.c always
+ * used, behind the same seam so the source has one call in both builds. */
+static inline unsigned char *rp_slurp(const char *path, size_t *size,
+                                      int *err)
+{
+	FILE *file = fopen(path, "rb");
+	unsigned char *buffer;
+	long length;
+	if (!file) { *err = RP_SLURP_OPEN; return NULL; }
+	if (fseek(file, 0, SEEK_END) || (length = ftell(file)) < 0) {
+		*err = RP_SLURP_SIZE; fclose(file); return NULL;
+	}
+	rewind(file);
+	buffer = malloc((size_t) length ? (size_t) length : 1);
+	if (!buffer || fread(buffer, 1, (size_t) length, file)
+	    != (size_t) length) {
+		*err = RP_SLURP_READ; free(buffer); fclose(file); return NULL;
+	}
+	fclose(file);
+	*size = (size_t) length;
+	return buffer;
+}
 
 #else /* ELFSYSV_REALPROC */
 
@@ -82,6 +113,11 @@ int                rp_puts(const char *s);
  * caller composes the finished line, newline included, host-side; this writes
  * it verbatim. Returns the byte count, -1 if the export is absent. */
 int                rp_eputs(const char *s);
+
+/* The image read the one host-safe way: Win32 CreateFileA/ReadFile into a
+ * VirtualAlloc buffer (realproc-file.c), no libc call, so no ABI crossing.
+ * *err is one of RP_SLURP_* on NULL. Reading is the stub's own input work. */
+unsigned char     *rp_slurp(const char *path, size_t *size, int *err);
 
 #define RP_STRCMP(a, b)          rp_strcmp((a), (b))
 #define RP_STRNCMP(a, b, n)      rp_strncmp((a), (b), (n))
