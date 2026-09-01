@@ -1,0 +1,10 @@
+script  reent-veneer-face-exports 1.0
+
+host        ins-15
+cross gcc   x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+date        2026-09-01
+
+func_forward_keys_extracted=973  (unique forward-same/forward-alias FUNC targets)
+all_keys_are_face_exports=yes  (all 973 keys among 1767 face exports)
+exemplars_present=yes  (strtol and memcpy are forward keys and face exports)
+verdict=yes

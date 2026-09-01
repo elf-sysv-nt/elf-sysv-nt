@@ -59,3 +59,7 @@ reent-veneer-body	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2
 # resolving thunk: it names the faced target as data and holds no ELF
 # dependency on it, so nothing self-binds -- the codegen contract.
 reent-veneer-thunk	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2026-[0-9]*.txt	bash measure.sh
+# reent-veneer-face-exports measures item 2's name axis: every FUNC forward
+# thunk keys on a name the WP-27 face exports, across the whole forward set,
+# so the run-time resolver's walk finds an export for each.
+reent-veneer-face-exports	/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu-gcc	results-2026-[0-9]*.txt	bash measure.sh
