@@ -61,3 +61,31 @@ route, reent-consuming calls included. The choice between that and host-safe
 calls stays a design decision, but it is no longer gated on whether the second
 route works. This is a probe, not the loader crossing; item 3 and the
 `to-green.tsv` signal are unchanged.
+
+## Composed at the version path -- item 1's empirical phase closed
+
+`spike/reent-stub-realproc-version` puts the two isolated fixes together at the
+exact path `reent-stub-link` found faulting: `stub.c`'s `--version`, which is
+`printf("%s\n", RELEASE)` -- a reent-consuming stdio body. One probe models that
+path in three build variants and the run reproduces
+(measure.sh, 2026-09-01): without the startup bridge control never reaches the
+version path (`startup_faults_without_bridge=yes`, reproducing `reent-stub-link`);
+with the bridge but a Microsoft-style print the line does not cross
+(`version_print_plain_crosses=no`, reproducing the `realproc-window` finding at
+this path); with the bridge and a `sysv_abi`-thunked print the line crosses and
+control survives (`version_print_thunked_crosses=yes`). So the two measured
+fixes compose: a real-process stub reaches and completes the `--version` path.
+
+That closes the empirical phase of item 1. The obstacle is characterized
+(DR-0066: the Microsoft-to-System-V ABI boundary, not a window), the startup
+crossing has a demonstrated fix (the `cygwin_internal` bridge), and the stub's
+own libc use has a demonstrated route across that boundary (the `sysv_abi`
+thunk, carrying reent-consuming stdio). What remains is not another measurement
+but the implementing relink of the real `loader/exec/stub.c` -- the
+WP-41/WP-43-shaped work DR-0066 left to the implementing step, still to choose
+between confining the stub to host-safe calls for its own work and reaching the
+faced libc only through the System V crossing. Its bar is unchanged: the relink
+must not regress the WP-41 exec-* certifications the untouched plain-PE stub
+passes. The `to-green.tsv` `reent-tls-bringup` signal stays wired to the
+positive result reached across the loader (item 3), not to any of these
+host-side probes.
