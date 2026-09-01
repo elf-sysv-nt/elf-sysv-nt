@@ -147,6 +147,18 @@ build_loader() {
 		"$e/exec_main.c" "$e/dispatch.c" "$e/binfmt.c" "$e/reserve.c" >> "$w/build.log" 2>&1 || return 1
 	loader_exec="$w/elfsysv-exec"
 	export ELFSYSV_STUB="$w/elfsysv-stub.exe"
+	# A dynamic image needs an ELF runtime to resolve its imports against
+	# (DR-0058); without one the stub refuses before entry. The veneer libc.so.6
+	# provides that surface, so build it and hand it to the stub through
+	# ELFSYSV_STUB_OPTIONS -- the channel exec_main already forwards to the stub
+	# ahead of the image (the WP-27 --runtime path). Its bodies are stubs today,
+	# so the image resolves and enters but halts again on the first live call;
+	# that later halt is the point, it moves the crossing off import resolution.
+	if [ -z "${elf_runtime:-}" ] && \
+	   "$root/veneer/libc/build-libc" -B "$w/rt" -q >> "$w/build.log" 2>&1; then
+		elf_runtime="$w/rt/libc.so.6"
+		export ELFSYSV_STUB_OPTIONS="--elf-runtime=$elf_runtime"
+	fi
 	return 0
 }
 
