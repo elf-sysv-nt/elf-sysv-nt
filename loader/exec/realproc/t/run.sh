@@ -6,6 +6,9 @@
 #           over their inputs; built natively with -DELFSYSV_REALPROC and held
 #           to known results and to the platform libc they stand in for. Always
 #           runs -- no build product needed.
+#   file    rp_slurp (realproc-file.c) reads an image with Win32 -- no libc
+#           call, so no crossing -- and is held natively to files written on
+#           the spot, given a Windows-form path. Always runs.
 #   plain   including realproc.h WITHOUT ELFSYSV_REALPROC is the identity seam:
 #           the RP_* macros are the plain libc, so a translation unit that
 #           includes it is byte-for-byte the program it was. A compile check
@@ -59,6 +62,18 @@ else
 say "plain=fail"; sed 's/^/    /' "$p/err"; fail=1
 fi
 rm -rf "$p"
+
+# --- file: rp_slurp reads the image host-safe, native ------------------
+f=$(mktemp -d "${TMPDIR:-/tmp}/rp-file.XXXXXX")
+if gcc -O2 -Wall -Wextra -Werror -DELFSYSV_REALPROC -I"$dir" "$here/file-probe.c" "$dir/realproc-file.c" -o "$f/file" 2>"$f/err"; then
+# rp_slurp opens with Win32 CreateFileA, so the probe is handed a Windows-form
+# path (cygpath -w); the path form a real-process stub receives is the open
+# question SLURP-REROUTE.md records, separate from the read being correct.
+if "$f/file" "$(cygpath -w "$f")"; then say "file=pass"; else say "file=fail"; fail=1; fi
+else
+say "file=fail (build)"; sed 's/^/    /' "$f/err"; fail=1
+fi
+rm -rf "$f"
 
 # --- cross: --version across the faced runtime --------------------------
 main=$(cd "$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd)
