@@ -87,3 +87,8 @@ reent-stub-stderr-crossing	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	
 # CreateFileA needs a Windows path; the parent (host cygwin1.dll) converts the
 # POSIX mount path, the stub's host-safe GetFullPathName cannot. Native, no faced DLL.
 reent-stub-path	-	results-2026-[0-9]*.txt	bash measure.sh
+
+# reent-stub-realproc-run composes the item-1 fixes on the actual loader
+# source: stub.c links in the real-process shape, reaches --version across the
+# faced runtime, and its window diagnostic crosses fd 2. Needs the faced DLL.
+reent-stub-realproc-run	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	results-2026-[0-9]*.txt	bash measure.sh
