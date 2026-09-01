@@ -1280,3 +1280,69 @@ crossings above so a body that had degraded would show it there. Status 31 is
 the only pass, with the same refuse-before-entry and no-runtime controls the
 earlier crossings use. `t/live-time.sh` records it. WP-56's overall done-when
 is unchanged: still the vendor package's own test suite, run and passed.
+
+## The misc slice: live crossing
+
+time was the ninth crossing and the first whose answer returned in a
+floating-point register; misc is the tenth, and the first whose crossed rows
+edit a caller-owned structure through pointers rather than return a value.
+Its 33 rows are all forwards with no shim, so the bind check is math's,
+stdlib's, sockets's, locale's, posix's and time's shape -- every row must
+resolve, `missing == 0` -- not string's exactly-one-null, and the bind loop
+resolves all 33 against the real `elfsysv1.dll` with none missing.
+
+misc is reached out of demand order, and the reason is the same one that
+passed over stdio, filesystem, memory and signal before it: those rank above
+misc, but none offers a row a freestanding harness can call. stdio's one
+NOSIGFE forward, `cuserid`, reads the password database through the cygheap.
+memory and signal have no NOSIGFE forward at all -- signal's argument-only
+rows, the `sigsetops` family, are shims the veneer translates rather than
+forwards with a generated thunk, so there is no bare label to call.
+filesystem's NOSIGFE forwards each fail the standalone test a different way:
+`alphasort` and `versionsort` compare through `strcoll` and `strverscmp`,
+the locale- and reent-touching calls string already deferred; `fnmatch`
+reads locale collation; `endmntent` closes a `FILE`; `umask` swaps a
+process-global mask; and `fts_set`'s only success-path effect is a write into
+an `FTSENT` whose layout the cross toolchain's glibc headers and the real
+newlib DLL need not share -- the one dependency every earlier crossing was
+built to avoid. process fails it too: Cygwin's `posix_spawnattr_t` is an
+opaque pointer, so the `posix_spawnattr_get`/`set` accessors dereference a
+handle `posix_spawnattr_init` must first allocate on the heap. misc is the
+highest-demand slice left whose clean rows need none of that.
+
+`insque` (w00016) and `remque` (w00019; see `wire-misc.gen.s` for the index
+-> name mapping) are those rows. Both are the historical System V queue
+primitives, and their whole contract is pointer arithmetic over a
+caller-owned doubly-linked list: `insque(elem, prev)` splices `elem` in after
+`prev`, `remque(elem)` unsplices it, each touching only the `q_forw` and
+`q_back` words at the head of the caller's nodes. `runtime/exports/
+cygwin-exports.tsv` marks both NOSIGFE, and there is no table, clock, reent,
+locale or kernel behind either, so they cross a freestanding harness cleanly,
+exactly as string's `ffs` family, stdlib's `abs` family, sockets's byte-order
+family, locale's `toascii`, posix's `swab` and time's `difftime` did. The
+queue node the specimen builds is its own struct with two leading pointer
+words -- the `q_forw`, `q_back` layout the primitives' contract fixes for
+every libc -- so, like swab's raw byte buffer and difftime's scalars, nothing
+here rests on a header the two sides might lay out differently.
+
+What the crossing adds that the earlier crossed rows did not is the shape of
+what a wired body may do. `difftime` returned a double, `swab` wrote a byte
+buffer the caller owned, the `abs` and byte-order families returned scalars in
+`%rax`; `insque` and `remque` take two caller pointers, read one node to reach
+its neighbour, and write links in both directions. The specimen builds a
+three-node queue with `insque` -- head, then middle after head, then tail
+after middle -- and then removes the middle with `remque`, checking after each
+that the links point where the primitives' contract fixes them. Each node
+starts with a sentinel in both link words, so a body that failed to write a
+link would leave the sentinel and fail rather than pass by luck.
+
+Five checks, one bit each: the all-forward bind, then the head linking
+forward to the middle and back to nothing, the middle linking both ways --
+forward to the tail, back to the head, the write `insque` makes in the
+direction a naive splice would miss -- the tail linking forward to nothing
+and back to the middle, and finally, after `remque` of the middle, the head
+and tail closing over the gap, run last so a body that had degraded over the
+crossings above would show it there. Status 31 is the only pass, with the
+same refuse-before-entry and no-runtime controls the earlier crossings use.
+`t/live-misc.sh` records it. WP-56's overall done-when is unchanged: still the
+vendor package's own test suite, run and passed.
