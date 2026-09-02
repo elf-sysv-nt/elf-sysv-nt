@@ -82,6 +82,7 @@ is a record nobody will find.
 | [0069](0069-the-low-window-is-reconciled-at-placement.md) | the low window is reconciled at placement, not only at reservation | accepted 2026-09-01 | none |
 | [0070](0070-the-ladder-measures-before-it-escalates.md) | the decision ladder measures before it escalates | accepted 2026-09-01 | none |
 | [0071](0071-faced-runtime-hosting-is-the-sole-runtime-process.md) | the acceptance crossing hosts the faced runtime as its own process | accepted 2026-09-01 | none |
+| [0072](0072-the-low-window-belongs-to-the-guest.md) | the low window belongs to the guest | provisional 2026-09-02 | none |
 
 ## What earns a record
 
