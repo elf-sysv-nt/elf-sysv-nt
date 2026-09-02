@@ -428,9 +428,19 @@ White papers, solved on paper
 
 Specifications
 
+None of this is an RFC; the IETF has no part in it. The lineage runs from the
+TIS ELF specification through the System V generic ABI to a per-processor
+supplement, and symbol versioning is not in any of them — it is a GNU
+extension whose specification is Drepper's two documents. The psABI is the one
+that is still alive and still changing, so it is cited at its own repository
+rather than at a mirror; the uclibc PDF this list used to name is a 2012
+snapshot.
+
     https://www.akkadia.org/drepper/symbol-versioning
     https://www.akkadia.org/drepper/dsohowto.pdf
-    https://www.uclibc.org/docs/psABI-x86_64.pdf
+    https://gitlab.com/x86-psABIs/x86-64-ABI
+    https://refspecs.linuxfoundation.org/elf/gabi41.pdf
+    https://refspecs.linuxfoundation.org/elf/elf.pdf
 
 Toolchain tuples and the vendor field
 
