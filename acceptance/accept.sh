@@ -104,8 +104,17 @@ classify_surface() {
 	local bin=$1
 	"${cross%gcc}nm" -D --undefined-only "$bin" 2>/dev/null \
 	| awk '{print $NF}' | sed 's/@.*//' | sort -u > "$dest/.needs"
-	awk -v filled="$filled" -v wired="$wired" -v needs="$dest/.needs" -f "$classifier" \
-		"$filled" "$wired" "$dest/.needs" "$classification" | sort
+	# The weak subset, from nm's type letter: `w` for a weak undefined and `v`
+	# for a weak undefined object. A weak undefined is allowed to resolve to
+	# zero and the program has to cope, so it is not a demand this runtime
+	# failed to meet (DR-0073). Every PIE el8 links carries at least
+	# _ITM_registerTMCloneTable and __gmon_start__ this way -- the vendor's own
+	# bzip2 does -- so without this the whole distribution reads unclassified.
+	"${cross%gcc}nm" -D --undefined-only "$bin" 2>/dev/null \
+	| awk '$1 == "w" || $1 == "v" {print $NF}' | sed 's/@.*//' | sort -u > "$dest/.weak"
+	awk -v filled="$filled" -v wired="$wired" -v weak="$dest/.weak" \
+		-v needs="$dest/.needs" -f "$classifier" \
+		"$filled" "$wired" "$dest/.weak" "$dest/.needs" "$classification" | sort
 }
 
 # The loader's own reading of a built ELF: elf_parse() (WP-31) validates it and
@@ -359,7 +368,8 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	nb=$(printf '%s\n' "$surface" | grep -c '^stub ')
 	nfill=$(printf '%s\n' "$surface" | grep -c '^filled ')
 	nu=$(printf '%s\n' "$surface" | grep -c '^unclassified ')
-	total=$((nf+nw+ns+nb+nfill+nu))
+	nopt=$(printf '%s\n' "$surface" | grep -c '^optional ')
+	total=$((nf+nw+ns+nb+nfill+nu+nopt))
 
 	# The full classified surface as a committed sidecar, forwards included.
 	# The results block names only the non-forwards; bin/progress.py reads this
@@ -417,6 +427,7 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		[ "$nb" -gt 0 ] && { echo "    stubs (nothing behind them yet):"; printf '%s\n' "$surface" | awk '$1=="stub"{print "      "$2}'; }
 		[ "$nfill" -gt 0 ] && { echo "    filled (a synthesized, certified body stands behind them -- DR-0052):"; printf '%s\n' "$surface" | awk '$1=="filled"{print "      "$2}'; }
 		[ "$nu" -gt 0 ] && { echo "    unclassified (not in the veneer map):"; printf '%s\n' "$surface" | awk '$1=="unclassified"{print "      "$2}'; }
+		[ "$nopt" -gt 0 ] && { echo "    optional (weak undefined; the program copes with their absence -- DR-0073):"; printf '%s\n' "$surface" | awk '$1=="optional"{print "      "$2}'; }
 		if [ "$verdict" = ready ] || [ "$verdict" = passing ]; then
 			if [ -n "$run_note" ]; then printf '%s\n' "$run_note"; else
 			echo "    every symbol resolves -- forwards, certified shims, filled stubs; running its test suite through the crossing is the next step (accept.sh -R skips it)."; fi
@@ -424,8 +435,8 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 			echo "    waits on the named shims to be written and stubs filled; it links and loads against the runtime as it stands."
 		fi
 	fi
-	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,shape:%s,verdict:%s,run:%s\n' \
-		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$skind" "$verdict" "${run_state:-skipped}"
+	printf '%s=surface:%d,forward:%d,wired:%d,shim:%d,stub:%d,filled:%d,unclassified:%d,optional:%d,shape:%s,verdict:%s,run:%s\n' \
+		"$name" "$total" "$nf" "$nw" "$ns" "$nb" "$nfill" "$nu" "$nopt" "$skind" "$verdict" "${run_state:-skipped}"
 	pass=$((pass+1))
 done 3< "$pins"
 
