@@ -120,12 +120,17 @@ deliberately partial, and the next layer is precisely the part it leaves out.
 and it sits right at the boundary between poured foundation and open ground. The
 format is specified to the bit, twice, by Drepper: the ELF symbol-versioning
 note and the longer *How To Write Shared Libraries* give `.gnu.version_d`,
-`.gnu.version_r`, the version index section, the `@` and `@@` default
-marking. What the literature does not hand over is liftable code. glibc's
-resolver is the only complete implementation, it is GPL; it assumes a Linux
-kernel beneath it, so it informs the design without joining it. The gap closes
-by writing a verdef and verneed matcher from the specification, a few hundred
-lines on top of the musl-shaped relocator, and that matcher is what lets rpm's
+`.gnu.version_r`, the version index section, the `@` and `@@` default marking.
+glibc's resolver is the only complete implementation. It is LGPL-2.1-or-later,
+which this tree could take — LGPLv3 is where an "or later" lands, and the
+headers under `veneer/include/` are already vendored from glibc on exactly
+that footing. The obstacle is not the licence but the coupling: `dl-lookup.c`
+reaches into `_rtld_global`, the `link_map` glibc's own loader builds, its
+`tunables`, its TLS layout and its assumptions about being the process's first
+mover, none of which exist here, and pulling the file means pulling that
+world. So it informs the design without joining it, and the gap closes by
+writing a verdef and verneed matcher from the specification, a few hundred
+lines on top of the musl-shaped relocator. That matcher is what lets rpm's
 `elfdeps` read a vendor-shaped dependency off our libraries.
 
 ## Thread-local storage
@@ -353,7 +358,7 @@ Leaf to trunk, with where each layer's material comes from.
 | Image mapping | foundation poured | Userland Exec, LBW, Blink |
 | Initial process image | foundation poured | Userland Exec |
 | Dynamic loader | poured, extension owed | musl `dynlink.c` |
-| Symbol versioning | framed in papers | Drepper; glibc GPL-only |
+| Symbol versioning | framed in papers | Drepper; glibc LGPL-2.1+, kernel-coupled |
 | Thread-local storage | papers; spike 1 refuted `%fs` | psABI, arch_prctl model |
 | Kernel-ABI seam | fork in the road | flinux/QEMU (GPL); WSL1, Drawbridge (sealed) |
 | ABI boundary, elfsysv1.dll | technique open, placement ours | Wine `ms_abi`/`sysv_abi` |

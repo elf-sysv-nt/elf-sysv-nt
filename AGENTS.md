@@ -64,11 +64,28 @@ things and the document should say which one it is carrying. Every document
 here ends with a Not verified section for exactly that reason; keep it current
 rather than letting it rot into a list of things that were checked years ago.
 
-Licenses are checked before code is lifted, not after. Most of the prior art
-this design leans on is GPL or LGPL: flinux, Blink, Qiling, glibc's resolver.
-Reading them is fine. Linking them into a released image is a distribution
-obligation, and the check precedes the lift. musl is the exception worth
-remembering, since it is MIT and the loader's working model.
+Ask what Linux and GNU already have before writing anything. This is the first
+question on every piece of code, not a fallback when the work looks large: does
+an implementation exist upstream, and can it be used as it stands, adapted, or
+at minimum read as the specification? Most of this format was designed by the
+people who wrote that code, and a routine reimplemented from a document is a
+second reading of the same specification, with a second set of mistakes. Say in
+the governing document which of the three happened — used, adapted, or written
+from the specification — and when it is the third, say what made the first two
+unavailable. "It seemed easier" is not one of the reasons.
+
+Licenses are checked before code is lifted, not after, and the check tends to
+come back permissive rather than blocking. This tree is LGPLv3-or-later, so
+LGPL-2.1-or-later material — glibc's, most of the GNU runtime's — can be taken
+outright, which is the footing the vendored headers under `veneer/include/`
+already stand on. GPL material is the one that turns a lift into a distribution
+obligation on the whole: flinux, Blink, Qiling and QEMU's linux-user are all in
+that class. musl is MIT and the loader's working model. What usually rules
+upstream code out here is coupling rather than licence — glibc's resolver
+assumes `_rtld_global`, its own `link_map`, and being the process's first
+mover — so name the coupling when that is the reason, because "it is GPL" and
+"it assumes a kernel we do not have" are different claims and only one of them
+was ever true of glibc.
 
 This tree is LGPLv3 or later, which DR-0004 records as inherited rather than
 chosen: `elfsysv1.dll` is Cygwin's `winsup` re-faced, Cygwin's exception
