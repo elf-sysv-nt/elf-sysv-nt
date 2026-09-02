@@ -59,6 +59,16 @@ extern int rp_errno(void);
 #define vsnprintf rp_vsnprintf
 #undef errno
 #define errno (rp_errno())
+
+/* Naming the occupant of a contended address is Win32 work (VirtualQuery plus
+ * GetMappedFileName), so it lives in the realproc seam and reaches this unit
+ * only under the crossing host. Everywhere else the refusal reports the span
+ * and nothing more, which is what it did before: a portable loader unit has no
+ * business asking the host who owns a page. */
+extern const char *rp_map_owner(const void *addr);
+#define MAP_OWNER(a) rp_map_owner((const void *)(uintptr_t)(a))
+#else
+#define MAP_OWNER(a) "unnamed on this build"
 #endif
 
 /* The parser keeps p_flags verbatim in elf_load_seg.flags. */
@@ -246,10 +256,11 @@ elf_map_err elf_map(const unsigned char *image, size_t image_size,
 	if ((uint64_t)(uintptr_t) got != res_base) {
 		munmap(got, (size_t) res_size);
 		return fail(diag, elf_map_err_reserve, "mmap",
-		    "span of 0x%llx bytes at 0x%llx is occupied; the host "
+		    "span of 0x%llx bytes at 0x%llx is occupied by %s; the host "
 		    "relocated the reserve to 0x%llx",
 		    (unsigned long long) res_size,
 		    (unsigned long long) res_base,
+		    MAP_OWNER(res_base),
 		    (unsigned long long)(uintptr_t) got);
 	}
 

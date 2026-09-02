@@ -19,6 +19,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "realproc.h"
 
@@ -132,6 +133,78 @@ if (!p)
 return 0;
 loc = p();
 return loc ? *loc : 0;
+}
+
+/*
+ * Who already holds the address a fixed-address image wants. The placement
+ * refusal used to report only that the span was occupied, which is true and
+ * useless: an occupant that can be rebased is a link-time fix, one the NT
+ * loader insists on placing low is a two-process bootstrap, and the diagnostic
+ * could not tell them apart. VirtualQuery gives the region, GetMappedFileName
+ * gives its backing file, and the pair names the module.
+ *
+ * Returns a pointer to static storage, overwritten by the next call, and never
+ * NULL -- the caller is a failure path and must not acquire a second way to
+ * fail. GetMappedFileName lives in psapi.dll and is re-exported by kernel32 as
+ * K32GetMappedFileNameA on everything this project supports; the psapi fallback
+ * is there because the re-export is a Vista-era convenience, not an ABI
+ * guarantee. It yields an NT device path (\Device\HarddiskVolume3\...), which
+ * is left as it comes: converting it would need the faced runtime's path
+ * machinery, and this runs on the path where that machinery is what failed.
+ */
+const char *rp_map_owner(const void *addr)
+{
+typedef DWORD (WINAPI *gmfn_fn)(HANDLE, LPVOID, LPSTR, DWORD);
+static gmfn_fn gmfn;
+static int resolved;
+static char out[MAX_PATH + 64];
+char path[MAX_PATH];
+MEMORY_BASIC_INFORMATION mbi;
+const char *state, *kind;
+
+if (VirtualQuery(addr, &mbi, sizeof mbi) != sizeof mbi)
+return "unqueryable";
+if (mbi.State == MEM_FREE)
+return "free";
+state = mbi.State == MEM_RESERVE ? "reserved" : "committed";
+
+switch (mbi.Type) {
+case MEM_IMAGE:  kind = "image"; break;
+case MEM_MAPPED: kind = "mapping"; break;
+default:         kind = "private"; break;
+}
+/* Private memory is backed by no file, so there is no name to fetch and the
+ * absence is itself the finding: an anonymous commitment is not a module that
+ * could be rebased. Report the region's extent, which is what distinguishes a
+ * stray allocation from a deliberate claim over the whole window. */
+if (mbi.Type != MEM_IMAGE && mbi.Type != MEM_MAPPED) {
+rp_snprintf(out, sizeof out, "%s %s, 0x%llx bytes based at 0x%llx",
+	    state, kind, (unsigned long long) mbi.RegionSize,
+	    (unsigned long long)(uintptr_t) mbi.AllocationBase);
+return out;
+}
+
+if (!resolved) {
+resolved = 1;
+gmfn = (gmfn_fn)(void *)GetProcAddress(
+GetModuleHandleA("kernel32.dll"), "K32GetMappedFileNameA");
+if (!gmfn) {
+HMODULE psapi = LoadLibraryA("psapi.dll");
+if (psapi)
+gmfn = (gmfn_fn)(void *)GetProcAddress(psapi, "GetMappedFileNameA");
+}
+}
+path[0] = '\0';
+if (!gmfn || !gmfn(GetCurrentProcess(), mbi.AllocationBase, path, MAX_PATH)) {
+rp_snprintf(out, sizeof out, "%s %s at 0x%llx, unnamed",
+	    state, kind,
+	    (unsigned long long)(uintptr_t) mbi.AllocationBase);
+return out;
+}
+rp_snprintf(out, sizeof out, "%s %s at 0x%llx, %s",
+	    state, kind,
+	    (unsigned long long)(uintptr_t) mbi.AllocationBase, path);
+return out;
 }
 
 #endif /* ELFSYSV_REALPROC */
