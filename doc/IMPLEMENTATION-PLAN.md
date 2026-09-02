@@ -1169,6 +1169,95 @@ per-thread split of the blocked mask and alternate stack, and the down-call
 wrapper that will consult the `SA_RESTART` decision. DR-0030's Not verified
 section carries all three.
 
+### WP-44 — versioned resolution at relocation
+
+Needs: WP-36, WP-41.
+
+The consolidation DR-0019 left open, now scheduled. WP-34 relocated the graph
+with the least symbol resolution a relocation needs, a linear first-definition
+scan over each object's symtab, and DR-0019 kept it as the relocation
+bootstrap rather than rewriting it — deliberately, and on the reading that a
+later change could point relocation at the general engine once the scope it
+needs exists at relocation time. WP-35 built that engine and WP-36 built the
+matcher behind its seam. The scope exists. Relocation still does not use
+either.
+
+The consequence is not a load failure, which is what makes it urgent rather
+than merely untidy. glibc carries the same name at several nodes —
+`memcpy@GLIBC_2.2.5` beside `memcpy@GLIBC_2.14`, and the same shape on
+`realpath`, `regexec`, `pthread_cond_*`, `sched_setaffinity` — and a
+first-definition scan binds whichever the symtab happens to list first. The
+program runs. It runs against the wrong ABI, quietly, and the failure surfaces
+later as corruption or as behaviour that differs from el8 for no visible
+reason. A missing `GLIBC_2.xx` is the same story from the other side:
+`elf_version_check_needed` exists, gives `ld.so`'s exact message, and has no
+caller outside its own tests, so a version this platform cannot satisfy is not
+refused at load.
+
+Delivers: `elf_reloc`'s resolver replaced by the WP-35 lookup with WP-36's
+matcher installed in its seam, so a relocation binds the definition the
+reference's version names; and `elf_version_check_needed` called over the
+graph's `DT_VERNEED` before relocation begins, so an unsatisfiable requirement
+is refused with the message a real loader gives rather than silently bound to
+a survivor.
+
+Done when: a consumer built against `GLIBC_2.14`'s `memcpy` and loaded through
+the exec path binds that body and not the `GLIBC_2.2.5` one — the WP-36
+done-when, moved from a unit fixture onto the path a program actually takes —
+and removing the node from the library makes the load fail rather than pick
+the survivor. The differential runs in the WP-T2 environment against el8's own
+2.28, not a stand-in, since the whole claim is about el8's version nodes.
+
+Risk: the bootstrap has a reason. Relocation runs before the scope is fully
+built for the object being relocated, which is why WP-34's scan was minimal in
+the first place, and pointing it at the general engine means being precise
+about what scope exists at that moment. Getting that wrong turns a quiet
+mis-binding into a loud one, which is better, but it is still a regression the
+WP-41 exec-* bar has to catch. Budget the ordering question, not the code.
+
+### WP-45 — the exec path's ABI residue
+
+Needs: WP-41.
+
+Three small omissions on the exec path, grouped because each is a few lines
+and none is worth its own package. They are the residue of building the dl
+surface and the exec surface separately: in every case `loader/dl/` does the
+right thing and `loader/exec/` never picked it up.
+
+`DT_FINI` and `DT_FINI_ARRAY` are not run for anything the exec path loaded.
+`loader/dl/dl_init.c` runs fini correctly, reversed array then `DT_FINI`;
+`loader/exec/dyn_init.c` has the init half and no fini half at all, and
+nothing plays the part `_dl_fini` plays on Linux. C++ static destructors and
+anything registered by a loaded object's own teardown never run. This one is
+ordered behind WP-56 rather than available now: DR-0048 puts the atexit chain
+in glibc's own `exit`, so the loader's fini has to register through the
+veneer's `__cxa_atexit`, and that body has to be live before there is
+anywhere to register.
+
+`AT_HWCAP` and `AT_HWCAP2` ship as zero. `process_image.c` emits both from
+`pr->hwcap` and `pr->hwcap2`, and `stub.c` memsets the struct and never
+assigns them, so the entries are present with no bits set. Present-and-zero is
+worse than absent: a consumer that reads the auxv value rather than issuing
+`cpuid` — some ifunc resolvers, and parts of glibc startup — concludes the
+CPU has nothing. The bit assignment is not ours to invent: on x86-64 `AT_HWCAP`
+is the `cpuid` leaf-1 `%edx` feature word verbatim, and `AT_HWCAP2` is Linux's
+own small set, so the source to read is the kernel's `arch/x86/kernel/cpu/`
+and not a document about it. Checkable against the value a real Linux reports
+on the same machine, which makes it a differential rather than a guess.
+
+`DT_SYMBOLIC` and `DF_SYMBOLIC` are unread. `DT_SYMBOLIC` is a bare `#define`
+in `elf_types.h` with no reader and `DF_SYMBOLIC` is not defined at all, so an
+object built `-Bsymbolic` has its internal references interposed by the global
+scope instead of bound to itself. Codec and plugin packages build that way.
+The fix is to read the flag and put the object's own scope first for
+references from it.
+
+Delivers: the three above.
+Done when: the fini order matches `ld.so`'s over a graph with destructors in
+two objects; `AT_HWCAP` and `AT_HWCAP2` match the values Linux reports on the
+same hardware, in the WP-T2 differential; and a `-Bsymbolic` object binds its
+own definition where an interposer would otherwise win.
+
 ---
 
 ## Phase 5 — the veneer
@@ -1470,6 +1559,7 @@ WP-T1 through WP-T3 and fails this one has not done the job.
     WP-31 ─► WP-32 ─► WP-33 ─► WP-34 ─► WP-35 ─► WP-36 ─► WP-38
                         └────► WP-39          WP-37 ─────┘
     WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
+                        └────► WP-45          WP-36 ─► WP-44
     WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
     WP-26 ─► WP-27 ─► WP-56 ─► (WP-54, WP-62)
     WP-55 ────────────┘
