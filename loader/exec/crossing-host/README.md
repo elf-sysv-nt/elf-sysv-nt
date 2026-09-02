@@ -60,10 +60,10 @@ the blocker. The new, measured obstacle is placement. bzip2 is `ET_EXEC`
 `mmap` treats the address argument as a bare hint, not `MAP_FIXED`, and its own
 arena places the anonymous reserve high at `0x6ffffffb0000` rather than at the
 free low window. `elf_map` reads `got != res_base`, takes its relocation-refuse
-branch (`munmap` the stray reserve, then `fail(... errno)`), and faults there:
-`fail`'s `vsnprintf` and the `errno` macro (`__errno_location`) are themselves
-faced calls the map/enter path does not yet cross, so the error path SIGSEGVs
-before it can report.
+branch (`munmap` the stray reserve, then `fail(... errno)`), and faulted there:
+`fail`'s `vsnprintf` and the `errno` macro (`__errno_location`) were themselves
+faced calls the map/enter path did not then cross, so the error path SIGSEGV'd
+before it could report -- the obstacle the crossing below removes.
 
 The plain-PE stub does not hit this: `elf_window_reserve` `VirtualAlloc`-reserves
 the low window first, so its bare-hint `mmap` lands on the existing reservation
@@ -73,24 +73,53 @@ became bookkeeping-only (the low window reads free at `_dll_crt0`,
 `spike/reent-realproc-low-window`), so a bare hint has no reservation to land
 on and the faced arena is free to place elsewhere.
 
+The map/enter error-report path now crosses the boundary, so that placement
+refusal reports instead of faulting. `fail`'s `vsnprintf` resolves, under
+`-DELFSYSV_REALPROC`, to the host-side `rp_vsnprintf` the realproc seam already
+carries (no crossing -- it is this host's own formatter), and the `errno` macro
+resolves to `rp_errno()`, a `sysv_abi` thunk to the faced `__errno_location`
+(`loader/exec/realproc/realproc-cross.c`); both are gated on the flag the
+crossing-host build alone passes, so the plain-PE stub keeps libc's own
+`vsnprintf` and `errno` and the WP-41 exec-* bar stays green (10/10). Driving
+bzip2 (2026-09-01) advances the halt off the blind `SIGSEGV`: the reserve
+refusal is now reported, `drive_rc` 139 -> 1,
+
+    elf_map_err_reserve at mmap: span of 0x50000 bytes at 0x400000
+    is occupied; the host relocated the reserve to 0x6ffffffb0000
+
+so placement is now a diagnosed refusal, not a fault. With the report path open,
+both placement routes were measured against the actual faced arena, and both
+fail at the fixed low window: the bare hint is relocated high to
+`0x6ffffffb0000` (above), and a probe forcing `MAP_FIXED` at `0x400000` is
+refused outright (`reserve of 0x50000 bytes at 0x400000 refused (errno 0)`,
+measured with a temporary `MAP_FIXED` gate since reverted). The low window reads
+free (`spike/reent-realproc-low-window`) and the host's own image is based high
+at `0x100400000` (so it does not occupy `0x400000`), yet the faced Cygwin arena
+neither honours the low hint nor accepts `MAP_FIXED` there. Why the faced arena
+refuses a free low fixed placement -- an `mmap_min`-style floor, an arena that
+starts high, or a reservation `MAP_FIXED` still needs -- is unmeasured, and it
+is the fork the next step must settle before choosing a placement.
+
 ## Ordered next step
 
-1. Place the fixed-address image into the verified-free low window. The window
-   is discriminated free by the reserve step (and the spike), so under
-   `ELFSYSV_REALPROC` `elf_map`'s placing `mmap` can pass `MAP_FIXED` to force
-   `0x400000` -- occupancy was already checked, which is exactly the condition
-   `0008-mmap-granule-protection.md` requires before `MAP_FIXED` is safe. Gate
-   it on `ELFSYSV_REALPROC` so the plain build keeps its bare-hint placement.
-   Weigh this against reserving the window through the faced `mmap` itself
-   (so the arena records it and the later bare hint lands); measure both before
-   choosing, per the decision ladder. Re-run `drive.sh` and confirm the placer
-   lands at `0x400000`.
-2. Cross the map/enter path's remaining faced surface so a map failure reports
-   instead of faulting: `fail`'s `vsnprintf` and `errno` (`__errno_location`),
-   and any faced call the reloc/init/enter path (`elf_reloc`, `dyn_init.c`,
-   `enter.S`) makes once placement reaches it. Re-run and read the new halt.
-3. With placement and reporting crossing, control should reach entry with
-   `AT_BASE` carrying the faced runtime's own base so the veneer forwarding
-   thunks resolve. Re-run `drive.sh` and read the new halt.
-4. Then cut `accept.sh`'s `build_loader` onto this host and certify against the
+1. Settle the placement fork with a registered spike, not a guess. The two
+   routes are both measured-refused at the fixed low window (above), so the open
+   question is empirical: what does the faced Cygwin arena require to place an
+   anonymous reserve at a free `0x400000`? Spike each surviving candidate before
+   the tier narrows -- (a) a host `VirtualAlloc` reserve of the low window under
+   `ELFSYSV_REALPROC` (the plain-PE mechanism of `0008`, reinstated for the
+   real process) so the faced bare hint lands on it; (b) reserving the window
+   through the faced `mmap` itself so the arena records it; (c) whether the
+   faced `mmap` will `MAP_FIXED` onto a region already reserved by (a) or (b)
+   even when it refuses a bare fixed request -- per the reproducible-spike
+   contract (self-identified, registered in `test/spike-regen.tsv`, dated
+   transcript). Let the evidence collapse the fork, then apply the placement in
+   `elf_map` gated on `ELFSYSV_REALPROC`; re-run `drive.sh` and confirm the
+   placer lands at `0x400000`.
+2. With placement landed, control should reach entry with `AT_BASE` carrying
+   the faced runtime's own base so the veneer forwarding thunks resolve. Cross
+   any remaining faced call the reloc/init/enter path (`elf_reloc`,
+   `dyn_init.c`, `enter.S`) makes once placement reaches it. Re-run `drive.sh`
+   and read the new halt.
+3. Then cut `accept.sh`'s `build_loader` onto this host and certify against the
    WP-41 exec-* bar.

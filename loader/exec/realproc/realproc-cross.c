@@ -110,4 +110,28 @@ return -1;
 return p(addr, len);
 }
 
+/*
+ * The map/enter path's error reporting reads errno to name why a faced call
+ * refused. In the crossing host errno is the faced runtime's -- *__errno_location()
+ * where __errno_location is a System V export -- so a direct read crosses the
+ * DR-0066 boundary the wrong way and faults inside fail() before it can report.
+ * rp_errno rides the same sysv_abi thunk the mmap seam uses, resolving
+ * __errno_location from elfsysv1.dll and dereferencing it; an absent export or a
+ * null location reads as errno 0 rather than faulting, so a report degrades to a
+ * missing errno instead of a crash.
+ */
+int rp_errno(void)
+{
+typedef int *(__attribute__((sysv_abi)) *errloc_fn)(void);
+static errloc_fn p;
+int *loc;
+if (!p)
+p = (errloc_fn)(void *)GetProcAddress(
+GetModuleHandleA("elfsysv1.dll"), "__errno_location");
+if (!p)
+return 0;
+loc = p();
+return loc ? *loc : 0;
+}
+
 #endif /* ELFSYSV_REALPROC */

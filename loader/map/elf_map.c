@@ -42,6 +42,25 @@ int   rp_munmap(void *addr, size_t len);
 #define munmap(a, l)             rp_munmap((a), (l))
 #endif
 
+#ifdef ELFSYSV_REALPROC
+/* The error-report path reads errno and formats a message with vsnprintf. Under
+ * the faced-runtime crossing host both are the faced runtime's -- vsnprintf a
+ * System V export and errno *__errno_location() -- so calling them directly from
+ * this Microsoft-ABI unit crosses the DR-0066 boundary the wrong way and faults
+ * inside fail() before a map failure can be reported (the halt then reads as a
+ * blind SIGSEGV instead of a diagnosed refusal). vsnprintf resolves to the
+ * host-side rp_vsnprintf the realproc seam already carries (no crossing needed,
+ * it is this host's own code); errno resolves to rp_errno(), which rides the
+ * sysv_abi thunk to the faced __errno_location. Both are gated on
+ * ELFSYSV_REALPROC, so the plain-PE stub keeps libc's own vsnprintf and errno
+ * and the WP-41 exec-* bar is unchanged. */
+extern int rp_vsnprintf(char *, size_t, const char *, va_list);
+extern int rp_errno(void);
+#define vsnprintf rp_vsnprintf
+#undef errno
+#define errno (rp_errno())
+#endif
+
 /* The parser keeps p_flags verbatim in elf_load_seg.flags. */
 #ifndef PF_X
 #define PF_X 1u
