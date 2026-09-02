@@ -1,15 +1,8 @@
 # veneer-fingerprint 511761f807a3
 __ctype_b_loc	filled
-__cxa_finalize	forward
 __errno_location	wired
-__fprintf_chk	shim
 __lxstat64	wired
-__memcpy_chk	forward
-__stack_chk_fail	forward
-__strcat_chk	forward
 __xstat64	wired
-_ITM_deregisterTMCloneTable	optional
-_ITM_registerTMCloneTable	optional
 close	forward
 exit	forward
 fchmod	forward
@@ -21,6 +14,7 @@ fflush	forward
 fgetc	forward
 fileno	forward
 fopen64	forward
+fprintf	forward
 fputc	forward
 fread	forward
 free	forward
@@ -36,6 +30,7 @@ perror	forward
 remove	forward
 rewind	forward
 signal	wired
+strcat	forward
 strcmp	forward
 strerror	forward
 strlen	forward
