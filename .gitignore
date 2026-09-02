@@ -41,6 +41,11 @@ veneer/t/ref-cache/
 # the JSONL runs under it are per-run and local, never history.
 .smon/
 
+# The incremental suite's per-step pass stamps (loader/exec/t/run.sh
+# --since-last-pass). A local cache keyed on input content; the ledger is the
+# record, not these.
+loader/exec/t/.passed/
+
 # doc/Next-Steps.md is a generated dashboard, rewritten every worker run from
 # git truth. It is not tracked -- its history was pure churn. Regenerate it with
 # bin/refresh-next-steps.py; the tracked source of truth is doc/status/.
