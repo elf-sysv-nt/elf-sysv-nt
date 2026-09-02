@@ -1,0 +1,16 @@
+# The el8 artifacts this spike reads, pinned by checksum.
+#
+# Three rows, and each answers a different half of the question. The binary
+# rpm is what Red Hat actually shipped, so its e_type settles whether the
+# vendor's bzip2 is a PIE. The source rpm carries the spec whose %build
+# section names the flag macros. redhat-rpm-config is where those macros are
+# defined, and where the two specs files that inject -fPIE and -pie live; a
+# claim about el8 hardening that cites documentation rather than this package
+# is a recollection, not a measurement.
+#
+# repo is under https://dl.rockylinux.org/pub/rocky/8.10
+#
+# repo	location	sha256
+BaseOS/x86_64/os	Packages/b/bzip2-1.0.6-28.el8_10.x86_64.rpm	df8552e87d82162ce371128a7736f3205990763257e3ead41fd4c422140c2437
+BaseOS/source/tree	Packages/b/bzip2-1.0.6-28.el8_10.src.rpm	08a13db5dfd0ef88e2169bde7426a59d290cc690ed4256dfda640a680fe71f7c
+AppStream/x86_64/os	Packages/r/redhat-rpm-config-131-1.el8.noarch.rpm	64d924524a8455cc6bf6144ee791d95770fd8c970102a31cf78523f5ad974106

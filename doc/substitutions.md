@@ -11,8 +11,7 @@ justified. An open row is a known gap, not a hidden one.
 
 | # | Substitute | For | Where | Burns it down |
 |---|------------|-----|-------|---------------|
-
-None open.
+| S2 | The flags Red Hat's `redhat-hardened-cc1` and `redhat-hardened-ld` specs files inject, spelled out (`-fPIE`, `-pie`) | Running the build under those specs files themselves, through rpm and its macro set | `spike/vendor-hardened-build/`, and the `flags` column `acceptance/packages.tsv` carries for bzip2 | An acceptance run against a package built by real rpm macros on a real el8 root, matching the `e_type` and segment placement this substitution claims. Until then the claim is narrow by construction: it covers image shape, which follows from `-fPIE` and `-pie` alone, and nothing about the hardening the other optflags provide. |
 
 ## Closed
 

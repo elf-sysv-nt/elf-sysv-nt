@@ -7,6 +7,25 @@
 # self-test built into `make test`, and a libc surface of forty symbols in the
 # earliest-demand slices.
 #
+# The build line carries el8's effective flags rather than the naked Makefile.
+# The vendor does not run `make CC=cc bzip2`; the pinned spec wraps the same
+# Makefile in CFLAGS="$RPM_OPT_FLAGS ..." and LDFLAGS="%{__global_ldflags}",
+# and on el8 those macros pull in the redhat-rpm-config hardening specs that
+# have made RHEL userland position-independent by default since the RHEL 8 line.
+# Building without them produced an ET_EXEC at 0x400000 that the vendor does
+# not ship, which is what WP-56 spent a session parked on. The two -specs=
+# arguments are replaced here by the flags those specs files inject, because
+# the specs files are Red Hat's rpm configuration and are not in this sysroot;
+# that substitution is S2 in doc/substitutions.md, and the chain behind it is
+# measured in spike/vendor-hardened-build/.
+#
+# The bzip2-nonpie row is deliberately red. A minority of el8 opts out of
+# hardening with %undefine _hardened_build, and prebuilt vendor ET_EXECs exist,
+# so fixed-address loading is still owed even though bzip2 no longer needs it.
+# The row builds the same source through the naked Makefile to get a genuine
+# non-PIE image, and it stays red until DR-0072's low-window contract holds.
+# Do not silence it by dropping the row; see doc/decisions/0072-*.md.
+#
 # Columns, TAB-separated:
 #   name     the package, and the name to pass accept.sh
 #   relpath  its .src.rpm under the mirror root
@@ -16,4 +35,5 @@
 #   binary   the built executable to read the libc surface from
 #
 # name<TAB>relpath<TAB>sha256<TAB>build<TAB>binary
-bzip2	BaseOS/source/tree/Packages/b/bzip2-1.0.6-28.el8_10.src.rpm	08a13db5dfd0ef88e2169bde7426a59d290cc690ed4256dfda640a680fe71f7c	make CC=%CC% bzip2	bzip2
+bzip2	BaseOS/source/tree/Packages/b/bzip2-1.0.6-28.el8_10.src.rpm	08a13db5dfd0ef88e2169bde7426a59d290cc690ed4256dfda640a680fe71f7c	make CC=%CC% CFLAGS="-O2 -g -pipe -Wall -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -grecord-gcc-switches -m64 -mtune=generic -fasynchronous-unwind-tables -fstack-clash-protection -fPIE -D_FILE_OFFSET_BITS=64" LDFLAGS="-Wl,-z,relro -Wl,-z,now -pie" bzip2	bzip2
+bzip2-nonpie	BaseOS/source/tree/Packages/b/bzip2-1.0.6-28.el8_10.src.rpm	08a13db5dfd0ef88e2169bde7426a59d290cc690ed4256dfda640a680fe71f7c	make CC=%CC% bzip2	bzip2
