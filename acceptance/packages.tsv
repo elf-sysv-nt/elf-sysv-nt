@@ -19,12 +19,24 @@
 # that substitution is S2 in doc/substitutions.md, and the chain behind it is
 # measured in spike/vendor-hardened-build/.
 #
-# The bzip2-nonpie row is deliberately red. A minority of el8 opts out of
-# hardening with %undefine _hardened_build, and prebuilt vendor ET_EXECs exist,
-# so fixed-address loading is still owed even though bzip2 no longer needs it.
-# The row builds the same source through the naked Makefile to get a genuine
-# non-PIE image, and it stays red until DR-0072's low-window contract holds.
-# Do not silence it by dropping the row; see doc/decisions/0072-*.md.
+# The bzip2-nonpie row exists because a minority of el8 opts out of hardening
+# with %undefine _hardened_build, and prebuilt vendor ET_EXECs exist, so
+# fixed-address loading is still owed even though bzip2 no longer needs it. The
+# row builds the same source through the naked Makefile to get a genuine
+# non-PIE image. Do not silence it by dropping the row; see DR-0072.
+#
+# It is not, as first written here, red at placement. accept.sh drives the
+# plain-PE stub through the WP-41 front end, not the DR-0071 crossing host, so
+# it never reaches the low-window conflict DR-0072 is about; it reads `ready`
+# and fails in its own suite instead. The row becomes the contract's failing
+# test only once the harness runs on a real process of elfsysv1.dll, which is
+# WP-56's outstanding step. Until then it is a fixed-address image under
+# observation, not a gate.
+#
+# Note the inversion while it lasts: the naked build demands fewer symbols than
+# the faithful one, so it reads `ready` while bzip2 itself reads
+# `needs-wiring`. That is honest -- no fortify flags, no __fprintf_chk -- and
+# it is a reason to read the surface counts rather than the verdict word.
 #
 # Columns, TAB-separated:
 #   name     the package, and the name to pass accept.sh
