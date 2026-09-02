@@ -1208,6 +1208,16 @@ and removing the node from the library makes the load fail rather than pick
 the survivor. The differential runs in the WP-T2 environment against el8's own
 2.28, not a stand-in, since the whole claim is about el8's version nodes.
 
+The oracle to check against is `spike/rtld-lift-survey/`. FreeBSD's `rtld-elf`
+is a second complete implementation of exactly this binding — BSD-2-Clause,
+with `find_symdef`, `matched_symbol` and `rtld_verify_versions` all present —
+which makes it available both as a reference to hold decisions against, the
+way WP-35 was held against glibc's `ld.so`, and as source that could be
+adapted rather than written. The survey's coupling count says a lift is 320
+lines out of 6411 against 9 BSD kernel includes; whether to lift or to wire
+what WP-36 already built is the first call this package makes, and it is a
+call, not a foregone conclusion.
+
 Risk: the bootstrap has a reason. Relocation runs before the scope is fully
 built for the object being relocated, which is why WP-34's scan was minimal in
 the first place, and pointing it at the general engine means being precise
@@ -1257,6 +1267,84 @@ Done when: the fini order matches `ld.so`'s over a graph with destructors in
 two objects; `AT_HWCAP` and `AT_HWCAP2` match the values Linux reports on the
 same hardware, in the WP-T2 differential; and a `-Bsymbolic` object binds its
 own definition where an interposer would otherwise win.
+
+### WP-46 — the child_info handshake
+
+Needs: WP-27.
+
+`runtime/winsup/README.md` records a live break and no package was left owning
+it: spawned from a Cygwin parent, bash passes its cygheap, the badge reads it,
+and the process dies. The note calls handshake separation re-face work and
+defers it; WP-26 and WP-27, the re-face packages, are both delivered, so the
+deferral outlived its owner. It surfaces the moment anything launches a faced
+process from an ordinary Cygwin shell, which is how most of this tree is
+driven.
+
+Delivers: a `child_info` handshake the faced runtime and host Cygwin do not
+share. Cygwin identifies a spawned child's inherited cygheap through a
+magic-and-version handshake; two runtimes in one process tree that both answer
+to it is the collision. Separating the badge — a distinct magic for
+`elfsysv1.dll`, so a host-Cygwin parent's `child_info` is recognised as
+foreign and ignored rather than consumed — is the shape the note anticipates,
+and the fork replay is what has to keep working across the change.
+
+Done when: a faced binary spawned from an ordinary Cygwin bash starts and runs
+rather than dying in the badge read, and `fork` still replays across the faced
+runtime with WP-42's checks unchanged.
+
+Risk: the handshake is load-bearing for how Cygwin lays a process, so this is
+winsup surgery with fork underneath it. It wants its own spike before the
+change, not after.
+
+### WP-47 — the %fs rewriter, and the census that sizes it
+
+Needs: WP-30, spike 13.
+
+The plan cuts this subsystem's design at lines 59-70 above and says in as many
+words that cutting it into a package is not done there. Nothing downstream
+picked it up. Meanwhile WP-33's and WP-54's exit criteria both run a vendor
+binary, and every el8 binary reaches TLS through `%fs`, which spike 1 refuted
+on this host — so the exit criteria of two delivered packages depend on a
+subsystem that has never been scheduled.
+
+The census comes first because it decides whether the rewriter is finishable.
+`doc/proposals/0003-vendor-binary-tls-rewriting.md` covers `mov`, immediate
+store, `movzx` and `movsx`, and explicitly does not cover the arithmetic
+forms, x87 and SSE, string operations, or `lock`-prefixed accesses — a scope
+call, taken without knowing how much it leaves out. Spike 13 was cut for
+exactly this (lines 95-99) and lost its row in `doc/milestones.md` to
+`spike/reent-bringup`; it is folded in here rather than left free-floating.
+
+Delivers: the site census over el8's binaries — read-modify-write, `lock`, and
+self-pointer shares, plus the raw-`syscall` count that prices DR-0005's
+bound — and then, against what it finds, either the rewriter as a package or a
+recorded decision that the residue is small enough to refuse loudly at load.
+
+Done when: the census has a transcript in `spike/`, and a vendor binary from
+the el8 set reaches TLS correctly through whatever the census justified —
+rewriting or refusal, but named, not silent.
+
+Risk: this is the one item on this list that could be large. The census is
+cheap and the answer it returns decides everything after it, which is why it
+is the first clause rather than an appendix.
+
+### WP-48 — getcontext, setcontext, swapcontext
+
+Needs: WP-43.
+
+DR-0041 records the triple as knowingly broken across the face, deferred
+rather than settled, and asks whoever takes it to reopen the record. Nothing
+does: no package names `ucontext` outside WP-43's signal-frame layout. The
+three are ordinary el8 userland — coroutine libraries, older threading code,
+`makecontext`-based schedulers — so this is not an exotic corner.
+
+Delivers: a written face that captures the context at the seam, which is the
+repair DR-0041 names as likely, together with the reopening record DR-0041
+asks for.
+
+Done when: a program that saves and restores context across the face runs the
+same way it does on el8, checked as a WP-T2 differential rather than against
+our own reading of what the triple should do.
 
 ---
 
@@ -1558,8 +1646,9 @@ WP-T1 through WP-T3 and fails this one has not done the job.
                         └────► WP-24, WP-25
     WP-31 ─► WP-32 ─► WP-33 ─► WP-34 ─► WP-35 ─► WP-36 ─► WP-38
                         └────► WP-39          WP-37 ─────┘
-    WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43
+    WP-32 ─► WP-40 ─► WP-41 ─► WP-42 ─► WP-43 ─► WP-48
                         └────► WP-45          WP-36 ─► WP-44
+    WP-27 ─► WP-46            WP-30 ─► WP-47 ◄─ spike 13
     WP-51 ─► WP-52 ─► WP-53 ─► WP-54 ─► WP-62 ─► WP-63
     WP-26 ─► WP-27 ─► WP-56 ─► (WP-54, WP-62)
     WP-55 ────────────┘
