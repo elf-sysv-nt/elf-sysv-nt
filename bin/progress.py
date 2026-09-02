@@ -619,6 +619,7 @@ def smon_runs(limit=100):
     files = sorted(glob.glob(os.path.join(SMON_DIR, '*.jsonl')), reverse=True)
     for path in (files if limit is None else files[:limit]):
         plan, steps, items, cmds, ts0 = [], {}, [], [], None
+        skips = {}
         try:
             fh = open(path, encoding='utf-8', errors='replace')
         except OSError:
@@ -638,21 +639,64 @@ def smon_runs(limit=100):
                 if ev == 'plan':
                     plan = e.get('steps', [])
                 elif ev == 'step' and e.get('state') in ('ok', 'fail', 'skip', 'start'):
-                    steps[e.get('id')] = e.get('state')
+                    sid, st = e.get('id'), e.get('state')
+                    steps[sid] = st
+                    if st == 'skip':
+                        # a skip stands on an earlier run's ok; keep the back-
+                        # reference and the input key so latest_step can resolve
+                        # it to what was certified, and a reader can see which run
+                        # earned the green cell and under which inputs.
+                        skips[sid] = {'from': e.get('from'), 'key': e.get('key')}
                 elif ev == 'cmd' and e.get('state') in ('ok', 'fail'):
                     cmds.append((e.get('id'), e.get('state'), e.get('rc'), e.get('cmd', '')))
                 elif ev == 'item':
                     items.append((e.get('id'), e.get('state'), e.get('text', '')))
+        base = os.path.basename(path)
         runs.append({'ts': ts0, 'plan': plan, 'steps': steps, 'items': items,
-                     'cmds': cmds, 'file': os.path.basename(path)})
+                     'cmds': cmds, 'file': base, 'skips': skips,
+                     'id': os.path.splitext(base)[0]})
     return runs
 
 
-def latest_step(runs, step_id):
-    """(state, ts, file) for a step id, from the newest run that ran it."""
+def _run_by_id(runs, rid):
+    """The run whose ledger id (filename stem) is rid, or None. A skip's `from`
+    names such an id."""
+    if not rid:
+        return None
     for r in runs:
-        if step_id in r['steps']:
+        if r.get('id') == rid:
+            return r
+    return None
+
+
+def latest_step(runs, step_id):
+    """(state, ts, file) for a step id, from the newest run that ran it.
+
+    The incremental suite records a step it did not re-run as a skip carrying a
+    `from` back-reference to the run whose ok it stands on. A skip is not a
+    result, so follow the reference to the run that earned the ok and report
+    that -- its state, and its timestamp, so freshness reflects when the step
+    was actually certified rather than when it was last skipped. An unresolvable
+    skip (its earning run outside the loaded window, or a broken chain) is not
+    trusted: scanning falls through to an older run that ran the step for real."""
+    seen = set()
+    for r in runs:
+        if step_id not in r['steps']:
+            continue
+        if r['steps'][step_id] != 'skip':
             return r['steps'][step_id], r['ts'], r['file']
+        cur = r
+        while cur is not None and cur['steps'].get(step_id) == 'skip':
+            if cur.get('id') in seen:
+                cur = None
+                break
+            seen.add(cur.get('id'))
+            frm = (cur.get('skips', {}).get(step_id) or {}).get('from')
+            cur = _run_by_id(runs, frm)
+        if cur is not None and step_id in cur['steps'] \
+                and cur['steps'][step_id] != 'skip':
+            return cur['steps'][step_id], cur['ts'], cur['file']
+        # unresolved skip: keep scanning older runs for a real result
     return None, None, None
 
 
