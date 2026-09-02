@@ -210,7 +210,11 @@ cygwin-linked child (`spike/reent-stub-realproc-window-reconcile`,
 `low_window_occupant=reserved+committed`) because they belong to the parent-
 handover path this shape does not take. The finishing work is to move
 `accept.sh`'s `build_loader` crossing onto that host and run bzip2 inside it,
-built and certified as its own step against the WP-41 exec-* bar; the next
-measurement is whether that process's own `mmap`, on its `_dll_crt0`-brought-up
-main thread, maps a fixed low region where the parent handover to a foreign
-child was refused.
+built and certified as its own step against the WP-41 exec-* bar. That its own
+`mmap` maps the fixed low window where the parent handover was refused is already
+measured: `spike/reent-realproc-low-window` (milestones row 30) finds a real
+process of the faced runtime places `MAP_FIXED` at `0x400000` for bzip2's span
+(`realproc_mmap_fixed_window=ok`), the low window reading `free` at its own
+`_dll_crt0` startup rather than the `reserved+committed` a suspended foreign
+child holds. So the finishing work rests on a measured premise; what remains is
+the `build_loader` reshape itself, not a further measurement.
