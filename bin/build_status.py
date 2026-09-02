@@ -218,6 +218,23 @@ def lock_age():
         return None
 
 
+def recent_build_activity(minutes=20):
+    """True if the worker's live log or any build log moved within `minutes` --
+    the same signal the SKILL's lock-steal reads to tell a live long build or
+    land from a dead run. verdict() defers to it so a long build/land holding
+    the lock is not misread as STALLED just because inflight() does not see it."""
+    cutoff = time.time() - minutes * 60
+    paths = [os.path.join(REPO, 'a', 'worker-live.log')]
+    paths += glob.glob(os.path.join(REPO, 'a', 'build-logs', '*.log'))
+    for p in paths:
+        try:
+            if os.path.getmtime(p) > cutoff:
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def verdict(rows, lock_held):
     undone = undelivered_wps()
     if not undone:
@@ -237,10 +254,14 @@ def verdict(rows, lock_held):
         # window that is an orphaned lock -- a run that died before STEP 4 and
         # never released it -- which jams every later run until the 3h steal.
         la = lock_age()
+        if la is not None and la > 900 and recent_build_activity():
+            return ('worker holds the lock; a build log moved in the last 20 min — a long '
+                    'build or land is live, not stalled (bin/progress.py for what)')
         if la is not None and la > 900:
             return ('STALLED — the build-worker lock has been held %d min with nothing '
-                    'in flight; a run almost certainly died holding it. Clear '
-                    'a/.build-worker.lock to recover now (the auto-steal is 3h).' % (la // 60))
+                    'in flight and no build log touched in 20 min; a run almost certainly '
+                    'died holding it. Clear a/.build-worker.lock to recover now (the '
+                    'worker auto-steals after 20 min idle, 3h cap).' % (la // 60))
         return 'worker holds the lock (starting or finishing %s); not stalled' % (nb or 'a package')
     if nb:
         age = last_commit_age()
