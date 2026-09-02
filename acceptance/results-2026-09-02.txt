@@ -1,0 +1,33 @@
+# WP-T4 acceptance (embryo) -- 2026-09-02
+
+bzip2        needs-wiring  builds; 45 libc symbols: 36 forward, 5 wired, 1 shim, 0 stub, 1 filled
+    image shape: dynamic (the shape the crossing driver runs -- DR-0058); interp /lib64/ld-linux-x86-64.so.2, needs libc.so.6
+    wired (a written translation the live crossing certified stands behind them):
+      __errno_location
+      __lxstat64
+      __xstat64
+      open64
+      signal
+    shims still to write (a runtime export exists; the ABI differs; no crossed slice covers them):
+      __fprintf_chk
+    filled (a synthesized, certified body stands behind them -- DR-0052):
+      __ctype_b_loc
+    optional (weak undefined; the program copes with their absence -- DR-0073):
+      _ITM_deregisterTMCloneTable
+      _ITM_registerTMCloneTable
+    waits on the named shims to be written and stubs filled; it links and loads against the runtime as it stands.
+bzip2=surface:45,forward:36,wired:5,shim:1,stub:0,filled:1,unclassified:0,optional:2,shape:dynamic,verdict:needs-wiring,run:skipped
+bzip2-nonpie ready         builds; 40 libc symbols: 34 forward, 5 wired, 0 shim, 0 stub, 1 filled
+    image shape: dynamic (the shape the crossing driver runs -- DR-0058); interp /lib64/ld-linux-x86-64.so.2, needs libc.so.6
+    wired (a written translation the live crossing certified stands behind them):
+      __errno_location
+      __lxstat64
+      __xstat64
+      open64
+      signal
+    filled (a synthesized, certified body stands behind them -- DR-0052):
+      __ctype_b_loc
+    run stage: bzip2-nonpie entered the crossing and ran, but its suite did not pass (exit 2; see /c/-/el8/accept/bzip2-nonpie/run-suite.out).
+bzip2-nonpie=surface:40,forward:34,wired:5,shim:0,stub:0,filled:1,unclassified:0,optional:0,shape:dynamic,verdict:ready,run:ran
+
+accept: 2 classified, 0 did not build
