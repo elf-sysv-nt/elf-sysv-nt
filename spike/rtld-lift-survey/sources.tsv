@@ -1,0 +1,12 @@
+# The FreeBSD rtld-elf sources this survey reads, pinned by checksum.
+#
+# Pinned at a release tag rather than at main, because main moves and a
+# transcript pinned to a moving branch rots on somebody else's schedule.
+# rtld.c is the whole runtime linker; rtld.h carries Obj_Entry, which is where
+# the coupling question lives.
+#
+# base is https://raw.githubusercontent.com/freebsd/freebsd-src/release/14.2.0
+#
+# file	path under libexec/rtld-elf	sha256
+rtld.c	rtld.c	840099bf1713f730f2ab09a0f00ce1466228beae6236932a8638fcf7af8c907d
+rtld.h	rtld.h	1f0d70aeafa7c7a4c51f5a94b1c53949acc803bab7f25825714c05edf596b0a9

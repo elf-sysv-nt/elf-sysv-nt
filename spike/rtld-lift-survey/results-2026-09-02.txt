@@ -1,0 +1,34 @@
+script  survey-rtld 1.0
+run_date  2026-09-02
+source  https://raw.githubusercontent.com/freebsd/freebsd-src/release/14.2.0/libexec/rtld-elf
+fetched  2
+reused  0
+
+## Licence
+
+rtld_c_spdx=BSD-2-Clause
+rtld_h_spdx=BSD-2-Clause
+compatible_with_lgplv3_tree=yes
+
+## Is the versioning path really there
+
+find_symdef=present
+symlook_obj=present
+symlook_obj1_gnu=present
+symlook_obj1_sysv=present
+matched_symbol=present
+rtld_verify_versions=present
+verdef_parsed=yes
+verneed_parsed=yes
+
+## What a lift would carry
+
+versioning_path_lines=320
+rtld_c_lines=6411
+bsd_kernel_includes=9
+rtld_own_includes=10
+standard_includes=9
+
+## Verdict
+
+verdict=liftable-on-licence-adaptation-is-the-question
