@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Reap the recording shells past worker runs leave behind.
+#
+# The worker's live, watchable session starts `script -q -a -f a/worker-live.log
+# -c "bash --login -i"` to record each run. That interactive shell does not exit
+# when the run ends -- it orphans to PID 1 and lingers on its pty -- so one
+# script/bash pair accumulates per run, every five minutes, whether the run
+# built anything or not. Left alone the count climbs into the dozens.
+#
+# Run this at the start of a run (before the lock). It kills every such recording
+# shell EXCEPT the one the current run is living in, which it finds by walking up
+# its own parent chain, so it never cuts the log out from under the run that
+# called it. Called from outside a worker run (no ancestor script), it reaps all
+# of them, which is what a manual cleanup wants.
+#
+# Usage: reap-worker-shells        # reap orphans, spare the current run's shell
+#        reap-worker-shells -n     # dry run: name what it would kill
+
+set -u
+log=/c/-/repo/elf-sysv-nt/a/worker-live.log
+pat="script -q -a -f $log"
+dry=0
+[ "${1:-}" = -n ] && dry=1
+
+# The current run's own recording script, if this is running inside one: walk up
+# from the parent until a process's command line is that script.
+spare=
+p=$PPID
+while [ -n "$p" ] && [ "$p" -gt 1 ]; do
+	line=$(ps -efa | awk -v x="$p" '$2==x')
+	[ -n "$line" ] || break
+	case "$line" in *"$pat"*) spare=$p; break ;; esac
+	p=$(printf '%s\n' "$line" | awk '{print $3}')
+done
+
+n=0
+for pid in $(ps -efa | grep -F "$pat" | grep -v grep | awk '{print $2}'); do
+	[ "$pid" = "$spare" ] && continue
+	# the child bash --login -i on the pty; captured before the script dies so it
+	# is killed by identity, never by a parent==1 guess that could catch an
+	# unrelated login shell.
+	child=$(ps -efa | awk -v x="$pid" '$3==x {print $2}')
+	if [ "$dry" = 1 ]; then
+		echo "would reap script $pid${child:+ (+ bash $child)}"
+		continue
+	fi
+	kill "$pid" 2>/dev/null && n=$((n+1))
+	[ -n "$child" ] && kill $child 2>/dev/null
+done
+
+[ "$dry" = 1 ] && exit 0
+[ "$n" = 0 ] || echo "reap-worker-shells: reaped $n orphaned recording shell(s)"
+exit 0
