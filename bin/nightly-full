@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# The full backstop for the incremental caches (proposal shorten-test-loop, 002).
+# The worker's cycle skips work whose inputs are unchanged: accept.sh caches a
+# package's build tree, and loader/exec/t/run.sh --since-last-pass skips a suite
+# step whose inputs match its last pass. Both key on content, and every landed
+# change is re-certified whole (the worker runs run.sh --full before a land). This
+# job is the belt-and-suspenders for what those keys did not anticipate: it runs
+# everything from clean on the trunk, so a cache that has gone wrong for a reason
+# outside its key is caught here rather than believed.
+#
+# It takes no cache's word. run.sh --full re-runs every suite step; accept.sh
+# under ACCEPT_FRESH=1 wipes and rebuilds every package tree. A failure is
+# recorded to a/build-blockers.log with the log to read, and the job exits
+# nonzero; a clean run says so and leaves no blocker.
+#
+# Usage: nightly-full [-o LOGDIR]
+# Run it on the trunk checkout (main == march). Meant for a nightly schedule;
+# safe to run by hand any time.
+
+set -u
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/.." && pwd)
+
+export HOME=${HOME:-/home/phdye}
+export PATH="/c/-/x-elfsysvnt/bin:$PATH"
+
+logdir=$repo/a/build-logs
+while [ $# -gt 0 ]; do
+	case $1 in
+		-o) logdir=${2:?}; shift 2 ;;
+		-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		*) printf 'nightly-full: unknown option %s\n' "$1" >&2; exit 2 ;;
+	esac
+done
+mkdir -p "$logdir"
+stamp=$(date -u +%Y%m%d-%H%M%S)
+log=$logdir/nightly-$stamp.log
+blockers=$repo/a/build-blockers.log
+
+say() { printf '%s\n' "$*" | tee -a "$log"; }
+say "# nightly-full backstop $stamp (repo $repo, $(git -C "$repo" rev-parse --short HEAD 2>/dev/null))"
+
+rc=0
+
+# The whole exec-dispatch suite, no skips -- the counterpart to the worker's
+# --since-last-pass pre-flight.
+say "== loader/exec/t/run.sh --full =="
+if bash "$repo/loader/exec/t/run.sh" --full -q >> "$log" 2>&1; then
+	say "  suite: ok"
+else
+	say "  suite: FAILED (rc $?)"
+	rc=1
+fi
+
+# Every pinned package from clean -- the counterpart to accept.sh's build cache.
+say "== accept.sh ACCEPT_FRESH=1 (all pinned packages) =="
+if ACCEPT_FRESH=1 bash "$repo/acceptance/accept.sh" -t >> "$log" 2>&1; then
+	say "  acceptance: ok"
+else
+	say "  acceptance: one package did not build (rc $?)"
+	rc=1
+fi
+
+if [ "$rc" != 0 ]; then
+	printf '%s nightly-full FAILED: a from-clean run disagreed with a cached one; read %s\n' \
+		"$stamp" "$log" >> "$blockers"
+	say "FAILED -- recorded to a/build-blockers.log; read $log"
+else
+	say "clean -- caches agree with a from-clean run"
+fi
+exit $rc
