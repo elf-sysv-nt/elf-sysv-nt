@@ -23,6 +23,31 @@ red zone like any x86-64 target, and a package's leaves use it as System V code
 does. `-mno-red-zone` stays selectable for a package that needs it; it is no
 longer forced. The decision superseding DR-0006 records it.
 
+## Where the flags come from
+
+`%optflags` is expanded from `redhat-rpm-config-131-1.el8`, not from RHEL 8's
+documentation. It carried the documented flags until 2026-09-02, and the two
+disagreed in six terms — among them `-fPIE`, whose absence is why the
+acceptance harness produced an `ET_EXEC` at `0x400000` that el8 does not ship,
+and why WP-56 spent a session parked on a placement conflict el8 never has.
+
+Red Hat spells its hardening as `-specs=` arguments naming files inside
+`redhat-rpm-config`; `redhat-hardened-cc1` injects `-fPIE` and
+`redhat-hardened-ld` injects `-pie`. Those files are Red Hat's rpm
+configuration and are not in this sysroot, so the flags they inject are
+written out here instead. That is S2 in `doc/substitutions.md`, and what
+closes it is a build under real rpm macros on a real el8 root.
+
+`spike/vendor-hardened-build/expand-flags.py` is the check, and it runs as
+part of that spike's regeneration. It resolves both macro chains — the
+vendor's and this one's — and diffs the terms that reach the compiler, with
+each `-specs=` argument replaced by what it injects, so a difference in
+spelling does not read as a difference in flags. The transcript's
+`cflags_absent_from_ours` line is what catches the next drift; it reads
+`-fcf-protection -fplugin=annobin` today, which is the pair of deliberate
+divergences the Not verified section below argues for. Anything else
+appearing on that line is a bug, not a decision.
+
 ## The ledger, which is the residual risk
 
 A compiler flag governs what the compiler emits. Hand-written assembly is
@@ -57,11 +82,15 @@ That the below-rsp pattern catches Intel-syntax assembly reliably. It has an
 alternation for `[rsp - N]` and nothing in the el8 set has exercised it. Most
 GNU-toolchain assembly is AT&T, which is what the tested arm covers.
 
-That `%optflags` matches what el8 actually builds with. It was written from
-RHEL 8's documented flags and not diffed against a vendor `redhat-rpm-config`,
-which is a cheap check nobody has run.
-
 That CET can be disabled this way. Spike 2 established the PE stub opts out of
 shadow stacks and Control Flow Guard for the process; `-fcf-protection=none`
 here is the compiler side of the same decision and has not been tested
-together with it.
+together with it. It is one of the two terms left over once `%optflags` was
+expanded against a real `redhat-rpm-config` (below).
+
+That dropping annobin costs nothing that matters. It is the other leftover
+term. `redhat-annobin-cc1` loads a gcc plugin that stamps build provenance
+into a `.gnu.build.attributes` section; the cross toolchain has no such
+plugin, so packages built here carry no annotations. Nothing in this project
+reads them, and `annocheck` is not part of any gate — but that is an argument
+from what we do rather than a measurement of what a vendor spec might expect.
