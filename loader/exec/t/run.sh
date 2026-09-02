@@ -150,7 +150,7 @@ mark_pass() { printf '%s %s' "$2" "${SMON_ID:-}" > "$passdir/$1.pass"; }
 
 smon_session build wp41-exec-dispatch
 smon_plan unit fuzz when specimen stub frontend exec-elf exec-script \
-	exec-chain exec-loop exec-nonelf exec-kind dyn-cross
+	exec-chain exec-loop exec-nonelf exec-kind dyn-cross low-window
 
 rc=0
 say() { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
@@ -327,6 +327,18 @@ if ! try_skip dyn-init "$kdi"; then
 		say "    FAILED    dyn-init: the stub's DT_INIT chain"
 		smon_step_fail dyn-init $?; rc=1
 	fi
+fi
+
+# The low window belongs to the guest, and the host side may not allocate into
+# it (DR-0072). This is the only step here that needs the faced runtime, so it
+# reports SKIP and passes where the WP-26 and WP-27 build products are absent.
+smon_step_start low-window
+if smon_cmd bash "$here/low-window-stub.sh" -q; then
+	say "    ok        low-window: the host side stayed out of the guest's window"
+	smon_step_ok low-window
+else
+	say "    FAILED    low-window: something the host allocated took the window"
+	smon_step_fail low-window $?; rc=1
 fi
 
 if [ "$rc" = 0 ]; then
