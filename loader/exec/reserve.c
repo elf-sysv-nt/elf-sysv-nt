@@ -34,7 +34,6 @@ static win_err reserve_at(uint64_t base, uint64_t size)
 win_err elf_window_reserve(elf_window *w, uint64_t base, uint64_t size)
 {
 	uint64_t g = granule(), lo, hi;
-	win_err rc;
 
 	if (!w || !size)
 		return win_err_arg;
@@ -46,8 +45,22 @@ win_err elf_window_reserve(elf_window *w, uint64_t base, uint64_t size)
 	if (hi <= lo)
 		return win_err_arg;
 
-	if ((rc = reserve_at(lo, hi - lo)) != win_ok)
-		return rc;
+#ifndef ELFSYSV_REALPROC
+	{
+		win_err rc = reserve_at(lo, hi - lo);
+		if (rc != win_ok)
+			return rc;
+	}
+#else
+	/* DR-0071: a real process of the faced runtime lays its own address
+	 * space, so there is no parent handover to reserve for. The fixed low
+	 * window reads free at _dll_crt0 startup where the host VirtualAlloc is
+	 * refused (spike/reent-realproc-low-window), and the image is placed
+	 * into it directly by the faced mmap (elf_map's hint). The window is
+	 * claimed as bookkeeping here without a host reservation; the placement
+	 * maps into the free low region rather than releasing a reservation, so
+	 * elf_window_yield's realproc branch skips the release. */
+#endif
 	w->base = lo;
 	w->size = hi - lo;
 	w->held = 1;
@@ -288,6 +301,21 @@ win_err elf_window_yield(elf_window *w, win_place_fn place, void *ctx)
 		return win_err_arg;
 	if (!w->held)
 		return win_err_arg;
+
+#ifdef ELFSYSV_REALPROC
+	/* DR-0071: the realproc reserve claimed the window without a host
+	 * reservation -- the faced runtime's own mmap places the image directly
+	 * into the free low window (elf_map's hint) -- so there is nothing to
+	 * release. Hand the bare, already-free window to the placer and keep it
+	 * held. No survey, no MEM_RELEASE, no re-reservation: the parent-handover
+	 * dance below has no work to do when the process laid its own space. */
+	{
+		uint64_t rlo = 0, rhi = 0;
+		if (place(ctx, w->base, w->size, &rlo, &rhi) != 0)
+			return win_err_place;
+		return win_ok;
+	}
+#endif
 
 	base = w->base;
 	size = w->size;
