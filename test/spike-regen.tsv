@@ -35,6 +35,9 @@ vendor-image-shape	/c/-/el8/vendor-image-shape	results-2026-[0-9]*.txt	bash meas
 # vendor-hardened-build cross-builds bzip2 twice, so its rerun costs a minute
 # rather than a second; it needs the cross toolchain, not just the el8 dump.
 vendor-hardened-build	/c/-/x-elfsysvnt/bin	results-2026-[0-9]*.txt	bash measure-vendor-build.sh -D /c/-/el8/vendor-hardened-build -q
+# rtld-lift-survey reads pinned FreeBSD sources and needs no toolchain; the
+# fetch is its only prerequisite, so it has no `needs` beyond network reach.
+rtld-lift-survey	-	results-2026-[0-9]*.txt	bash survey-rtld.sh -D /c/-/el8/rtld-lift-survey -q
 triple-fidelity	/c/-/el8/dump	results-2026-[0-9]*.txt	bash count-vendor-misses.sh --dump /c/-/el8/dump
 versioned-libc	/c/-/el8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d rocky8 -- bash probe-elfdeps.sh -D /mnt/c/-/el8/versioned-libc -o -
 # demand-census regenerates by re-running the detached, resumable census over
