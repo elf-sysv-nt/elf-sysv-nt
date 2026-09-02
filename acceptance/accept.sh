@@ -225,6 +225,33 @@ fetch() {
 	[ "$(sha256 "$file")" = "$want" ] || { rm -f "$file"; return 2; }
 }
 
+# Unpack the cached srpm into $work from clean and run the package's cross build,
+# leaving the built binary in `bin` and its source dir in `sdir` (both global, so
+# the caller sees them). Returns nonzero with `dnb` set to the does-not-build
+# reason the caller prints. Writes the $work/.built stamp with the current $bkey
+# only once a binary is in hand, so a failed build leaves no stamp and cannot be
+# served from cache next cycle. Always builds from clean; the caller decides when
+# to call it (a cache miss, or the passed re-verify).
+unpack_build() {
+	local name=$1 build=$2 binary=$3 srpm=$4 work=$5 tb
+	dnb=""
+	rm -rf "$work"; mkdir -p "$work"
+	python3 "$root/spike/versioned-libc/rpmx.py" "$srpm" "$work/src" >/dev/null 2>&1 \
+		|| { dnb="cannot unpack the source rpm"; return 1; }
+	tb=$(ls "$work"/src/*.tar.* 2>/dev/null | head -1)
+	[ -n "$tb" ] || { dnb="no source tarball in the rpm"; return 1; }
+	tar -C "$work" -xf "$tb" 2>/dev/null || { dnb="cannot untar the source"; return 1; }
+	sdir=$(ls -d "$work"/*/ 2>/dev/null | grep -v '/src/$' | head -1)
+	if ! ( cd "$sdir" && eval "${build//%CC%/$cross}" ) >"$work/build.log" 2>&1; then
+		dnb="the cross build failed (see $work/build.log)"; return 1
+	fi
+	bin=$sdir/$binary
+	[ -x "$bin" ] || bin=$(find "$sdir" -type f -name "$binary" | head -1)
+	[ -n "$bin" ] && [ -f "$bin" ] || { dnb="built, but no $binary produced"; return 1; }
+	printf '%s' "$bkey" > "$work/.built"
+	return 0
+}
+
 pass=0; fail=0
 say "# WP-T4 acceptance (embryo) -- $(date +%F)"
 say ""
@@ -267,12 +294,27 @@ _ch=$(sha256sum "$classification" | cut -d' ' -f1)
 _cr=$(for _l in "$root"/veneer/wiring/t/live-*.sh; do [ -e "$_l" ] || continue; _b=$(basename "$_l"); _b=${_b#live-}; echo "${_b%.sh}"; done | sort | paste -sd, -)
 vfp=$(printf '%s|%s' "$_ch" "$_cr" | sha256sum | cut -c1-12)
 
+# The build cache's key inputs that do not vary by package, computed once. A
+# package's cross build depends on the compiler, the sysroot headers it compiles
+# against, and the versioned symbols the sysroot's libc exports -- that export
+# set fixes the binary's import table and its GLIBC_* references, so it is the
+# thing that determines the link, not the .so's bytes. A sysroot rebuild can move
+# the headers or the libc without bumping the compiler's version string, so both
+# are keyed. Header contents go through a single cat so a thousand-odd files cost
+# under a second rather than a spawn each. buildbase joins the per-package `want`
+# and recipe into each tree's key (in the loop).
+_sysroot=$("$cross" -print-sysroot 2>/dev/null)
+_libc=$(ls "$_sysroot"/usr/lib64/libc.so.6 "$_sysroot"/lib64/libc.so.6 "$_sysroot"/lib/libc.so.6 2>/dev/null | head -1)
+_ccver=$("$cross" --version 2>/dev/null | head -1)
+_hdrs=$(find "$_sysroot"/usr/include -type f -print0 2>/dev/null | sort -z | xargs -0 cat 2>/dev/null | sha256sum | cut -d' ' -f1)
+_exps=$("${cross%gcc}nm" -D --defined-only "$_libc" 2>/dev/null | awk '{print $NF}' | sort -u | sha256sum | cut -d' ' -f1)
+buildbase=$(printf '%s|%s|%s' "$_ccver" "$_hdrs" "$_exps")
+
 while IFS=$'\t' read -r name relpath want build binary <&3; do
 	case $name in ''|\#*) continue ;; esac
 	[ -z "$only" ] || case " $only " in *" $name "*) ;; *) continue ;; esac
 
 	work=$dest/$name
-	rm -rf "$work"; mkdir -p "$work"
 	srpm=$dest/$(basename "$relpath")
 
 	if ! fetch "$relpath" "$want" "$srpm"; then
@@ -280,21 +322,29 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 		fail=$((fail+1)); continue
 	fi
 
-	python3 "$root/spike/versioned-libc/rpmx.py" "$srpm" "$work/src" >/dev/null 2>&1 \
-		|| { printf '%-12s does-not-build  cannot unpack the source rpm\n' "$name"; fail=$((fail+1)); continue; }
-	tb=$(ls "$work"/src/*.tar.* 2>/dev/null | head -1)
-	[ -n "$tb" ] || { printf '%-12s does-not-build  no source tarball in the rpm\n' "$name"; fail=$((fail+1)); continue; }
-	tar -C "$work" -xf "$tb" 2>/dev/null || { printf '%-12s does-not-build  cannot untar the source\n' "$name"; fail=$((fail+1)); continue; }
-	sdir=$(ls -d "$work"/*/ 2>/dev/null | grep -v '/src/$' | head -1)
-
-	blog=$work/build.log
-	if ! ( cd "$sdir" && eval "${build//%CC%/$cross}" ) >"$blog" 2>&1; then
-		printf '%-12s does-not-build  the cross build failed (see %s)\n' "$name" "$blog"
-		fail=$((fail+1)); continue
+	# The build tree is cached across cycles under a key over everything its
+	# output depends on: the srpm's pinned hash, the expanded recipe, and the
+	# sysroot terms above. A matching $work/.built stamp means unpack and build
+	# are settled -- re-derive the binary and skip them. ACCEPT_FRESH=1 forces a
+	# rebuild. A cache miss, or a stamp whose tree no longer holds the binary,
+	# falls through to a clean build; unpack_build writes the stamp only once a
+	# binary is in hand, so does-not-build is never served from cache.
+	bkey=$(printf '%s|%s|%s' "$want" "${build//%CC%/$cross}" "$buildbase" | sha256sum | cut -d' ' -f1)
+	cached=0; bin=""
+	if [ "${ACCEPT_FRESH:-0}" != 1 ] && [ "$(cat "$work/.built" 2>/dev/null)" = "$bkey" ]; then
+		sdir=$(ls -d "$work"/*/ 2>/dev/null | grep -v '/src/$' | head -1)
+		if [ -n "$sdir" ]; then
+			bin=$sdir/$binary
+			[ -x "$bin" ] || bin=$(find "$sdir" -type f -name "$binary" 2>/dev/null | head -1)
+			[ -n "$bin" ] && [ -f "$bin" ] && cached=1 || bin=""
+		fi
 	fi
-	bin=$sdir/$binary
-	[ -x "$bin" ] || bin=$(find "$sdir" -type f -name "$binary" | head -1)
-	[ -n "$bin" ] && [ -f "$bin" ] || { printf '%-12s does-not-build  built, but no %s produced\n' "$name" "$binary"; fail=$((fail+1)); continue; }
+	if [ "$cached" != 1 ]; then
+		if ! unpack_build "$name" "$build" "$binary" "$srpm" "$work"; then
+			printf '%-12s does-not-build  %s\n' "$name" "$dnb"
+			fail=$((fail+1)); continue
+		fi
+	fi
 
 	shp=$(shape_of "$bin")
 	skind=$(printf '%s\n' "$shp" | sed -n 's/^kind=//p')
@@ -334,6 +384,21 @@ while IFS=$'\t' read -r name relpath want build binary <&3; do
 	run_state=""; run_note=""
 	if [ "$run_stage" = 1 ] && [ "$verdict" = ready ]; then
 		run_suite "$name" "$sdir" "$bin" "$binary"
+		# `passed` is WP-56's overall done-when and the one line a reader acts on,
+		# so it never rests on a cached tree: if a cached build reports it, rebuild
+		# from clean and re-run the stage before believing it. A lesser verdict (a
+		# loader halt, a suite that ran and failed) is diagnostic, and the cached
+		# tree witnesses it as well as a fresh one would.
+		if [ "$run_state" = passed ] && [ "$cached" = 1 ]; then
+			if unpack_build "$name" "$build" "$binary" "$srpm" "$work"; then
+				run_suite "$name" "$sdir" "$bin" "$binary"
+				[ "$run_state" = passed ] && \
+					run_note="$run_note"$'\n'"    (passed re-verified on a clean rebuild, not served from cache)"
+			else
+				run_state="ran"
+				run_note="    run stage: $name passed from a cached tree, but a clean rebuild did not produce the binary ($dnb); not crediting passing."
+			fi
+		fi
 		[ "$run_state" = passed ] && verdict=passing
 	fi
 
