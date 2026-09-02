@@ -11,4 +11,5 @@
 # WP-61's hold lifted 2026-08-31: the cross gdb was rebuilt on the primary root,
 #   the SIGPIPE is gone, and runtime/coredump certifies 15 of 15.
 # (nothing held)
-WP-56	# parked: see a/build-blockers.log
+# WP-56 parked 2026-09-02: faced runtime occupies link window 0x400000; see a/build-blockers.log
+WP-56
