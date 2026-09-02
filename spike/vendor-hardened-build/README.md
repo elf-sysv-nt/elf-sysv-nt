@@ -34,6 +34,29 @@ configuration and are not in this sysroot. That replacement is the spike's one
 substitution, and it is why the macro-chain findings are here at all: they are
 what makes the replacement checkable rather than asserted.
 
+## The second question, added 2026-09-02
+
+Building bzip2 the vendor's way settles one package. Whether the macro set
+this project ships would build *any* package the vendor's way is a different
+claim, and `toolchain/rpm/README.md` had it down as written from RHEL 8's
+documentation and never checked against a real `redhat-rpm-config`. The
+package is already unpacked here, so the check costs a subprocess.
+
+`expand-flags.py` resolves both macro chains and diffs the terms that reach
+the compiler. It is a small rpm-macro expander — `%{name}`, `%{?name:body}`,
+`%{!?name:body}`, continuations — deliberately covering the forms these two
+files use and no more; a form it does not know survives into the diff as an
+unexpanded term rather than disappearing. Each `-specs=` argument is replaced
+by the flag that specs file injects, taken from the file itself, because the
+comparison is about what reaches the compiler rather than how Red Hat spells
+it. `specs_resolved` records which files were read and what each gave.
+
+The first run found six terms missing on the compile side, including `-fPIE`,
+and `-pie` missing on the link side. Those are in now. What is left is the
+pair this project diverges on deliberately: `-fcf-protection`, which DR-0062
+replaces with `-fcf-protection=none`, and annobin's `-fplugin=annobin`, whose
+gcc plugin the cross toolchain does not have.
+
 ## The finding
 
 `results-2026-09-02.txt`. The vendor ships an `ET_DYN` with zero-based

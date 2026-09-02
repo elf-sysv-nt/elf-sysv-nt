@@ -267,6 +267,16 @@ printf 'vendor_flags_e_type=%s\n' "$f_type"
 printf 'vendor_flags_load_base=%s\n' "$(loadbase "$dest/vendor/bzip2")"
 printf 'vendor_flags_granule_separable=%s\n' "$(separable "$dest/vendor/bzip2")"
 
+# The other half of the same question. Building bzip2 the vendor's way settles
+# one package; whether the macro set this project ships would build any package
+# the vendor's way is a different claim, and toolchain/rpm/README.md had it
+# down as written from documentation and never checked. The chain is already
+# unpacked here, so the check costs nothing extra.
+printf '\n## The macro set we ship, against the vendor'"'"'s\n\n'
+python3 "$here/expand-flags.py" --vendor-root "$dest/ref" \
+	--ours "$here/../../toolchain/rpm/macros.elfsysvnt" \
+	|| die "the flag expansion failed"
+
 # The verdict is derived, not asserted. It holds only while el8 ships a PIE,
 # the naked line produces an ET_EXEC, and the vendor-effective line reproduces
 # the vendor's shape; if Red Hat ever shipped an ET_EXEC bzip2 this flips and
