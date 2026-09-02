@@ -55,6 +55,22 @@ repair, and whoever takes it should reopen this record." No package names
 
 ## Correctness gaps still unowned
 
+**A shim is credited `wired` without a body.** `acceptance/accept.sh:281-296`
+takes the union of `wire-<slice>.shims.tsv` over slices carrying a
+`live-<slice>.sh` and calls every symbol in it `wired`, on the stated ground
+that "a written translation stands behind each". Nothing tests that. Measured
+2026-09-02: 122 shim rows are credited across the crossed slices, and the
+sample checked has no bodies — `__errno_location` and `open64` have no
+implementation anywhere under `veneer/` or `runtime/`, and the only
+hand-written shim family in the tree is `wire-jmpbuf-face.inc`. A slice
+becomes certified by the existence of its `live-<slice>.sh`, and
+`live-string.sh` proves only that its one shim is correctly *absent* from the
+bind. The root-cause repair is to credit `wired` against a curated bodies
+manifest, the way `filled` already works through `*-filled.tsv`; it re-verdicts
+122 symbols and belongs to whoever owns the acceptance witness. Found while
+applying `a/proposal/fortify-family/001.md`, whose step 0 would have extended
+the credit by 42 more rows.
+
 **The `SA_RESTART` down-call wrapper is not written.**
 `doc/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated at
 `doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote
