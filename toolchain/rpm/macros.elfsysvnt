@@ -49,9 +49,24 @@
 # said it would. The macro stays defined and empty so %optflags does not break.
 %_elfsysvnt_mandates	%{nil}
 
+# Expanded from redhat-rpm-config-131-1.el8 rather than from RHEL 8's
+# documentation, which is what this file used to carry. The two files disagreed
+# in six terms; spike/vendor-hardened-build's flag diff is the check, and its
+# cflags_absent_from_ours line is what catches the next drift. The vendor's own
+# spelling puts the hardening behind -specs= arguments that name Red Hat's
+# files; those files are not in this sysroot, so the flags they inject are
+# written out instead (S2 in doc/substitutions.md).
+#
+# -fPIE is the one that matters. Its absence is why the acceptance harness
+# produced an ET_EXEC at 0x400000 that el8 does not ship, and why WP-56 spent a
+# session parked on a placement conflict el8 never has.
+%_elfsysvnt_pie		-fPIE
 %optflags		-O2 -g -pipe -Wall -Werror=format-security \\\
-			-Wp,-D_FORTIFY_SOURCE=2 \\\
+			-Wp,-D_FORTIFY_SOURCE=2 -Wp,-D_GLIBCXX_ASSERTIONS \\\
 			-fexceptions -fstack-protector-strong \\\
+			-grecord-gcc-switches \\\
+			%{_elfsysvnt_pie} \\\
+			-m64 -mtune=generic \\\
 			-fasynchronous-unwind-tables \\\
 			-fstack-clash-protection \\\
 			%{_elfsysvnt_mandates}
@@ -63,7 +78,8 @@
 %_elfsysvnt_no_cet	-fcf-protection=none
 %build_cflags		%{optflags} %{_elfsysvnt_no_cet} --sysroot=%{_elfsysvnt_sysroot}
 %build_cxxflags		%{build_cflags}
-%build_ldflags		-Wl,-z,relro -Wl,-z,now --sysroot=%{_elfsysvnt_sysroot}
+%build_ldflags		-Wl,-z,relro -Wl,-z,now -pie \\\
+			--sysroot=%{_elfsysvnt_sysroot}
 
 # Paths inside the sysroot rather than on the build host. A package that
 # resolves %{_libdir} to the host's own /usr/lib64 links the host's libraries
