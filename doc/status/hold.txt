@@ -13,3 +13,5 @@
 # (nothing held)
 # WP-56 parked 2026-09-02: faced runtime occupies link window 0x400000; see a/build-blockers.log
 WP-56
+# WP-T4 parked 2026-09-02: scope/authority, tier 8 — see a/build-blockers.log
+WP-T4
