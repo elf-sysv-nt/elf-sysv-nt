@@ -62,4 +62,52 @@ return -1;
 return (int)p(2, s, (unsigned long)rp_strlen(s));
 }
 
+/*
+ * The map/enter path's memory primitives. elf_map places the image through
+ * mmap/mprotect/munmap; in the crossing host those are the faced runtime's,
+ * so a direct Microsoft-ABI call crosses the DR-0066 boundary the wrong way
+ * and faults. Each rides a sysv_abi thunk resolved from elfsysv1.dll's export
+ * directory, the same direction rp_puts/rp_eputs cross. off is 64-bit to match
+ * the System V mmap(2) off_t; failure returns the libc sentinels the callers
+ * already test (MAP_FAILED == (void *)-1, -1) so an absent export reads as an
+ * ordinary map failure rather than a fault.
+ */
+void *rp_mmap(void *addr, size_t len, int prot, int flags, int fd,
+	      long long off)
+{
+typedef void *(__attribute__((sysv_abi)) *mmap_fn)(void *, size_t, int, int,
+						   int, long long);
+static mmap_fn p;
+if (!p)
+p = (mmap_fn)(void *)GetProcAddress(
+GetModuleHandleA("elfsysv1.dll"), "mmap");
+if (!p)
+return (void *)-1;
+return p(addr, len, prot, flags, fd, off);
+}
+
+int rp_mprotect(void *addr, size_t len, int prot)
+{
+typedef int (__attribute__((sysv_abi)) *mprotect_fn)(void *, size_t, int);
+static mprotect_fn p;
+if (!p)
+p = (mprotect_fn)(void *)GetProcAddress(
+GetModuleHandleA("elfsysv1.dll"), "mprotect");
+if (!p)
+return -1;
+return p(addr, len, prot);
+}
+
+int rp_munmap(void *addr, size_t len)
+{
+typedef int (__attribute__((sysv_abi)) *munmap_fn)(void *, size_t);
+static munmap_fn p;
+if (!p)
+p = (munmap_fn)(void *)GetProcAddress(
+GetModuleHandleA("elfsysv1.dll"), "munmap");
+if (!p)
+return -1;
+return p(addr, len);
+}
+
 #endif /* ELFSYSV_REALPROC */

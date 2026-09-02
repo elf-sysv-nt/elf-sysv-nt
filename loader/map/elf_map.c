@@ -23,6 +23,25 @@
 #include <stdarg.h>
 #include <errno.h>
 
+#ifdef ELFSYSV_REALPROC
+/* Under the faced-runtime crossing host (DR-0071) this unit's process runtime
+ * is the System V elfsysv1.dll, not host cygwin, so its mmap/mprotect/munmap
+ * must cross the DR-0066 Microsoft<->System V boundary through sysv_abi thunks
+ * resolved from the faced DLL -- the seam realproc-cross.c crosses for output.
+ * A direct call would cross the boundary the wrong way and fault. The plain-PE
+ * stub compiles without ELFSYSV_REALPROC and keeps the native, non-crossing
+ * calls, so its map path is byte-for-byte unchanged. The function-like macros
+ * intercept the call sites without editing them; they expand only where the
+ * name is invoked as a call, after <sys/mman.h>'s declarations are parsed. */
+void *rp_mmap(void *addr, size_t len, int prot, int flags, int fd,
+	      long long off);
+int   rp_mprotect(void *addr, size_t len, int prot);
+int   rp_munmap(void *addr, size_t len);
+#define mmap(a, l, p, f, fd, o)  rp_mmap((a), (l), (p), (f), (fd), (o))
+#define mprotect(a, l, p)        rp_mprotect((a), (l), (p))
+#define munmap(a, l)             rp_munmap((a), (l))
+#endif
+
 /* The parser keeps p_flags verbatim in elf_load_seg.flags. */
 #ifndef PF_X
 #define PF_X 1u
