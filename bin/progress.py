@@ -395,7 +395,8 @@ def parse_results(path):
     what names them)."""
     pkgs, cur, bucket = {}, None, None
     label = [('wired', 'wired'), ('shim', 'shim'), ('stub', 'stub'),
-             ('filled', 'filled'), ('unclassified', 'unclassified')]
+             ('filled', 'filled'), ('unclassified', 'unclassified'),
+             ('optional', 'optional')]
     if not path:
         return pkgs
     for line in open(path, encoding='utf-8', errors='replace'):
@@ -403,6 +404,7 @@ def parse_results(path):
         m = re.match(r'^(?P<name>\S+)=surface:(?P<surface>\d+),forward:(?P<forward>\d+),'
                      r'(?:wired:(?P<wired>\d+),)?shim:(?P<shim>\d+),stub:(?P<stub>\d+),'
                      r'filled:(?P<filled>\d+),unclassified:(?P<unclassified>\d+),'
+                     r'(?:optional:(?P<optional>\d+),)?'
                      r'(?:shape:(?P<shape>\S+),)?verdict:(?P<verdict>\S+)', raw)
         if m:
             g = m.groupdict()
@@ -410,7 +412,8 @@ def parse_results(path):
             d['total'] = int(g['surface'])
             d['counts'] = dict(forward=int(g['forward']), wired=int(g['wired'] or 0),
                                shim=int(g['shim']), stub=int(g['stub']),
-                               filled=int(g['filled']), unclassified=int(g['unclassified']))
+                               filled=int(g['filled']), unclassified=int(g['unclassified']),
+                               optional=int(g['optional'] or 0))
             d['shape'], d['verdict'] = g['shape'] or '-', g['verdict']
             cur = None
             continue

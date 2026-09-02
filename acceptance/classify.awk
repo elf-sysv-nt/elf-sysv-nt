@@ -10,6 +10,12 @@
 #            live-<slice>.sh crossing. A bucket-3 shim named here has a
 #            written translation the live crossing certified, not an unwritten
 #            promise.
+#   weak     the subset of those symbols the binary marks weak undefined, one
+#            bare name per line. ELF lets a weak undefined resolve to zero and
+#            obliges the program to cope, so its absence is not a demand the
+#            runtime failed to meet (DR-0073). Weakness excuses an absence; it
+#            does not hide a symbol the veneer does carry, so a weak symbol
+#            that is in the map still reports its own bucket.
 #   needs    the binary's undefined libc symbols, one bare name per line.
 #   classif  veneer/classification/classification.tsv -- symbol in column 2,
 #            the resolution bucket in column 4 (1/2 forward, 3 shim, 4 stub,
@@ -24,6 +30,7 @@
 BEGIN { FS = "\t" }
 FILENAME == filled { if ($1 !~ /^#/ && $1 != "") fill[$1] = 1; next }
 FILENAME == wired  { if ($1 !~ /^#/ && $1 != "") done[$1] = 1; next }
+FILENAME == weak   { if ($1 != "")               soft[$1] = 1; next }
 FILENAME == needs  { if ($1 != "")               want[$1] = 1; next }
 ($2 in want) && !($2 in disp) { disp[$2] = $4 }
 END {
@@ -32,7 +39,7 @@ b = (s in disp) ? disp[s] : "none"
 if      (b == "1" || b == "2") k = "forward"
 else if (b == "3")             k = (s in done) ? "wired" : "shim"
 else if (b == "4")             k = (s in fill) ? "filled" : "stub"
-else                           k = "unclassified"
+else                           k = (s in soft) ? "optional" : "unclassified"
 print k, s
 }
 }
