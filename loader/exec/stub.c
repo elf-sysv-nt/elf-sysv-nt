@@ -418,6 +418,12 @@ int main(int argc, char **argv)
 
 	if (!(image = slurp(path, &size)))
 		return 1;
+	/* Where the read landed, because for one session it landed in the
+	 * guest's window and the refusal that followed could not say so
+	 * (DR-0072). The suite reads this line; a reader watching a placement
+	 * fail wants it before anything else. */
+	say("image buffer at 0x%" PRIx64 " for 0x%" PRIx64,
+	    (uint64_t)(UINT_PTR) image, (uint64_t) size);
 
 	memset(&pdiag, 0, sizeof pdiag);
 	if ((perr = elf_parse(image, size, &parsed, &pdiag)) != elf_ok)

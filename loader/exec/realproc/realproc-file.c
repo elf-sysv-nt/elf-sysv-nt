@@ -26,6 +26,38 @@
 #include <stddef.h>
 
 #include "realproc.h"
+#include "reserve.h"
+
+/*
+ * Scratch memory, taken above the low window rather than wherever the host
+ * feels like putting it. VirtualAlloc(NULL, ...) is satisfied out of the
+ * lowest free region, and in this process the lowest free region is the low
+ * window itself, so the buffer holding the image landed exactly where the
+ * image had to go -- a span whose size tracked the file's, which is how it was
+ * finally recognised. The scan walks free regions from the top of the window
+ * upward and takes the first that fits; a failure returns NULL and reads as an
+ * ordinary read failure, since a buffer below the line is not an acceptable
+ * fallback under DR-0072.
+ */
+static unsigned char *alloc_above_window(size_t len)
+{
+MEMORY_BASIC_INFORMATION m;
+uint64_t at = ELF_WINDOW_BASE + ELF_WINDOW_SIZE;
+void *p;
+
+while (at < UINT64_C(0x7ff000000000)) {
+if (!VirtualQuery((void *)(UINT_PTR) at, &m, sizeof m))
+break;
+if (m.State == MEM_FREE && (uint64_t) m.RegionSize >= (uint64_t) len) {
+p = VirtualAlloc((void *)(UINT_PTR) at, len,
+ MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+if (p)
+return (unsigned char *) p;
+}
+at = (uint64_t)(UINT_PTR) m.BaseAddress + (uint64_t) m.RegionSize;
+}
+return NULL;
+}
 
 unsigned char *rp_slurp(const char *path, size_t *size, int *err)
 {
@@ -43,8 +75,7 @@ if (!GetFileSizeEx(h, &li) || li.QuadPart < 0) {
 }
 len = (size_t) li.QuadPart;
 
-buf = VirtualAlloc(NULL, len ? len : 1, MEM_RESERVE | MEM_COMMIT,
-   PAGE_READWRITE);
+buf = alloc_above_window(len ? len : 1);
 if (!buf) { *err = RP_SLURP_READ; CloseHandle(h); return NULL; }
 
 /* ReadFile takes a DWORD count; loop so a >4G image is not truncated. */
