@@ -36,6 +36,18 @@ vendor_flags_e_type=DYN
 vendor_flags_load_base=zero
 vendor_flags_granule_separable=yes
 
+## The macro set we ship, against the vendor's
+
+specs_resolved=redhat-hardened-cc1=-fPIE redhat-annobin-cc1=-fplugin=annobin redhat-hardened-ld=-pie
+cflags_vendor_terms=17
+cflags_ours_terms=17
+cflags_absent_from_ours=-fcf-protection -fplugin=annobin
+cflags_extra_in_ours=--sysroot -fcf-protection=none
+ldflags_vendor_terms=3
+ldflags_ours_terms=4
+ldflags_absent_from_ours=none
+ldflags_extra_in_ours=--sysroot
+
 ## Verdict
 
 verdict=the-non-pie-image-is-the-harness-artifact
