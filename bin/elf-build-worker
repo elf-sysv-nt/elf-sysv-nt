@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+#
+# One tick of the elf-sysv-nt build worker, headless, for a scheduler to call
+# every five minutes through the night.
+#
+# The worker itself is the prompt at ~/Claude/Scheduled/elf-build-worker/SKILL.md,
+# the same one the Cowork scheduled task runs by day. This script hands that
+# prompt to `claude -p` from the trunk checkout, so a tick does what a Cowork
+# tick does: take the lock, pick one work package, advance it, land or defer,
+# release. Progress is measured in git commits, as before, and the run trace,
+# the build logs, and the lock are the ones the day worker keeps. Outside the
+# night window a tick exits at once, so the scheduler may fire it all day and
+# only the night hours cost anything.
+#
+# What the day worker has that a bare `claude -p` does not, and how each is
+# kept here:
+#   the live log      the transcript streams to a/worker-live.log, the file the
+#                     operator already tails and the file the lock steal reads
+#                     to tell a live run from a dead one
+#   the skills        verify-first, reproducible-spike, leaf-to-trunk-tdd and
+#                     human-writing must be installed where Claude Code finds
+#                     them (the Windows profile's .claude/skills); `-c` checks
+#   the Cygwin shell  CLAUDE_CODE_GIT_BASH_PATH names this root's bash, so the
+#                     Bash tool is the shell the toolchain was built for
+#   one run at a time a pidfile refuses a tick while the last one is running,
+#                     before any model call is made
+#   continuity        ticks on the same work package resume one Claude session
+#                     (--session-id, then --resume), so the diagnosis a run
+#                     ended on is in context when the next begins and the
+#                     orientation cost is paid once per session, not per tick;
+#                     a session is retired after 6 runs or 4 hours, when the WP
+#                     changes, or when a run did not end cleanly
+#
+# A tick that cannot do anything costs nothing: outside the window, while the
+# last tick is still running, while the day worker holds the lock, or when
+# `build_status.py --next` is empty, it exits before any model call.
+#
+# Register with Cygwin cron:
+#   */5 * * * *  /c/-/repo/elf-sysv-nt/bin/elf-build-worker
+# or with the Windows scheduler, from an elevated prompt:
+#   schtasks /create /tn elf-build-worker /sc minute /mo 5 ^
+#     /tr "C:\-\cygwin\root\bin\bash.exe -l -c /c/-/repo/elf-sysv-nt/bin/elf-build-worker"
+# Either way, pause the Cowork task for the same hours; two workers on one
+# repo only ever cost a wasted LOCKED tick, but they cost it every five minutes.
+#
+# Usage: elf-build-worker [-f] [-n] [-c] [-t SECS] [--model M] [--effort E]
+#   -f          run now, ignoring the night window
+#   -n          say what would run and exit
+#   -c          check the environment (claude, bash, prompt, skills) and exit
+#   -t SECS     cap one tick at SECS (default 5400; the lock steal is 3h)
+#   --model M   fable, opus, sonnet, or a full model name (else claude's default)
+#   --effort E  low, medium, high, xhigh, or max (else claude's default)
+# Both take effect at the next tick, resumed sessions included.
+#
+# Window: 22:00 to 07:00 local, read from `date +%H`; set ELF_WORKER_FROM and
+# ELF_WORKER_UNTIL (hours, 0-23) to move it. ELF_WORKER_MODEL and
+# ELF_WORKER_EFFORT are the environment forms of --model and --effort;
+# ELF_WORKER_CLAUDE names the claude binary and ELF_WORKER_PROMPT the SKILL.md
+# when they are not where this script looks;
+# ELF_WORKER_MAX_RUNS and ELF_WORKER_MAX_HOURS bound a session (6, 4). Each
+# tick appends a line to a/worker-cron.log; the session state is
+# a/.elf-build-worker.session. Both are gitignored; delete the session file to
+# force a fresh start.
+
+set -u
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/.." && pwd)
+
+export HOME=${HOME:-/home/phdye}
+# cron hands over almost no environment. Rebuild the one the prompt assumes:
+# the cross toolchain first, then this root's bin, then wherever npm put claude.
+export PATH="/c/-/x-elfsysvnt/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$PATH"
+export CLAUDE_CODE_GIT_BASH_PATH=${CLAUDE_CODE_GIT_BASH_PATH:-/c/-/cygwin/root/bin/bash.exe}
+
+# claude.exe is a native program: its home is the Windows profile, not the
+# Cygwin one, and that is where the Cowork prompt and the Claude Code skills live.
+winhome=$(cygpath -u "${USERPROFILE:-C:/Users/phdye}" 2>/dev/null || echo /c/Users/phdye)
+skill=${ELF_WORKER_PROMPT:-$winhome/Claude/Scheduled/elf-build-worker/SKILL.md}
+live=$repo/a/worker-live.log
+log=$repo/a/worker-cron.log
+pidfile=$repo/a/.elf-build-worker.pid
+sessfile=$repo/a/.elf-build-worker.session
+max_runs=${ELF_WORKER_MAX_RUNS:-6}
+max_age=$(( ${ELF_WORKER_MAX_HOURS:-4} * 3600 ))
+from=${ELF_WORKER_FROM:-22}
+until=${ELF_WORKER_UNTIL:-7}
+cap=5400
+force=0
+dry=0
+check=0
+
+while [ $# -gt 0 ]; do
+	case $1 in
+		-f) force=1; shift ;;
+		-n) dry=1; shift ;;
+		-c) check=1; shift ;;
+		-t) cap=${2:?}; shift 2 ;;
+		--model) ELF_WORKER_MODEL=${2:?}; shift 2 ;;
+		--effort) ELF_WORKER_EFFORT=${2:?}; shift 2 ;;
+		-h|--help) sed -n '2,63p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		*) printf 'elf-build-worker: unknown option %s\n' "$1" >&2; exit 2 ;;
+	esac
+done
+
+stamp() { date -u +%FT%TZ; }
+note() { printf '%s %s\n' "$(stamp)" "$*" >> "$log"; }
+
+# The native claude.exe, not the /usr/local/bin/claude shim. The shim exists to
+# give an interactive session a console; a cron tick has no terminal and needs
+# none, and the shim was measured to hang under a pipe (2026-09-02) where the
+# executable answers at once.
+claude_bin() {
+	if [ -n "${ELF_WORKER_CLAUDE:-}" ]; then echo "$ELF_WORKER_CLAUDE"; return; fi
+	for c in "${CLAUDE_EXE:-}" "$HOME/.local/bin/claude.exe" \
+	         "$winhome/.local/bin/claude.exe" "$winhome/AppData/Roaming/npm/claude.exe"; do
+		[ -n "$c" ] && [ -x "$c" ] && { echo "$c"; return; }
+	done
+	command -v claude 2>/dev/null && return
+	return 1
+}
+
+new_uuid() {
+	command -v uuidgen >/dev/null 2>&1 && { uuidgen | tr 'A-Z' 'a-z'; return; }
+	python3 -c 'import uuid; print(uuid.uuid4())'
+}
+
+# The window wraps midnight, so "inside" is hour >= from OR hour < until when
+# from is the larger of the two. A window that does not wrap is the plain case.
+in_window() {
+	local h=$((10#$(date +%H)))
+	if [ "$from" -gt "$until" ]; then
+		[ "$h" -ge "$from" ] || [ "$h" -lt "$until" ]
+	else
+		[ "$h" -ge "$from" ] && [ "$h" -lt "$until" ]
+	fi
+}
+
+if [ "$check" = 1 ]; then
+	rc=0
+	ok() { printf '  ok      %s\n' "$*"; }
+	bad() { printf '  MISSING %s\n' "$*"; rc=1; }
+	echo "elf-build-worker -c"
+	if c=$(claude_bin); then ok "claude: $c ($("$c" --version 2>/dev/null | head -1))"; else bad "claude binary (set ELF_WORKER_CLAUDE)"; fi
+	[ -x "$CLAUDE_CODE_GIT_BASH_PATH" ] && ok "bash: $CLAUDE_CODE_GIT_BASH_PATH" || bad "bash at $CLAUDE_CODE_GIT_BASH_PATH"
+	[ -f "$skill" ] && ok "prompt: $skill" || bad "prompt: $skill"
+	command -v x86_64-elfsysvnt-linux-gnu-gcc >/dev/null 2>&1 && ok "cross toolchain on PATH" || bad "cross toolchain (/c/-/x-elfsysvnt/bin)"
+	for s in verify-first reproducible-spike leaf-to-trunk-tdd human-writing; do
+		found=
+		for d in "$winhome/.claude/skills/$s" "$winhome/.claude/plugins"/*/skills/"$s" \
+		         "$winhome/.claude/plugins"/*/*/skills/"$s"; do
+			[ -f "$d/SKILL.md" ] && { found=$d; break; }
+		done
+		if [ -n "$found" ]; then
+			ok "skill: $s ($found)"
+		else
+			bad "skill: $s (the prompt leans on it; install it where Claude Code loads skills)"
+		fi
+	done
+	[ -f "$repo/CLAUDE.md" ] && ok "repo: $repo (CLAUDE.md present)" || bad "repo: $repo has no CLAUDE.md"
+	in_window && echo "  window: open now ($from:00-$until:00)" || echo "  window: closed now ($from:00-$until:00)"
+	exit $rc
+fi
+
+if [ "$force" = 0 ] && ! in_window; then
+	[ "$dry" = 1 ] && echo "outside the $from:00-$until:00 window; nothing to do"
+	exit 0
+fi
+
+[ -f "$skill" ] || { printf 'elf-build-worker: no prompt at %s\n' "$skill" >&2; note "tick refused: no prompt"; exit 1; }
+claude=$(claude_bin) || { printf 'elf-build-worker: claude not found\n' >&2; note "tick refused: no claude"; exit 1; }
+
+# A tick runs twenty minutes or more, and the scheduler fires every five. The
+# worker's own lock would turn the overlap into a LOCKED no-op, but that no-op
+# is a whole model invocation; refuse here first, while it is still free.
+if [ -f "$pidfile" ]; then
+	old=$(cat "$pidfile" 2>/dev/null || echo 0)
+	if [ "$old" -gt 0 ] 2>/dev/null && kill -0 "$old" 2>/dev/null; then
+		[ "$dry" = 1 ] && echo "tick $old still running"
+		exit 0
+	fi
+	rm -f "$pidfile"
+fi
+
+# Two more refusals that cost no tokens. The worker's STEP 1 and STEP 2 would
+# reach the same answers, but only after a model call has read the whole
+# prompt; on an idle night that is a hundred invocations to learn "nothing to
+# build" a hundred times. Ask the plan directly, and honour the day worker's
+# lock without starting a run that would only print LOCKED.
+if [ -d "$repo/a/.build-worker.lock" ]; then
+	[ "$dry" = 1 ] && echo "worker lock held (a/.build-worker.lock); another run is live"
+	exit 0
+fi
+next=$(cd "$repo" && python3 bin/build_status.py --next 2>>"$log") || {
+	# An empty answer from a failing script is not "nothing to build"; say so
+	# loudly rather than sleep through the night on a traceback.
+	note "tick refused: build_status.py --next failed (see the lines above)"
+	exit 1
+}
+if [ -z "$next" ]; then
+	[ "$dry" = 1 ] && echo "nothing to build: --next is empty"
+	# Once per night, not once per tick: the line is for the morning read.
+	case "$(tail -1 "$log" 2>/dev/null)" in *nothing-to-build*) ;; *) note "nothing-to-build; ticks are free until --next changes" ;; esac
+	exit 0
+fi
+
+# Continue or start fresh. A tick on the same WP as the last one resumes that
+# session, so the diagnosis it ended on is still in context when the next
+# increment begins; the fresh-run cost (the prompt, AGENTS.md, the spec, the
+# code around the halt) is paid once per session instead of once per tick.
+# A session is retired when the WP changes, when its last run did not end
+# cleanly, or when it has run enough times that compaction would be eating the
+# very context continuity was for.
+s_id=; s_wp=; s_runs=0; s_since=0; s_ok=1
+[ -f "$sessfile" ] && . "$sessfile"
+now=$(date +%s)
+mode=fresh
+if [ -n "$s_id" ] && [ "$s_wp" = "$next" ] && [ "$s_ok" = 1 ] \
+   && [ "$s_runs" -lt "$max_runs" ] && [ $((now - s_since)) -lt "$max_age" ]; then
+	mode=resume
+fi
+
+if [ "$dry" = 1 ]; then
+	echo "next: $next"
+	if [ "$mode" = resume ]; then
+		echo "would resume session $s_id (run $((s_runs + 1)) of $max_runs, $(((now - s_since) / 60)) min old)"
+	else
+		echo "would start a fresh session${s_id:+ (retiring $s_id: wp=$s_wp ok=$s_ok runs=$s_runs)}"
+	fi
+	echo "  cd $repo && timeout $cap $claude -p --dangerously-skip-permissions --verbose --output-format stream-json ... >> $live"
+	exit 0
+fi
+
+mkdir -p "$repo/a"
+echo $$ > "$pidfile"
+trap 'rm -f "$pidfile"' EXIT
+
+# The prompt is written for the Cowork runner, whose shell arrives through
+# desktop-commander and whose transcript is captured by `script`. Under
+# claude -p there is a Bash tool and the caller captures the transcript, so say
+# so ahead of the prompt rather than editing the file the day worker shares.
+preamble='HEADLESS RUN. You are running under `claude -p` from a cron tick, not under Cowork. There is no desktop-commander and no start_process: run every command through your Bash tool, which is already the Cygwin bash named in ENVIRONMENT, with HOME and PATH set. Do NOT start the `script` recording shell from LIVE, WATCHABLE SESSION; this transcript is already being written to a/worker-live.log by the caller. Everything else in the prompt below applies unchanged: the run trace, the lock, the per-WP build log, verify-first against the failing run, the decision ladder, and one work package per run.'
+
+# On a resumed session the prompt is already in context; what the tick sends is
+# the instruction to go round again, and the one reminder that matters most
+# after a gap: the failing run is the compass, so re-run it before building.
+again='NEXT TICK, same session. Run STEP 0 through STEP 6 again, exactly as the prompt at the start of this session says, for one more increment of the same work package. Begin by RE-RUNNING the integration test (AIM): the halt you left may have moved if anything landed since, and what you remember about it is a hypothesis until the run confirms it. Take the lock, work only the obstacle the run surfaces, re-run, commit, release the lock, append run-done.'
+
+cd "$repo" || exit 1
+printf '\n# headless tick %s pid=%s mode=%s\n' "$(stamp)" "$$" "$mode" >> "$live"
+if [ "$mode" = resume ]; then
+	note "tick start pid=$$ resume=$s_id run=$((s_runs + 1)) wp=$next cap=${cap}s"
+	printf '%s\n' "$again" \
+		| timeout -k 60 "$cap" "$claude" -p --resume "$s_id" --dangerously-skip-permissions \
+			--verbose --output-format stream-json \
+			${ELF_WORKER_MODEL:+--model "$ELF_WORKER_MODEL"} \
+			${ELF_WORKER_EFFORT:+--effort "$ELF_WORKER_EFFORT"} >> "$live" 2>&1
+	rc=$?
+	s_runs=$((s_runs + 1))
+else
+	s_id=$(new_uuid); s_wp=$next; s_runs=1; s_since=$now
+	note "tick start pid=$$ fresh=$s_id wp=$next cap=${cap}s"
+	{ printf '%s\n\n' "$preamble"; cat "$skill"; } \
+		| timeout -k 60 "$cap" "$claude" -p --session-id "$s_id" --dangerously-skip-permissions \
+			--verbose --output-format stream-json \
+			${ELF_WORKER_MODEL:+--model "$ELF_WORKER_MODEL"} \
+			${ELF_WORKER_EFFORT:+--effort "$ELF_WORKER_EFFORT"} >> "$live" 2>&1
+	rc=$?
+fi
+
+# A run that did not end cleanly, or ended without its run-done line, may have
+# left the session mid-thought with the lock in dispute; the next tick starts
+# fresh rather than resuming into that. The trace's last line is the diagnosis.
+last=$(tail -1 "$repo/a/worker-runs.log" 2>/dev/null)
+s_ok=1
+case "$last" in *run-done*|*nothing-to-build*|*lock-LOCKED*|*parked*) ;; *) s_ok=0 ;; esac
+[ "$rc" = 0 ] || s_ok=0
+printf 's_id=%s\ns_wp=%s\ns_runs=%s\ns_since=%s\ns_ok=%s\n' "$s_id" "$s_wp" "$s_runs" "$s_since" "$s_ok" > "$sessfile"
+
+case $rc in
+	0)   note "tick done; trace: $last" ;;
+	124) note "tick KILLED at ${cap}s; trace: $last; the lock steal recovers it within 20 min of the log going quiet" ;;
+	*)   note "tick exit $rc; trace: $last" ;;
+esac
+exit $rc

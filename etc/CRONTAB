@@ -1,0 +1,7 @@
+# or Cygwin cron
+
+# 0 3 * * * HOME=/home/phdye /c/-/repo/elf-sysv-nt/bin/nightly-full >/dev/null 2>&1
+
+*/5 * * * * /c/-/repo/elf-sysv-nt/bin/elf-build-worker --model opus --effort medium
+
+#
