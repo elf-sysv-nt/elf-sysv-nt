@@ -11,6 +11,36 @@ program-level review. The census also has to name a small vendor package,
 one whose whole glibc footprint the early slices can cover, to serve as
 WP-56's overall done-when.
 
+## The split: why a package is out
+
+`./split-demand.py --root WORK` takes the same per-package demand and answers
+a second question the first one hides. "Touches bucket 4" collapses two facts
+with different fixes. A package needing `epoll_ctl` needs a capability the
+floor beneath does not have, and no amount of veneer work reaches it. A package
+needing `_IO_putc` needs glibc's internal ABI, which Cygwin has no reason to
+export under glibc's names and which a glibc port answers with glibc's own
+code. Only the first is "not provided by Cygwin" in the sense that decides
+anything.
+
+The discriminator is the fourth-bucket inventory's own category column applied
+per package rather than per symbol: `public-absent` is the real gap and every
+other category is plumbing. It reads committed tables plus the demand the
+census already collected, runs offline in seconds, and needs no network. It is
+also independent of the claimed surface by construction, because the question
+is what the floor lacks rather than what the veneer chose to export.
+
+`results-split-2026-09-03.txt` is the recorded run, and it moves the headline
+number. Over the 3046 packages that link a glibc soname — not the 4855 scanned,
+a third of which carry no 64-bit ELF at all — 1898 need a capability the floor
+lacks, 625 need only glibc's internals, and 516 are reachable today. That is
+62.3% in the band this document reserves for a program-level review, against
+the 52.1% the whole-set share reports. The share over packages that link glibc
+is the honest one; the whole-set share is diluted by packages that were never
+participants.
+
+The split also prices the `glibc-gs-nt` port precisely: it converts the
+internals-only class, 625 packages, and does nothing for the 1898.
+
 ## What is measured
 
 Every binary package in the Rocky 8.10 x86_64 set (BaseOS, AppStream,

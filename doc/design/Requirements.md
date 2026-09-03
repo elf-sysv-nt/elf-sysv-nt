@@ -156,11 +156,22 @@ package that claimed it here.
 
 The number is set after the demand-side census rather than before it. Setting
 it first would make it an appetite; setting it second makes it a judgement
-against a measured reach. That census has since run — `spike/demand-census/`
-holds it — and it came back in the band its own README reserves for a
-program-level review: 2530 of 3046 packages with glibc demand touch a symbol
-the classification can only stub, 52.1% of the whole Rocky 8.10 set. The
-reading of that number is owed and is not taken here.
+against a measured reach. That census has since run, and `spike/demand-census/`
+holds both halves of what it says.
+
+The reach is narrower than the count of packages suggests, and the reason
+matters more than the number. Of the 3046 Rocky 8.10 packages that link a
+glibc soname, 1898 need an interface the floor beneath does not have, 625 need
+only glibc's own internals, and 516 are reachable against the classification as
+it stands. The first class is the bound on any acceptance count: no amount of
+veneer work reaches it, because the capability is absent rather than unexported.
+The second is what a glibc port converts. At 62.3% the first class sits in the
+band the census reserves for a program-level review, and that reading is owed
+and is not taken here.
+
+The whole-set share, 52.1%, is the weaker statement and should not be the one
+quoted: a third of the 4855 packages scanned carry no 64-bit ELF at all and
+were never participants in the question.
 
 One thing changed under the number since it was written, and it changes what
 the number does. DR-0079 derives the claimed surface from what the acceptance

@@ -44,6 +44,12 @@ versioned-libc	/c/-/el8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d rocky8
 # every package (outputs under results/, work under a/census-work), not by a
 # quick transcript rerun this runner can time and diff; skipped here.
 demand-census	SKIP	-	true
+# The census's analysis half is a different animal from its collection half: it
+# reads committed tables plus the per-package demand already on disk, runs
+# offline in seconds, and is worth certifying. An absent work root makes it
+# INCOMPLETE rather than skipped, which is correct -- the split cannot be taken
+# without the census having run.
+demand-census	/c/-/repo/elf-sysv-nt/a/census-work/frag	results-split-[0-9]*.txt	./split-demand.py --root /c/-/repo/elf-sysv-nt/a/census-work -o -
 # cygwin-from-source has no standalone regeneration script: its rerun is WP-26's
 # from-source DLL build, tracked in that package rather than here.
 cygwin-from-source	SKIP	-	true

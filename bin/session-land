@@ -82,8 +82,17 @@ git -C "$integ" add -A doc/design/decisions doc/status
 git -C "$integ" diff --cached --quiet || \
     git -C "$integ" commit --no-verify -q -m "chore(land): bind ids and normalize logs"
 
-python3 "$integ/bin/check-doc-refs" -q -C "$integ" || {
-    echo "$prog: doc-refs gate failed on the merged tree" >&2; exit 1; }
+# The document gates, on the merged tree, before main moves. All four are
+# cheap and all four read state rather than a diff, so running them here costs
+# a second and catches what a session's own run cannot: a checker that walks
+# `git ls-files` cannot see a file the session had not staged yet when it ran
+# its gates, and check-worknote-refs is exactly that shape. DR-0082 landed with
+# two working-note citations that way.
+for check in check-doc-refs check-design-links check-worknote-refs check-carry-forward; do
+    python3 "$integ/bin/$check" -q -C "$integ" || {
+        echo "$prog: $check failed on the merged tree; march moved, main did not" >&2
+        exit 1; }
+done
 
 git -C "$repo" merge --ff-only march || { echo "$prog: main could not fast-forward" >&2; exit 1; }
 

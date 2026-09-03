@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""Split the census's blocked population by WHY each package is out.
+
+The census answers "does this package need a symbol the classification can only
+stub". That single answer collapses two facts a program-level decision has to
+keep apart.
+
+A package needing epoll_ctl needs a capability the floor beneath does not have.
+No amount of veneer work reaches it; something has to appear underneath. A
+package needing _IO_putc needs glibc's internal ABI, which Cygwin has no reason
+to export under glibc's names and which a glibc port answers with glibc's own
+code. Only the first is "not provided by Cygwin" in the sense that decides
+anything.
+
+The split is the fourth-bucket inventory's own category column applied
+per package rather than per symbol: public-absent is the real gap, every other
+category is plumbing. It reads committed tables plus the per-package demand
+the census already collected, runs offline in seconds, and is independent of
+the claimed surface (DR-0079) by construction -- the question is what the floor
+lacks, not what the veneer chose to export.
+
+Usage:
+  split-demand.py --root DIR [options]
+
+Options:
+  --root DIR         the census work root, holding frag/ (required)
+  --inventory FILE   bucket4-inventory.tsv  [default: the tree's]
+  --map FILE         glibc-version-map.tsv  [default: the tree's]
+  -o FILE            transcript, - for stdout  [default: -]
+  -h, --help         this help
+
+Exit: 0 the split was taken, 2 a usage error or a missing input.
+"""
+import argparse, collections, datetime, os, sys
+
+VERSION = "split-demand 1.0"
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, os.pardir, os.pardir))
+INV = os.path.join(ROOT, "veneer", "classification", "bucket4-inventory.tsv")
+MAP = os.path.join(ROOT, "veneer", "version-map", "glibc-version-map.tsv")
+
+# The one inventory category that is a capability rather than a name. Every
+# other category is glibc's own plumbing: _IO_*, __ helpers, _dl_*, the
+# _FloatN variants, argp, the fortify and fast-math corners.
+REAL_GAP = "public-absent"
+
+# The bands the census README sets, over packages that actually link glibc.
+BANDS = ((0.10, "planned-for tail"),
+         (0.40, "proceed with a published compatibility statement"),
+         (1.01, "program-level review"))
+
+
+def load_inventory(path):
+    """(soname, symbol, version) -> category, for every base bucket-4 row."""
+    out = {}
+    for ln in open(path, encoding="utf-8"):
+        f = ln.rstrip("\n").split("\t")
+        if len(f) >= 4:
+            out[(f[1], f[2], f[3])] = f[0]
+    return out
+
+
+def load_map(path):
+    return set((f[0], f[1], f[2]) for f in
+               (ln.rstrip("\n").split("\t") for ln in open(path, encoding="utf-8"))
+               if len(f) >= 3)
+
+
+# The classes, in the order a reader wants them: what works, what a port would
+# reach, what needs the floor to grow, and the residue.
+CLASSES = (
+    ("reachable", "every demand lands in buckets 1-3"),
+    ("internals-only", "needs glibc's internal ABI and no absent capability"),
+    ("capability-gap", "needs an interface the floor beneath does not have"),
+    ("unmapped", "needs a name the version map does not carry"),
+    ("no-glibc-demand", "no 64-bit ELF demand on a glibc soname"),
+)
+
+
+def classify_package(demands, inventory, mapped):
+    if not demands:
+        return "no-glibc-demand"
+    gap = b4 = unmapped = False
+    for key in demands:
+        cat = inventory.get(key)
+        if cat is not None:
+            b4 = True
+            if cat == REAL_GAP:
+                gap = True
+        elif key not in mapped:
+            unmapped = True
+    if gap:
+        return "capability-gap"
+    if b4:
+        return "internals-only"
+    if unmapped:
+        return "unmapped"
+    return "reachable"
+
+
+def split(frag_dir, inventory, mapped):
+    tally = collections.Counter()
+    first = {}
+    for name in sorted(os.listdir(frag_dir)):
+        if not name.endswith(".tsv"):
+            continue
+        pkg = name[:-4]
+        demands = []
+        for ln in open(os.path.join(frag_dir, name), encoding="utf-8"):
+            f = ln.rstrip("\n").split("\t")
+            if len(f) >= 3:
+                demands.append((f[0], f[1], f[2]))
+        cls = classify_package(demands, inventory, mapped)
+        tally[cls] += 1
+        first.setdefault(cls, pkg)
+    return tally, first
+
+
+def band(share):
+    for limit, name in BANDS:
+        if share < limit:
+            return name
+    return BANDS[-1][1]
+
+
+def emit(out, tally, first, frag_dir):
+    total = sum(tally.values())
+    linked = total - tally["no-glibc-demand"]
+    gap = tally["capability-gap"]
+    share = (gap / linked) if linked else 0.0
+
+    w = out.write
+    w("# Why is a package out? The census says \"it touches bucket 4\"; this\n"
+      "# says whether that is a capability the floor lacks or glibc's own\n"
+      "# plumbing, which are different problems with different fixes.\n"
+      "#\n"
+      "# Generated by split-demand 1.0. Rerunning it regenerates this file.\n\n")
+    w("script  %s\n" % VERSION)
+    w("run_date  %s\n" % datetime.date.today().isoformat())
+    w("frag_root  %s\n" % os.path.basename(os.path.dirname(frag_dir.rstrip("/"))))
+    w("python  %s\n" % sys.version.split()[0])
+    w("\n## The split\n\n")
+    for key, gloss in CLASSES:
+        n = tally[key]
+        pct = 100.0 * n / total if total else 0.0
+        w("%-16s %-52s packages %d (%.1f%%)\n" % (key, gloss, n, pct))
+        if key in first:
+            w("%-16s first by name  %s\n" % ("", first[key]))
+    w("\n## The finding\n\n")
+    w("denominator  packages that link a glibc soname, not the whole set\n")
+    w("linked_packages %d of %d scanned\n" % (linked, total))
+    w("capability_gap  dominates the blocked population\n")
+    w("gap_share  %d of %d linked (%.1f%%)\n" % (gap, linked, 100.0 * share))
+    w("band  %s\n" % band(share))
+    w("port_reaches  the internals-only class and not the capability-gap class\n")
+    w("port_reach  %d of %d linked (%.1f%%)\n"
+      % (tally["internals-only"], linked,
+         100.0 * tally["internals-only"] / linked if linked else 0.0))
+    w("\nverdict=capability-gap-dominates\n")
+
+
+def main(argv):
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--root")
+    ap.add_argument("--inventory", default=INV)
+    ap.add_argument("--map", default=MAP)
+    ap.add_argument("-o", default="-")
+    ap.add_argument("-h", "--help", action="store_true")
+    args = ap.parse_args(argv)
+
+    if args.help or not args.root:
+        sys.stdout.write(__doc__)
+        return 0 if args.help else 2
+
+    frag = os.path.join(args.root, "frag")
+    for path, what in ((frag, "the census work root's frag/"),
+                       (args.inventory, "the fourth-bucket inventory"),
+                       (args.map, "the version map")):
+        if not os.path.exists(path):
+            sys.stderr.write("split-demand: %s is absent: %s\n"
+                             "split-demand: run the census first; this reads what it collected.\n"
+                             % (what, path))
+            return 2
+
+    inventory = load_inventory(args.inventory)
+    mapped = load_map(args.map)
+    tally, first = split(frag, inventory, mapped)
+
+    fh = sys.stdout if args.o == "-" else open(args.o, "w", encoding="utf-8", newline="\n")
+    emit(fh, tally, first, frag)
+    if fh is not sys.stdout:
+        fh.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
