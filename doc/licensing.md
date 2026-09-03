@@ -57,6 +57,25 @@ invention:
 > not itself based on the Cygwin library.
 
 
+## Lifts
+
+A lift is cleared by licence text and recorded practice, per DR-0074: the
+file's own licence header, the FSF's published compatibility guidance, and a
+named project that has done the same combination in public, at a ref somebody
+here read, recorded in a Precedent section shaped like DR-0037's.  Counsel is
+not in the loop, and every such record's Not verified section says what that
+means: practice is acquiescence rather than confirmation.  A lift that can
+produce no precedent is not blocked; it is recorded as resting on text alone.
+
+LGPL-2.1-or-later material may be taken into the shipped runtime and conveyed
+under this tree's LGPLv3+, on LGPL-2.1 section 13's own terms; glibc is in
+that class, and the vendored headers below already stand on it under DR-0010.
+LGPL-2.1-only has no path to version 3 and does not combine — read the file
+header, not the project's reputation.  Each lift retains its notices
+unmodified, adds a row to the third-party section below, pins the upstream
+ref, and declares in the governing document whether the material is used,
+adapted, or written from specification.
+
 ## Third-party material
 
 Files under toolchain/ that are patches carry the licence of what they patch

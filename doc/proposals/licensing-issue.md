@@ -173,3 +173,19 @@ confirm settled practice invited doubt where the ecosystem shows none.  What
 DR-0037's Not verified section says remains true: practice is acquiescence
 rather than confirmation, and counsel or Red Hat can still be asked on the
 operator's own timing.  Items 3 through 6 stand open.
+
+## Resolution — items 3 and 4 closed by DR-0074; counsel withdrawn (2026-09-02)
+
+There is no money for counsel, so the standing request for an engagement is
+withdrawn.  What replaces it is the rule DR-0074 states: a lift is cleared on
+the licence text, the FSF's compatibility guidance, and recorded practice,
+and every record admitting a lift carries a Precedent section in DR-0037's
+shape.  That is the footing items 1 and 2 were already closed on; it is now
+the footing for everything.
+
+Item 4 closes the other way round.  The loader and the veneer stay LGPLv3+,
+because a permissive component could not absorb LGPL-2.1-or-later code, and
+glibc is the largest body the project can lift.  Item 3 closes on practice:
+LGPL DLLs on Windows, Cygwin's included, meet section 4 by conveying source
+and build instructions, and so does this one.  Items 5 and 6 stand open and
+do not bear on lifting.
