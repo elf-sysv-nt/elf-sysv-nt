@@ -231,6 +231,8 @@ reruns against the real target and matches, or when its divergence is written
 down as justified. A certification that hides its substitution rather than
 recording it is the failure this rule exists to prevent.
 
+Settled by: DR-0031, DR-0036, DR-0039, DR-0070, DR-0075.
+
 ## Where autonomy stops
 
 Run a spike through to its stated verdict without asking permission along the
