@@ -139,3 +139,9 @@ reent-stub-realproc-window-reconcile	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-p
 # refused. The measurement the faced-runtime-hosting shape turns on. Needs the
 # WP-26 build tree.
 reent-realproc-low-window	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/winsup/cygwin/crt0.o	results-2026-[0-9]*.txt	bash measure.sh
+
+# errno-funnel audits the re-faced Cygwin sources for DR-0091's unverified
+# premise. It reads sources and runs no compiler, so its rerun is seconds; it
+# needs the newlib-cygwin checkout WP-26 builds from, and is INCOMPLETE without
+# it rather than skipped, because the audit is the whole content.
+errno-funnel	/c/-/repo/newlib-cygwin/winsup/cygwin	results-2026-[0-9]*.txt	bash measure.sh -o -
