@@ -29,3 +29,6 @@ veneer/wiring/t/fs-face.sh
 # half needs only the host compiler, and the cross-built half reports SKIP
 # without the toolchain rather than failing.
 veneer/wiring/t/fortify-face.sh
+# The wiring layer's translation core, checked against pairs written out by
+# hand from WP-55's tables. Host compiler only; DR-0088 and DR-0089 rest on it.
+veneer/wiring/t/xlat-pairs.sh

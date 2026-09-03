@@ -112,6 +112,8 @@ the pair and says which reading is current.
 | [0085](0085-a-shim-is-credited-by-its-body.md) | a shim is credited wired by its body, not by its slice | accepted 2026-09-03 | none |
 | [0086](0086-a-flag-with-no-equivalent-is-dropped.md) | a constant with no equivalent below is dropped rather than passed or refused, and every such drop is a named delta | provisional 2026-09-03 | none |
 | [0087](0087-a-chk-shim-inherits-the-platforms-fortify-floor.md) | a `_chk` shim performs the checks the runtime beneath it performs, and no others | accepted 2026-09-03 | none |
+| [0088](0088-errno-numbering-is-one-choice-for-the-platform.md) | errno's numbering is one choice for the whole platform; `__errno_location` cannot shim it | provisional 2026-09-03; parked at tier 8 | none |
+| [0089](0089-a-signal-handler-crosses-by-delivery-not-by-registration.md) | a signal handler crosses by delivery, not by registration, so `signal` waits on WP-43 being wired | provisional 2026-09-03 | none |
 
 ## What earns a record
 

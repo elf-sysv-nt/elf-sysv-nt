@@ -250,6 +250,37 @@ day, along with the observation that none of this material is an RFC and that
 symbol versioning is in no ABI document at all — it is a GNU extension, and
 Drepper's two papers are its specification.
 
+## Found writing the errno and signal shims, 2026-09-03
+
+Three items, all in `veneer/wiring/gen-xlat.py` and the tables it reads, all
+pinned by `veneer/wiring/t/xlat-pairs.sh` rather than repaired: the fix is in
+the generator and belongs to a commit about the generator.
+
+**`gen-xlat.py` emits `static const short` and does not check that its values
+fit.** `SIGSTKSZ`'s 32768 is stored as −32768, so `__esn_signal_down(8192)`
+returns a negative number. Nothing is harmed today because nothing calls
+`signal(8192)`, and that is the whole problem: the next table with a value over
+32767 truncates in the same silence.
+
+**`extract-tables.py` scraped `SIGSTKSZ` into `signal-map.tsv` as though it
+were a signal.** It is a stack size. Its row is why `xl_signal_up` is 32769
+`short`s wide — 64 KB of `.rodata` — for thirty-one signals.
+
+**An el8 constant with no runtime equivalent passes through onto a numeral that
+is already taken.** `gen-xlat.py` calls pass-through honest on the ground that
+inventing a number would hide the gap, and for a value neither side names it
+is. For `SIGSTKFLT` and the thirteen el8 errno values with a `-` Cygwin side it
+is not: every one of the fourteen numerals means something different and real
+downstairs. DR-0088 and DR-0089 carry what that costs the two shims;
+whether the core should distinguish "unclaimed" from "claimed and unmatched" is
+a question for whoever next edits it.
+
+Two shims are blocked rather than deferred and are named here so they are
+findable: `__errno_location` is parked at ladder tier 8 by DR-0088, and
+`signal` waits on three pieces of `runtime/signal/` wiring named in DR-0089.
+Neither is in `veneer/wiring/bodies.tsv` and neither should be until it has a
+body.
+
 ## Not verified
 
 That this list is complete. It was compiled by searching for deferral language
