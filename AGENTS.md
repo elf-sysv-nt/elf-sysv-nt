@@ -7,8 +7,13 @@ rather than replacing what is behind it. The point is that a Linux userland
 builds against it with its object format, its symbol versioning, and its
 loader semantics intact.
 
-Read `doc/elf-technical-breakdown.md` for the design and `doc/milestones.md`
-for the order of work. What has been built is tracked in
+Read `doc/Architecture.md` for the design and `doc/milestones.md` for the order
+of work. The architecture is current at every commit and carries the values,
+constants and rules an implementer needs, with four sub-documents behind it for
+the subsystems that want their own file. `doc/elf-technical-breakdown.md` is
+the founding survey it grew out of, kept as history rather than as a plan.
+
+What has been built is tracked in
 `doc/status/delivered.txt` and reported by `bin/build_status.py`, which
 `bin/refresh-next-steps.py` renders as the `Next-Steps.md` dashboard; both
 documents here are the plan rather than the record of progress, and may be
@@ -236,7 +241,7 @@ reruns against the real target and matches, or when its divergence is written
 down as justified. A certification that hides its substitution rather than
 recording it is the failure this rule exists to prevent.
 
-Settled by: DR-0031, DR-0036, DR-0039, DR-0070, DR-0075.
+Settled by: DR-0031, DR-0036, DR-0039, DR-0070, DR-0075, DR-0076.
 
 ## Where autonomy stops
 
