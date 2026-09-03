@@ -1,8 +1,8 @@
-# veneer-fingerprint eafa4ab49ac8
+# veneer-fingerprint f34877efd155
 __ctype_b_loc	filled
 __errno_location	shim
-__lxstat64	shim
-__xstat64	shim
+__lxstat64	wired
+__xstat64	wired
 close	forward
 exit	forward
 fchmod	forward
@@ -25,7 +25,7 @@ malloc	forward
 memcpy	forward
 memmove	forward
 memset	forward
-open64	shim
+open64	wired
 perror	forward
 remove	forward
 rewind	forward
