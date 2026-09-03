@@ -114,6 +114,19 @@ by construction whatever the acceptance set imports, and it is small: the
 loader and the runtime are built freestanding and demand nothing, so the
 startup files are the whole of it.
 
+The closure runs over the classification's target column, and that column
+means one thing for a forward and another for a shim: a forward's target is
+the name it resolves to, a shim's is the runtime export its body calls. Both
+are closed over, and deliberately. A shim body that cannot reach its export
+is not a shim, and the bind-table row it reaches is generated from the same
+column, so a target the closure declines to claim is a body with nothing
+behind it. The set therefore holds three names no package imports — `fopen`
+for `fopen64`, `open` for `open64`, `vfprintf` for `__fprintf_chk` — and each
+is exported because the veneer's own code calls it, which is what "nothing is
+exported that nothing calls" says. A shim whose target has no name in the
+version map, as the stat pair's `stat` and `lstat` do not, adds nothing:
+there is no glibc symbol there to claim.
+
 The set is exactly those three inputs. Nothing is exported that nothing calls,
 and there is no fourth contribution: a name is claimed because something needs
 it, or it is not claimed.
@@ -143,7 +156,7 @@ the input that claimed it. `veneer/classification/claimed.py` derives it and
 agrees with the classification in both directions, and that no claimed name
 lacks a body.
 
-Settled by: DR-0079, DR-0083.
+Settled by: DR-0079, DR-0083, DR-0090.
 
 ## Acceptance
 

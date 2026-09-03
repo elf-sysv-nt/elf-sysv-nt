@@ -281,6 +281,28 @@ findable: `__errno_location` is parked at ladder tier 8 by DR-0088, and
 Neither is in `veneer/wiring/bodies.tsv` and neither should be until it has a
 body.
 
+## Found regenerating the wiring, 2026-09-03
+
+**Eighteen live-crossing suites reference wiring that no longer exists.**
+DR-0090 removed the committed `wire-<slice>.gen.*` files for the seventeen
+slices DR-0083 emptied, and `wire-jmpbuf-faces.gen.S` with them.
+`veneer/wiring/t/live-<slice>.sh` builds its slice's generated assembly, so
+seventeen of those scripts and `t/live-jmpbuf.sh` now name a file that is not
+there. None of them can measure anything either way — a slice with no rows has
+no crossing to make — so the work is to withdraw or rewrite them rather than
+to repair the reference. They are `report`-tier, unregistered individually in
+`test/suites.tsv`, and reached only through `veneer/wiring/t/run-tests.sh`,
+which is the suite that reds because of this. Nobody owns it.
+
+Three decision records cite files that removal took away — DR-0051 names
+`wire-runtime.gen.s`, DR-0053 `wire-wchar.gen.s` and `t/live-wchar.sh`,
+DR-0054 `wire-terminal.gen.s` and `t/live-terminal.sh`. Records are
+append-only and were not edited; the citations are history rather than live
+paths, and `bin/check-doc-refs` does not police them because it checks only
+`doc/`, `bin/`, `spike/` and `ci/` paths. That exemption is doing more work
+than it was written to do, and it is a question for whoever next edits that
+checker.
+
 ## Not verified
 
 That this list is complete. It was compiled by searching for deferral language
