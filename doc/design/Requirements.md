@@ -180,6 +180,21 @@ names the veneer exports at all. Raising the count widens the surface and the
 bodies owed behind it. The count is therefore a scope control as much as a bar,
 and it should be read as one.
 
+Which splits the count in two, and they are not summed. A package that adds no
+name to the claimed surface is free: its bodies were written for another
+package's demands and are already claimed, so passing it tests the surface
+rather than extending it, and failing it is a defect in something believed
+finished. A package that adds names buys breadth and pays for it in bodies
+owed. Reported as one number the cheap counter carries it, and the count climbs
+while the platform does nothing new; reported separately, the incentive
+disappears, because the cheap counter says it is cheap. `spike/demand-census/`
+ranks every package by which it is.
+
+Neither counter measures how thoroughly a passing package exercises what it
+links. The acceptance harness reports that separately, over the claimed surface
+rather than over the package set, and it is the number that stays honest when
+the other two are both small.
+
 One thing the census must count, because it is currently uncounted and the
 bound above does not cover it: how many packages call `syscall` the libc
 function directly. It is a public glibc export, its disposition here is a

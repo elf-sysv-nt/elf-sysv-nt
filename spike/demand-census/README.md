@@ -41,6 +41,32 @@ participants.
 The split also prices the `glibc-gs-nt` port precisely: it converts the
 internals-only class, 625 packages, and does nothing for the 1898.
 
+## Pin cost: what a package would cost to add
+
+`./pin-cost.py --root WORK` reads the same demand against the claimed surface
+rather than against the floor. DR-0079 derives that surface from what the
+acceptance set imports, so pinning a package costs exactly the names it adds.
+A package that adds none is free, and free is the word that matters: its bodies
+were written for somebody else's demands and are already claimed, so running it
+tests the surface instead of extending it, and a failure there is a defect in
+something believed finished.
+
+That is two counters and they are never summed. A surface-free pass is
+confidence in what is already claimed; a surface-extending pass is breadth, and
+it is bought. One number would let the cheap counter carry it, which is the
+shape selecting-on-outcome takes when nobody is trying to cheat.
+
+Against the 111-name surface of 2026-09-03: 112 packages are free, 395 add
+between one and five names, and 1898 are unpinnable at any surface cost because
+what they need is a capability the floor lacks. `results-pin-cost-2026-09-03.txt`
+lists the free frontier in full, deepest exercise first, and
+`results/pin-cost.tsv` carries every package's cost.
+
+Unlike the split, this report moves whenever the surface moves. That is the
+point rather than drift: the frontier shrinks as the surface grows, so a rerun
+after a pin is expected to differ, and the runner comparing it to a committed
+transcript is what makes the change visible.
+
 ## What is measured
 
 Every binary package in the Rocky 8.10 x86_64 set (BaseOS, AppStream,

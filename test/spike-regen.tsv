@@ -50,6 +50,11 @@ demand-census	SKIP	-	true
 # INCOMPLETE rather than skipped, which is correct -- the split cannot be taken
 # without the census having run.
 demand-census	/c/-/repo/elf-sysv-nt/a/census-work/frag	results-split-[0-9]*.txt	./split-demand.py --root /c/-/repo/elf-sysv-nt/a/census-work -o -
+# pin-cost is the same data read against the claimed surface rather than the
+# floor, so unlike the split it moves when a package is pinned. That is the
+# finding, not drift: the frontier it describes shrinks as the surface grows,
+# and a rerun after a pin is expected to differ.
+demand-census	/c/-/repo/elf-sysv-nt/a/census-work/frag	results-pin-cost-[0-9]*.txt	./pin-cost.py --root /c/-/repo/elf-sysv-nt/a/census-work -o -
 # cygwin-from-source has no standalone regeneration script: its rerun is WP-26's
 # from-source DLL build, tracked in that package rather than here.
 cygwin-from-source	SKIP	-	true
