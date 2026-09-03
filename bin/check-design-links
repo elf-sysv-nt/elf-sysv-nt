@@ -44,7 +44,7 @@ VERSION = 'check-design-links 1.0'
 GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
             'doc/ABI-Boundary.md', 'doc/Symbol-Resolution.md',
             'doc/Address-Space.md', 'doc/Runtime-Crossing.md',
-            'doc/Verification-Plan.md',
+            'doc/Verification-Plan.md', 'doc/Using-glibc.md',
             'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
 ADOPTION = 75            # the convention's own record; at or below it, no Amends
 
