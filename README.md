@@ -31,7 +31,7 @@ sub-documents carry the subsystems large enough to want their own file:
     doc/Symbol-Resolution.md  the lookup engine and the version matcher
     doc/Address-Space.md      the low window, placement, protection precision
     doc/Runtime-Crossing.md   how a process comes to host the faced runtime
-    doc/Using-glibc.md        what of glibc may be taken, and on what grounds
+    doc/glibc-reuse.md        what of glibc may be taken, and on what grounds
     doc/target-definition.md  the six values a shipped artifact carries
 
 Around them, `doc/Requirements.md` says what the platform must do and how
@@ -103,6 +103,6 @@ on the reading the existing Cygwin forks already operate on.
 
 Lifting upstream code is cleared on licence text and recorded practice rather
 than on counsel, which the project has decided it will not have.
-`doc/Using-glibc.md` works the commonest case through in full, because the
+`doc/glibc-reuse.md` works the commonest case through in full, because the
 licence question and the coupling question get collapsed into one and the
 collapsed version is wrong in both directions.

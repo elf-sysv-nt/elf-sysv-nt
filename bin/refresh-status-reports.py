@@ -29,7 +29,7 @@ REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
 GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
             'doc/ABI-Boundary.md', 'doc/Symbol-Resolution.md',
             'doc/Address-Space.md', 'doc/Runtime-Crossing.md',
-            'doc/Verification-Plan.md', 'doc/Using-glibc.md',
+            'doc/Verification-Plan.md', 'doc/glibc-reuse.md',
             'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
 
 INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')
