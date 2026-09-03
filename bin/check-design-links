@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+#
+# Hold the citation convention between the governing documents and the decision
+# records as a property of the tree, so the same-change rule in AGENTS.md fails
+# a run rather than rotting (proposal 0006).
+#
+# It checks state, not commits, which is the only form of the rule a hook can
+# defend. If a session lands a record and never writes the prose it amends,
+# assertion 1 goes red on the trunk and stays red until the prose is written.
+#
+# The four assertions, in the order they run:
+#   1. Every in-force record in the decisions index is named by at least one
+#      Settled-by line somewhere in GOVERNED. An in-force record is one whose
+#      index Status cell does not say "superseded by NNNN".
+#   2. Every DR named in a Settled-by line exists and is in force. Citing a
+#      superseded record is a failure: the prose is carrying a reading that
+#      something else has replaced.
+#   3. Every record numbered above ADOPTION, and every XXXX placeholder,
+#      carries an Amends header naming a file that exists and a heading that
+#      file has. Records at or below ADOPTION predate the convention.
+#   4. Every path in GOVERNED exists, and the founding survey says at its head
+#      that the design of record lives elsewhere.
+#
+# The reverse map is derived rather than stored. Nothing edits the seventy-five
+# records that were filed before the convention, and nothing needs to: reading
+# every Settled-by line says which section owns which record.
+#
+# Usage:
+#   check-design-links [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every citation examined.
+#   -V, --version            Print version and exit.
+#   -h, --help               This help.
+#
+# Exit: 0 the tree is consistent, 1 a violation, 2 a usage error.
+
+import os, re, sys
+
+VERSION = 'check-design-links 1.0'
+
+GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
+            'doc/ABI-Boundary.md', 'doc/Verification-Plan.md',
+            'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
+ADOPTION = 75            # the convention's own record; at or below it, no Amends
+
+SETTLED = re.compile(r'^Settled by: DR-\d{4}(?:, DR-\d{4})*\.$')
+AMENDS = re.compile(r'^Amends: (doc/[A-Za-z-]+\.md|AGENTS\.md) § (.+)$')
+SUPERSEDED = re.compile(r'superseded by (\d{4})')
+INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')
+SURVEY = 'doc/elf-technical-breakdown.md'
+
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, '.git')):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def read(path):
+    return open(path, encoding='utf-8', errors='replace').read()
+
+
+def index_rows(root):
+    """Number -> (filename, status cell) for every row in the decisions index."""
+    idx = os.path.join(root, 'doc', 'decisions', 'index.md')
+    rows = {}
+    if not os.path.isfile(idx):
+        return rows
+    for line in read(idx).split('\n'):
+        m = INDEX_ROW.match(line)
+        if not m:
+            continue
+        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+        status = cells[2] if len(cells) > 2 else ''
+        rows[m.group(1)] = (m.group(2), status)
+    return rows
+
+
+def in_force(status):
+    return SUPERSEDED.search(status) is None
+
+
+def settled_lines(root):
+    """(governed path, line number, [numbers]) for every Settled-by line."""
+    out = []
+    for rel in GOVERNED:
+        p = os.path.join(root, rel)
+        if not os.path.isfile(p):
+            continue
+        for n, line in enumerate(read(p).split('\n'), 1):
+            line = line.rstrip()
+            if not line.startswith('Settled by:'):
+                continue
+            if not SETTLED.match(line):
+                out.append((rel, n, None))       # malformed; assertion 2 reports it
+                continue
+            out.append((rel, n, re.findall(r'DR-(\d{4})', line)))
+    return out
+
+
+def headings(path):
+    found = set()
+    for line in read(path).split('\n'):
+        m = re.match(r'^#+\s+(.*?)\s*#*\s*$', line)
+        if m:
+            found.add(m.group(1))
+    return found
+
+
+def record_files(root):
+    dd = os.path.join(root, 'doc', 'decisions')
+    out = []
+    if not os.path.isdir(dd):
+        return out
+    for f in sorted(os.listdir(dd)):
+        m = re.match(r'(XXXX|\d{4})-.*\.md$', f)
+        if m:
+            out.append((m.group(1), f))
+    return out
+
+
+def assert_every_record_cited(root, rows, lines, verbose):
+    cited = set()
+    for _, _, nums in lines:
+        if nums:
+            cited.update(nums)
+    bad = []
+    for num in sorted(rows):
+        fname, status = rows[num]
+        if not in_force(status):
+            if verbose:
+                print('  DR-%s superseded, not required' % num)
+            continue
+        if num not in cited:
+            bad.append('doc/decisions/%s: DR-%s is in force and no Settled-by '
+                       'line in a governed document names it' % (fname, num))
+    return len(rows), bad
+
+
+def assert_citations_resolve(root, rows, lines, verbose):
+    bad, n = [], 0
+    for rel, lineno, nums in lines:
+        if nums is None:
+            bad.append('%s:%d: Settled-by line does not match the required '
+                       'form "Settled by: DR-NNNN[, DR-NNNN].' % (rel, lineno))
+            continue
+        for num in nums:
+            n += 1
+            if verbose:
+                print('  %s:%d cites DR-%s' % (rel, lineno, num))
+            if num not in rows:
+                bad.append('%s:%d: cites DR-%s, which has no record'
+                           % (rel, lineno, num))
+            elif not in_force(rows[num][1]):
+                sup = SUPERSEDED.search(rows[num][1]).group(1)
+                bad.append('%s:%d: cites DR-%s, superseded by DR-%s'
+                           % (rel, lineno, num, sup))
+    return n, bad
+
+
+def assert_amends(root, verbose):
+    bad, n = [], 0
+    for num, fname in record_files(root):
+        path = os.path.join(root, 'doc', 'decisions', fname)
+        header = read(path).split('\n')[:20]
+        line, lineno = None, 0
+        for i, l in enumerate(header, 1):
+            if l.startswith('Amends:'):
+                line, lineno = l.rstrip(), i
+                break
+        required = num == 'XXXX' or int(num) > ADOPTION
+        if line is None:
+            if required:
+                bad.append('doc/decisions/%s: numbered above DR-%04d and has no '
+                           'Amends header' % (fname, ADOPTION))
+            continue
+        n += 1
+        m = AMENDS.match(line)
+        if not m:
+            bad.append('doc/decisions/%s:%d: Amends does not match the required '
+                       'form "Amends: <governed file> § <heading>"'
+                       % (fname, lineno))
+            continue
+        target, heading = m.group(1), m.group(2).strip()
+        tp = os.path.join(root, target)
+        if verbose:
+            print('  doc/decisions/%s amends %s § %s' % (fname, target, heading))
+        if not os.path.isfile(tp):
+            bad.append('doc/decisions/%s:%d: amends %s, which does not exist'
+                       % (fname, lineno, target))
+        elif heading not in headings(tp):
+            bad.append('doc/decisions/%s:%d: amends %s § %s, and that file has '
+                       'no such heading' % (fname, lineno, target, heading))
+    return n, bad
+
+
+def assert_governed_set(root):
+    bad = []
+    for rel in GOVERNED:
+        if not os.path.isfile(os.path.join(root, rel)):
+            bad.append('%s: named in GOVERNED and missing from the tree' % rel)
+    sp = os.path.join(root, SURVEY)
+    if not os.path.isfile(sp):
+        bad.append('%s: the founding survey is missing' % SURVEY)
+    elif 'Architecture.md' not in '\n'.join(read(sp).split('\n')[:10]):
+        bad.append('%s:1: the first ten lines do not point a reader at '
+                   'Architecture.md' % SURVEY)
+    return len(GOVERNED), bad
+
+
+def main(argv):
+    directory, quiet, verbose = None, False, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-h', '--help'):
+            print('Usage: check-design-links [-C DIR] [-q] [-v] [-V] [-h]\n'
+                  'Verify that every in-force decision record is cited from a\n'
+                  'governing document, and every citation resolves. Exit 1 on\n'
+                  'the first assertion that fails.')
+            return 0
+        elif a in ('-V', '--version'):
+            print(VERSION); return 0
+        elif a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-v', '--verbose'):
+            verbose = True
+        elif a in ('-C', '--directory'):
+            i += 1; directory = argv[i]
+        elif a.startswith('--directory='):
+            directory = a.split('=', 1)[1]
+        elif a in ('-n', '--count'):
+            i += 1                                    # accept and ignore: not a fuzzable suite
+        elif a.startswith('--count='):
+            pass
+        else:
+            sys.stderr.write('check-design-links: unknown option %s\n' % a); return 2
+        i += 1
+
+    root = repo_root(directory or '.')
+    rows = index_rows(root)
+    lines = settled_lines(root)
+
+    checks = (
+        ('records homed', lambda: assert_every_record_cited(root, rows, lines, verbose)),
+        ('citations', lambda: assert_citations_resolve(root, rows, lines, verbose)),
+        ('amends', lambda: assert_amends(root, verbose)),
+        ('governed set', lambda: assert_governed_set(root)),
+    )
+    for label, fn in checks:
+        n, bad = fn()
+        if bad:
+            for b in bad:
+                sys.stderr.write('FAIL %s\n' % b)
+            sys.stderr.write('check-design-links: %s, %d problem(s)\n'
+                             % (label, len(bad)))
+            return 1
+
+    if not quiet:
+        print('check-design-links: %d record(s), %d citation(s), all resolve'
+              % (len(rows), sum(len(n) for _, _, n in lines if n)))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

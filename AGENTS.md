@@ -189,6 +189,40 @@ named rather than proceeding on a guess. The reserved decisions and the
 operator's own records are not provisional; the sweep in DR-0036 settled the
 agent records taken before the convention existed.
 
+A governed set states what the system is, in the present tense, current at
+every commit: `doc/Requirements.md`, `doc/Architecture.md`,
+`doc/ABI-Boundary.md`, `doc/Verification-Plan.md`, `doc/target-definition.md`,
+`doc/licensing.md`, and this file. Read them to learn the design; read the
+records to learn why it is that and not something else, or what it was before.
+`doc/elf-technical-breakdown.md` is the founding survey rather than the design
+of record, and says so at its head.
+
+Citation runs both ways across that seam. A governed section that a record
+settled ends in one line of its own, the last in the section:
+
+    Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
+
+A section with no such line describes behaviour inherited from Cygwin that no
+record has touched. That is an ordinary state and not an omission; an unlined
+section is never an unsettled one.
+
+Every record filed from DR-0075 onward carries an `Amends:` header beside
+Status and Date, naming the one section it changes most —
+`Amends: doc/Architecture.md § Thread pointer and TLS` — so that the author
+names the prose that has to move at the moment of writing, which is the moment
+the same-change rule has been failing at. A record whose subject spans two
+sections names one and is cited from both. Records filed before that number
+carry no such field and are not edited to add one; their reverse map is
+derived from the Settled-by lines instead.
+
+`bin/check-design-links` holds all of it, and holds it as a property of the
+tree rather than of a commit: every in-force record cited somewhere, every
+citation naming a record that exists and has not been replaced, every new
+record's Amends resolving to a heading that exists. Supersession lives in the
+decisions index, appended to the Status cell as `; superseded by NNNN`; a
+record superseded on one point and standing on the rest keeps its cell clean
+and is cited beside the record that replaced the point.
+
 A certification run against a substitute for the thing it certifies — a newer
 glibc standing in for el8's 2.28, a WSL userland for a real el8 one — is
 permitted and creates a row in `doc/substitutions.md`: what was substituted for
