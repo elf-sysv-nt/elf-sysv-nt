@@ -23,7 +23,7 @@ configures as x86_64-pc-linux-gnu, which is the failure DR-0001 chose the
 vendor field to avoid.
 
 Nothing else is touched. GLIBC_DYNAMIC_LINKER64 in i386/linux64.h is already
-/lib64/ld-linux-x86-64.so.2, which is what doc/target-definition.md fixes the
+/lib64/ld-linux-x86-64.so.2, which is what doc/design/target-definition.md fixes the
 loader SONAME at, so the two agree without a patch.
 
 Against gcc 13.3.0, pinned in ../gcc.pin.
@@ -67,7 +67,7 @@ Against gcc 13.3.0, pinned in ../gcc.pin.
 +This header carries what the target mandates rather than what a caller
 +remembers.  Everything in it is a value some package can forget to pass, which
 +is the definition of a thing that belongs here instead of in a makefile.  The
-+target definition it answers to is doc/target-definition.md.  */
++target definition it answers to is doc/design/target-definition.md.  */
 +
 +/* The red zone is honoured on this platform.  The psABI reserves 128 bytes
 +   below %rsp and a conforming platform leaves them alone; this one does, at

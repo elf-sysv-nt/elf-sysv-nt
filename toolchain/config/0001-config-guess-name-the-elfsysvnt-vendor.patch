@@ -17,7 +17,7 @@ to unpatched upstream, which the four cases in toolchain/config/README.md
 check.
 
 Against GNU config timestamp='2026-05-17', pinned in upstream.pin.
-The five values this triple has to agree with are in doc/target-definition.md.
+The five values this triple has to agree with are in doc/design/target-definition.md.
 
 --- a/config.guess
 +++ b/config.guess

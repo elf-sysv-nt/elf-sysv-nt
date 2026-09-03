@@ -36,7 +36,7 @@ dirty=$(git -C "$repo" status --porcelain --untracked-files=all | awk '{print $N
 if [ -n "$dirty" ]; then
     land_paths=$( { git -C "$here" diff --name-only "march...HEAD";
                     git -C "$repo" diff --name-only main march --;
-                    echo doc/decisions/; echo doc/status/;
+                    echo doc/design/decisions/; echo doc/status/;
                     echo a/build-blockers.log; } | sort -u)
     overlap=""
     for p in $dirty; do
@@ -67,9 +67,9 @@ git -C "$integ" merge --no-edit "$branch" || {
     echo "$prog: merge conflict; resolve on $branch and rerun" >&2; exit 1; }
 
 # bind decision-record placeholders now, inside the lock
-for f in "$integ"/doc/decisions/XXXX-*.md; do
+for f in "$integ"/doc/design/decisions/XXXX-*.md; do
     [ -e "$f" ] || continue
-    n=$(cd "$integ" && python3 bin/allocate-id dr "doc/decisions/$(basename "$f")")
+    n=$(cd "$integ" && python3 bin/allocate-id dr "doc/design/decisions/$(basename "$f")")
     echo "$prog: bound $(basename "$f") -> DR-$n" >&2
 done
 
@@ -77,7 +77,7 @@ python3 "$integ/bin/normalize-logs" -q -C "$integ"
 # Add each path on its own: one missing pathspec must not abort the whole add
 # (a/build-blockers.log is absent until the first blocker, and a combined add
 # fails outright on the unmatched pathspec, silently skipping the bind commit).
-git -C "$integ" add -A doc/decisions doc/status
+git -C "$integ" add -A doc/design/decisions doc/status
 [ -e "$integ/a/build-blockers.log" ] && git -C "$integ" add a/build-blockers.log
 git -C "$integ" diff --cached --quiet || \
     git -C "$integ" commit --no-verify -q -m "chore(land): bind ids and normalize logs"

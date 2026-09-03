@@ -33,7 +33,7 @@ def highest(dirpath):
 
 
 def alloc_dr(root, placeholder):
-    dd = os.path.join(root, 'doc', 'decisions')
+    dd = os.path.join(root, 'doc', 'design', 'decisions')
     num = '%04d' % (highest(dd) + 1)
     if not placeholder:
         print(num)

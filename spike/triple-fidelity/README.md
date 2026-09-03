@@ -9,8 +9,8 @@ kept is the means of taking it again.
 
 The triple was settled on 2026-08-29 as `x86_64-elfsysvnt-linux-gnu`, ahead of
 this count rather than by it, so what the count does now is price a decision
-instead of make one. `doc/decisions/0001-target-triple.md` carries the share
-of affected packages at which it should be reopened.
+instead of make one. `doc/design/decisions/0001-target-triple.md` carries the
+share of affected packages at which it should be reopened.
 
 The target triple has four fields and only two carry weight. `config.sub`
 passes an unrecognized vendor through untouched, so `x86_64-elfsysvnt-linux-gnu`
@@ -243,12 +243,12 @@ that was already load-bearing for other people.
 
 ## Where the finding goes
 
-It has gone. `doc/elf-technical-breakdown.md` no longer carries the claim as
-uncounted, and `doc/ROADMAP.md`, `doc/milestones.md` and
+It has gone. `doc/history/elf-technical-breakdown.md` no longer carries the
+claim as uncounted, and `doc/ROADMAP.md`, `doc/milestones.md` and
 `doc/IMPLEMENTATION-PLAN.md` record spike 5 as run. DR-0001 is untouched,
-because a record is what was decided and when, not a place to write the
-outcome afterwards; the number is here and in the transcript, and it lands
-inside the band where that record says the triple stands.
+because a record is what was decided and when, not a place to write the outcome
+afterwards; the number is here and in the transcript, and it lands inside the
+band where that record says the triple stands.
 
 The one thing this verdict does not settle is whether `flac` gets patched or
 carried. That belongs to whoever builds it.

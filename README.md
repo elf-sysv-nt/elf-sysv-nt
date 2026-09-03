@@ -22,36 +22,36 @@ job.
 
 ## Where to start reading
 
-`doc/Architecture.md` is the design of record. It is current at every commit,
-it states the values and constants an implementer needs rather than pointing at
-where they were decided, and it is the one document to read first. Six
-sub-documents carry the subsystems large enough to want their own file:
+`doc/design/Architecture.md` is the design of record. It is current at every
+commit, it states the values and constants an implementer needs rather than
+pointing at where they were decided, and it is the one document to read first.
+Six sub-documents carry the subsystems large enough to want their own file:
 
-    doc/ABI-Boundary.md       the System V / Microsoft seam, per symbol
-    doc/Symbol-Resolution.md  the lookup engine and the version matcher
-    doc/Address-Space.md      the low window, placement, protection precision
-    doc/Runtime-Crossing.md   how a process comes to host the faced runtime
-    doc/glibc-reuse.md        what of glibc may be taken, and on what grounds
-    doc/target-definition.md  the six values a shipped artifact carries
+    doc/design/ABI-Boundary.md       the System V / Microsoft seam, per symbol
+    doc/design/Symbol-Resolution.md  the lookup engine and the version matcher
+    doc/design/Address-Space.md      the low window, placement, protection precision
+    doc/design/Runtime-Crossing.md   how a process comes to host the faced runtime
+    doc/design/glibc-reuse.md        what of glibc may be taken, and on what grounds
+    doc/design/target-definition.md  the six values a shipped artifact carries
 
-Around them, `doc/Requirements.md` says what the platform must do and how
-anyone will know, and `doc/Verification-Plan.md` says what counts as proof.
-`doc/licensing.md` states the licence position in a page. `AGENTS.md` carries
-the conventions, the three decisions reserved to the operator, and where
-autonomy stops.
+Around them, `doc/design/Requirements.md` says what the platform must do and
+how anyone will know, and `doc/design/Verification-Plan.md` says what counts as
+proof. `doc/design/licensing.md` states the licence position in a page.
+`AGENTS.md` carries the conventions, the three decisions reserved to the
+operator, and where autonomy stops.
 
-`doc/decisions/` is what has been settled, one record per file, append-only:
-reversing one means a new record pointing back, never an edit. `doc/proposals/`
-is the argument each settlement came out of. A governed section that a record
-settled ends in a line naming the records, and `bin/check-design-links` fails
-if an in-force record is cited nowhere or a citation names a record something
-else has replaced.
+`doc/design/decisions/` is what has been settled, one record per file,
+append-only: reversing one means a new record pointing back, never an edit.
+`doc/design/proposals/` is the argument each settlement came out of. A governed
+section that a record settled ends in a line naming the records, and
+`bin/check-design-links` fails if an in-force record is cited nowhere or a
+citation names a record something else has replaced.
 
-`doc/elf-technical-breakdown.md` is the founding survey the design grew out of,
-and `doc/elf-userspace-execution.md` is the survey behind that. Both are kept
-as the reasoning that opened the project rather than as statements of what the
-system is; where they and `doc/Architecture.md` disagree, the architecture is
-current.
+`doc/history/elf-technical-breakdown.md` is the founding survey the design grew
+out of, and `doc/history/elf-userspace-execution.md` is the survey behind that.
+Both are kept as the reasoning that opened the project rather than as
+statements of what the system is; where they and `doc/design/Architecture.md`
+disagree, the architecture is current.
 
 `doc/milestones.md` is the spike record, `doc/ROADMAP.md` is what has to be
 built, and `doc/IMPLEMENTATION-PLAN.md` cuts that into work packages with entry
@@ -76,7 +76,8 @@ package in 2893.
 What is open is bring-up rather than design. The acceptance crossing still
 builds a stub of the wrong shape, so a rebuilt package reaches a runtime whose
 base reads zero; the shape it must take is settled and the placement question
-in front of it is not yet measured. `doc/Runtime-Crossing.md` states both.
+in front of it is not yet measured. `doc/design/Runtime-Crossing.md` states
+both.
 
 Every governed document ends in a Not verified section naming what it rests on
 that nobody has measured, and `doc/status/not-verified.md` collects them into
@@ -96,13 +97,14 @@ with a different veneer.
 LGPLv3 or later. Inherited rather than chosen: this rebuilds Cygwin's `winsup`
 library with a different export face, and Cygwin's own linking exception
 excludes a library based on the Cygwin library by its own definition.
-`doc/licensing.md` states the position in one page, `doc/decisions/0004-license.md`
-carries the reasoning, and `doc/decisions/0037-the-linking-exception-carries-forward.md`
-records that the linking exception carries forward with the modified library,
-on the reading the existing Cygwin forks already operate on.
+`doc/design/licensing.md` states the position in one page,
+`doc/design/decisions/0004-license.md` carries the reasoning, and
+`doc/design/decisions/0037-the-linking-exception-carries-forward.md` records
+that the linking exception carries forward with the modified library, on the
+reading the existing Cygwin forks already operate on.
 
 Lifting upstream code is cleared on licence text and recorded practice rather
 than on counsel, which the project has decided it will not have.
-`doc/glibc-reuse.md` works the commonest case through in full, because the
-licence question and the coupling question get collapsed into one and the
+`doc/design/glibc-reuse.md` works the commonest case through in full, because
+the licence question and the coupling question get collapsed into one and the
 collapsed version is wrong in both directions.

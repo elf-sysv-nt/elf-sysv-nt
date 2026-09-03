@@ -48,10 +48,10 @@ the census owns no row and no package. `doc/milestones.md:396` still reads "a
 census nobody has run." Folded into WP-47, since it is what sizes that hole.
 
 **`getcontext`, `setcontext` and `swapcontext` are knowingly broken across the
-face.** `doc/decisions/0041-context-transparent-faces.md:53-59`: "They are
-deferred, not settled: a written face that captures at the seam is the likely
-repair, and whoever takes it should reopen this record." No package names
-`ucontext` outside WP-43's signal-frame layout. Now WP-48.
+face.** `doc/design/decisions/0041-context-transparent-faces.md:53-59`: "They
+are deferred, not settled: a written face that captures at the seam is the
+likely repair, and whoever takes it should reopen this record." No package
+names `ucontext` outside WP-43's signal-frame layout. Now WP-48.
 
 ## Correctness gaps still unowned
 
@@ -109,8 +109,8 @@ attributing the fortify family to its slices, which would have extended the
 credit by 42 more rows.
 
 **The `SA_RESTART` down-call wrapper is not written.**
-`doc/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated at
-`doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote
+`doc/design/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated
+at `doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote
 the wrappers and WP-43 the signals; both delivered. DR-0009 is a convention,
 not a package.
 
@@ -119,34 +119,34 @@ not a package.
 be (`0030:139-143`). WP-43 delivered.
 
 **The loader-lock bracket does not move inside `dl_open`/`dl_close`.**
-`doc/decisions/0029-what-crosses-the-fork-and-how-it-is-checked.md:98-104`,
+`doc/design/decisions/0029-what-crosses-the-fork-and-how-it-is-checked.md:98-104`,
 echoed at `doc/IMPLEMENTATION-PLAN.md:1111-1113`.
 
 **Static-offset assignment for a late initial-exec module.**
-`doc/decisions/0024-static-tls-surplus-and-dtv-shape.md:61-63` and
+`doc/design/decisions/0024-static-tls-surplus-and-dtv-shape.md:61-63` and
 `doc/IMPLEMENTATION-PLAN.md:856` both point at WP-38, which is delivered
 without such a path.
 
 **`__libc_start_main` is not adopted in the startup files.**
-`doc/decisions/0048-main-returns-through-exit.md:29-31` — "stays open; when it
-lands, the call to `exit` moves into it." Nothing mentions it.
+`doc/design/decisions/0048-main-returns-through-exit.md:29-31` — "stays open;
+when it lands, the call to `exit` moves into it." Nothing mentions it.
 
 **Exact `long double` across the core `va_list` seam.**
-`doc/decisions/0015-variadic-rebuild-through-a-core-valist.md:61-64`. The walk
-narrows to `double`; whether the runtime needs more, and at what cost, is
-open. WP-24 delivered.
+`doc/design/decisions/0015-variadic-rebuild-through-a-core-valist.md:61-64`.
+The walk narrows to `double`; whether the runtime needs more, and at what cost,
+is open. WP-24 delivered.
 
 **`fnmatch`'s flag bits are swapped between el8 and Cygwin.**
-`doc/decisions/0056-the-stat-family-does-not-forward.md:79-87` leaves the shim
-to `diff-slice.sh`, "where a differential will show it" — a tool, not an
-owner.
+`doc/design/decisions/0056-the-stat-family-does-not-forward.md:79-87` leaves
+the shim to `diff-slice.sh`, "where a differential will show it" — a tool, not
+an owner.
 
 **Fortified entry points under `__USE_FORTIFY_LEVEL` remain deferred.**
 `veneer/README.md:108-110`. WP-50 delivered; WP-56's slice text never names
 fortification.
 
 **`XCRYPT_2.0` may have no body, and the companion set closed by omission.**
-`doc/decisions/0013-version-map-companion-sources.md:64-74` makes
+`doc/design/decisions/0013-version-map-companion-sources.md:64-74` makes
 `ld-linux`, `libnss_*`, `libmvec` and `libanl` "WP-54's scope call"; WP-54 is
 delivered and DR-0032 fixed the set at eight without answering the question.
 `crypt` and `crypt_r` carry real el8 demand.
@@ -155,13 +155,13 @@ delivered and DR-0032 fixed the set at eight without answering the question.
 descriptor inheritance and close-on-exec, cwd, signal disposition,
 environment — and whether Cygwin's spawn path can call the classifier without
 disturbing `#!` is untested.
-`doc/decisions/0027-the-exec-branch-and-the-interpreter-limit.md:92-99`.
+`doc/design/decisions/0027-the-exec-branch-and-the-interpreter-limit.md:92-99`.
 
 ## Measurements and censuses nobody owns
 
 **The `[0, 4 GB)` walk at process init is not built**, because it needs a
 census of what is legitimately mapped low first.
-`doc/decisions/0072-the-low-window-belongs-to-the-guest.md:108-114`.
+`doc/design/decisions/0072-the-low-window-belongs-to-the-guest.md:108-114`.
 
 **Whether a larger `MEM_RESERVE` is honored at `_dll_crt0`**, which is what
 would let the reserved window widen from 1 GB toward the contract line.
@@ -171,30 +171,30 @@ would let the reserved window widen from 1 GB toward the contract line.
 `spike/vendor-hardened-build/` measures one package.
 
 **`0x3FC00000` is a judgment, not a measurement.**
-`doc/decisions/0028-the-low-window-is-reserved-by-the-parent.md:99-102`.
+`doc/design/decisions/0028-the-low-window-is-reserved-by-the-parent.md:99-102`.
 
 **Nothing injects an allocation between the window's release and placement**,
 and nothing proves Cygwin has no timer or worker thread running by then
 (`0028:87-92`, "reasoned rather than measured").
 
 **The committed-gap cost of one-region-per-object mapping.**
-`doc/decisions/0008-mmap-granule-protection.md:85-89`.
+`doc/design/decisions/0008-mmap-granule-protection.md:85-89`.
 
 **The `.gnu.version` map's real size is an estimate.**
 `doc/ROADMAP.md:543-544`. WP-51 delivered.
 
 **Nobody has grepped a distribution for an `ELFSYSVNT` collision.**
-`doc/target-definition.md:237-239` — "listed rather than done."
+`doc/design/target-definition.md:237-239` — "listed rather than done."
 
 **The four-hop interpreter limit was matched to Linux from memory.**
-`doc/decisions/0027-...md:87-90`.
+`doc/design/decisions/0027-...md:87-90`.
 
 **The fork rebase result is one machine, one day, no ASLR variation.**
-`doc/decisions/0029-...md:111-115`.
+`doc/design/decisions/0029-...md:111-115`.
 
 **`iretq` under a hardened Windows is untested.**
-`doc/decisions/0030-...md:134-137`. DR-0062 opts out at the compiler and says
-it does not cover the host setting (`0062:46-49`).
+`doc/design/decisions/0030-...md:134-137`. DR-0062 opts out at the compiler and
+says it does not cover the host setting (`0062:46-49`).
 
 **Cygwin's `fork` replaying every `mmap` mapping is asserted, not measured**,
 and WP-42 rests on it. `doc/ROADMAP.md:539-541`.
@@ -204,13 +204,14 @@ reconfigured after a refresh.** `toolchain/config/README.md:89-92` names
 `perl-Tk` and `autoconf213` as the ones to try.
 
 **The core-dump fatal-path wiring is unwritten**, certified only against
-synthetic images. `doc/decisions/0033-an-elf-core-from-the-runtime.md:74-77`;
-WP-61 is delivered and the plan still reads "Open rather than planned."
+synthetic images.
+`doc/design/decisions/0033-an-elf-core-from-the-runtime.md:74-77`; WP-61 is
+delivered and the plan still reads "Open rather than planned."
 
 **Compiler-side enforcement of no `%fs`-relative TLS is left to the operator**,
 and whether the image scan belongs to the acceptance harness or the package
 build is undecided.
-`doc/decisions/0063-images-carry-no-fs-relative-tls.md:61-63`.
+`doc/design/decisions/0063-images-carry-no-fs-relative-tls.md:61-63`.
 
 **The 128-byte gap in the delivery path has never been priced.**
 `doc/IMPLEMENTATION-PLAN.md:44-45`. A reserved call, deliberately not a task,
@@ -221,16 +222,16 @@ but with no trigger that would raise it.
 Two places describe a question as open that a later record answered. Correcting
 them is a five-minute job for whoever is next in the file.
 
-`doc/what-a-stub-means.md:113-117` and
-`doc/decisions/0052-a-stub-may-be-filled-with-a-synthesized-body.md:53-56` both
-say the acceptance verdict for a filled stub "is left to a follow-up". DR-0057
-settled it on 2026-09-01: `ready` is forward, wired or filled, and bzip2 reads
-34/5/1 against that rule.
+`doc/design/what-a-stub-means.md:113-117` and
+`doc/design/decisions/0052-a-stub-may-be-filled-with-a-synthesized-body.md:53-56`
+both say the acceptance verdict for a filled stub "is left to a follow-up".
+DR-0057 settled it on 2026-09-01: `ready` is forward, wired or filled, and
+bzip2 reads 34/5/1 against that rule.
 
 `doc/ROADMAP.md:371` says hand-written assembly is where the red zone stays
 open. DR-0050 records WP-16's ledger as having closed that bound.
 
-The psABI citation in `doc/elf-technical-breakdown.md` pointed at
+The psABI citation in `doc/history/elf-technical-breakdown.md` pointed at
 `uclibc.org/docs/psABI-x86_64.pdf`, a 2012 snapshot, while the document itself
 is maintained live at `gitlab.com/x86-psABIs/x86-64-ABI`. Corrected the same
 day, along with the observation that none of this material is an RFC and that
@@ -241,7 +242,7 @@ Drepper's two papers are its specification.
 
 That this list is complete. It was compiled by searching for deferral language
 — "left open", "deferred", "nobody has", "stays open", and the rest — and by
-reading every "What it does not decide" section in `doc/decisions/`. A
+reading every "What it does not decide" section in `doc/design/decisions/`. A
 deferral phrased in words that search did not cover is still out there, and the
 only honest way to find it is to read the tree rather than grep it.
 

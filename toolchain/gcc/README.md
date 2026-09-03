@@ -38,9 +38,9 @@ this define a native build silently configures as `x86_64-pc-linux-gnu`, which
 is the failure DR-0001 chose the vendor field to avoid.
 
 Nothing else needed touching. `GLIBC_DYNAMIC_LINKER64` in `i386/linux64.h` is
-already `/lib64/ld-linux-x86-64.so.2`, which is what `doc/target-definition.md`
-fixes the loader SONAME at, so the two agree without a patch and `t/accept.sh`
-checks that they keep agreeing.
+already `/lib64/ld-linux-x86-64.so.2`, which is what
+`doc/design/target-definition.md` fixes the loader SONAME at, so the two agree
+without a patch and `t/accept.sh` checks that they keep agreeing.
 
 ## The mistake worth keeping
 

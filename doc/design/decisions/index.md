@@ -1,0 +1,114 @@
+# Decisions
+
+One settlement per file, numbered in the order they were taken, never
+renumbered. A record is append-only once filed: reversing one means writing a
+new record that points back at it, which keeps the reasoning that was live at
+the time from being quietly edited into the reasoning that is live now.
+
+This index is one-to-one with the files beside it. A record without a row here
+is a record nobody will find.
+
+Supersession lives in the Status cell, since that is where status already
+lives. When a record replaces another outright, the replaced record's cell
+gains `; superseded by NNNN` after whatever it held, so
+`accepted 2026-08-30; superseded by 0038` is the shape, and the replacing
+record's own header says `Supersedes: DR-NNNN`. `bin/check-design-links` reads
+that phrase and nothing else from the cell: a superseded record stops being
+required in a governing document's Settled-by line, and citing one becomes a
+failure.
+
+Partial supersession takes no marker. DR-0035 is the case in hand — DR-0038
+pinned the gate to the primary root and left the rest of it standing — so its
+cell is unmarked, both records are in force, and `Verification-Plan.md` cites
+the pair and says which reading is current.
+
+| # | Decision | Status | Proposal |
+|---|---|---|---|
+| [0000](0000-the-cygwin-refaced-floor.md) | The floor is Cygwin re-faced; el8's userland builds unchanged above a glibc-ABI veneer that is not glibc | inception 2026-08-20 | none |
+| [0001](0001-target-triple.md) | The target triple is `x86_64-elfsysvnt-linux-gnu` | accepted 2026-08-29 | 0001 |
+| [0002](0002-el8-source-acquisition.md) | el8 source comes from Rocky 8.10 and lives outside the repository | accepted 2026-08-29 | 0001 |
+| [0003](0003-tls-model.md) | The TLS model is a runtime-owned thread pointer through `%gs`, carrier C3 | accepted 2026-08-29 | 0002 |
+| [0004](0004-license.md) | The licence is LGPLv3 or later, inherited from Cygwin's `winsup` | accepted 2026-08-29 | none |
+| [0005](0005-bounded-linux-claim.md) | The `linux` field is a bounded claim, not a lie; DR-0001 stands | accepted 2026-08-29 | 0004 |
+| [0006](0006-red-zone-direction.md) | The red zone is repaired at the delivery site; `-mno-red-zone` is scaffolding | accepted 2026-08-29; superseded by 0050 | none |
+| [0007](0007-runtime-base-version.md) | The runtime is based on Cygwin 3.6.10 (`newlib-cygwin` b11613e47), not the pinned 3.0.7 | accepted 2026-08-30 | none |
+| [0008](0008-mmap-granule-protection.md) | Segment mapping goes through the runtime's `mmap`, one region per object, protection at the host granule; a granule-sharing object is refused | accepted 2026-08-30 | none |
+| [0009](0009-down-call-wrapper-convention.md) | The down-call wrapper is a signature-agnostic `ms_abi` tail jump; translation lands at the call site | accepted 2026-08-30 | none |
+| [0010](0010-veneer-header-provenance.md) | The veneer's `features.h` is el8's arithmetic, copied not paraphrased | accepted 2026-08-30 | none |
+| [0011](0011-ldso-cache-format.md) | the loader's cache is this project's own format, not glibc's | accepted 2026-08-30 | none |
+| [0012](0012-host-facing-unwind-seam.md) | host-facing entry points are ms_abi with compiler unwind data; System V frames carry none | accepted 2026-08-30 | none |
+| [0013](0013-version-map-companion-sources.md) | the version map's companion set spans glibc, libnsl and libxcrypt | accepted 2026-08-30 | none |
+| [0014](0014-at-pagesz-commit-granularity.md) | AT_PAGESZ reports the commit granularity, not the reservation one | accepted 2026-08-30 | none |
+| [0015](0015-variadic-rebuild-through-a-core-valist.md) | the variadic veneer rebuilds a Microsoft va_list and repasses through a va_list core | accepted 2026-08-30 | none |
+| [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
+| [0017](0017-version-node-objects-are-scaffold.md) | version-node identity objects are scaffold, not a fourth-bucket stub | accepted 2026-08-30 | none |
+| [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30 | none |
+| [0019](0019-symbol-lookup-engine-and-versioning-seam.md) | symbol lookup is a separate engine, and versioning enters through one seam | accepted 2026-08-30 | none |
+| [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30 | none |
+| [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30 | none |
+| [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
+| [0023](0023-version-match-rule.md) | the version matcher reproduces glibc's observable rule, from the spec | accepted 2026-08-30 | none |
+| [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
+| [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30 | none |
+| [0026](0026-the-version-script-names-every-symbol.md) | the generated version script names every symbol, not just the nodes | accepted 2026-08-30 | none |
+| [0027](0027-the-exec-branch-and-the-interpreter-limit.md) | one classifier for the exec branch, and a four-hop interpreter limit | accepted 2026-08-30 | none |
+| [0028](0028-the-low-window-is-reserved-by-the-parent.md) | the low window is reserved by the parent, into a suspended stub | accepted 2026-08-30 | none |
+| [0029](0029-what-crosses-the-fork-and-how-it-is-checked.md) | what crosses the fork, and how the child knows | accepted 2026-08-30 | none |
+| [0030](0030-the-shape-of-a-signal-delivery.md) | the receiving thread builds the signal frame, and the return is an iretq | accepted 2026-08-30 | none |
+| [0031](0031-status-lives-in-a-tracked-ledger.md) | build status is a tracked ledger and the worker is driven from the plan | accepted 2026-08-30 | none |
+| [0032](0032-the-companion-set-is-eight-libraries.md) | the companion set is the eight libraries DT_NEEDED reaches, no more | accepted 2026-08-30 | none |
+| [0033](0033-an-elf-core-from-the-runtime.md) | a fatal signal leaves an ELF core, written by the runtime | accepted 2026-08-30 | none |
+| [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30 | none |
+| [0035](0035-ci-is-the-pre-merge-gate.md) | CI is a pre-merge gate on the pinned root, not a hosted service | accepted 2026-08-30 | none |
+| [0036](0036-ratification-sweep-0008-0035.md) | ratification sweep: DR-0008 through DR-0035 pass the decision ladder and are ratified | accepted 2026-08-30 | proposal F7 |
+| [0037](0037-the-linking-exception-carries-forward.md) | the linking exception carries forward with the modified library, as accepted practice | accepted 2026-08-30 | licensing docket items 1 and 2 |
+| [0038](0038-the-build-environment-is-the-primary-root.md) | the build and certification environment is the primary Cygwin root (3.6.10); supersedes DR-0035 on the CI root | accepted 2026-08-30 | none |
+| [0039](0039-one-trunk-sessions-land-from-worktrees.md) | one merge-only trunk; every session lands from its own worktree via session-start/session-land | accepted 2026-08-30 | proposal 0005 |
+| [0040](0040-atomic-dll-install.md) | the faced DLL is installed by rename, not by copy | accepted 2026-08-31 | none |
+| [0041](0041-context-transparent-faces.md) | the setjmp family takes a frameless face | accepted 2026-08-31 | none |
+| [0042](0042-fault-dispatch-across-sysv-frames.md) | fault dispatch across System V frames fails on runtime-created threads | accepted 2026-08-31 | none |
+| [0043](0043-sole-runtime-crossing.md) | the faced DLL is exercised as a process's sole Cygwin runtime | accepted 2026-08-31 | none |
+| [0044](0044-sv2ms-face-shapes.md) | sv2ms faces are generated by signature class | accepted 2026-08-31 | none |
+| [0045](0045-the-runtime-crossing-for-a-static-elf.md) | The runtime crossing for a static ELF | accepted 2026-08-31 | none |
+| [0046](0046-unlisted-face-disposition.md) | The unlisted faces resolve from Cygwin's own tree, and the PE protocol keeps its face | accepted 2026-08-31 | none |
+| [0047](0047-an-alias-is-as-strict-as-its-target.md) | an alias is never classified less strictly than its target | accepted 2026-08-31 | none |
+| [0048](0048-main-returns-through-exit.md) | main returns through exit, not _exit | accepted 2026-08-31 | none |
+| [0049](0049-wiring-crosses-a-bound-table.md) | the wiring crosses through a load-time bound table | accepted 2026-08-31 | none |
+| [0050](0050-retire-mno-red-zone.md) | `-mno-red-zone` is retired; the red zone is honored at the delivery site | accepted 2026-08-31 | none |
+| [0051](0051-the-jmp_buf-shims-take-a-frameless-face.md) | the jmp_buf shims take a frameless face, not a call-style wrapper | accepted 2026-08-31 | none |
+| [0052](0052-a-stub-may-be-filled-with-a-synthesized-body.md) | a stub may be filled with a synthesized body, not only left to fail | accepted 2026-08-31 | none |
+| [0053](0053-wchar-is-two-bytes-in-the-body.md) | wchar_t is two bytes in the body, four in the face | accepted 2026-09-01 | none |
+| [0054](0054-termios-layout-differs-in-the-body.md) | struct termios is laid out differently in the body than the face | accepted 2026-09-01 | none |
+| [0055](0055-a-sigfe-slice-crosses-live-by-its-bind-alone.md) | a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone | accepted 2026-09-01 | none |
+| [0056](0056-the-stat-family-does-not-forward.md) | the stat family does not forward, and filesystem crosses by its bind | accepted 2026-09-01 | none |
+| [0057](0057-acceptance-credits-a-certified-shim.md) | the acceptance embryo credits a certified shim, not only a filled stub | accepted 2026-09-01 | none |
+| [0058](0058-the-runtime-crossing-for-a-dynamic-elf.md) | The runtime crossing for a dynamic ELF | accepted 2026-09-01 | none |
+| [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01 | none |
+| [0060](0060-reent-bringup-is-the-real-process-shape.md) | reent bring-up is the real-process shape, not a cygload call | accepted 2026-09-01 | none |
+| [0061](0061-images-are-linked-granule-separable.md) | every image the platform loads is linked granule-separable | accepted 2026-09-01 | none |
+| [0062](0062-cet-opt-out-is-a-toolchain-default.md) | CET opt-out belongs in the toolchain default, not only the rpm macros | accepted 2026-09-01 | none |
+| [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
+| [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01 | none |
+| [0065](0065-veneer-func-forward-is-a-runtime-resolving-thunk.md) | a veneer FUNC forward is a runtime-resolving thunk | accepted 2026-09-01 | none |
+| [0066](0066-real-process-stub-obstacle-is-the-abi-boundary.md) | the real-process stub's obstacle is the ABI boundary, not the window | accepted 2026-09-01 | none |
+| [0067](0067-real-process-stub-does-its-own-work-host-safe.md) | the real-process stub does its own work host-safe, and crosses only for output | accepted 2026-09-01 | none |
+| [0068](0068-the-low-window-is-reconciled-with-a-cygwin-child.md) | the low window is reconciled with a cygwin-linked child, not reserved over it | accepted 2026-09-01 | none |
+| [0069](0069-the-low-window-is-reconciled-at-placement.md) | the low window is reconciled at placement, not only at reservation | accepted 2026-09-01 | none |
+| [0070](0070-the-ladder-measures-before-it-escalates.md) | the decision ladder measures before it escalates | accepted 2026-09-01 | none |
+| [0071](0071-faced-runtime-hosting-is-the-sole-runtime-process.md) | the acceptance crossing hosts the faced runtime as its own process | accepted 2026-09-01 | none |
+| [0072](0072-the-low-window-belongs-to-the-guest.md) | the low window belongs to the guest | provisional 2026-09-02 | none |
+| [0073](0073-a-weak-undefined-is-not-a-demand.md) | a weak undefined symbol is not a demand on the runtime | provisional 2026-09-02 | none |
+| [0074](0074-lifts-are-cleared-by-text-and-practice.md) | a lift is cleared by licence text and recorded practice; LGPL-2.1-or-later is open | provisional 2026-09-02 | none |
+| [0075](0075-governing-documents-cite-their-records.md) | the governing documents carry the citations, and a checker holds them | accepted 2026-09-02 | 0006 |
+| [0076](0076-architecture-is-sized-by-coherence.md) | the architecture document is sized by coherence, not by a word ceiling | accepted 2026-09-02 | none |
+| [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03 | none |
+| [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
+
+## What earns a record
+
+Anything a different engineer would want the reasoning for six months on,
+whichever route the change took. That is a lower bar than it sounds, and it is
+deliberately lower than the bar for a proposal: a change can be cheap to undo
+and still leave a question behind it worth answering once.
+
+The three reservations in `AGENTS.md` each end in a record by construction.

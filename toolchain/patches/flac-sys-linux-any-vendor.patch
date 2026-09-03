@@ -18,7 +18,7 @@ and is not one.
 Against flac-1.3.2-11.el8, sha256
 912d166b2b1b9655047b28345288dff26933964f39261d136b82bc12b00fc73d on the
 source rpm. The triple this exists to accommodate is in
-doc/target-definition.md.
+doc/design/target-definition.md.
 
 --- a/configure.ac
 +++ b/configure.ac

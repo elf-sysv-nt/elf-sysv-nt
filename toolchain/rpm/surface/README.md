@@ -46,9 +46,9 @@ PE-named face from every generated dependency.
 actually ships: `elf-ldconfig -f` now reads `ld.so.conf`'s shape --
 directories, comments, and `include ld.so.conf.d/*.conf` with a relative
 pattern resolved against the including file -- so the file a package's
-scriptlet appends to is read as the vendor wrote it. The stage 0.5 admission
-of a PE dependency generator in `doc/symbol-versioning-formats.md` is marked
-superseded by this delivery; it belonged to the PE route.
+scriptlet appends to is read as the vendor wrote it. The stage 0.5 admission of
+a PE dependency generator in `doc/history/symbol-versioning-formats.md` is
+marked superseded by this delivery; it belonged to the PE route.
 
 ## Not verified
 

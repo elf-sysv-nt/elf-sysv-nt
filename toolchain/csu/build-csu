@@ -111,7 +111,7 @@ if [ "$dryrun" = 1 ]; then
 fi
 
 # el8's usrmerge, and the loader's SONAME lives at /lib64 by
-# doc/target-definition.md, so the link has to exist before anything looks.
+# doc/design/target-definition.md, so the link has to exist before anything looks.
 mkdir -p "$libdir" "$incdir" "$sysroot/usr/bin" || die "cannot create $sysroot"
 rm -rf "$sysroot/lib64" "$sysroot/lib" "$sysroot/bin"
 ln -s usr/lib64 "$sysroot/lib64" || die "cannot link /lib64"

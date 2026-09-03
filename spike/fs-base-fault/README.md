@@ -15,8 +15,9 @@ Vendor binaries are built for real Linux and reach for TLS through `%fs`. We
 are not going to rebuild Red Hat's tree, so a binary that arrives already
 linked has psABI TLS sequences in it and no toolchain choice of ours reaches
 them. The operator's direction, taken 2026-08-29, is that load-time rewriting
-is the fallback for exactly that case; `doc/proposals/0003-vendor-binary-tls-rewriting.md`
-carries the shape and its costs.
+is the fallback for exactly that case;
+`doc/design/proposals/0003-vendor-binary-tls-rewriting.md` carries the shape
+and its costs.
 
 The hard part of a rewriter is not rewriting. It is finding every site. In a
 linked executable the local-exec relocations have already been consumed, so
@@ -217,7 +218,7 @@ and give the handler an arithmetic problem it does not currently have.
 
 ## Where the verdict goes
 
-`doc/proposals/0003-vendor-binary-tls-rewriting.md`, which is written against
-this measurement rather than ahead of it, in the way DR-0001 and DR-0003 were.
-`doc/IMPLEMENTATION-PLAN.md`, in whichever loader package inherits the
-rewriter. `doc/milestones.md`, spike 8.
+`doc/design/proposals/0003-vendor-binary-tls-rewriting.md`, which is written
+against this measurement rather than ahead of it, in the way DR-0001 and
+DR-0003 were. `doc/IMPLEMENTATION-PLAN.md`, in whichever loader package
+inherits the rewriter. `doc/milestones.md`, spike 8.

@@ -35,7 +35,7 @@ Red Hat spells its hardening as `-specs=` arguments naming files inside
 `redhat-rpm-config`; `redhat-hardened-cc1` injects `-fPIE` and
 `redhat-hardened-ld` injects `-pie`. Those files are Red Hat's rpm
 configuration and are not in this sysroot, so the flags they inject are
-written out here instead. That is S2 in `doc/substitutions.md`, and what
+written out here instead. That is S2 in `doc/design/substitutions.md`, and what
 closes it is a build under real rpm macros on a real el8 root.
 
 `spike/vendor-hardened-build/expand-flags.py` is the check, and it runs as

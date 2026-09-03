@@ -13,6 +13,7 @@ child is therefore refused with `err=487` (`ERROR_INVALID_ADDRESS`), because it
 The reconciliation is identification, not eviction: the parent recognizes the
 child's low reservation and reserves only the free remainder of the window,
 rather than reserving over what the child already holds. This note tracks that
-change; the design record is `doc/decisions/` (the low-window reconciliation)
-and the implementation is the reconciling fallback in `loader/exec/reserve.c`
-with its planner certified as a pure decision in `loader/exec/t/unit.c`.
+change; the design record is `doc/design/decisions/` (the low-window
+reconciliation) and the implementation is the reconciling fallback in
+`loader/exec/reserve.c` with its planner certified as a pure decision in
+`loader/exec/t/unit.c`.

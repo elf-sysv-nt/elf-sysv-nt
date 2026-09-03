@@ -16,7 +16,7 @@
 # not ship, which is what WP-56 spent a session parked on. The two -specs=
 # arguments are replaced here by the flags those specs files inject, because
 # the specs files are Red Hat's rpm configuration and are not in this sysroot;
-# that substitution is S2 in doc/substitutions.md, and the chain behind it is
+# that substitution is S2 in doc/design/substitutions.md, and the chain behind it is
 # measured in spike/vendor-hardened-build/.
 #
 # The bzip2-nonpie row exists because a minority of el8 opts out of hardening

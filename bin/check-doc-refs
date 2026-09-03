@@ -12,7 +12,7 @@
 #      spikes with neither a directory nor a row are intentionally out of scope
 #      until they run.
 #   3. The decision records keep proposal 0001's index bijection: every
-#      doc/decisions/NNNN-*.md has exactly one index row, and every index row
+#      doc/design/decisions/NNNN-*.md has exactly one index row, and every index row
 #      points to a file that exists.
 #
 # Prose is not exempt here the way it is for check-target-definition: a broken
@@ -64,8 +64,8 @@ def citing_files(root):
         if '.git' in dirpath.split(os.sep):
             continue
         rel = os.path.relpath(dirpath, root).replace('\\', '/')
-        if rel == 'doc/proposals' or rel.startswith('doc/proposals/') \
-           or rel == 'doc/design-gaps' or rel.startswith('doc/design-gaps/'):
+        if rel == 'doc/design/proposals' or rel.startswith('doc/design/proposals/') \
+           or rel == 'doc/history/design-gaps' or rel.startswith('doc/history/design-gaps/'):
             continue           # proposals and reviews cite artifacts they propose to create
         for f in files:
             if f.endswith('.md'):
@@ -134,7 +134,7 @@ def check_spikes(root):
 
 
 def check_decisions(root):
-    dd = os.path.join(root, 'doc', 'decisions')
+    dd = os.path.join(root, 'doc', 'design', 'decisions')
     if not os.path.isdir(dd):
         return 0, []
     files = {}
@@ -150,7 +150,7 @@ def check_decisions(root):
     for num, fname in sorted(files.items()):
         c = row_nums.count(num)
         if c == 0:
-            bad.append('doc/decisions/%s has no index row' % fname)
+            bad.append('doc/design/decisions/%s has no index row' % fname)
         elif c > 1:
             bad.append('DR-%s has %d index rows' % (num, c))
     for num, target in rows:

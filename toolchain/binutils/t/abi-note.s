@@ -1,4 +1,4 @@
-/* The .note.ABI-tag exactly as doc/target-definition.md fixes it, and as el8
+/* The .note.ABI-tag exactly as doc/design/target-definition.md fixes it, and as el8
    emits it: owner GNU, type NT_GNU_ABI_TAG, Linux, minimum kernel 3.2.0.
 
    Hand-written because the startup files that will carry it belong to WP-14

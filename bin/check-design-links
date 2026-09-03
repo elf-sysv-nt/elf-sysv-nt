@@ -41,18 +41,18 @@ import os, re, sys
 
 VERSION = 'check-design-links 1.0'
 
-GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
-            'doc/ABI-Boundary.md', 'doc/Symbol-Resolution.md',
-            'doc/Address-Space.md', 'doc/Runtime-Crossing.md',
-            'doc/Verification-Plan.md', 'doc/glibc-reuse.md',
-            'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
+GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
+            'doc/design/ABI-Boundary.md', 'doc/design/Symbol-Resolution.md',
+            'doc/design/Address-Space.md', 'doc/design/Runtime-Crossing.md',
+            'doc/design/Verification-Plan.md', 'doc/design/glibc-reuse.md',
+            'doc/design/target-definition.md', 'doc/design/licensing.md', 'AGENTS.md')
 ADOPTION = 75            # the convention's own record; at or below it, no Amends
 
 SETTLED = re.compile(r'^Settled by: DR-\d{4}(?:, DR-\d{4})*\.$')
-AMENDS = re.compile(r'^Amends: (doc/[A-Za-z-]+\.md|AGENTS\.md) § (.+)$')
+AMENDS = re.compile(r'^Amends: (doc/design/[A-Za-z-]+\.md|AGENTS\.md) § (.+)$')
 SUPERSEDED = re.compile(r'superseded by (\d{4})')
 INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')
-SURVEY = 'doc/elf-technical-breakdown.md'
+SURVEY = 'doc/history/elf-technical-breakdown.md'
 
 
 def repo_root(start):
@@ -70,7 +70,7 @@ def read(path):
 
 def index_rows(root):
     """Number -> (filename, status cell) for every row in the decisions index."""
-    idx = os.path.join(root, 'doc', 'decisions', 'index.md')
+    idx = os.path.join(root, 'doc', 'design', 'decisions', 'index.md')
     rows = {}
     if not os.path.isfile(idx):
         return rows
@@ -116,7 +116,7 @@ def headings(path):
 
 
 def record_files(root):
-    dd = os.path.join(root, 'doc', 'decisions')
+    dd = os.path.join(root, 'doc', 'design', 'decisions')
     out = []
     if not os.path.isdir(dd):
         return out
@@ -140,7 +140,7 @@ def assert_every_record_cited(root, rows, lines, verbose):
                 print('  DR-%s superseded, not required' % num)
             continue
         if num not in cited:
-            bad.append('doc/decisions/%s: DR-%s is in force and no Settled-by '
+            bad.append('doc/design/decisions/%s: DR-%s is in force and no Settled-by '
                        'line in a governed document names it' % (fname, num))
     return len(rows), bad
 
@@ -169,7 +169,7 @@ def assert_citations_resolve(root, rows, lines, verbose):
 def assert_amends(root, verbose):
     bad, n = [], 0
     for num, fname in record_files(root):
-        path = os.path.join(root, 'doc', 'decisions', fname)
+        path = os.path.join(root, 'doc', 'design', 'decisions', fname)
         header = read(path).split('\n')[:20]
         line, lineno = None, 0
         for i, l in enumerate(header, 1):
@@ -179,25 +179,25 @@ def assert_amends(root, verbose):
         required = num == 'XXXX' or int(num) > ADOPTION
         if line is None:
             if required:
-                bad.append('doc/decisions/%s: numbered above DR-%04d and has no '
+                bad.append('doc/design/decisions/%s: numbered above DR-%04d and has no '
                            'Amends header' % (fname, ADOPTION))
             continue
         n += 1
         m = AMENDS.match(line)
         if not m:
-            bad.append('doc/decisions/%s:%d: Amends does not match the required '
+            bad.append('doc/design/decisions/%s:%d: Amends does not match the required '
                        'form "Amends: <governed file> § <heading>"'
                        % (fname, lineno))
             continue
         target, heading = m.group(1), m.group(2).strip()
         tp = os.path.join(root, target)
         if verbose:
-            print('  doc/decisions/%s amends %s § %s' % (fname, target, heading))
+            print('  doc/design/decisions/%s amends %s § %s' % (fname, target, heading))
         if not os.path.isfile(tp):
-            bad.append('doc/decisions/%s:%d: amends %s, which does not exist'
+            bad.append('doc/design/decisions/%s:%d: amends %s, which does not exist'
                        % (fname, lineno, target))
         elif heading not in headings(tp):
-            bad.append('doc/decisions/%s:%d: amends %s § %s, and that file has '
+            bad.append('doc/design/decisions/%s:%d: amends %s § %s, and that file has '
                        'no such heading' % (fname, lineno, target, heading))
     return n, bad
 

@@ -26,11 +26,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # from: these are the files the operator opens, and the operator opens one tree.
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
 
-GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
-            'doc/ABI-Boundary.md', 'doc/Symbol-Resolution.md',
-            'doc/Address-Space.md', 'doc/Runtime-Crossing.md',
-            'doc/Verification-Plan.md', 'doc/glibc-reuse.md',
-            'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
+GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
+            'doc/design/ABI-Boundary.md', 'doc/design/Symbol-Resolution.md',
+            'doc/design/Address-Space.md', 'doc/design/Runtime-Crossing.md',
+            'doc/design/Verification-Plan.md', 'doc/design/glibc-reuse.md',
+            'doc/design/target-definition.md', 'doc/design/licensing.md', 'AGENTS.md')
 
 INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')
 TIER = re.compile(r'\b[Tt]ier (\d)\b')
@@ -43,7 +43,7 @@ def read(path):
 
 def records(repo):
     """(number, filename, decision text, status cell) per index row, in order."""
-    idx = os.path.join(repo, 'doc', 'decisions', 'index.md')
+    idx = os.path.join(repo, 'doc', 'design', 'decisions', 'index.md')
     out = []
     if not os.path.isfile(idx):
         return out
@@ -102,7 +102,7 @@ def provisional_report(repo):
         out.append('')
         return '\n'.join(out)
     for num, fname, decision, status in rows:
-        path = os.path.join(repo, 'doc', 'decisions', fname)
+        path = os.path.join(repo, 'doc', 'design', 'decisions', fname)
         tier = 'no tier named'
         if os.path.isfile(path):
             m = TIER.search(read(path))
@@ -148,7 +148,7 @@ def not_verified_report(repo):
     for num, fname, decision, status in records(repo):
         if not in_force(status):
             continue
-        p = os.path.join(repo, 'doc', 'decisions', fname)
+        p = os.path.join(repo, 'doc', 'design', 'decisions', fname)
         if not os.path.isfile(p):
             continue
         paras = section(read(p), 'Not verified')

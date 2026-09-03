@@ -7,7 +7,7 @@ WP-14. Four objects, a directory tree, and one exit criterion that is not met.
 
 `crt1.o`, `Scrt1.o`, `crti.o` and `crtn.o` assemble against WP-12's binutils.
 `build-csu` lays out the sysroot with el8's usrmerge links, so `/lib64`
-resolves before anything looks for the loader `doc/target-definition.md`
+resolves before anything looks for the loader `doc/design/target-definition.md`
 names. The header set WP-50 delivers is installed alongside, reseeded on every
 run rather than added to.
 

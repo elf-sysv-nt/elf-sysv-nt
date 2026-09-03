@@ -7,7 +7,7 @@
 # for which WSL image supplies the reference. This drives all three against the
 # pinned el8 image (rocky8, glibc 2.28) rather than whatever glibc is on the
 # machine, which is the burn-down of substitution row S1 in
-# doc/substitutions.md. It does not re-implement the comparisons; it points them
+# doc/design/substitutions.md. It does not re-implement the comparisons; it points them
 # at el8 and collects their verdicts.
 #
 # Usage: t2-run.sh [-d DISTRO] [-o FILE]

@@ -83,14 +83,14 @@ readelf, mirror, fetch counts — is provenance and moves with the machine.
 
 ## Not verified
 
-Whether the flag substitution is behaviourally equivalent to running under
-Red Hat's real specs files. It is equivalent for the one property this spike
+Whether the flag substitution is behaviourally equivalent to running under Red
+Hat's real specs files. It is equivalent for the one property this spike
 claims, the image's `e_type` and segment placement, because that property
 follows from `-fPIE` and `-pie` alone. `-fstack-clash-protection` and
 `-fcf-protection` are dropped or defaulted elsewhere in this toolchain, and
 neither bears on placement. The substitution is recorded as S2 in
-`doc/substitutions.md`, and what burns it down is an acceptance run against a
-package built by real rpm macros.
+`doc/design/substitutions.md`, and what burns it down is an acceptance run
+against a package built by real rpm macros.
 
 Whether the naked build's `ET_EXEC` is peculiar to bzip2. It is not peculiar
 in kind — any hand-written Makefile that passes no flags gets the toolchain

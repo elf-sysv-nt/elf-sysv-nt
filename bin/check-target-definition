@@ -5,7 +5,7 @@
 # The criterion reads "every later package that hardcodes one of the five
 # cites this document rather than a memory of it", which is a judgment until
 # a script makes it a test. This is that script. It greps the tree for each
-# literal value in doc/target-definition.md and reports any file carrying one
+# literal value in doc/design/target-definition.md and reports any file carrying one
 # without also naming the document.
 #
 # Prose is exempt, and deliberately. doc/ argues about these values, spike/
@@ -92,7 +92,7 @@ done
 [ "$debug" = 1 ] && set -x
 [ -d "$root" ] || usage_error "no such directory: $root"
 
-record=doc/target-definition.md
+record=doc/design/target-definition.md
 [ -r "$root/$record" ] || die "$record is missing; WP-10 is what this checks"
 
 # One per line, and each has to be a string a consumer would actually write

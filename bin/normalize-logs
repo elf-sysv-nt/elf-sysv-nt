@@ -59,7 +59,7 @@ def main(argv):
             print('Usage: normalize-logs [-C DIR] [-q]'); return 0
         i += 1
     root = repo_root(directory or '.')
-    sort_index(os.path.join(root, 'doc', 'decisions', 'index.md'))
+    sort_index(os.path.join(root, 'doc', 'design', 'decisions', 'index.md'))
     for rel in ('doc/status/delivered.txt', 'doc/status/hold.txt', 'a/build-blockers.log'):
         dedup(os.path.join(root, rel))
     if not quiet:

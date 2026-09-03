@@ -4,7 +4,7 @@
 #
 # Three claims, and the plan states all three: as accepts .symver, ld accepts
 # --version-script and produces a .gnu.version_d that readelf -V prints, and a
-# linked object's EI_OSABI and .note.ABI-tag match doc/target-definition.md.
+# linked object's EI_OSABI and .note.ABI-tag match doc/design/target-definition.md.
 #
 # The second is the one worth the trouble. The failure this exists to catch is
 # not a linker that rejects --version-script; it is a linker that accepts the

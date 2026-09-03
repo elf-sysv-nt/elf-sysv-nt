@@ -29,10 +29,10 @@ changed the answer on an ordinary host would be rejected upstream and would
 break every other build on the machine.
 
 Two things follow for later packages. WP-13 has to define `__ELFSYSVNT__` in
-the specs, alongside the rest of what the target mandates rather than
-suggests. And WP-63 has to install `/etc/elfsysvnt-release`, since
-`config.guess` runs in trees with no compiler and that file is the only answer
-available there. The values it agrees with are in `doc/target-definition.md`.
+the specs, alongside the rest of what the target mandates rather than suggests.
+And WP-63 has to install `/etc/elfsysvnt-release`, since `config.guess` runs in
+trees with no compiler and that file is the only answer available there. The
+values it agrees with are in `doc/design/target-definition.md`.
 
 ## The refresh, which is the actual work
 

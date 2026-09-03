@@ -167,7 +167,7 @@ claim 'a freestanding object compiles' \
 claim 'and its EI_OSABI matches the record' \
     grep -q 'OS/ABI: *UNIX - System V' free-hdr.txt
 
-# doc/target-definition.md fixes this and gcc already agreed, so this guards
+# doc/design/target-definition.md fixes this and gcc already agreed, so this guards
 # against a later change rather than asserting a patch.
 "$CC" -dumpspecs > specs.txt 2>&1
 claim 'the driver names the loader the record fixes' \

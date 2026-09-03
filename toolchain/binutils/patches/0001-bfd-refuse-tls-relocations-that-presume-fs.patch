@@ -26,7 +26,7 @@ than sequences, ld writes no instruction bytes for them, and WP-13's codegen
 wants TPOFF for sequences of its own.
 
 Against binutils 2.42, pinned in ../binutils.pin. The target definition these
-values answer to is doc/target-definition.md.
+values answer to is doc/design/target-definition.md.
 
 --- a/bfd/elf64-x86-64.c
 +++ b/bfd/elf64-x86-64.c

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Insert one decision-record row after the last existing row in
-doc/decisions/index.md. One-shot registration helper for the build worker;
+doc/design/decisions/index.md. One-shot registration helper for the build worker;
 hand-edits and awk one-liners have corrupted this file before."""
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INDEX = os.path.join(ROOT, "doc", "decisions", "index.md")
+INDEX = os.path.join(ROOT, "doc", "design", "decisions", "index.md")
 
 
 def main():

@@ -18,19 +18,19 @@ The interesting ones are not the ones the plan named.
 
 `.symver` survives assembly at both nodes, and `--version-script` produces a
 `.gnu.version_d` that `readelf -V` prints with both nodes defined and the
-parent chain recorded. That is three claims rather than one because the
-failure being guarded against is not a linker that rejects the option. It is a
-linker that accepts it, links clean, and silently drops the version names,
-which is the trap `doc/symbol-versioning-formats.md` records for the PE route
+parent chain recorded. That is three claims rather than one because the failure
+being guarded against is not a linker that rejects the option. It is a linker
+that accepts it, links clean, and silently drops the version names, which is
+the trap `doc/history/symbol-versioning-formats.md` records for the PE route
 and the reason the format changed at all. So the test reads the verdefs back
 out instead of checking an exit code.
 
-The header bytes match `doc/target-definition.md`: an ordinary object gets
-`ELFOSABI_NONE`, an object carrying an ifunc gets promoted to `ELFOSABI_GNU`,
-and the hand-assembled `.note.ABI-tag` reads back as Linux 3.2.0 in a
-`PT_NOTE`. Both halves of the OSABI rule are checked, because a test that only
-saw the zero would prove the byte was zero rather than that it was zero for a
-reason.
+The header bytes match `doc/design/target-definition.md`: an ordinary object
+gets `ELFOSABI_NONE`, an object carrying an ifunc gets promoted to
+`ELFOSABI_GNU`, and the hand-assembled `.note.ABI-tag` reads back as Linux
+3.2.0 in a `PT_NOTE`. Both halves of the OSABI rule are checked, because a test
+that only saw the zero would prove the byte was zero rather than that it was
+zero for a reason.
 
 One claim was not in the plan and belongs to spike 4. `elfdeps` formats the
 versioned `Provides` off the base verdef node and the unversioned one off
@@ -74,10 +74,11 @@ assembler, so a linker that rewrites nothing still passes that instruction
 through untouched. The compiler side needs work regardless, and that is
 WP-13's.
 
-That the refusal is right for a vendor object rather than merely honest. A
-`.o` from an el8 archive carries these relocations legitimately and will now
-fail to link, which is the intended diagnosis and not a repair.
-`doc/proposals/0003-vendor-binary-tls-rewriting.md` is where the repair lives.
+That the refusal is right for a vendor object rather than merely honest. A `.o`
+from an el8 archive carries these relocations legitimately and will now fail to
+link, which is the intended diagnosis and not a repair.
+`doc/design/proposals/0003-vendor-binary-tls-rewriting.md` is where the repair
+lives.
 
 That 2.42 is the right release. It was chosen over el8's 2.30 for RELR and a
 decade of x86 fixes, and nothing has yet needed either.

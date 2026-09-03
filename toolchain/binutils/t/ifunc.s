@@ -1,5 +1,5 @@
 /* An ifunc, which exists here for one reason: it is the trigger that makes a
-   linker write ELFOSABI_GNU instead of ELFOSABI_NONE. doc/target-definition.md
+   linker write ELFOSABI_GNU instead of ELFOSABI_NONE. doc/design/target-definition.md
    says the byte describes the object rather than the platform, and this is
    the object that makes it say so. */
 

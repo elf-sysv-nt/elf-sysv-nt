@@ -2,7 +2,7 @@
 #
 # Every value here is one some package can forget to pass, which is the test
 # for whether it belongs in a macro set rather than in a spec file. The five
-# target values are doc/target-definition.md's and this file cites that record
+# target values are doc/design/target-definition.md's and this file cites that record
 # rather than restating the argument for any of them.
 #
 # Installed as /usr/lib/rpm/macros.d/macros.elfsysvnt by WP-63, which reseeds
@@ -55,7 +55,7 @@
 # cflags_absent_from_ours line is what catches the next drift. The vendor's own
 # spelling puts the hardening behind -specs= arguments that name Red Hat's
 # files; those files are not in this sysroot, so the flags they inject are
-# written out instead (S2 in doc/substitutions.md).
+# written out instead (S2 in doc/design/substitutions.md).
 #
 # -fPIE is the one that matters. Its absence is why the acceptance harness
 # produced an ET_EXEC at 0x400000 that el8 does not ship, and why WP-56 spent a

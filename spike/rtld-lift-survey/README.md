@@ -2,12 +2,13 @@
 
 `AGENTS.md` now asks what Linux and GNU already have before anything gets
 written. The loader is the place that question was never asked, and the
-standing answer turned out to rest on a mistake: `doc/elf-technical-breakdown.md`
-recorded glibc's resolver as GPL, so unusable. It is LGPL-2.1-or-later, which
-an LGPLv3-or-later tree can take outright. The real obstacle there is coupling —
-`_rtld_global`, glibc's own `link_map`, the assumption of being the process's
-first mover — and that obstacle is real. But it is a different claim, and it
-does not generalise to every other implementation.
+standing answer turned out to rest on a mistake:
+`doc/history/elf-technical-breakdown.md` recorded glibc's resolver as GPL, so
+unusable. It is LGPL-2.1-or-later, which an LGPLv3-or-later tree can take
+outright. The real obstacle there is coupling — `_rtld_global`, glibc's own
+`link_map`, the assumption of being the process's first mover — and that
+obstacle is real. But it is a different claim, and it does not generalise to
+every other implementation.
 
 FreeBSD's `rtld-elf` is the other complete one. This survey asks whether it
 could have been lifted, and what a lift would carry.
@@ -22,9 +23,9 @@ The licence, read out of the file rather than assumed from the project. Both
 `rtld.c` and `rtld.h` carry `SPDX-License-Identifier: BSD-2-Clause`.
 
 Whether the versioning path is really there, which is the part glibc has and
-musl only partly has — the reason `doc/elf-technical-breakdown.md` gives for
-not simply reusing musl's `dynlink.c`. Six entry points are checked by name,
-and the verdef and verneed parses with them.
+musl only partly has — the reason `doc/history/elf-technical-breakdown.md`
+gives for not simply reusing musl's `dynlink.c`. Six entry points are checked
+by name, and the verdef and verneed parses with them.
 
 What a lift would drag behind it. The versioning functions' extents are summed
 from the source, and `rtld.c`'s includes are split into BSD kernel headers,

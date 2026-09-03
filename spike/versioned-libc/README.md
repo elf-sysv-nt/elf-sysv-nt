@@ -19,9 +19,9 @@ before anything large is funded rather than after.
 
 ## Why the answer was in doubt
 
-`doc/symbol-versioning-formats.md` is the record this spike exists to close.
-Its finding is that PE has no representation for symbol versioning, that no
-alternative image format is reachable on Windows, and that rpm has no PE
+`doc/history/symbol-versioning-formats.md` is the record this spike exists to
+close. Its finding is that PE has no representation for symbol versioning, that
+no alternative image format is reachable on Windows, and that rpm has no PE
 dependency generator and never will have a useful one: it could emit a
 module-level requires against a DLL name and could never emit a version node,
 because the file does not contain one. Every el8 package linking libc carries
@@ -166,10 +166,10 @@ program.
 It also does not settle that a package built on this platform acquires these
 dependencies automatically. That needs an rpm on the *build host* carrying
 `elfdeps` and `fileattrs/elf.attr`, and Cygwin's `rpm-4.18.0-1` ships neither,
-as `doc/symbol-versioning-formats.md` records. So the stage 0.5 admission of a
-dependency generator survives this verdict, changed in kind: it is a
-build-host gap rather than a format impossibility, and the thing to install is
-rpm's own generator rather than something written here.
+as `doc/history/symbol-versioning-formats.md` records. So the stage 0.5
+admission of a dependency generator survives this verdict, changed in kind: it
+is a build-host gap rather than a format impossibility, and the thing to
+install is rpm's own generator rather than something written here.
 
 One `Not verified` item elsewhere closes on the way past. el8's
 `rpm-build-4.14.3-32.el8_10` does carry `/usr/lib/rpm/elfdeps` and ten
@@ -178,8 +178,8 @@ rpm is the port's and not the version's.
 
 ## Where the finding goes
 
-`doc/symbol-versioning-formats.md` keeps its accepted deviation, which was
-always scoped to the PE route and is what this project exists to avoid.
+`doc/history/symbol-versioning-formats.md` keeps its accepted deviation, which
+was always scoped to the PE route and is what this project exists to avoid.
 `doc/milestones.md`, `doc/ROADMAP.md` and `doc/IMPLEMENTATION-PLAN.md` record
 spike 4 as run. The base-node trap belongs in whatever eventually specifies the
 veneer's `.gnu.version_d`, because it is the kind of mistake that produces a

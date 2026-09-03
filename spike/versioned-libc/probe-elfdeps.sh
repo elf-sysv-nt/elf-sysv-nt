@@ -11,7 +11,7 @@
 #
 # It matters because every el8 package linking libc carries requires of that
 # exact shape, and because the surveyed alternative cannot produce it at all.
-# doc/symbol-versioning-formats.md records why: PE has nowhere to put a version
+# doc/history/symbol-versioning-formats.md records why: PE has nowhere to put a version
 # node, rpm has no PE generator, and a dependency comparison against the vendor
 # would differ structurally on nearly the whole package set. If the ELF route
 # does produce the vendor string, that whole deviation closes.

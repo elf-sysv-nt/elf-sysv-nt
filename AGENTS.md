@@ -7,11 +7,12 @@ rather than replacing what is behind it. The point is that a Linux userland
 builds against it with its object format, its symbol versioning, and its
 loader semantics intact.
 
-Read `doc/Architecture.md` for the design and `doc/milestones.md` for the order
-of work. The architecture is current at every commit and carries the values,
-constants and rules an implementer needs, with four sub-documents behind it for
-the subsystems that want their own file. `doc/elf-technical-breakdown.md` is
-the founding survey it grew out of, kept as history rather than as a plan.
+Read `doc/design/Architecture.md` for the design and `doc/milestones.md` for
+the order of work. The architecture is current at every commit and carries the
+values, constants and rules an implementer needs, with four sub-documents
+behind it for the subsystems that want their own file.
+`doc/history/elf-technical-breakdown.md` is the founding survey it grew out of,
+kept as history rather than as a plan.
 
 What has been built is tracked in
 `doc/status/delivered.txt` and reported by `bin/build_status.py`, which
@@ -25,7 +26,7 @@ and name the branch where a spike could send the program elsewhere.
 ## Risks worth knowing before touching anything
 
 Claims this design rests on that have never been measured are listed in the Not
-verified section of `doc/elf-technical-breakdown.md`. One of the two
+verified section of `doc/history/elf-technical-breakdown.md`. One of the two
 load-bearing ones has since been settled and it went the wrong way: Windows
 does not preserve a user-written FS base, so `%fs`-relative TLS is off the
 table and nothing may assume it. The other went our way on the same day: spike
@@ -128,12 +129,12 @@ was ever true of glibc.
 This tree is LGPLv3 or later, which DR-0004 records as inherited rather than
 chosen: `elfsysv1.dll` is Cygwin's `winsup` re-faced, Cygwin's exception
 excludes a library based on the Cygwin library by its own definition, and the
-licence follows the derivation. The linking exception carries forward with
-the modified library — DR-0037 records the reading and the precedent, MSYS2
-and Git for Windows being the practice it rests on — which is what lets el8's
+licence follows the derivation. The linking exception carries forward with the
+modified library — DR-0037 records the reading and the precedent, MSYS2 and Git
+for Windows being the practice it rests on — which is what lets el8's
 GPLv2-only software link an LGPLv3 runtime. Do not invent licence text: the
-exception is stated in `doc/licensing.md` by reproducing upstream's wording
-verbatim, and it stays that way.
+exception is stated in `doc/design/licensing.md` by reproducing upstream's
+wording verbatim, and it stays that way.
 
 Every installer and configurator is idempotent. Running it twice, or ten times,
 leaves the same result as running it once, whatever state the last run left
@@ -161,17 +162,31 @@ file, built-in default.
 
 ## Layout
 
-`doc/` is tracked and holds the governing documents. Working notes — session
-handoffs, surveys, and anything true only of one machine — live in the
-untracked working area, are authoritative for nobody else, and are never cited
-from a tracked file, since a reader who clones this cannot open them.
+`doc/` is tracked and splits three ways by what a file claims about the
+present. `doc/design/` holds everything that states what the system is or how
+a change to it is settled: the governed set, its sub-documents, the decision
+records and the proposals behind them. `doc/history/` holds what was true and
+is kept as reasoning rather than as a plan — the founding surveys, the closed
+design-gaps review, the landed handoffs — and nothing there is authority for
+present behaviour. `doc/` itself keeps the plans and the ledgers, which are
+neither: `doc/IMPLEMENTATION-PLAN.md`, `doc/ROADMAP.md`, `doc/milestones.md`,
+`doc/deferred-work.md`, `doc/status/`, and the generated `doc/Next-Steps.md`.
+A document whose claim changes class moves, and the citations move with it in
+the same commit.
+
+Working notes — session handoffs still in flight, surveys of one machine, and
+anything true only of this checkout — live in the untracked working area, are
+authoritative for nobody else, and are never cited from a tracked file, since a
+reader who clones this cannot open them. A working note worth keeping past its
+session lands in `doc/history/`, made to stand alone, rather than being cited
+from where it sits.
 
 `spike/<question>/` is tracked and holds the evidence behind a decision in
-`doc/`: the script that measured it, its sources, and the transcript the script
-produced, named by the date it was run. A spike is kept so that a finding can
-be re-measured rather than believed. Rerunning the script has to regenerate the
-transcript, so a spike whose script no longer runs is a defect in the same way
-a failing test is.
+`doc/design/`: the script that measured it, its sources, and the transcript
+the script produced, named by the date it was run. A spike is kept so that a
+finding can be re-measured rather than believed. Rerunning the script has to
+regenerate the transcript, so a spike whose script no longer runs is a defect
+in the same way a failing test is.
 
 The first five spikes in `doc/milestones.md` are the gates that stood before the
 reserved decisions; all five ran on 2026-08-29 and have their verdicts. Six more
@@ -180,32 +195,33 @@ followed as the work and then the design-gaps review surfaced them —
 the `%gs` carriers replacing the refuted `%fs` base and fed DR-0003 — and
 `doc/milestones.md` now records all eleven, each kept on the same terms.
 
-`doc/decisions/` holds one settlement per file with an index beside them, and
-`doc/proposals/` holds the change that produced each. A decision record is
-append-only: reversing one means a new record pointing back, never an edit to
-the old.
+`doc/design/decisions/` holds one settlement per file with an index beside
+them, and `doc/design/proposals/` holds the change that produced each. A
+decision record is append-only: reversing one means a new record pointing back,
+never an edit to the old.
 
 A decision record an implementing agent takes carries `Status: provisional`
 until the operator ratifies it. Ratification is cheap by design: one sweep
 record settles many, and reopening any of them is the same new-record
-mechanism. A record taken through `doc/decision-ladder.md` names the tier that
-discriminated, which is the line a ratification pass reads first; where the
-ladder reaches tier 8 without deciding, the entry parks with its survivors
-named rather than proceeding on a guess. The reserved decisions and the
-operator's own records are not provisional; the sweep in DR-0036 settled the
-agent records taken before the convention existed.
+mechanism. A record taken through `doc/design/decision-ladder.md` names the
+tier that discriminated, which is the line a ratification pass reads first;
+where the ladder reaches tier 8 without deciding, the entry parks with its
+survivors named rather than proceeding on a guess. The reserved decisions and
+the operator's own records are not provisional; the sweep in DR-0036 settled
+the agent records taken before the convention existed.
 
 A governed set states what the system is, in the present tense, current at
-every commit: `doc/Requirements.md`, `doc/Architecture.md`,
-`doc/Verification-Plan.md`, `doc/target-definition.md`, `doc/licensing.md`, and
-this file, plus four sub-documents carrying a subsystem each —
-`doc/ABI-Boundary.md`, `doc/Symbol-Resolution.md`, `doc/Address-Space.md` and
-`doc/Runtime-Crossing.md`. Read them to learn the design; read the records to
-learn why it is that and not something else, or what it was before. The bar on
-all of them is that a reader implementing a layer never has to open a record to
-find a value, a constant, a limit or a rule.
-`doc/elf-technical-breakdown.md` is the founding survey rather than the design
-of record, and says so at its head.
+every commit: `doc/design/Requirements.md`, `doc/design/Architecture.md`,
+`doc/design/Verification-Plan.md`, `doc/design/target-definition.md`,
+`doc/design/licensing.md`, and this file, plus four sub-documents carrying a
+subsystem each — `doc/design/ABI-Boundary.md`,
+`doc/design/Symbol-Resolution.md`, `doc/design/Address-Space.md` and
+`doc/design/Runtime-Crossing.md`. Read them to learn the design; read the
+records to learn why it is that and not something else, or what it was before.
+The bar on all of them is that a reader implementing a layer never has to open
+a record to find a value, a constant, a limit or a rule.
+`doc/history/elf-technical-breakdown.md` is the founding survey rather than the
+design of record, and says so at its head.
 
 Citation runs both ways across that seam. A governed section that a record
 settled ends in one line of its own, the last in the section:
@@ -217,13 +233,13 @@ record has touched. That is an ordinary state and not an omission; an unlined
 section is never an unsettled one.
 
 Every record filed from DR-0075 onward carries an `Amends:` header beside
-Status and Date, naming the one section it changes most —
-`Amends: doc/Architecture.md § Thread pointer and TLS` — so that the author
-names the prose that has to move at the moment of writing, which is the moment
-the same-change rule has been failing at. A record whose subject spans two
-sections names one and is cited from both. Records filed before that number
-carry no such field and are not edited to add one; their reverse map is
-derived from the Settled-by lines instead.
+Status and Date, naming the one section it changes most — `Amends:
+doc/design/Architecture.md § Thread pointer and TLS` — so that the author names
+the prose that has to move at the moment of writing, which is the moment the
+same-change rule has been failing at. A record whose subject spans two sections
+names one and is cited from both. Records filed before that number carry no
+such field and are not edited to add one; their reverse map is derived from the
+Settled-by lines instead.
 
 `bin/check-design-links` holds all of it, and holds it as a property of the
 tree rather than of a commit: every in-force record cited somewhere, every
@@ -235,13 +251,14 @@ and is cited beside the record that replaced the point.
 
 A certification run against a substitute for the thing it certifies — a newer
 glibc standing in for el8's 2.28, a WSL userland for a real el8 one — is
-permitted and creates a row in `doc/substitutions.md`: what was substituted for
-what, where, and what burns it down. The row closes when the certification
-reruns against the real target and matches, or when its divergence is written
-down as justified. A certification that hides its substitution rather than
-recording it is the failure this rule exists to prevent.
+permitted and creates a row in `doc/design/substitutions.md`: what was
+substituted for what, where, and what burns it down. The row closes when the
+certification reruns against the real target and matches, or when its
+divergence is written down as justified. A certification that hides its
+substitution rather than recording it is the failure this rule exists to
+prevent.
 
-Settled by: DR-0031, DR-0036, DR-0039, DR-0070, DR-0075, DR-0076.
+Settled by: DR-0031, DR-0036, DR-0039, DR-0070, DR-0075, DR-0076, DR-0078.
 
 ## Where autonomy stops
 
@@ -253,8 +270,8 @@ Three points are decisions rather than tasks, and an agent must not settle them
 alone.
 
 The target triple. Settled on 2026-08-29 as `x86_64-elfsysvnt-linux-gnu`, by
-the operator, and recorded in `doc/decisions/0001-target-triple.md`. That
-record also carries the share of affected packages at which it should be
+the operator, and recorded in `doc/design/decisions/0001-target-triple.md`.
+That record also carries the share of affected packages at which it should be
 reopened, which is a decision for the operator too. An agent reading spike 5's
 verdict reports it against those bands and stops there.
 
@@ -264,19 +281,19 @@ proposing anything about the triple. The fields are `cpu-vendor-kernel-os`,
 everywhere except raw syscall dispatch. Neither load-bearing field is a lie, so
 "the triple is dishonest" is not an opening for a reopen; the measured price of
 substituting either is in that record and in
-`doc/proposals/0004-the-bounded-linux-claim.md`.
+`doc/design/proposals/0004-the-bounded-linux-claim.md`.
 
 The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
 FS base does not survive a context switch, or even a preemption, on this
 Windows. That took `%fs`-relative TLS away and changed the toolchain layer
 rather than merely adding work to it. The replacement was measured by
 `spike/gs-thread-pointer/` the same day and settled by the operator in
-`doc/decisions/0003-tls-model.md`: a runtime-owned thread pointer through `%gs`,
-carrier C3, the shape Cygwin's `_my_tls` already uses. WP-30's body may now be
-written against that model. The one carried risk is the operator's to reopen,
-not an agent's: DR-0003 records that the spike measured a stand-in, and WP-2x
-re-measures the real `_my_tls`; if it diverges, the reopen is a new record
-pointing back at DR-0003.
+`doc/design/decisions/0003-tls-model.md`: a runtime-owned thread pointer
+through `%gs`, carrier C3, the shape Cygwin's `_my_tls` already uses. WP-30's
+body may now be written against that model. The one carried risk is the
+operator's to reopen, not an agent's: DR-0003 records that the spike measured a
+stand-in, and WP-2x re-measures the real `_my_tls`; if it diverges, the reopen
+is a new record pointing back at DR-0003.
 
 The ABI boundary. Spike 3's answer decided whether the runtime is rebuilt
 System V-faced at all, and on 2026-08-29 it came back yes, so the veneer-thunk
@@ -284,10 +301,10 @@ fallback stays where it is. The decision that opened in its place is the red
 zone: the host respects the reserved 128 bytes and Cygwin's own signal delivery
 does not, which makes `-mno-red-zone` throughout one repair and a 128-byte gap
 in the delivery path another. Which of the two is the destination was settled
-on 2026-08-29 in `doc/decisions/0006-red-zone-direction.md`: the delivery site
-is repaired and the flag is scaffolding carried until it is. What that record
-does not settle is the price, which WP-43 measures against Cygwin's real
-`sigdelayed` rather than against spike 7's model, and which DR-0006 reads
+on 2026-08-29 in `doc/design/decisions/0006-red-zone-direction.md`: the
+delivery site is repaired and the flag is scaffolding carried until it is. What
+that record does not settle is the price, which WP-43 measures against Cygwin's
+real `sigdelayed` rather than against spike 7's model, and which DR-0006 reads
 against bands written before the number exists.
 
 The flag is the standing policy meanwhile. It costs a stack adjustment in every
