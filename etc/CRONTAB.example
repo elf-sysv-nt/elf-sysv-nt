@@ -1,0 +1,25 @@
+# Schedule for the elf-sysv-nt build worker.
+#
+# Copy this to etc/CRONTAB, edit the two assignments below, and install it with
+# `crontab etc/CRONTAB`. The live copy is ignored by git, because its paths are
+# true of one machine and nobody else's checkout wants them.
+#
+# Cron hands each command to /bin/sh with the assignments in this file already
+# in the environment, so $REPO expands in the lines below. That is the whole
+# reason the machine-specific part is two lines at the top and nothing further
+# down: change these, change nothing else.
+
+REPO=/path/to/elf-sysv-nt
+HOME=/home/you
+
+# One tick of the headless worker. It takes the lock, builds the next
+# dependency-ready package, and exits; a tick that finds the lock held does
+# nothing and costs nothing. Five minutes is short enough that a killed tick
+# loses little and long enough that two ticks do not overlap on a slow build.
+*/5 * * * * $REPO/bin/elf-build-worker --model opus --effort medium
+
+# The full nightly, commented out because it is not the default posture. It
+# rebuilds rather than increments, so it wants a window with nothing else
+# holding the toolchain, and it will fight the five-minute worker above if both
+# run. Pick one.
+# 0 3 * * * $REPO/bin/nightly-full >/dev/null 2>&1
