@@ -34,7 +34,9 @@
 #   -l, --list             List what would run, and exit.
 #   -q, --quiet            Suite output is suppressed either way; this drops
 #                          the per-suite ok lines and keeps failures.
-#   -o FILE, --output=FILE Append each suite's own output here. [default: none]
+#   -o FILE, --output=FILE Write each suite's own output here instead of the
+#                          timestamped default.
+#   --no-log               Discard suite output rather than logging it.
 #   -h, --help             Print this message and exit.
 #
 # With SUITE arguments, only those are run, whatever their tier, and a suite
@@ -53,11 +55,22 @@ repo=$(git rev-parse --show-toplevel 2>/dev/null) \
     || repo=$(cd "$(dirname "$0")/.." && pwd)
 reg=$repo/test/suites.tsv
 
+# Where the log goes is not where the suites come from, and the two are
+# resolved differently on purpose. The suites are this checkout's, because the
+# point of running from a worktree is to test what that worktree changed. The
+# log goes to the shared checkout's annex, so every run's output collects in
+# one place beside the nightly's rather than dying with a disposable worktree.
+here=$(cd "$(dirname "$0")/.." && pwd)
+shared=${here%%/a/wt/*}
+[ -d "$shared/.git" ] || shared=$repo
+logdir=$shared/a/build-logs
+
 tier=all
 count=2000
 list=0
 quiet=0
 out=
+nolog=0
 
 while [ $# -gt 0 ]; do
 	case $1 in
@@ -69,6 +82,7 @@ while [ $# -gt 0 ]; do
 		-q|--quiet) quiet=1; shift ;;
 		-o|--output) shift; out=${1:?--output wants a file}; shift ;;
 		--output=*) out=${1#*=}; shift ;;
+		--no-log) nolog=1; shift ;;
 		-h|--help) sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		--) shift; break ;;
 		-?*) printf '%s: unknown option %s\n' "$prog" "$1" >&2; exit 2 ;;
@@ -80,14 +94,19 @@ case $tier in gate|report|all) ;; *)
 	printf '%s: tier must be gate, report or all\n' "$prog" >&2; exit 2 ;;
 esac
 [ -f "$reg" ] || { printf '%s: no registry at %s\n' "$prog" "$reg" >&2; exit 2; }
-[ -z "$out" ] || : > "$out"
 
-wanted() {                      # is this suite in scope for this run?
-	if [ $# -gt 0 ] && [ -n "${named:-}" ]; then
-		case " $named " in *" $1 "*) return 0;; *) return 1;; esac
-	fi
-	return 1
-}
+# A run that keeps no output leaves you knowing a suite failed and not why, so
+# the log is the default and --no-log is the deliberate choice. UTC, and the
+# same stamp shape bin/nightly-full uses, so the two sort together.
+if [ "$list" = 0 ] && [ "$nolog" = 0 ] && [ -z "$out" ]; then
+	mkdir -p "$logdir" || { printf '%s: cannot make %s\n' "$prog" "$logdir" >&2; exit 2; }
+	out=$logdir/run-suites-$(date -u +%Y%m%d-%H%M%S).log
+fi
+if [ -n "$out" ]; then
+	: > "$out" || { printf '%s: cannot write %s\n' "$prog" "$out" >&2; exit 2; }
+	printf '# %s %s, tier %s, %s\n' "$prog" "$(date -u +%FT%TZ)" "$tier" \
+		"$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo '(no ref)')" >> "$out"
+fi
 
 named=$*
 nok=0; nfail=0; nskip=0
