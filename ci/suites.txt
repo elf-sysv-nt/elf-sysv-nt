@@ -25,3 +25,7 @@ bin/check-shim-bodies
 # toolchain, when present, adds the versioned-symbol check; when it is absent
 # that check is skipped rather than failed.
 veneer/wiring/t/fs-face.sh
+# The one written shim body with a check that runs anywhere: the behavioural
+# half needs only the host compiler, and the cross-built half reports SKIP
+# without the toolchain rather than failing.
+veneer/wiring/t/fortify-face.sh

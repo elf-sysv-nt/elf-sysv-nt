@@ -111,6 +111,7 @@ the pair and says which reading is current.
 | [0084](0084-every-check-is-designated-where-it-is-written.md) | every check carries a written designation in test/suites.tsv, and the gate tier matches ci/suites.txt | accepted 2026-09-03 | none |
 | [0085](0085-a-shim-is-credited-by-its-body.md) | a shim is credited wired by its body, not by its slice | accepted 2026-09-03 | none |
 | [0086](0086-a-flag-with-no-equivalent-is-dropped.md) | a constant with no equivalent below is dropped rather than passed or refused, and every such drop is a named delta | provisional 2026-09-03 | none |
+| [0087](0087-a-chk-shim-inherits-the-platforms-fortify-floor.md) | a `_chk` shim performs the checks the runtime beneath it performs, and no others | accepted 2026-09-03 | none |
 
 ## What earns a record
 
