@@ -58,11 +58,18 @@ reg=$repo/test/suites.tsv
 # Where the log goes is not where the suites come from, and the two are
 # resolved differently on purpose. The suites are this checkout's, because the
 # point of running from a worktree is to test what that worktree changed. The
-# log goes to the shared checkout's annex, so every run's output collects in
-# one place beside the nightly's rather than dying with a disposable worktree.
-here=$(cd "$(dirname "$0")/.." && pwd)
-shared=${here%%/a/wt/*}
-[ -d "$shared/.git" ] || shared=$repo
+# log goes to the shared checkout, so every run's output collects in one place
+# beside the nightly's rather than dying with a disposable worktree.
+#
+# Ask git, do not parse the path. The string form -- ${here%%/a/wt/*} -- is
+# what four other tools still do, and it returns the worktree's OWN path when
+# the separator is absent, silently and with no error to notice: a log written
+# to the wrong tree, or a land merged into the session worktree. That failure
+# is recorded and tabled, sixteen files here already use --git-common-dir, and
+# a fifth instance of the string form is not the thing to add.
+shared=$(cd "$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd) \
+	|| shared=$repo
+[ -n "$shared" ] || shared=$repo
 logdir=$shared/a/build-logs
 
 tier=all
