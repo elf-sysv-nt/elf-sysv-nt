@@ -40,6 +40,7 @@
 bin/check-doc-refs	gate	-	every doc, bin, spike and ci path cited from doc/ resolves
 bin/check-design-links	gate	-	every in-force record is cited, every citation resolves, every Amends lands on a heading
 bin/check-worknote-refs	gate	-	no tracked file cites a working note a cloner cannot open
+bin/check-conflict-markers	gate	-	no tracked file carries an unresolved merge conflict marker; a degraded land committed one that check-doc-refs read straight past
 bin/check-carry-forward	gate	-	every asset proposal 0008 retains is still in the tree
 bin/check-suites	gate	-	this registry is closed against the tree and against ci/suites.txt
 bin/check-shim-bodies	gate	-	every shim credited wired has a body that exists and names it

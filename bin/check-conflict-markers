@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+#
+# No tracked file carries an unresolved merge conflict marker.
+#
+# A conflict marker is what git writes into a file when a merge cannot resolve
+# a hunk on its own: a `<<<<<<<` line, a `=======` divider, a `>>>>>>>` line.
+# They are meant to be resolved and removed before the merge is committed.
+# On 2026-09-03 a session-land interrupted by Cygwin fork failures committed an
+# unresolved marker into doc/design/ABI-Boundary.md, and it reached the trunk
+# because the gate had nothing that reads for one -- check-doc-refs validates
+# the paths a file cites, not the file's own integrity, so a marker sails
+# straight through it. This check closes that gap.
+#
+# What counts as a marker is deliberately narrow, so that a file legitimately
+# discussing conflict markers -- this script, its own test, a document
+# explaining a merge -- does not trip it. A marker is a line that BEGINS with
+# seven of the marker character followed by a space or end of line:
+#
+#     ^<<<<<<< , ^>>>>>>> , ^=======  (exactly seven, then space or EOL)
+#
+# The `=======` form is the one that risks a false positive, since a row of
+# equals signs is a common underline; requiring exactly seven and nothing but a
+# following space or newline is what git actually writes and what a hand-typed
+# rule rarely is. A file that must show a marker as an example indents or fences
+# it, which shifts it off column zero and out of this pattern -- the same
+# escape hatch check-worknote-refs relies on.
+#
+# Binary files are skipped: a marker is a text defect, and a byte sequence that
+# happens to match inside a binary is not one a reader will ever follow.
+#
+# Usage:
+#   check-conflict-markers [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -n N, --count=N          Ignored; accepted so ci/suites.txt can run every
+#                            suite the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -h, --help               Print this message and exit.
+#
+# Exit: 0 no tracked file carries a marker, 1 one or more do, 2 usage.
+import os
+import re
+import subprocess
+import sys
+
+# Exactly seven of the marker character at column zero, then a space or the end
+# of the line. git writes "<<<<<<< <label>", ">>>>>>> <label>", and a bare
+# "=======". The eighth-character guard keeps a longer rule of the same
+# character (======== as a heading underline) from matching.
+MARKER = re.compile(r"^(<<<<<<<|>>>>>>>|=======)( |$)")
+
+
+def usage():
+    with open(__file__, encoding="utf-8") as f:
+        emit = False
+        for line in f:
+            if line.startswith("# Usage:"):
+                emit = True
+            if emit:
+                if not line.startswith("#"):
+                    break
+                print(line[2:].rstrip() if len(line) > 2 else "")
+
+
+def tracked(root):
+    out = subprocess.check_output(["git", "-C", root, "ls-files", "-z"])
+    return [p for p in out.decode("utf-8", "replace").split("\0") if p]
+
+
+def is_binary(path):
+    try:
+        with open(path, "rb") as f:
+            return b"\0" in f.read(8192)
+    except OSError:
+        return True
+
+
+def hits(path):
+    found = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for n, line in enumerate(f, 1):
+                if MARKER.match(line):
+                    found.append((n, line.rstrip("\n")[:60]))
+    except OSError:
+        pass
+    return found
+
+
+def main(argv):
+    root = None
+    quiet = False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            usage(); return 0
+        if a in ("-q", "--quiet"):
+            quiet = True
+        elif a in ("-n", "--count"):
+            i += 1
+        elif a.startswith("--count="):
+            pass
+        elif a in ("-C", "--directory"):
+            i += 1
+            if i >= len(argv):
+                print("check-conflict-markers: -C wants a value",
+                      file=sys.stderr)
+                return 2
+            root = argv[i]
+        elif a.startswith("--directory="):
+            root = a.split("=", 1)[1]
+        else:
+            print("check-conflict-markers: unknown option %s" % a,
+                  file=sys.stderr)
+            return 2
+        i += 1
+
+    if root is None:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"]).decode().strip()
+
+    problems, checked = [], 0
+    for rel in tracked(root):
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path) or is_binary(path):
+            continue
+        # This script carries the marker strings on purpose.
+        if rel == "bin/check-conflict-markers":
+            continue
+        checked += 1
+        for n, text in hits(path):
+            problems.append((rel, n, text))
+
+    for rel, n, text in problems:
+        print("FAIL %s:%d carries an unresolved conflict marker" % (rel, n),
+              file=sys.stderr)
+        print("       %s" % text, file=sys.stderr)
+
+    if not quiet or problems:
+        out = sys.stderr if problems else sys.stdout
+        print("check-conflict-markers: %d tracked file(s) checked, %d marker(s)"
+              % (checked, len(problems)), file=out)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
