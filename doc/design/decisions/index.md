@@ -107,6 +107,7 @@ the pair and says which reading is current.
 | [0080](0080-relocation-resolves-through-the-lookup-engine.md) | relocation resolves through the lookup engine, and the versioning seam is wired rather than lifted | provisional 2026-09-03 | none |
 | [0081](0081-the-auxv-reports-the-cpu-and-not-the-host-it-runs-on.md) | The auxv reports the CPU it runs on: `AT_HWCAP` is the `cpuid` leaf-1 `%edx` word, `AT_HWCAP2` is zero | provisional 2026-09-03 | none |
 | [0082](0082-the-acceptance-comparison-is-not-a-package-here.md) | the el8-wide acceptance comparison is not a work package in this tree; the bar is one package | accepted 2026-09-03 | 0008 |
+| [0083](0083-the-claimed-surface-is-strictly-minimal.md) | the claimed surface is strictly minimal; the empty-node retention is withdrawn | accepted 2026-09-03 | 0008 |
 
 ## What earns a record
 

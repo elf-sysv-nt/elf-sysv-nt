@@ -10,3 +10,7 @@ bin/check-doc-refs
 bin/check-design-links
 bin/check-worknote-refs
 bin/check-carry-forward
+# The veneer's own two. Neither was registered, so the DR-0079 withdrawal broke
+# veneer/libc/t's surface assertion and the gate stayed green for two commits.
+veneer/classification/t/reproduce.sh
+veneer/libc/t/run-tests.sh

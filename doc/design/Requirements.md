@@ -114,22 +114,36 @@ by construction whatever the acceptance set imports, and it is small: the
 loader and the runtime are built freestanding and demand nothing, so the
 startup files are the whole of it.
 
-Three constraints bound the withdrawal. A weak undefined reference stays
-optional, because weakness is the program's own statement that it can proceed
-without the name, and refusing it would break a program entitled to proceed.
-A name input B requires is claimed however narrow the acceptance set is. And
-no version node may be left without a member: verneed matching requires the
-provider to define the node a consumer names, so a node the three inputs would
-empty keeps one, chosen for having a body where the node has one to offer.
-That last is a correctness constraint rather than a preference, and where a
-node's every member is a stub the retained member is a stub too.
+The set is exactly those three inputs. Nothing is exported that nothing calls,
+and there is no fourth contribution: a name is claimed because something needs
+it, or it is not claimed.
+
+Two constraints bound the withdrawal, and a third was withdrawn with the rule
+that carried it. A weak undefined reference stays optional, because weakness is
+the program's own statement that it can proceed without the name, and refusing
+it would break a program entitled to proceed. A name input B requires is
+claimed however narrow the acceptance set is.
+
+The third said no version node might be left without a member, and retained one
+where the inputs would empty a node. That is withdrawn: the version script
+declares the node, so a node emptied by the withdrawal keeps its entry in
+`.gnu.version_d` regardless, and a consumer names a node only because it
+references a symbol there, so a retained stand-in never satisfied it anyway.
+All sixty-seven nodes are still defined and `elfdeps` still generates the same
+thirty `Provides` lines; twenty-four of `libc.so.6`'s twenty-nine now carry no
+member. `spike/empty-version-node/` measures it and DR-0083 records it.
+
+The consequence is that every claimed name has a body without exception, which
+is what §1 above promises and what the retention rule had been quietly
+breaking.
 
 `veneer/classification/claimed-surface.tsv` is the set, one row per name with
 the input that claimed it. `veneer/classification/claimed.py` derives it and
 `veneer/classification/t/reproduce.sh` certifies that it re-derives, that it
-agrees with the classification in both directions, and that no node is empty.
+agrees with the classification in both directions, and that no claimed name
+lacks a body.
 
-Settled by: DR-0079.
+Settled by: DR-0079, DR-0083.
 
 ## Acceptance
 
