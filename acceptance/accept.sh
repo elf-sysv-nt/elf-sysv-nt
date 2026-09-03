@@ -284,19 +284,28 @@ sort -u "$filled" -o "$filled"
 
 # The certified-shim manifest: a bucket-3 shim is written when its slice carries
 # a wire-<slice>.shims.tsv, and certified when that slice carries a
-# live-<slice>.sh crossing. The union of the shims named by the crossed slices
-# is the set a package may lean on -- a written translation stands behind each,
-# exactly as a synthesized body stands behind a filled stub. A shim whose slice
-# has not been crossed is not in this set and still blocks.
+# live-<slice>.sh crossing AND a written body named in veneer/wiring/bodies.tsv.
+#
+# The second half is new. DR-0057 credited every shim of a crossed slice, on
+# the ground that "a written translation stands behind each"; nothing checked
+# it, and 59 of the 64 credited had no body anywhere. A slice was certified by
+# the existence of its crossing script, and every shim in it inherited that.
+# The gate is now the symbol: the crossing still has to exist, and the symbol
+# has to be one somebody wrote. bin/check-shim-bodies holds the manifest to
+# bodies that exist and name it.
 wired=$dest/.wired
 : > "$wired"
+crossed=$dest/.crossed
+: > "$crossed"
 for live in "$root"/veneer/wiring/t/live-*.sh; do
 	[ -e "$live" ] || continue
 	slice=$(basename "$live"); slice=${slice#live-}; slice=${slice%.sh}
-	shims=$root/veneer/wiring/wire-$slice.shims.tsv
-	[ -e "$shims" ] || continue
-	awk -F'\t' '!/^#/ && $1 != "" { print $1 }' "$shims" >> "$wired"
+	echo "$slice" >> "$crossed"
 done
+sort -u "$crossed" -o "$crossed"
+awk -F'\t' 'NR==FNR { cr[$1]=1; next }
+	!/^#/ && $1 != "" && ($2 in cr) { print $1 }' \
+	"$crossed" "$root/veneer/wiring/bodies.tsv" >> "$wired"
 sort -u "$wired" -o "$wired"
 
 # A fingerprint of the veneer's resolution inputs -- the classification map and

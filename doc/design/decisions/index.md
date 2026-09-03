@@ -81,7 +81,7 @@ the pair and says which reading is current.
 | [0054](0054-termios-layout-differs-in-the-body.md) | struct termios is laid out differently in the body than the face | accepted 2026-09-01 | none |
 | [0055](0055-a-sigfe-slice-crosses-live-by-its-bind-alone.md) | a SIGFE slice with no pure NOSIGFE row crosses live by its bind alone | accepted 2026-09-01 | none |
 | [0056](0056-the-stat-family-does-not-forward.md) | the stat family does not forward, and filesystem crosses by its bind | accepted 2026-09-01 | none |
-| [0057](0057-acceptance-credits-a-certified-shim.md) | the acceptance embryo credits a certified shim, not only a filled stub | accepted 2026-09-01 | none |
+| [0057](0057-acceptance-credits-a-certified-shim.md) | the acceptance embryo credits a certified shim, not only a filled stub | accepted 2026-09-01; superseded by 0085 | none |
 | [0058](0058-the-runtime-crossing-for-a-dynamic-elf.md) | The runtime crossing for a dynamic ELF | accepted 2026-09-01 | none |
 | [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01 | none |
 | [0060](0060-reent-bringup-is-the-real-process-shape.md) | reent bring-up is the real-process shape, not a cygload call | accepted 2026-09-01 | none |
@@ -109,6 +109,7 @@ the pair and says which reading is current.
 | [0082](0082-the-acceptance-comparison-is-not-a-package-here.md) | the el8-wide acceptance comparison is not a work package in this tree; the bar is one package | accepted 2026-09-03 | 0008 |
 | [0083](0083-the-claimed-surface-is-strictly-minimal.md) | the claimed surface is strictly minimal; the empty-node retention is withdrawn | accepted 2026-09-03 | 0008 |
 | [0084](0084-every-check-is-designated-where-it-is-written.md) | every check carries a written designation in test/suites.tsv, and the gate tier matches ci/suites.txt | accepted 2026-09-03 | none |
+| [0085](0085-a-shim-is-credited-by-its-body.md) | a shim is credited wired by its body, not by its slice | accepted 2026-09-03 | none |
 
 ## What earns a record
 

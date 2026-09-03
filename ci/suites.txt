@@ -18,3 +18,4 @@ veneer/xlat/t/reproduce.sh
 # toolchain; test/suites.tsv calls it report for that reason. A gate suite
 # that depends on one machine's build products blocks every merge elsewhere.
 bin/check-suites
+bin/check-shim-bodies

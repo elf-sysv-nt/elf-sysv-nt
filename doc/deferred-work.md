@@ -92,7 +92,7 @@ On no package's path. Raised while settling `__fprintf_chk`, which turned out
 not to need it: no `_chk` body Cygwin ships performs the `%n` check, so a
 veneer matching its siblings is consistent rather than weak.
 
-**A shim is credited `wired` without a body.** `acceptance/accept.sh:281-296`
+**Closed 2026-09-03 by DR-0085.** **A shim is credited `wired` without a body.** `acceptance/accept.sh:281-296`
 takes the union of `wire-<slice>.shims.tsv` over slices carrying a
 `live-<slice>.sh` and calls every symbol in it `wired`, on the stated ground
 that "a written translation stands behind each". Nothing tests that. Measured

@@ -101,7 +101,7 @@ ways across four documents, and the suite runs a step that is absent from its
 own plan, so a reader cannot tell what passing means. Whichever enumeration is
 right, one of them is, and the others are corrected to match it.
 
-Settled by: DR-0035, DR-0038, DR-0057.
+Settled by: DR-0035, DR-0038, DR-0085.
 
 ## Substitution
 
@@ -140,6 +140,14 @@ needs the loader's dynamic-exec path to stand in for `ld-linux` and resolve
 `libc.so.6`, which is the loader's surface. Acceptance in
 `doc/design/Requirements.md` is the stronger claim, and the harness's `ready`
 is one step short of it.
+
+A shim counts once a body exists for it. The harness reads
+`veneer/wiring/bodies.tsv`, curated one symbol at a time, and credits a
+bucket-3 shim only where that manifest names it and its slice has been
+live-crossed. Crediting the slice instead is what DR-0057 did and DR-0085
+withdrew: a slice was certified by the existence of its crossing script, so
+sixty-four shims were credited on five bodies, and the first pinned package
+read `ready` on translations nobody had written.
 
 `ready` also changed shape when the claimed surface did. It used to mean every
 import has a body; it now means every import is claimed and has a body, which

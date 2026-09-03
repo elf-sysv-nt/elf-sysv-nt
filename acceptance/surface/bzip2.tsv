@@ -1,13 +1,13 @@
-# veneer-fingerprint 511761f807a3
+# veneer-fingerprint eafa4ab49ac8
 __ctype_b_loc	filled
 __cxa_finalize	forward
-__errno_location	wired
+__errno_location	shim
 __fprintf_chk	shim
-__lxstat64	wired
+__lxstat64	shim
 __memcpy_chk	forward
 __stack_chk_fail	forward
 __strcat_chk	forward
-__xstat64	wired
+__xstat64	shim
 _ITM_deregisterTMCloneTable	optional
 _ITM_registerTMCloneTable	optional
 close	forward
@@ -31,11 +31,11 @@ malloc	forward
 memcpy	forward
 memmove	forward
 memset	forward
-open64	wired
+open64	shim
 perror	forward
 remove	forward
 rewind	forward
-signal	wired
+signal	shim
 strcmp	forward
 strerror	forward
 strlen	forward

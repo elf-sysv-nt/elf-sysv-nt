@@ -42,6 +42,7 @@ bin/check-design-links	gate	-	every in-force record is cited, every citation res
 bin/check-worknote-refs	gate	-	no tracked file cites a working note a cloner cannot open
 bin/check-carry-forward	gate	-	every asset proposal 0008 retains is still in the tree
 bin/check-suites	gate	-	this registry is closed against the tree and against ci/suites.txt
+bin/check-shim-bodies	gate	-	every shim credited wired has a body that exists and names it
 bin/check-target-definition	report	-	greps the whole tree for the six target values; minutes, not seconds
 loader/elf/t/run.sh	gate	-	the ELF reader and its fuzz target; attacker-shaped input from the first line
 veneer/classification/t/reproduce.sh	gate	-	the classification and the claimed surface re-derive from committed tables
