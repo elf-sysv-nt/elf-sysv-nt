@@ -62,6 +62,29 @@ else
 	rc=1
 fi
 
+# Every report-tier check in test/suites.tsv. These are the ones the merge gate
+# cannot run -- they need a toolchain, a build product or a live el8 -- and
+# before the registry existed they ran only when somebody typed the path. An
+# absent input is not-checked rather than failed, which is the distinction
+# t3-regen.sh draws for spikes and the one that keeps a green night honest.
+say "== test/suites.tsv, report tier =="
+nrun=0; nfail=0; nskip=0
+while IFS=$'\t' read -r suite tier needs note; do
+	case ${suite# } in ''|'#'*) continue;; esac
+	[ "$tier" = report ] || continue
+	if [ "$needs" != - ] && [ ! -e "$needs" ]; then
+		say "  not-checked  $suite (needs $needs)"
+		nskip=$((nskip+1)); continue
+	fi
+	if bash "$repo/$suite" -q >> "$log" 2>&1; then
+		nrun=$((nrun+1))
+	else
+		say "  FAILED       $suite (rc $?)"
+		nfail=$((nfail+1)); rc=1
+	fi
+done < "$repo/test/suites.tsv"
+say "  report tier: $nrun passed, $nfail failed, $nskip not checked"
+
 if [ "$rc" != 0 ]; then
 	printf '%s nightly-full FAILED: a from-clean run disagreed with a cached one; read %s\n' \
 		"$stamp" "$log" >> "$blockers"

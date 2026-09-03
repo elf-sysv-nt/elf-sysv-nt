@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+#
+# Every check in the tree has a written designation, and the gate matches it.
+#
+# The tree held 45 top-level suites and the merge gate ran seven. The other 38
+# were named by nothing -- not ci/suites.txt, not bin/nightly-full, not the
+# worker, which is agent-driven and runs what an agent remembers. Two were red
+# on the trunk when this was written, neither rotted, both with an input that
+# had drifted, and nothing told anybody.
+#
+# A list alone would not have prevented that; a list is the thing that rotted.
+# What makes this one hold is that it is closed against the tree in both
+# directions, and that an unregistered suite is an error rather than a default.
+# The author of a new check has to write down what it is for and whether it
+# gates, at the moment of writing, because nothing else will pass.
+#
+# Five assertions:
+#   1. Every row names a file that exists.
+#   2. Every row carries a legal tier and a note. A row with no note is a
+#      designation nobody can review.
+#   3. Every suite in the tree has a row. Entry points are the conventional
+#      names under a t/ directory, plus bin/check-*.
+#   4. Every t/ directory holding any script has at least one registered entry
+#      point, which catches a runner named outside the convention.
+#   5. The gate tier and ci/suites.txt agree exactly, so the registry cannot
+#      say a suite gates while the gate does not run it, or the reverse.
+#
+# A `needs` path that is absent is reported, never failed: that is a fact about
+# this machine, and the distinction between failed and not-checked is the one
+# test/t3-regen.sh already draws for spikes.
+#
+# Usage:
+#   check-suites [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -n N, --count=N          Ignored; accepted so ci/suites.txt can run every
+#                            suite the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every row examined.
+#   -V, --version            Print version and exit.
+#   -h, --help               This help.
+#
+# Exit: 0 the registry is closed, 1 a violation, 2 a usage error.
+
+import os, re, sys
+
+VERSION = 'check-suites 1.0'
+REGISTRY = 'test/suites.tsv'
+GATE = 'ci/suites.txt'
+TIERS = ('gate', 'report', 'standalone')
+
+# What counts as a suite's entry point. A t/ directory holds helpers beside its
+# runner -- generators, per-slice live crossings, per-case drivers -- and those
+# are the runner's business, not the registry's.
+ENTRY = re.compile(r'(^|/)t/(run|run-tests|reproduce|accept|accept2)\.sh$')
+CHECKER = re.compile(r'^bin/check-[a-z-]+$')
+
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, '.git')):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def tracked(root):
+    import subprocess
+    out = subprocess.check_output(['git', '-C', root, 'ls-files', '-z'])
+    return [p for p in out.decode('utf-8', 'replace').split('\0') if p]
+
+
+def rows(path):
+    out = []
+    for n, line in enumerate(open(path, encoding='utf-8'), 1):
+        line = line.rstrip('\n')
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        out.append((n, line.split('\t')))
+    return out
+
+
+def gate_list(root):
+    p = os.path.join(root, GATE)
+    if not os.path.isfile(p):
+        return []
+    out = []
+    for line in open(p, encoding='utf-8'):
+        line = line.strip()
+        if line and not line.startswith('#'):
+            out.append(line)
+    return out
+
+
+def main(argv):
+    directory, quiet, verbose = None, False, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-h', '--help'):
+            print('Usage: check-suites [-C DIR] [-q] [-v] [-V] [-h]\n'
+                  'Verify that every check in the tree is designated in\n'
+                  'test/suites.tsv and that the gate tier matches ci/suites.txt.')
+            return 0
+        elif a in ('-V', '--version'):
+            print(VERSION); return 0
+        elif a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-v', '--verbose'):
+            verbose = True
+        elif a in ('-C', '--directory'):
+            i += 1
+            if i >= len(argv):
+                sys.stderr.write('check-suites: -C wants a value\n'); return 2
+            directory = argv[i]
+        elif a.startswith('--directory='):
+            directory = a.split('=', 1)[1]
+        elif a in ('-n', '--count'):
+            i += 1
+        elif a.startswith('--count='):
+            pass
+        else:
+            sys.stderr.write('check-suites: unknown option %s\n' % a); return 2
+        i += 1
+
+    root = repo_root(directory or '.')
+    reg = os.path.join(root, REGISTRY)
+    if not os.path.isfile(reg):
+        sys.stderr.write('FAIL %s: the registry is missing\n' % REGISTRY)
+        return 1
+
+    bad, seen, tier_of, absent = [], set(), {}, []
+    for lineno, f in rows(reg):
+        if len(f) != 4:
+            bad.append('%s:%d: %d field(s), want suite/tier/needs/note'
+                       % (REGISTRY, lineno, len(f)))
+            continue
+        suite, tier, needs, note = (x.strip() for x in f)
+        if suite in seen:
+            bad.append('%s:%d: %s has a second row' % (REGISTRY, lineno, suite))
+        seen.add(suite)
+        tier_of[suite] = tier
+        if verbose:
+            print('  %-46s %-10s %s' % (suite, tier, needs))
+        if tier not in TIERS:
+            bad.append('%s:%d: tier %r is not one of %s'
+                       % (REGISTRY, lineno, tier, ', '.join(TIERS)))
+        if not note:
+            bad.append('%s:%d: %s has no note; a designation nobody can review '
+                       'is not a designation' % (REGISTRY, lineno, suite))
+        if not os.path.exists(os.path.join(root, suite)):
+            bad.append('%s:%d: names %s, which is not in the tree'
+                       % (REGISTRY, lineno, suite))
+        if needs != '-' and not os.path.exists(needs):
+            absent.append((suite, needs))
+
+    # 3 and 4: the tree's side of the closure.
+    tdirs = {}
+    for rel in tracked(root):
+        if ENTRY.search(rel) or CHECKER.match(rel):
+            if rel not in seen:
+                bad.append('%s: %s is a check in the tree with no row. Give it '
+                           'a tier and a note; there is no default on purpose.'
+                           % (REGISTRY, rel))
+        if '/t/' in rel and rel.endswith('.sh'):
+            d = rel[:rel.index('/t/') + 3]
+            tdirs.setdefault(d, []).append(rel)
+    for d, members in sorted(tdirs.items()):
+        if not any(m in seen for m in members):
+            bad.append('%s: %s holds scripts and no registered entry point. A '
+                       'runner named outside the convention still needs a row.'
+                       % (REGISTRY, d))
+
+    # 5: the gate tier and ci/suites.txt are one file said twice.
+    listed = set(gate_list(root))
+    want = set(s for s, t in tier_of.items() if t == 'gate')
+    for s in sorted(want - listed):
+        bad.append('%s: %s is tier gate and %s does not run it' % (REGISTRY, s, GATE))
+    for s in sorted(listed - want):
+        bad.append('%s: runs %s, which the registry does not call a gate suite'
+                   % (GATE, s))
+
+    if bad:
+        for b in bad:
+            sys.stderr.write('FAIL %s\n' % b)
+        sys.stderr.write('check-suites: %d row(s), %d problem(s)\n'
+                         % (len(seen), len(bad)))
+        return 1
+    if not quiet:
+        n_gate = sum(1 for t in tier_of.values() if t == 'gate')
+        n_rep = sum(1 for t in tier_of.values() if t == 'report')
+        print('check-suites: %d check(s): %d gate, %d report, %d standalone'
+              % (len(seen), n_gate, n_rep, len(seen) - n_gate - n_rep))
+        for suite, needs in absent:
+            print('              not runnable here: %s needs %s' % (suite, needs))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

@@ -317,6 +317,21 @@ not read the verdict off it.
 
 ## Testing
 
+A new check is designated where it is written. Every suite and every checker
+carries a row in `test/suites.tsv` saying what it is for and whether it gates:
+`gate` for the fast, offline, deterministic ones the merge gate runs, `report`
+for those needing a toolchain, a build product or a live el8, `standalone` for
+the few that must never be automated. `bin/check-suites` refuses a check with
+no row, holds the gate tier one-to-one with `ci/suites.txt`, and refuses a `t/`
+directory whose runner is named outside the convention. There is deliberately
+no default tier: a default is how a check stops being thought about, and 38 of
+this tree's 45 suites had been running only when somebody typed the path.
+
+An absent input is reported, never failed. A suite that cannot run here because
+a toolchain or a vendor dump is missing is not-checked rather than broken,
+which is the distinction `test/t3-regen.sh` already draws for spikes, and the
+one that keeps a green run from meaning two different things.
+
 Code gets tests. The loader, the relocator, and the verdef and verneed matcher
 parse attacker-shaped input from the first line they run, so they get unit
 tests over recorded fixtures and a fuzz target fed malformed and truncated
@@ -334,3 +349,5 @@ against our own reading of the document.
 
 Build leaf to trunk. Nothing depends on functionality whose tests have not been
 written and have not passed.
+
+Settled by: DR-0084.

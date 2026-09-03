@@ -13,4 +13,8 @@ bin/check-carry-forward
 # The veneer's own two. Neither was registered, so the DR-0079 withdrawal broke
 # veneer/libc/t's surface assertion and the gate stayed green for two commits.
 veneer/classification/t/reproduce.sh
-veneer/libc/t/run-tests.sh
+veneer/xlat/t/reproduce.sh
+# veneer/libc/t/run-tests.sh builds libc.so.6 and so needs the cross
+# toolchain; test/suites.tsv calls it report for that reason. A gate suite
+# that depends on one machine's build products blocks every merge elsewhere.
+bin/check-suites
