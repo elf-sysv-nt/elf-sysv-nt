@@ -104,6 +104,7 @@ the pair and says which reading is current.
 | [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03 | none |
 | [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
 | [0079](0079-the-veneer-is-a-bootstrap-with-a-claimed-surface.md) | the veneer is a bootstrap and claims a derived surface; a name outside it is not exported | accepted 2026-09-03 | 0008 |
+| [0080](0080-relocation-resolves-through-the-lookup-engine.md) | relocation resolves through the lookup engine, and the versioning seam is wired rather than lifted | provisional 2026-09-03 | none |
 
 ## What earns a record
 

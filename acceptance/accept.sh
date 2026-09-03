@@ -148,7 +148,7 @@ build_loader() {
 	local w=$dest/.loader e=$root/loader/exec
 	mkdir -p "$w"
 	local cf="-std=gnu11 -Wall -Wextra -O2 -Wno-unused-parameter"
-	local ls="$e/reserve.c $root/loader/map/elf_map.c $root/loader/map/host_mem.c $root/loader/elf/elf_parse.c $root/loader/process/process_image.c $root/loader/reloc/elf_reloc.c $root/loader/reloc/reloc_resolve.S"
+	local ls="$e/reserve.c $root/loader/map/elf_map.c $root/loader/map/host_mem.c $root/loader/elf/elf_parse.c $root/loader/process/process_image.c $root/loader/reloc/elf_reloc.c $root/loader/lookup/elf_lookup.c $root/loader/lookup/elf_hash.c $root/loader/version/elf_version.c $root/loader/reloc/reloc_resolve.S"
 	$host $cf -Wl,--stack,0x100000 -o "$w/elfsysv-stub" \
 		"$e/stub.c" "$e/exec_kind.c" "$e/dyn_exec.c" "$e/dyn_init.c" "$e/enter.S" $ls \
 		> "$w/build.log" 2>&1 || return 1
