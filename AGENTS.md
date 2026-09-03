@@ -74,6 +74,33 @@ the governing document which of the three happened — used, adapted, or written
 from the specification — and when it is the third, say what made the first two
 unavailable. "It seemed easier" is not one of the reasons.
 
+Ask what the layer beneath already has, before writing a body or declaring a
+stub. This is the same question pointed inward, and it is the one the veneer
+lives on: most of what a symbol needs is usually already in the runtime under a
+different name or a different shape, and a body composed from what is there
+beats a body written beside it.
+
+Ask it against implementations, not signatures. The names on this seam are
+glibc's and the bodies are Cygwin's, and they agree on shape far more often
+than they agree on behaviour. `__vsnprintf_chk` has exactly the signature to
+compose a fortified printf from, and its body checks the buffer bound and
+ignores the fortify level entirely; a composition that type-checks can still be
+wrong, and only reading the body says which.
+
+Name what a composition changes. Building a stream call out of a buffer call
+alters when bytes appear, what a partial write leaves behind, when an error is
+observable, what the lock covers, whether anything allocates, and what a signal
+arriving mid-call sees. A composition whose delta is nil is a filled stub and
+DR-0052 governs it. One with a delta is recorded with the delta named, or it is
+refused. An unrecorded delta is the failure this rule exists to prevent.
+
+Composition inherits the floor. Anything built from the runtime is at most as
+strong as the runtime, so a body cannot compose its way above the platform
+beneath it — `__fprintf_chk` cannot acquire a `%n` check that no Cygwin `_chk`
+body performs. Being stronger than the floor means declining to compose and
+implementing independently, which is a larger decision than writing a body and
+belongs to the operator rather than to the symbol.
+
 Licenses are checked before code is lifted, not after, and the check tends to
 come back permissive rather than blocking. This tree is LGPLv3-or-later, so
 LGPL-2.1-or-later material — glibc's, most of the GNU runtime's — can be taken
