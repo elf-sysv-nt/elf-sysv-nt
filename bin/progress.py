@@ -28,7 +28,7 @@ Usage:
       progress.py wp-56 stdio shim __xstat64    one symbol, in full
     --depth N   expand N levels below the addressed node (default: 1)
 
-  Acceptance (WP-T4 embryo), a second tree over the same classification:
+  The acceptance harness, a second tree over the same classification:
       progress.py accept              both KPIs, per-package table, blocking symbols
       progress.py accept bzip2        one package: verdict, surface, unresolved -> slice
 
@@ -356,7 +356,7 @@ def render_symbol(model, sl, bucket, sym):
     return 0
 
 
-# ---- acceptance (WP-T4 embryo) -------------------------------------------
+# ---- acceptance (the bootstrap bar) -------------------------------------------
 #
 # The harness (acceptance/accept.sh) builds each pinned package, reads the
 # built ELF's undefined libc symbols, and classifies them against the veneer:
@@ -479,7 +479,7 @@ def render_accept(model):
     shapem, dnb = has('shape-mismatch'), has('does-not-build')
     passing = [n for n, d in counted.items() if d.get('verdict') in PASSING]
 
-    print('Acceptance — WP-T4 embryo')
+    print('Acceptance — the bootstrap bar')
     print('  done-when: a pinned vendor package builds, links, runs its own suite, and passes')
     print()
     print('  KPI-A  packages   pinned %d · built %d · ready %d · passing %d'

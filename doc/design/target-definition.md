@@ -103,7 +103,7 @@ forty-one measured objects carry and the forty-first carries not at all.
 The note is a minimum-kernel claim that a real `ld.so` checks against the
 running kernel, and it points both ways. Our loader reads it in vendor
 binaries, so we must satisfy 3.2.0. A real `ld.so` may one day read it in ours,
-during a WP-T4 comparison or in somebody's mixed tree, so emitting el8's own
+during an acceptance comparison or in somebody's mixed tree, so emitting el8's own
 value keeps that door open for free.
 
 The honest name does not go here. DR-0001 reserved the note as one of the

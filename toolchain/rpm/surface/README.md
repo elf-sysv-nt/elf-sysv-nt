@@ -55,7 +55,7 @@ marked superseded by this delivery; it belonged to the PE route.
 That rpm's file-attribute dispatch runs end to end -- `rpmbuild` calling
 `fileattrs` calling `elfdeps` inside a real package build. Spike 4 recorded
 the same gap; it needs an rpm build host carrying the generator, which is
-WP-63's installation concern and WP-T4's harness. What is measured here is
+WP-63's installation concern and the acceptance harness. What is measured here is
 each gate in that chain answering correctly on its own.
 
 That any vendor tool reads `/etc/ld.so.cache` directly rather than through

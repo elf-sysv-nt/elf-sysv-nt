@@ -1,7 +1,7 @@
 # The gcc release this project builds, pinned by checksum.
 #
 # 13.3.0 rather than el8's 8.5. Nothing here has to match the vendor's
-# compiler: what el8 shipped is an input to WP-51 and WP-T4, both of which
+# compiler: what el8 shipped is an input to WP-51 and the acceptance comparison, both of which
 # read vendor binaries rather than rebuild them. A 2018 gcc would cost the
 # newer x86 support and a decade of fixes for no compatibility we need.
 #

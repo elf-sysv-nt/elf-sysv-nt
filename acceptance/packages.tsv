@@ -1,4 +1,4 @@
-# WP-T4 acceptance pins, read by accept.sh.
+# Acceptance pins, read by accept.sh.
 #
 # One row per package the embryo harness builds. Each names a leaf small enough
 # that a failure points at the runtime rather than at the package's own weight.

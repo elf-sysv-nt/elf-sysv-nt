@@ -149,19 +149,25 @@ rather than a smoke run, because the package's authors wrote a better
 acceptance test for their package than this project will. And it requires the
 package to be unmodified, because a patched package measures the patch.
 
-The count is reported by the acceptance harness, `acceptance/accept.sh` in
-embryo today over one pinned leaf and WP-T4 at full width, and a demand-side
-census over the vendor binaries' undefined symbols is what says in advance
-which packages the classification can currently reach. That census is unrun,
-which is design-gaps finding F4; running it is what turns this criterion from
-a target into a forecast.
+The count is reported by the acceptance harness, `acceptance/accept.sh`, over
+the packages pinned in `acceptance/packages.tsv`; the wider comparison against
+what Red Hat shipped belongs to `rhelcyg-8.10` and DR-0082 retired the work
+package that claimed it here.
 
-The number is set after that census rather than before it, decided on
-2026-09-03. Setting it first would make it an appetite; setting it second makes
-it a judgement against a measured reach. The census is therefore a gate on this
-section closing, not merely an input to it, and it is one pass over the vendor
-binaries' undefined symbols against the classification — cheap in the way spike
-5 was cheap.
+The number is set after the demand-side census rather than before it. Setting
+it first would make it an appetite; setting it second makes it a judgement
+against a measured reach. That census has since run — `spike/demand-census/`
+holds it — and it came back in the band its own README reserves for a
+program-level review: 2530 of 3046 packages with glibc demand touch a symbol
+the classification can only stub, 52.1% of the whole Rocky 8.10 set. The
+reading of that number is owed and is not taken here.
+
+One thing changed under the number since it was written, and it changes what
+the number does. DR-0079 derives the claimed surface from what the acceptance
+set imports, so the set this count runs over is also the set that decides which
+names the veneer exports at all. Raising the count widens the surface and the
+bodies owed behind it. The count is therefore a scope control as much as a bar,
+and it should be read as one.
 
 One thing the census must count, because it is currently uncounted and the
 bound above does not cover it: how many packages call `syscall` the libc
@@ -170,6 +176,8 @@ bucket-4 stub, and a rebuilt package reaching it has used no raw instruction,
 so DR-0005's bound does not reach the case. Whichever way the count falls, the
 answer is a record widening or restating that bound against a number rather
 than against an impression.
+
+Settled by: DR-0082.
 
 ## Not verified
 

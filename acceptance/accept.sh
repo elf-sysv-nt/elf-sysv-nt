@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 #
-# WP-T4 in embryo -- take one el8 vendor package, build it against this tree,
-# and report how close the runtime is to running it.
+# The acceptance harness -- take one el8 vendor package, build it against this
+# tree, and report how close the runtime is to running it.
 #
-# The full WP-T4 in doc/IMPLEMENTATION-PLAN.md is the harness that runs over the
-# whole el8 set and belongs to rhelcyg-8.10. This is its embryo: the same
-# pipeline over one named leaf package, which is the overall done-when WP-56
-# carries -- "a named small vendor package, built by WP-T4's harness in embryo,
-# compiles, links, runs its own test suite, and passes it." It runs today and
-# gives a real per-package verdict; the verdict turns green as WP-56 wires the
-# libc slices the package needs.
+# This is what certifies the platform. The bootstrap bar in
+# doc/design/Verification-Plan.md is one named vendor package building from
+# vendor source, running, and passing its own suite with no substitution left
+# open against it, and that is also WP-56's overall done-when. It runs today
+# and gives a real per-package verdict; the verdict turns green as WP-56 wires
+# the libc slices the package needs.
+#
+# It was once described as an embryo of a harness over the whole el8 set. That
+# framing is retired (DR-0082): the wider comparison belongs to rhelcyg-8.10,
+# and pinning a package here widens the claimed surface (DR-0079 input A)
+# rather than growing this into something it was never going to become.
 #
 # The pipeline, per package named in packages.tsv:
 #   fetch    curl the pinned .src.rpm from the Rocky mirror, checked by sha256,
@@ -262,7 +266,7 @@ unpack_build() {
 }
 
 pass=0; fail=0
-say "# WP-T4 acceptance (embryo) -- $(date +%F)"
+say "# acceptance -- $(date +%F)"
 say ""
 mkdir -p "$dest"
 build_shape || die "cannot build the image-shape helper from $shape_src"

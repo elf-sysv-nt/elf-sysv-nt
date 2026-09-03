@@ -1,12 +1,16 @@
-# WP-T4 in embryo — building a vendor package against this tree
+# The acceptance harness — building a vendor package against this tree
 
-The WP-T4 in the implementation plan is the harness that runs over the whole el8
-set and belongs to `rhelcyg-8.10`. It is listed there as the criterion the rest
-of the program serves: a tree that passes WP-T1 through WP-T3 and fails this one
-has not done the job. This directory is that harness in embryo — the same
-pipeline over one named leaf package, which is the overall done-when WP-56
-carries: a named small vendor package, built by WP-T4's harness in embryo,
-compiles, links, runs its own test suite, and passes it.
+This is what certifies the platform: one named vendor package, built from
+vendor source against this tree, run, and passing its own test suite. That is
+the bootstrap bar in `doc/design/Verification-Plan.md`, it is WP-56's overall
+done-when, and it is the whole obligation this directory carries.
+
+It used to be described as an embryo of a wider harness over the entire el8
+set. That framing is retired (DR-0082). The bar is one package, the wider
+comparison belongs to `rhelcyg-8.10`, and calling this an embryo implied a
+growth path inside this repository that the bootstrap direction does not have.
+Pinning more packages here is a way to widen the claimed surface, not a way to
+finish an unfinished harness.
 
 It runs today and gives a real per-package verdict. The verdict is not yet green,
 and it says exactly why: it names the libc symbols the package needs that the
