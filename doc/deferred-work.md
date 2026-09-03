@@ -55,6 +55,43 @@ repair, and whoever takes it should reopen this record." No package names
 
 ## Correctness gaps still unowned
 
+**May the veneer call NT directly, or must every host call reach the OS through
+`elfsysv1.dll`?** Nothing forbids it. The one auditable no-Win32 criterion,
+`doc/IMPLEMENTATION-PLAN.md:369`, is WP-21's and is scoped to `runtime/`; what
+is recorded is narrower, `veneer/wiring/wire.h` and DR-0049 keeping the wiring
+layer free of Windows headers so it certifies under a host compiler with a fake
+resolver, which is testability rather than layering. DR-0065 already has a
+veneer body walking the faced DLL's PE export directory, so host-format
+knowledge inside the veneer is established practice.
+
+The question is therefore one host chokepoint or two. WP-21 built one — 370
+imports, a single generated wrappers unit, and `runtime/imports/audit-imports.sh`
+failing any object but that unit which names an import. A veneer-side Win32
+call would be the first object outside it to name an import and no audit would
+notice. Against a second: 1001 of Cygwin's 1767 exports are `SIGFE`, wrapped in
+a signal frame that makes them interruptible, and a call entering through the
+runtime is inside that envelope where a raw one is not; DR-0029's fork replay
+likewise does not know about state the runtime did not create. For it: some
+checks have no counterpart to forward to — `mincore` classifies bucket 4, and
+`mprotect` and `msync` do not report protection — so routing through the
+runtime means adding an export and changing a shipped surface.
+
+Every argument against is about state and blocking, and a pure non-blocking
+query of the process's own address space has neither. So the likely answer is a
+predicate rather than a side: direct calls for pure queries, everything else
+through the runtime, with WP-21's discipline mirrored — a declared import list,
+one injected seam so the fake-resolver certification survives, and a link-map
+audit. Three measurements are owed first: whether a raw `kernel32` call from
+System V veneer code in a faced process works at all (it needs an `ms_abi`
+thunk and a PE export walk, both present in the tree, neither done from the
+veneer); whether Cygwin expects anything of *any* NT entry beside it; and how
+many shim families would ever want this, since if the answer is one, a single
+runtime export is cheaper than a new discipline.
+
+On no package's path. Raised while settling `__fprintf_chk`, which turned out
+not to need it: no `_chk` body Cygwin ships performs the `%n` check, so a
+veneer matching its siblings is consistent rather than weak.
+
 **A shim is credited `wired` without a body.** `acceptance/accept.sh:281-296`
 takes the union of `wire-<slice>.shims.tsv` over slices carrying a
 `live-<slice>.sh` and calls every symbol in it `wired`, on the stated ground
@@ -68,8 +105,8 @@ becomes certified by the existence of its `live-<slice>.sh`, and
 bind. The root-cause repair is to credit `wired` against a curated bodies
 manifest, the way `filled` already works through `*-filled.tsv`; it re-verdicts
 122 symbols and belongs to whoever owns the acceptance witness. Found while
-applying `a/proposal/fortify-family/001.md`, whose step 0 would have extended
-the credit by 42 more rows.
+attributing the fortify family to its slices, which would have extended the
+credit by 42 more rows.
 
 **The `SA_RESTART` down-call wrapper is not written.**
 `doc/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated at
