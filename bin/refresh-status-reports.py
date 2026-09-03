@@ -159,8 +159,8 @@ def not_verified_report(repo):
             total += 1
         out.append('')
 
-    out.insert(6, '')
-    out.insert(7, '%d unverified claim(s).' % total)
+    out.insert(8, '%d unverified claim(s).' % total)
+    out.insert(9, '')
     return '\n'.join(out)
 
 
