@@ -27,7 +27,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
 
 GOVERNED = ('doc/Requirements.md', 'doc/Architecture.md',
-            'doc/ABI-Boundary.md', 'doc/Verification-Plan.md',
+            'doc/ABI-Boundary.md', 'doc/Symbol-Resolution.md',
+            'doc/Address-Space.md', 'doc/Runtime-Crossing.md',
+            'doc/Verification-Plan.md',
             'doc/target-definition.md', 'doc/licensing.md', 'AGENTS.md')
 
 INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')

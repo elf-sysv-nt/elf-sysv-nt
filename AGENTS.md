@@ -191,9 +191,13 @@ agent records taken before the convention existed.
 
 A governed set states what the system is, in the present tense, current at
 every commit: `doc/Requirements.md`, `doc/Architecture.md`,
-`doc/ABI-Boundary.md`, `doc/Verification-Plan.md`, `doc/target-definition.md`,
-`doc/licensing.md`, and this file. Read them to learn the design; read the
-records to learn why it is that and not something else, or what it was before.
+`doc/Verification-Plan.md`, `doc/target-definition.md`, `doc/licensing.md`, and
+this file, plus four sub-documents carrying a subsystem each —
+`doc/ABI-Boundary.md`, `doc/Symbol-Resolution.md`, `doc/Address-Space.md` and
+`doc/Runtime-Crossing.md`. Read them to learn the design; read the records to
+learn why it is that and not something else, or what it was before. The bar on
+all of them is that a reader implementing a layer never has to open a record to
+find a value, a constant, a limit or a rule.
 `doc/elf-technical-breakdown.md` is the founding survey rather than the design
 of record, and says so at its head.
 
