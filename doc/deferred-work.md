@@ -108,6 +108,18 @@ manifest, the way `filled` already works through `*-filled.tsv`; it re-verdicts
 attributing the fortify family to its slices, which would have extended the
 credit by 42 more rows.
 
+**`DT_FINI` and `DT_FINI_ARRAY` are not run for anything the exec path loaded.**
+`loader/dl/dl_init.c` runs fini correctly, the array reversed and then
+`DT_FINI`; `loader/exec/dyn_init.c` has the init half and no fini half at all,
+and nothing plays the part `_dl_fini` plays on Linux. C++ static destructors and
+anything a loaded object registers for its own teardown never run.
+`doc/IMPLEMENTATION-PLAN.md` § WP-45 names it and orders it behind WP-56, which
+is why WP-45 landed without it on 2026-09-03: DR-0048 puts the atexit chain in
+glibc's own `exit`, so the loader's fini has to register through the veneer's
+`__cxa_atexit`, and that body is not live. This entry is the register the plan's
+ordering was relying on and did not have; it is cut when WP-56 lands and the
+work becomes schedulable, or when a package takes it.
+
 **The `SA_RESTART` down-call wrapper is not written.**
 `doc/design/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated
 at `doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote

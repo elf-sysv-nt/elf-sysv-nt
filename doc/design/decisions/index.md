@@ -105,6 +105,7 @@ the pair and says which reading is current.
 | [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
 | [0079](0079-the-veneer-is-a-bootstrap-with-a-claimed-surface.md) | the veneer is a bootstrap and claims a derived surface; a name outside it is not exported | accepted 2026-09-03 | 0008 |
 | [0080](0080-relocation-resolves-through-the-lookup-engine.md) | relocation resolves through the lookup engine, and the versioning seam is wired rather than lifted | provisional 2026-09-03 | none |
+| [0081](0081-the-auxv-reports-the-cpu-and-not-the-host-it-runs-on.md) | The auxv reports the CPU it runs on: `AT_HWCAP` is the `cpuid` leaf-1 `%edx` word, `AT_HWCAP2` is zero | provisional 2026-09-03 | none |
 
 ## What earns a record
 
