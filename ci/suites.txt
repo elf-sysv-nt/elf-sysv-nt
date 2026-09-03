@@ -19,3 +19,9 @@ veneer/xlat/t/reproduce.sh
 # that depends on one machine's build products blocks every merge elsewhere.
 bin/check-suites
 bin/check-shim-bodies
+# The filesystem shim bodies. Host compiler only, seconds, no build product:
+# the bodies reach Cygwin through the bind table and nothing else, so a harness
+# that fills the table itself exercises the translation offline. The cross
+# toolchain, when present, adds the versioned-symbol check; when it is absent
+# that check is skipped rather than failed.
+veneer/wiring/t/fs-face.sh

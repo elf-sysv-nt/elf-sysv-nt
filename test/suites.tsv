@@ -52,6 +52,7 @@ veneer/libc/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	builds libc.so.6, so it n
 veneer/version-map/t/reproduce.sh	report	-	27s and re-extracts from vendor libraries; cheap enough to gate, slow enough to measure first
 veneer/companions/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the eight companion libraries, built
 veneer/wiring/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the wiring generators and their slices
+veneer/wiring/t/fs-face.sh	gate	-	the three filesystem shim bodies: their generated glue re-derives, they build, and their struct stat and O_* translations match recorded pairs. Host compiler only; the cross toolchain adds the versioned-symbol check when present
 runtime/exports/t/reproduce.sh	report	/c/-/repo/newlib-cygwin	RED on trunk 2026-09-03: the checkout is at a9925920, not the pinned b11613e4. Input drift, not rot; --any-ref overrides
 runtime/imports/t/reproduce.sh	report	/c/-/cygwin/root/bin/cygwin1.dll	RED on trunk 2026-09-03: the extractor parses no imports from the pinned DLL. Input state, not rot
 runtime/varargs/t/reproduce.sh	report	-	WP-24's note: varargs-test.c ICEs host gcc 14.4 (choose_baseaddr, i386.cc:7420). Pre-existing, in the blocker log
