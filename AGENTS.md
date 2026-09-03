@@ -101,13 +101,18 @@ body performs. Being stronger than the floor means declining to compose and
 implementing independently, which is a larger decision than writing a body and
 belongs to the operator rather than to the symbol.
 
-Licenses are checked before code is lifted, not after, and the check tends to
-come back permissive rather than blocking. This tree is LGPLv3-or-later, so
-LGPL-2.1-or-later material — glibc's, most of the GNU runtime's — can be taken
-outright, which is the footing the vendored headers under `veneer/include/`
-already stand on. GPL material is the one that turns a lift into a distribution
-obligation on the whole: flinux, Blink, Qiling and QEMU's linux-user are all in
-that class. musl is MIT and the loader's working model. What usually rules
+Licenses are checked before code is lifted, not after, and the check is
+DR-0074's: the file's licence text, the FSF's compatibility guidance, and
+recorded practice — a named project that has done the same combination in
+public, at a ref somebody here read — written into every lift record as a
+Precedent section in DR-0037's shape. It tends to come back permissive rather
+than blocking. This tree is LGPLv3-or-later, so LGPL-2.1-or-later material —
+glibc's, most of the GNU runtime's — can be taken outright, which is the
+footing the vendored headers under `veneer/include/` already stand on. GPL
+material is the one that turns a lift into a distribution obligation on the
+whole: flinux, Qiling and QEMU's linux-user are in that class; Blink is not,
+being ISC, so its Linux syscall layer sits in the permissive class beside
+musl, which is MIT and the loader's working model. What usually rules
 upstream code out here is coupling rather than licence — glibc's resolver
 assumes `_rtld_global`, its own `link_map`, and being the process's first
 mover — so name the coupling when that is the reason, because "it is GPL" and
