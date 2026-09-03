@@ -89,6 +89,48 @@ It is the failure the class exists to make impossible.
 Every symbol on the face belongs to exactly one class, and the classification
 tables under `veneer/libc/` are where that assignment lives.
 
+## The claimed surface
+
+The veneer claims a surface smaller than glibc's, and states it as a set that
+is derived rather than curated. Everything in the set has a body — a forward,
+a wired shim, or a filled stub. Everything outside it is not exported at all:
+absent from the version script, absent from `.dynsym`, and absent from the
+`Provides` `elfdeps` generates, so a package needing such a name fails at link
+naming it, and a package requiring it fails dependency resolution before it is
+installed. Both are earlier than a body that returns zero with the program's
+state already committed, and diagnosability is what is being bought.
+
+The set is the union of three inputs, each mechanically derivable, so that it
+regenerates instead of being maintained:
+
+    A  what the acceptance package set imports
+    B  what the loader, the runtime and the startup files require of libc.so.6
+    C  the closure of A and B under the alias rule
+
+Input C is not decoration. An alias is as strict as its target, so claiming a
+name claims what it resolves to; without the closure the set would be
+internally inconsistent in the way the `open64` defect was. Input B is claimed
+by construction whatever the acceptance set imports, and it is small: the
+loader and the runtime are built freestanding and demand nothing, so the
+startup files are the whole of it.
+
+Three constraints bound the withdrawal. A weak undefined reference stays
+optional, because weakness is the program's own statement that it can proceed
+without the name, and refusing it would break a program entitled to proceed.
+A name input B requires is claimed however narrow the acceptance set is. And
+no version node may be left without a member: verneed matching requires the
+provider to define the node a consumer names, so a node the three inputs would
+empty keeps one, chosen for having a body where the node has one to offer.
+That last is a correctness constraint rather than a preference, and where a
+node's every member is a stub the retained member is a stub too.
+
+`veneer/classification/claimed-surface.tsv` is the set, one row per name with
+the input that claimed it. `veneer/classification/claimed.py` derives it and
+`veneer/classification/t/reproduce.sh` certifies that it re-derives, that it
+agrees with the classification in both directions, and that no node is empty.
+
+Settled by: DR-0079.
+
 ## Acceptance
 
 Acceptance is a count, not a judgement.

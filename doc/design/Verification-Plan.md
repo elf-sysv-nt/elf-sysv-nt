@@ -141,6 +141,34 @@ needs the loader's dynamic-exec path to stand in for `ld-linux` and resolve
 `doc/design/Requirements.md` is the stronger claim, and the harness's `ready`
 is one step short of it.
 
+`ready` also changed shape when the claimed surface did. It used to mean every
+import has a body; it now means every import is claimed and has a body, which
+is the same statement with its second half made explicit. A package importing
+a name the veneer does not claim never reaches the harness at all, because it
+fails at link.
+
+## The bootstrap bar
+
+Veneer work is finished when one named package from the acceptance set builds
+from vendor source, runs, and passes its own test suite, with no substitution
+left open against it. Past that bar, further veneer work is justified per name
+rather than by default.
+
+The bar is a measurement rather than an appetite, and it is chosen because
+everything it certifies is a prerequisite of anything built on this platform
+afterwards: the loader mapping and relocating a real vendor image, the crossing
+into the faced runtime, the process shape a real program observes, and a
+toolchain producing something that runs. Work begun before that bar is work
+begun on an uncertified floor.
+
+Which package is not settled. It is discriminated by the demand-side census
+that the acceptance number already turns on — what share of the acceptance
+set's import surface a candidate's imports cover — so one census answers two
+questions, and a small share settles it toward a second package of a different
+shape without anyone's appetite entering.
+
+Settled by: DR-0079.
+
 ## Fuzz and unit obligations
 
 Anything that parses attacker-shaped input from its first line gets unit tests

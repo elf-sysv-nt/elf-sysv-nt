@@ -9,3 +9,4 @@ loader/elf/t/run.sh
 bin/check-doc-refs
 bin/check-design-links
 bin/check-worknote-refs
+bin/check-carry-forward

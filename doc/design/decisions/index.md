@@ -103,6 +103,7 @@ the pair and says which reading is current.
 | [0076](0076-architecture-is-sized-by-coherence.md) | the architecture document is sized by coherence, not by a word ceiling | accepted 2026-09-02 | none |
 | [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03 | none |
 | [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
+| [0079](0079-the-veneer-is-a-bootstrap-with-a-claimed-surface.md) | the veneer is a bootstrap and claims a derived surface; a name outside it is not exported | accepted 2026-09-03 | 0008 |
 
 ## What earns a record
 
