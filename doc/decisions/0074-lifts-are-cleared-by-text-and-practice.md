@@ -5,8 +5,8 @@ Date: 2026-09-02
 Deciding: the operator, in conversation on 2026-09-02; drafted for
 ratification under the non-reserved decision policy, since licensing is a
 reserved area and DR-0004 is the standing record
-Proposal: none; taken against `a/issue/why-the-licence-restricts-a-lift.md`
-and the open items of `doc/proposals/licensing-issue.md`
+Proposal: none; taken against the licence-restriction analysis of 2026-09-02,
+kept as a working note, and the open items of `doc/proposals/licensing-issue.md`
 
 ## What was decided
 
@@ -95,9 +95,9 @@ not GPL, and its Linux syscall layer is therefore in the permissive class
 and open to the runtime. flinux, Qiling and QEMU's linux-user remain GPL and
 remain out of the runtime, in for tooling, oracles and reading.
 
-`a/issue/why-the-licence-restricts-a-lift.md` stops being the only place the
-licence classes are written down. Its table moves, in substance, into this
-record and `doc/licensing.md`; the note stays as the working history.
+The working analysis stops being the only place the licence classes are written
+down. Its table moves, in substance, into this record and `doc/licensing.md`;
+the note stays as the working history behind them.
 
 Each lift into the runtime still pays the mechanics `AGENTS.md` already
 asks for: notices retained unmodified, a row in `doc/licensing.md`'s

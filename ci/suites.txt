@@ -7,3 +7,4 @@ loader/elf/t/run.sh
 # (it left a "base" commit on march and flipped core.bare once). Run it
 # standalone as CI-of-CI, never as a gate suite.
 bin/check-doc-refs
+bin/check-worknote-refs

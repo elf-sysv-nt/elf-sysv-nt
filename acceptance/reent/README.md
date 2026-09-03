@@ -130,7 +130,7 @@ loader, and three things stand between the reproduced probe and that:
    the loader should treat a committed low occupant that is the child's own
    runtime allocation -- adopt it, reserve only up to it, reserve around it, or
    otherwise -- is a design step with more than one live candidate, parked for
-   the operator (`a/build-blockers.log`) rather than guessed. The spike fixes
+   the operator, through the project's blocker log, rather than guessed. The spike fixes
    the constraint that step must satisfy and guards that the obstacle
    reproduces.
 

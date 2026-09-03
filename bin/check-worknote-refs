@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+#
+# No tracked file cites a working note.
+#
+# AGENTS.md: working notes "live in the untracked working area, are
+# authoritative for nobody else, and are never cited from a tracked file, since
+# a reader who clones this cannot open them." That rule was honoured by habit
+# and broken six times before anything checked it, which is the usual fate of a
+# rule nothing enforces.
+#
+# Two narrowings, and both are deliberate, because the harm the rule guards
+# against is specific: a cloner following a reference and finding nothing.
+#
+# Only documents are checked -- Markdown, and the status files under doc/status.
+# A script that names the blocker log it appends to is machinery addressing its
+# own operand, not a document citing a source; bin/session-land finding the
+# shared checkout is not a reference to reasoning. Flagging those would be
+# noise, and worse, it would push the real signal under a pile of it.
+#
+# Only prose is checked. A path inside a fenced or indented block is being
+# displayed -- a .gitattributes recipe quoted in a proposal, a transcript, a
+# command line -- rather than cited, and the reader is not being sent anywhere.
+#
+# What is left is the case that actually costs a reader something: a tracked
+# document naming a working note as where the reasoning, the measurement or the
+# authority lives. The repair is never to delete the sentence; it is to make the
+# record stand alone, which is what change-design already demands of a decision
+# record whose proposal directory is outside version control.
+#
+# Usage:
+#   check-worknote-refs [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -n N, --count=N          Ignored; accepted so ci/suites.txt can run every
+#                            suite the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -h, --help               Print this message and exit.
+#
+# Exit: 0 no tracked file cites a working note, 1 one or more do, 2 usage.
+
+import os
+import re
+import subprocess
+import sys
+
+# The annex subtrees that hold documents rather than machinery. A path under
+# one of these is prose; a path under a/wt, a/build or a/.lock-ish names is not.
+NOTE_DIRS = ("issue", "proposal", "handoff", "census-work")
+NOTE_FILES = ("build-blockers.log", "worker-runs.log", "worker-live.log",
+              "worker-cron.log", "worker-skill-staging.md")
+
+PATTERN = re.compile(
+    r"a/(?:" + "|".join(NOTE_DIRS) + r")/[\w./-]+"
+    r"|a/(?:" + "|".join(re.escape(f) for f in NOTE_FILES) + r")")
+
+
+def usage():
+    for line in open(__file__, encoding="utf-8"):
+        if line.startswith("# Usage:"):
+            break
+    else:
+        return
+    with open(__file__, encoding="utf-8") as f:
+        emit = False
+        for line in f:
+            if line.startswith("# Usage:"):
+                emit = True
+            if emit:
+                if not line.startswith("#"):
+                    break
+                print(line[2:].rstrip())
+
+
+def tracked(root):
+    out = subprocess.check_output(["git", "-C", root, "ls-files", "-z"])
+    return [p for p in out.decode("utf-8", "replace").split("\0") if p]
+
+
+def is_document(rel):
+    """A tracked document, as opposed to machinery or data.
+
+    Markdown anywhere, plus the status files, which are prose in a .txt suit.
+    Everything else -- scripts, tables, attributes, transcripts -- addresses
+    paths rather than citing them.
+    """
+    return rel.endswith(".md") or rel.startswith("doc/status/")
+
+
+def hits(path):
+    """Citations outside fenced and indented blocks, as (lineno, text)."""
+    found = []
+    fenced = False
+    try:
+        lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+    except OSError:
+        return found
+    for n, line in enumerate(lines, 1):
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        # An indented block is a display, not a sentence citing something.
+        if line.startswith("    ") or line.startswith("\t"):
+            continue
+        m = PATTERN.search(line)
+        if m:
+            found.append((n, m.group(0), line.strip()))
+    return found
+
+
+def main(argv):
+    root, quiet = None, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            usage(); return 0
+        if a in ("-q", "--quiet"):
+            quiet = True
+        elif a in ("-n", "--count"):
+            i += 1
+        elif a.startswith("--count="):
+            pass
+        elif a in ("-C", "--directory"):
+            i += 1
+            if i >= len(argv):
+                print("check-worknote-refs: -C wants a value", file=sys.stderr)
+                return 2
+            root = argv[i]
+        elif a.startswith("--directory="):
+            root = a.split("=", 1)[1]
+        else:
+            print("check-worknote-refs: unknown option %s" % a, file=sys.stderr)
+            return 2
+        i += 1
+
+    if root is None:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"]).decode().strip()
+
+    problems, checked = [], 0
+    for rel in tracked(root):
+        path = os.path.join(root, rel)
+        if not is_document(rel) or not os.path.isfile(path):
+            continue
+        checked += 1
+        for n, ref, text in hits(path):
+            problems.append((rel, n, ref, text))
+
+    for rel, n, ref, text in problems:
+        print("FAIL %s:%d cites the working note %s" % (rel, n, ref),
+              file=sys.stderr)
+        print("       %s" % text[:96], file=sys.stderr)
+
+    if not quiet or problems:
+        print("check-worknote-refs: %d tracked file(s) checked, %d citation(s)"
+              % (checked, len(problems)),
+              file=sys.stderr if problems else sys.stdout)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

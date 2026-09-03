@@ -52,7 +52,7 @@ A faced service called from a bare native thread crashes. A native process
 loads the faced runtime cleanly (`runtime/face/t/hostload.sh` verdict yes,
 DllMain and the PE TLS callback fire), but calling the faced `mmap` from a bare
 native thread segfaults: the thread has no `cygtls` (the A′ measurement,
-`a/build-blockers.log`).
+recorded in the project's blocker log).
 
 The three are one finding. A faced service (its `mmap`, its reent-consuming
 libc bodies) runs only on a thread the faced runtime's own `_dll_crt0` startup

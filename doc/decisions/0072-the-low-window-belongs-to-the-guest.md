@@ -2,13 +2,13 @@
 
 Status: provisional
 Date: 2026-09-02
-Deciding: the operator, on `a/proposal/low-window-contract/001.md`, accepted in
-full; the contract line and the split between requirement and margin are the
-operator's own call within it
-Proposal: `doc/proposals/` carries none for this; the working proposal is
-`a/proposal/low-window-contract/001.md`, and the measurements behind it are
-`spike/vendor-hardened-build/` and the resolution section of
-`a/issue/wp56-non-pie-link-window-occupied.md`
+Deciding: the operator, on the low-window-contract proposal of 2026-09-02,
+accepted in full; the contract line and the split between requirement and
+margin are the operator's own call within it
+Proposal: `doc/proposals/` carries none for this; it was drafted and accepted
+as a working note, and the measurement behind it is `spike/vendor-hardened-build/`.
+The finding that settled it is in this record: the occupant of `0x400000` was
+the loader's own image buffer, not the faced runtime.
 
 ## What was decided
 

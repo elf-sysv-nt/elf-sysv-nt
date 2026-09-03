@@ -61,7 +61,7 @@ should treat a committed low occupant that is the child's own runtime allocation
 — and that is a decision with more than one live candidate (adopt the committed
 region as the child's own; reserve only up to it and treat the span above as
 best-effort; reserve around it and accept a non-contiguous window; something
-else). It is parked for the operator rather than guessed here (`a/build-blockers.log`).
+else). It is parked for the operator rather than guessed here, in the project's blocker log.
 This spike fixes the constraint that decision must satisfy, measured rather than
 inferred, and guards that the obstacle still reproduces; when a reconcile that
 handles the committed occupant lands, the verdict flips to `cleared` and the t3
