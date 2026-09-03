@@ -115,6 +115,7 @@ the pair and says which reading is current.
 | [0088](0088-errno-numbering-is-one-choice-for-the-platform.md) | errno's numbering is one choice for the whole platform; `__errno_location` cannot shim it | provisional 2026-09-03; parked at tier 8 | none |
 | [0089](0089-a-signal-handler-crosses-by-delivery-not-by-registration.md) | a signal handler crosses by delivery, not by registration, so `signal` waits on WP-43 being wired | provisional 2026-09-03 | none |
 | [0090](0090-the-wiring-is-regenerated-to-the-minimised-surface.md) | the wiring regenerates to the minimised surface: seventeen empty slices lose their files, a shim's target is claimed, and the jmp_buf face loses its credit | provisional 2026-09-03 | none |
+| [0091](0091-the-errno-location-is-linux-numbered.md) | the errno location is Linux-numbered, as deep as that must go | accepted 2026-09-03 | none |
 
 ## What earns a record
 
