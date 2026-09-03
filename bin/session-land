@@ -21,6 +21,39 @@ case "$branch" in
     ''|march|main) echo "$prog: not on a session branch (HEAD=$branch)" >&2; exit 2;;
 esac
 
+# A land either completes or does nothing. The shared checkout carries
+# uncommitted work at times — the operator's, legitimately — and the final
+# fast-forward refuses to overwrite an edited file, which used to strand the
+# land half done: march moved, main behind, and an agent staring at a partial
+# state it is tempted to "fix" with a discarding command
+# (a/issue/destroyed-uncommitted-operator-work.md). So the collision is
+# checked here, before march moves. An edited file that overlaps what this
+# land will change refuses the whole land with the list; disjoint edits are
+# preserved by the fast-forward and only noted. Untracked files are checked
+# only against paths this land creates. Nothing here ever discards: the
+# remedy is the operator's, named file by file.
+dirty=$(git -C "$repo" status --porcelain --untracked-files=all | awk '{print $NF}')
+if [ -n "$dirty" ]; then
+    land_paths=$( { git -C "$here" diff --name-only "march...HEAD";
+                    git -C "$repo" diff --name-only main march --;
+                    echo doc/decisions/; echo doc/status/;
+                    echo a/build-blockers.log; } | sort -u)
+    overlap=""
+    for p in $dirty; do
+        for q in $land_paths; do
+            case "$p" in "$q"|"${q%/}"/*) overlap="$overlap $p"; break;; esac
+        done
+    done
+    if [ -n "$overlap" ]; then
+        echo "$prog: refusing before anything moves: the shared checkout has" >&2
+        echo "$prog: uncommitted work on paths this land would rewrite:" >&2
+        for p in $overlap; do echo "    $p" >&2; done
+        echo "$prog: nothing was landed. Do not discard these files; they may" >&2
+        echo "$prog: be the operator's. Settle them, then rerun." >&2
+        exit 1
+    fi
+fi
+
 now=$(date +%s)
 if mkdir "$lock" 2>/dev/null; then echo $now > "$lock/ts"; else
     ts=$(cat "$lock/ts" 2>/dev/null || echo 0)
