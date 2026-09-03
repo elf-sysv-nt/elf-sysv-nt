@@ -16,5 +16,5 @@
 #   runtime, so none of the three candidates it was scored against is needed.
 #   DR-0072 states the contract, a suite step asserts it, and the acceptance
 #   harness now builds bzip2 with el8's own flags (spike/vendor-hardened-build).
-# WP-T4 parked 2026-09-02: scope/authority, tier 8 — see a/build-blockers.log
+# WP-T4 parked 2026-09-02: scope/authority, tier 8 — see the blocker log
 WP-T4
