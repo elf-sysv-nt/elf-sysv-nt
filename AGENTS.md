@@ -33,10 +33,10 @@ read the spike as licence to assume the whole runtime survives re-facing.
 The red zone is ours to break, not Windows'. Spike 3 measured the host leaving
 the reserved 128 bytes alone under preemption, thread hijacking and its own
 exception dispatch, and Cygwin's signal delivery taking `%rsp-8` on every
-delivery. The delivery path is now repaired: DR-0006 settled the direction and
-WP-43 built it, DR-0030 recording the shape, so delivery reserves the 128 bytes
-before it builds the handler frame. The scaffolding came off with it. DR-0050
-retired `-mno-red-zone` as the target default on 2026-08-31, against a measured
+delivery. The delivery path is now repaired: WP-43 built it and DR-0030 records the
+shape, so delivery reserves the 128 bytes before it builds the handler frame.
+The scaffolding came off with it. DR-0050 is the standing record and retired
+`-mno-red-zone` as the target default on 2026-08-31, against a measured
 reservation cost of −0.49% of a delivery, so the compiler defaults to the red
 zone like any x86-64 target and nothing may assume a leaf that avoids it.
 
