@@ -116,6 +116,7 @@ the pair and says which reading is current.
 | [0089](0089-a-signal-handler-crosses-by-delivery-not-by-registration.md) | a signal handler crosses by delivery, not by registration, so `signal` waits on WP-43 being wired | provisional 2026-09-03 | none |
 | [0090](0090-the-wiring-is-regenerated-to-the-minimised-surface.md) | the wiring regenerates to the minimised surface: seventeen empty slices lose their files, a shim's target is claimed, and the jmp_buf face loses its credit | provisional 2026-09-03 | none |
 | [0091](0091-the-errno-location-is-linux-numbered.md) | the errno location is Linux-numbered, as deep as that must go | accepted 2026-09-03 | none |
+| [0092](0092-an-unmapped-constant-declines.md) | a constant the runtime cannot name declines to 0 rather than passing through onto a numeral that is already taken | provisional 2026-09-03 | none |
 
 ## What earns a record
 

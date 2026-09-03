@@ -252,28 +252,22 @@ Drepper's two papers are its specification.
 
 ## Found writing the errno and signal shims, 2026-09-03
 
-Three items, all in `veneer/wiring/gen-xlat.py` and the tables it reads, all
-pinned by `veneer/wiring/t/xlat-pairs.sh` rather than repaired: the fix is in
-the generator and belongs to a commit about the generator.
+Three items were registered here, all in `veneer/wiring/gen-xlat.py` and the
+tables it reads, and all three are now repaired rather than deferred. They are
+cut per this file's own convention and recorded here in one line each so the
+trail from the finding to the fix survives the cut.
 
-**`gen-xlat.py` emits `static const short` and does not check that its values
-fit.** `SIGSTKSZ`'s 32768 is stored as −32768, so `__esn_signal_down(8192)`
-returns a negative number. Nothing is harmed today because nothing calls
-`signal(8192)`, and that is the whole problem: the next table with a value over
-32767 truncates in the same silence.
-
-**`extract-tables.py` scraped `SIGSTKSZ` into `signal-map.tsv` as though it
-were a signal.** It is a stack size. Its row is why `xl_signal_up` is 32769
-`short`s wide — 64 KB of `.rodata` — for thirty-one signals.
-
-**An el8 constant with no runtime equivalent passes through onto a numeral that
-is already taken.** `gen-xlat.py` calls pass-through honest on the ground that
-inventing a number would hide the gap, and for a value neither side names it
-is. For `SIGSTKFLT` and the thirteen el8 errno values with a `-` Cygwin side it
-is not: every one of the fourteen numerals means something different and real
-downstairs. DR-0088 and DR-0089 carry what that costs the two shims;
-whether the core should distinguish "unclaimed" from "claimed and unmatched" is
-a question for whoever next edits it.
+The generator emitted `short` cells without checking that a value fit, so
+`SIGSTKSZ`'s 32768 stored as −32768; it now refuses an unfitting row at
+generation time instead of truncating. `extract-tables.py` had scraped
+`SIGSTKSZ` into `signal-map.tsv` as though a stack size were a signal, which
+is what made `xl_signal_up` 32769 `short`s wide to carry thirty-one signals;
+the row is gone and `dropped.tsv` records why. And an el8 constant with no
+runtime equivalent no longer passes through onto a numeral that is already
+taken — it declines. DR-0092 settles that last one and explains why declining
+rather than dropping is the right shape for a value that is the whole answer.
+`veneer/wiring/t/xlat-pairs.sh` pins all three, the decline set swept closed
+in both directions rather than sampled.
 
 Two shims are blocked rather than deferred and are named here so they are
 findable: `__errno_location` is parked at ladder tier 8 by DR-0088, and
