@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# Run the checks test/suites.tsv designates, and say which could not be run.
+#
+# ci/gate.sh is the merge gate and runs the gate tier before a merge commit is
+# created. Nothing ran the report tier on demand: it lived inside
+# bin/nightly-full, and a nightly nobody schedules is a suite nobody runs. This
+# is the command a person or the worker invokes to ask "what is red here, and
+# what could I not check?"
+#
+# Three states, kept apart on purpose:
+#
+#   ok           the suite ran and passed
+#   FAILED       the suite ran and did not pass
+#   not-checked  its input is absent on this machine, so it did not run
+#
+# The third is why this exists. A suite needing the cross toolchain, a build
+# product or a live el8 is not broken when those are missing -- it is unchecked,
+# and a run that counted it as either a pass or a failure would be lying in one
+# direction or the other. test/t3-regen.sh draws the same line for spikes.
+#
+# Exit is 0 only when nothing failed. Not-checked never fails the run, and is
+# printed in the summary whether or not anything else went wrong, because the
+# number that matters is how much of the tree this machine can actually speak
+# for.
+#
+# Usage:
+#   run-suites [options] [SUITE...]
+#
+# Options:
+#   -t TIER, --tier=TIER   gate, report, or all. [default: all]
+#                          `all` is gate and report; standalone is never run.
+#   -n N, --count=N        Passed through to each suite as -n. [default: 2000]
+#   -l, --list             List what would run, and exit.
+#   -q, --quiet            Suite output is suppressed either way; this drops
+#                          the per-suite ok lines and keeps failures.
+#   -o FILE, --output=FILE Append each suite's own output here. [default: none]
+#   -h, --help             Print this message and exit.
+#
+# With SUITE arguments, only those are run, whatever their tier, and a suite
+# whose input is absent is still reported rather than run.
+#
+# Exit: 0 nothing failed, 1 a suite failed, 2 usage.
+
+set -u
+prog=run-suites
+# This checkout, not the shared one. bin/session-land and bin/progress.py
+# resolve past /a/wt/ on purpose -- one lands into the trunk, the other reports
+# trunk truth. A suite runner must do the opposite: the whole reason to run it
+# from a worktree is to test what that worktree changed, and resolving to the
+# trunk silently certified the wrong tree.
+repo=$(git rev-parse --show-toplevel 2>/dev/null) \
+    || repo=$(cd "$(dirname "$0")/.." && pwd)
+reg=$repo/test/suites.tsv
+
+tier=all
+count=2000
+list=0
+quiet=0
+out=
+
+while [ $# -gt 0 ]; do
+	case $1 in
+		-t|--tier) shift; tier=${1:?--tier wants a tier}; shift ;;
+		--tier=*) tier=${1#*=}; shift ;;
+		-n|--count) shift; count=${1:?--count wants a number}; shift ;;
+		--count=*) count=${1#*=}; shift ;;
+		-l|--list) list=1; shift ;;
+		-q|--quiet) quiet=1; shift ;;
+		-o|--output) shift; out=${1:?--output wants a file}; shift ;;
+		--output=*) out=${1#*=}; shift ;;
+		-h|--help) sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		--) shift; break ;;
+		-?*) printf '%s: unknown option %s\n' "$prog" "$1" >&2; exit 2 ;;
+		*) break ;;
+	esac
+done
+
+case $tier in gate|report|all) ;; *)
+	printf '%s: tier must be gate, report or all\n' "$prog" >&2; exit 2 ;;
+esac
+[ -f "$reg" ] || { printf '%s: no registry at %s\n' "$prog" "$reg" >&2; exit 2; }
+[ -z "$out" ] || : > "$out"
+
+wanted() {                      # is this suite in scope for this run?
+	if [ $# -gt 0 ] && [ -n "${named:-}" ]; then
+		case " $named " in *" $1 "*) return 0;; *) return 1;; esac
+	fi
+	return 1
+}
+
+named=$*
+nok=0; nfail=0; nskip=0
+failed=
+skipped=
+
+while IFS=$'\t' read -r suite rtier needs note; do
+	case ${suite%% *} in ''|'#'*) continue;; esac
+	if [ -n "$named" ]; then
+		case " $named " in *" $suite "*) ;; *) continue;; esac
+	else
+		[ "$rtier" = standalone ] && continue
+		[ "$tier" = all ] || [ "$tier" = "$rtier" ] || continue
+	fi
+
+	if [ "$list" = 1 ]; then
+		printf '%-10s %s\n' "$rtier" "$suite"
+		continue
+	fi
+
+	if [ "$needs" != - ] && [ ! -e "$needs" ]; then
+		printf 'not-checked  %-46s needs %s\n' "$suite" "$needs"
+		skipped="$skipped $suite"
+		nskip=$((nskip + 1))
+		continue
+	fi
+
+	# Execute it, do not read it: half these are python3 and running one
+	# through bash exits 2 on the first line of the shebang's language.
+	# ci/gate.sh's convention is `<suite> -n <count> [-q]` and check-suites
+	# holds every gate suite to accepting it.
+	if [ -n "$out" ]; then
+		printf '\n===== %s\n' "$suite" >> "$out"
+		"$repo/$suite" -n "$count" -q >> "$out" 2>&1
+	else
+		"$repo/$suite" -n "$count" -q >/dev/null 2>&1
+	fi
+	rc=$?
+	# 77 is the skip convention the spikes use: no python3, no toolchain.
+	if [ "$rc" = 0 ]; then
+		[ "$quiet" = 1 ] || printf 'ok           %s\n' "$suite"
+		nok=$((nok + 1))
+	elif [ "$rc" = 77 ]; then
+		printf 'not-checked  %-46s the suite skipped itself (77)\n' "$suite"
+		skipped="$skipped $suite"
+		nskip=$((nskip + 1))
+	else
+		printf 'FAILED       %-46s rc=%s\n' "$suite" "$rc"
+		failed="$failed $suite"
+		nfail=$((nfail + 1))
+	fi
+done < "$reg"
+
+[ "$list" = 1 ] && exit 0
+
+printf '\n%s: %d passed, %d failed, %d not checked' "$prog" "$nok" "$nfail" "$nskip"
+[ -z "$out" ] || printf ' (output in %s)' "$out"
+printf '\n'
+[ -z "$failed" ]  || printf '%s: failed:%s\n' "$prog" "$failed"
+[ -z "$skipped" ] || printf '%s: not checked here:%s\n' "$prog" "$skipped"
+if [ "$nskip" -gt 0 ] && [ "$nfail" = 0 ]; then
+	printf '%s: a clean run that checked %d of %d; the rest wants inputs this machine does not have\n' \
+		"$prog" "$nok" "$((nok + nskip))"
+fi
+[ "$nfail" = 0 ] || exit 1
+exit 0

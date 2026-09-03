@@ -173,6 +173,28 @@ def main(argv):
                        'runner named outside the convention still needs a row.'
                        % (REGISTRY, d))
 
+    # 5a: a gate suite has to survive the gate's calling convention.
+    # ci/gate.sh runs every entry as `<suite> -n <count> [-q]`, and a suite
+    # that refuses -n exits 2 there while passing when run by hand. That is
+    # how veneer/classification/t/reproduce.sh broke the gate for two commits:
+    # it was registered, it passed the way anyone would test it, and nobody
+    # ran it the way the gate does. Reading the source for the option is a
+    # static approximation, and it is the one that would have caught it.
+    for suite in sorted(s for s, t in tier_of.items() if t == 'gate'):
+        p = os.path.join(root, suite)
+        if not os.path.isfile(p):
+            continue
+        src = open(p, encoding='utf-8', errors='replace').read()
+        handles = re.search(r"--count|'-n'|\"-n\"|-n\||-n\)", src)
+        # A suite with no unknown-option rejection tolerates -n by ignoring it,
+        # which is fine. The failure is a catch-all that exits 2 without a -n
+        # case above it.
+        rejects = re.search(r"unknown option|Unknown option", src)
+        if rejects and not handles:
+            bad.append('%s: %s is tier gate and does not accept the gate\'s '
+                       '-n; ci/gate.sh runs every suite as `<suite> -n <count> '
+                       '[-q]` and this one would exit 2 there' % (REGISTRY, suite))
+
     # 5: the gate tier and ci/suites.txt are one file said twice.
     listed = set(gate_list(root))
     want = set(s for s, t in tier_of.items() if t == 'gate')
