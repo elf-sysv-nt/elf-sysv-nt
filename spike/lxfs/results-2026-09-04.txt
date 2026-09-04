@@ -1,0 +1,153 @@
+WSL DrvFs metadata through NT interfaces on an NTFS volume
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-04T08:35:54Z
+script      measure-lxfs 1.0
+probe       lxfs-probe 1.0
+
+reading, question by question
+
+  q1  FileStatLxInformation on a handle: returns success, LX fields present
+  q2  the same class without opening the file: returns success, agreeing field for field with q1
+  q3  the four metadata EAs: round-trip; the stat class reports what was written
+  q4  an LX symlink reparse point: created and read back with its target, with no privilege asked for
+  q5  a case-sensitive directory: set, two names differing only in case coexist
+  q6  POSIX delete of an open file: the name leaves the directory, the handle keeps working, the name is reusable at once
+  q7  WSL reads the tree back: modes, owners, symlink and device all agree; Cygwin reads the symlink and nothing else
+  q8  stat rate, context only: 9659 ns per NtQueryInformationByName, 85976 ns per Cygwin stat()
+
+raw
+
+    nt_entrypoints_missing=0
+    probe=lxfs-probe 1.0
+    volume_fs=NTFS
+    volume_flags=0x3e72eff
+    q1_specimen_created=1
+    q1_specimen_ea_status=0x00000000
+    q1_class=70
+    q1_struct_bytes=96
+    q1_stat_lx_by_handle_status=0x00000000
+    q1_stat_lx_by_handle=1
+    q1_lx_flags=0x7
+    q1_lx_uid=1000
+    q1_lx_gid=1000
+    q1_lx_mode=0100644
+    q1_lx_dev_major=0
+    q1_lx_dev_minor=0
+    q1_file_id=2814749769144403
+    q1_nlink=1
+    q1_lx_fields_present=1
+    q2_stat_lx_by_name_status=0x00000000
+    q2_stat_lx_by_name=1
+    q2_entry_present=1
+    q2_lx_flags=0x7
+    q2_lx_uid=1000
+    q2_lx_gid=1000
+    q2_lx_mode=0100644
+    q2_lx_dev_major=0
+    q2_lx_dev_minor=0
+    q2_agrees_with_handle=1
+    q3_specimen_created=1
+    q3_ea_set_status=0x00000000
+    q3_ea_query_status=0x00000000
+    q3_ea_uid_readback=4242
+    q3_ea_gid_readback=4343
+    q3_ea_mode_readback=0100751
+    q3_lx_eas_written=1
+    q3_stat_status=0x00000000
+    q3_lx_flags=0x7
+    q3_lx_uid=4242
+    q3_lx_gid=4343
+    q3_lx_mode=0100751
+    q3_lx_dev_major=0
+    q3_lx_dev_minor=0
+    q3_stat_reflects_eas=1
+    q3_dev_reparse_status=0x00000000
+    q3_dev_ea_set_status=0x00000000
+    q3_dev_major_readback=1
+    q3_dev_minor_readback=3
+    q3_dev_eas_written=1
+    q3_dev_stat_status=0x00000000
+    q3_dev_lx_flags=0xf
+    q3_dev_lx_uid=0
+    q3_dev_lx_gid=0
+    q3_dev_lx_mode=020666
+    q3_dev_lx_dev_major=1
+    q3_dev_lx_dev_minor=3
+    q3_dev_reparse_tag=0x80000025
+    q3_dev_stat_reflects_eas=1
+    q4_privilege_held=0
+    q4_process_elevated=0
+    q4_create_status=0x00000000
+    q4_set_reparse_status=0x00000000
+    q4_lx_symlink_created=1
+    q4_needed_privilege=0
+    q4_get_reparse_status=0x00000000
+    q4_readback=1
+    q4_tag=0xa000001d
+    q4_tag_matches=1
+    q4_file_type=2
+    q4_target=statspec
+    q4_target_survives=1
+    q5_dir_created=1
+    q5_class=71
+    q5_process_elevated=0
+    q5_dir_opened=1
+    q5_set_status=0x00000000
+    q5_case_sensitive_set=1
+    q5_create_upper_status=0x00000000
+    q5_create_lower_status=0x00000000
+    q5_both_names_coexist=1
+    q5_dir_stat_status=0x00000000
+    q5_dir_lx_flags=0x10
+    q5_dir_flag_reports_case_sensitive=1
+    q6_specimen_created=1
+    q6_class=64
+    q6_delete_handle=1
+    q6_disposition_status=0x00000000
+    q6_posix_delete=1
+    q6_lookup_error_before_close=5
+    q6_name_gone_before_close=0
+    q6_lookup_error=2
+    q6_name_gone=1
+    q6_name_reusable=1
+    q6_reuse_error=0
+    q6_handle_usable=1
+    q7_tree_built=1
+    q7_want_file644=644 1000 1000
+    q7_want_file755=755 1234 5678
+    q7_want_link=file644
+    q7_want_nulldev=666 1 3
+    q8_files=2000
+    q8_byname_ok=2000
+    q8_byname_ns_per_stat=9659
+    q8_cygwin_files=2000
+    q8_cygwin_ok=2000
+    q8_cygwin_ns_per_stat=85976
+    q7_wsl_present=1
+    q7_wsl_distro=rocky8
+    q7_wsl_file644=644 1000 1000
+    q7_wsl_file755=755 1234 5678
+    q7_wsl_link=file644
+    q7_wsl_link_type=symbolic link
+    q7_wsl_nulldev=666 1 3
+    q7_wsl_nulldev_type=character special file
+    q7_cyg_file644=755 197609 197609
+    q7_cyg_file755=755 197609 197609
+    q7_cyg_link=file644
+    q7_cyg_link_type=symbolic link
+    q7_cyg_nulldev=755 0 0
+    q7_cyg_nulldev_type=regular empty file
+    q7_cygwin_version=3.6.10-1.x86_64
+    q7_wsl_agrees=1
+    q7_cygwin_modes_agree=0
+    q7_cygwin_symlink_agrees=1
+    q7_cygwin_special_agrees=0
+    q7_cygwin_agrees=0
+
+verdict
+
+    finding=lxfs-complete-cygwin-blind
