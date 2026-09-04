@@ -1,0 +1,58 @@
+an ntdll-only process, created from Win32 and doing the kernel work
+
+host        ins-15
+windows     10.0.26200
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-04T08:32:30Z
+script      native-host 1.0
+probe       host-probe 1.0
+
+reading, question by question
+
+  q1  created from a Win32 parent with NtCreateUserProcess:
+        native subsystem  success, child ran (exit 31), imports ntdll.dll
+        console subsystem success, child ran (exit 15), imports ntdll.dll
+  q2  launched by cmd.exe with CreateProcess:
+        native subsystem  cmd refused it (not a Win32 application)
+        console subsystem started and ran (exit 15)
+  q3  AFD endpoint: device open success; socket open packet refused (0x00000000c000000d); bind refused (0x00000000c0000001)
+  q4  RtlWaitOnAddress / RtlWakeAddressSingle over two threads: yes
+  q5  ALPC port: create success; connect success
+  q6  modules mapped into the native process (2): native-child-native.exe ntdll.dll
+        kernel32 injected: no
+  q7  20 launches, 20 clean, 0 crashed
+
+raw
+
+    q2_cmd_native_started=1
+    q2_cmd_native_lasterror=0
+    q2_cmd_native_exit=1
+    q2_cmd_console_started=1
+    q2_cmd_console_lasterror=0
+    q2_cmd_console_exit=15
+    host_windows=10.0.26200
+    q1_native_subsystem_ntstatus=0x00000000
+    q1_native_subsystem_exit=31
+    q1_console_subsystem_ntstatus=0x00000000
+    q1_console_subsystem_exit=15
+    q7_launches=20
+    q7_clean=20
+    q7_crashed=0
+    mod=native-child-native.exe
+    mod=ntdll.dll
+    q4_rtlwaitonaddress=1
+    q3_afd_open_ntstatus=0x0000000000000000
+    q3_afd_socket_ntstatus=0x00000000c000000d
+    q3_afd_bind_ntstatus=0x00000000c0000001
+    q3_afd_poll_ntstatus=0x00000000c0000001
+    q5_alpc_create_ntstatus=0x0000000000000000
+    q5_alpc_connect_ntstatus=0x0000000000000000
+    q6_module_count=2
+    q6_kernel32_present=0
+    q6_kernelbase_present=0
+    child_ran=1
+
+verdict
+
+    finding=native-host-viable
