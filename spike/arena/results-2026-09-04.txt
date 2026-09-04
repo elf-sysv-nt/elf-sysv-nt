@@ -1,0 +1,98 @@
+the arena: a placeholder reservation of the user range, replaced piecewise
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-04T08:31:08Z
+script      measure-arena 1.0
+probe       arena-probe 1.0
+
+reading, question by question
+
+  q1  a placeholder over the user range: reserved, largest span accepted 64t, multi-terabyte accepted
+      first refusal: at 127t, STATUS_NO_MEMORY
+  q2  splitting a piece out of the standing placeholder: accepted, piece granule wide
+  q3  that piece replaced by a pagefile-backed view: accepted, read and write through it correct
+  q4  the same at 4 KB: split page, view accepted, granularity 4k
+  q5  a view of a real file replacing a placeholder: accepted, contents correct, execute protection accepted
+      file view granularity 4k, at a section offset aligned only to 4k
+  q6  lazy commit from a vectored handler: the faulting instruction re-executed and stored
+  q7  context, not a finding: fault and commit 4108 ns against a plain first touch at 10 ns
+  q8  around a replaced piece: still splittable, and no view was disturbed; the neighbour below reads reserved-private, above reserved-private
+
+raw
+
+    probe=arena-probe 1.0
+    nt_allocate_ex_present=yes
+    nt_map_view_ex_present=yes
+    q1_span_1g=accepted
+    q1_span_64g=accepted
+    q1_span_1t=accepted
+    q1_span_8t=accepted
+    q1_span_64t=accepted
+    q1_span_127t=refused
+    q1_placeholder_reserved=yes
+    q1_largest_span=64t
+    q1_largest_span_bytes=70368744177664
+    q1_multi_terabyte=accepted
+    q1_first_refusal_span=127t
+    q1_first_refusal_status=0xC0000017 STATUS_NO_MEMORY
+    q_arena_bytes=70368744177664
+    q2_split_placeholder=yes
+    q2_split_status=0x00000000 STATUS_SUCCESS
+    q2_piece_state=reserved-private
+    q2_piece_width=granule
+    q3_section_status=0x00000000 STATUS_SUCCESS
+    q3_map_status=0x00000000 STATUS_SUCCESS
+    q3_view_replaced_64k=yes
+    q3_readback_64k=yes
+    q3_region_state=committed-mapped
+    q4_split_4k_size=page
+    q4_split_4k_size_status=0x00000000 STATUS_SUCCESS
+    q4_split_4k_align=page
+    q4_split_4k_align_status=0x00000000 STATUS_SUCCESS
+    q4_view_replaced_4k=yes
+    q4_view_replaced_4k_status=0x00000000 STATUS_SUCCESS
+    q4_readback_4k=yes
+    q4_view_width=page
+    q4_rest_of_granule=reserved-private
+    q4_granularity=4k
+    q5_scratch_file=yes
+    q5_section_status=0x00000000 STATUS_SUCCESS
+    q5_exec_section_status=0x00000000 STATUS_SUCCESS
+    q5_file_backed_view=yes
+    q5_map_status=0x00000000 STATUS_SUCCESS
+    q5_file_contents_match=yes
+    q5_file_backed_exec_view=yes
+    q5_exec_map_status=0x00000000 STATUS_SUCCESS
+    q5_file_backed_4k=yes
+    q5_4k_map_status=0x00000000 STATUS_SUCCESS
+    q5_file_4k_contents_match=yes
+    q5_file_backed_4k_offset=yes
+    q5_4k_offset_map_status=0x00000000 STATUS_SUCCESS
+    q5_file_4k_offset_contents_match=yes
+    q5_granularity=4k
+    q5_offset_granularity=4k
+    q8_resplit_status=0x00000000 STATUS_SUCCESS
+    q8_second_map_status=0x00000000 STATUS_SUCCESS
+    q8_resplit_after_replace=yes
+    q8_second_view_placed=yes
+    q8_first_view_undisturbed=yes
+    q8_neighbour_below=reserved-private
+    q8_neighbour_above=reserved-private
+    q8_replaced_piece=committed-mapped
+    q8_placeholder_survives_neighbours=yes
+    q6_reservation_made=yes
+    q6_lazy_commit_veh=yes
+    q6_readback_after_continue=yes
+    q6_reserve_status=0x00000000 STATUS_SUCCESS
+    q7_pages=2048
+    q7_fault_ns=4108
+    q7_fault_ns_p90=5851
+    q7_control_ns=10
+    q7_control_ns_p90=20
+
+verdict
+
+    finding=arena-holds-at-4k
