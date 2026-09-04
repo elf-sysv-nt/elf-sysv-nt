@@ -54,6 +54,338 @@ Run it as:
   py -3 whp-corp-probe.py
 """
 
+# --- winpy preamble ---------------------------------------------
+#
+# Pasted from scripts/winpy.py so this file runs correctly when a
+# Cygwin shell invokes it: under Cygwin's Python it re-executes
+# itself under Windows Python with paths converted, and under
+# Windows Python it does nothing. Everything below is therefore
+# guaranteed to be on Windows Python, which is what makes the
+# ctypes calls into WinHvPlatform and the registry reads behave as
+# written.
+#
+# winpy's own docs prefer a `#!/usr/bin/env winpy` shebang over a
+# pasted copy, because the copy is what goes stale. There is no
+# `winpy` on PATH here -- only winpy.py -- and this file ships to a
+# machine whose PATH we do not control, so the copy is the shape
+# that works. Its staleness is handled the same way the rest of
+# this file's drift is: bin/sync-probe holds the deployed copy to
+# its master, and refreshing the preamble is a master-side edit.
+#
+# Refresh with: bin/splice-winpy (see the spike that generated it)
+# -----------------------------------------------------------------
+
+
+import os
+import subprocess
+import sys
+
+DEFAULT_WINDOWS_PYTHON = '/c/programs/64/Python313/python.exe'
+
+__version__ = '2.0.0'
+
+_USAGE = """Usage:
+  winpy [--winpy-options] <python arguments>...
+
+Run Windows Python from a Cygwin shell, translating absolute POSIX paths in
+the arguments to Windows form.  Everything else is passed through untouched,
+so Python's own interface applies:
+
+  winpy --version                  winpy -m pip install --user foo
+  winpy -c 'print(1)'              winpy script.py --conf=/tmp/x
+
+winpy's own options, recognised only in leading position:
+  --winpy-help          show this help and exit
+  --winpy-version       show winpy's version and exit
+  --winpy-debug         trace conversions and the final command line
+                        (same as WINPY_DEBUG=1)
+  --winpy-python PATH   interpreter to use, POSIX or Windows form
+                        (same as WINPY_PYTHON); --winpy-python=PATH also works
+
+Interpreter, highest precedence first: --winpy-python, WINPY_PYTHON,
+WIN_PYTHON, then the built-in default (%s).
+
+Exit status is Python's, or 2 for a winpy usage error.
+"""
+
+_REEXEC_FLAG = '_WINPY_REEXEC'
+_DEBUG = os.environ.get('WINPY_DEBUG') not in (None, '', '0')
+
+
+def _debug(msg):
+    if _DEBUG:
+        sys.stderr.write('winpy: %s\n' % msg)
+
+
+def _is_cygwin_python():
+    """True when running under Cygwin's Python."""
+    return sys.platform == 'cygwin'
+
+
+def _cygpath(mode, paths):
+    """Run cygpath over a batch of paths, returning one result per input.
+
+    mode is '-w' (POSIX -> Windows) or '-u' (Windows -> POSIX).  '--' ends
+    option parsing, so an argument beginning with '-' is not eaten by cygpath
+    itself -- without it, '--conf=/tmp/x' exits 1 with "unknown option" and
+    the conversion is silently skipped.
+
+    One spawn for the whole batch: fork is expensive under Cygwin.  On any
+    failure the inputs are returned unchanged, with a note under WINPY_DEBUG.
+    """
+    if not paths:
+        return []
+    argv = ['cygpath', mode, '--'] + list(paths)
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+    except OSError as exc:
+        _debug('cygpath unavailable: %s' % exc)
+        return list(paths)
+    if proc.returncode != 0:
+        _debug('cygpath %s failed (rc=%d): %s'
+               % (mode, proc.returncode,
+                  err.decode('utf-8', 'replace').strip()))
+        return list(paths)
+    lines = out.decode('utf-8').splitlines()
+    if len(lines) != len(paths):
+        _debug('cygpath returned %d lines for %d inputs; not converting'
+               % (len(lines), len(paths)))
+        return list(paths)
+    # rstrip('\r') only: trailing spaces are legal in a filename.
+    return [line.rstrip('\r') for line in lines]
+
+
+def _needs_conversion(value):
+    """True when value is an absolute POSIX path Windows Python cannot resolve.
+
+    Windows Python accepts forward slashes, so relative paths need no work at
+    all; only a leading '/' makes a path Cygwin-specific.  Requiring that the
+    parent directory exist admits an output file that has yet to be created
+    while rejecting a slash-bearing non-path such as 's/foo/bar/'.  A '://'
+    anywhere means a URL, never a path.
+    """
+    if '://' in value:
+        return False
+    if not value.startswith('/'):
+        return False
+    return os.path.isdir(os.path.dirname(value) or '/')
+
+
+def _split_option(arg):
+    """Split '--conf=/tmp/x' into ('--conf=', '/tmp/x'); else ('', arg)."""
+    if arg.startswith('-') and '=' in arg:
+        opt, sep, value = arg.partition('=')
+        return opt + sep, value
+    return '', arg
+
+
+def _convert_args(args):
+    """Translate the path-like arguments in args, leaving the rest alone."""
+    prefixes = []
+    values = []
+    for arg in args:
+        prefix, value = _split_option(arg)
+        prefixes.append(prefix)
+        values.append(value)
+
+    todo = [i for i, value in enumerate(values) if _needs_conversion(value)]
+    for i, converted in zip(todo, _cygpath('-w', [values[i] for i in todo])):
+        values[i] = converted
+
+    out = [prefix + value for prefix, value in zip(prefixes, values)]
+    if _DEBUG:
+        for before, after in zip(args, out):
+            verb = 'kept  ' if before == after else 'mapped'
+            _debug('argv %s %r -> %r' % (verb, before, after))
+    return out
+
+
+def _script_path():
+    """Absolute path of the script to re-execute.
+
+    sys.argv[0] rather than __file__, so that the module-import form
+    re-executes the importing script rather than this file.  bash resolves a
+    PATH lookup to an absolute path before exec, so argv[0] is normally
+    absolute already; the fallbacks cover invocations that pass a relative
+    name explicitly.
+    """
+    script = sys.argv[0]
+    if os.path.isabs(script):
+        return script
+    full = os.path.abspath(script)
+    if os.path.isfile(full):
+        return full
+    return script
+
+
+def _to_posix(path):
+    """Return path in POSIX form.
+
+    Cygwin's spawn needs a POSIX argv[0]: passing
+    'C:\\programs\\64\\Python313\\python.exe' to subprocess raises
+    FileNotFoundError [Errno 2], while '/c/programs/...' works.  WIN_PYTHON
+    holds the Windows spelling, so it has to come back through cygpath -u.
+    """
+    if '\\' in path or (len(path) > 1 and path[1] == ':'):
+        return _cygpath('-u', [path])[0]
+    return path
+
+
+def _resolve_interpreter():
+    """Windows Python to re-execute with, by declared precedence."""
+    for name in ('WINPY_PYTHON', 'WIN_PYTHON'):
+        value = os.environ.get(name)
+        if value:
+            _debug('interpreter from %s: %s' % (name, value))
+            return _to_posix(value)
+    return DEFAULT_WINDOWS_PYTHON
+
+
+def _cygwin_sync_winenv():
+    """cygwin_internal(CW_SYNC_WINENV) -- rebuild the Win32 environment block.
+
+    Measured redundant for this design: Cygwin's spawn already builds that
+    block for a native child, and the child reads identical values with and
+    without this call.  Retained cheaply and non-fatally for the case where a
+    caller later launches the child through CreateProcess rather than
+    subprocess, where it would matter.
+    """
+    try:
+        import ctypes
+        CW_SYNC_WINENV = 32   # 33rd enumerator in sys/cygwin.h
+        ctypes.CDLL('cygwin1.dll').cygwin_internal(CW_SYNC_WINENV)
+    except Exception as exc:
+        _debug('CW_SYNC_WINENV skipped: %s' % exc)
+
+
+def _run_windows_python(child_args):
+    """Spawn Windows Python with child_args, and exit with its status.
+
+    child_args is everything after the interpreter, already converted.  Proxy
+    mode passes the user's arguments straight through; preamble mode puts the
+    script path first.
+    """
+    interpreter = _resolve_interpreter()
+
+    # Reached only if the child is itself a Cygwin Python, which re-runs this
+    # preamble.  os.path.isfile() cannot tell the two apart, so without this
+    # flag a misconfigured WIN_PYTHON recurses without bound.
+    if os.environ.get(_REEXEC_FLAG):
+        sys.stderr.write(
+            'winpy: %s is a Cygwin interpreter, not Windows Python.\n'
+            'winpy: check WINPY_PYTHON and WIN_PYTHON.\n' % interpreter)
+        sys.exit(1)
+
+    if not os.path.isfile(interpreter):
+        sys.stderr.write('winpy: Windows Python not found at %s\n'
+                         % interpreter)
+        sys.exit(1)
+
+    _cygwin_sync_winenv()
+
+    argv = [interpreter] + list(child_args)
+    _debug('exec %r' % (argv,))
+
+    env = dict(os.environ)
+    env[_REEXEC_FLAG] = '1'
+
+    try:
+        proc = subprocess.Popen(argv, env=env)
+    except OSError as exc:
+        sys.stderr.write('winpy: cannot execute %s: %s\n' % (interpreter, exc))
+        sys.exit(1)
+
+    try:
+        status = proc.wait()
+    except KeyboardInterrupt:
+        # Ctrl-C reaches this Cygwin parent, but the native child has its own
+        # console control group and may still be running.  Wait it out rather
+        # than orphaning it behind a traceback; insist on the second Ctrl-C.
+        try:
+            status = proc.wait()
+        except KeyboardInterrupt:
+            proc.terminate()
+            status = proc.wait()
+        if status == 0:
+            status = 130
+
+    # A signalled child yields a negative returncode, which sys.exit() would
+    # turn into a meaningless status.  Report it the way a shell does.
+    sys.exit(status if status >= 0 else 128 - status)
+
+
+def _usage_error(message):
+    sys.stderr.write('winpy: %s\n' % message)
+    sys.stderr.write(_USAGE % DEFAULT_WINDOWS_PYTHON)
+    sys.exit(2)
+
+
+def _is_proxy_invocation():
+    """True when this file was run as the `winpy` command.
+
+    Name-based deliberately.  In preamble mode argv[0] and __file__ are the
+    same file, so comparing them cannot separate proxy from preamble -- the
+    one cost is that a preambled script must not itself be named winpy.py.
+    """
+    return os.path.splitext(os.path.basename(sys.argv[0]))[0] == 'winpy'
+
+
+def _take_winpy_options(args):
+    """Strip leading --winpy-* options, returning what is left for Python.
+
+    Scanning stops at the first token that is not a --winpy-* option, so a
+    flag of the same spelling further along belongs to whatever Python is
+    running and is passed through untouched.  winpy deliberately does not
+    claim a bare '--': commands commonly use it to end their own option
+    parsing, and a wrapper may only claim tokens the wrapped program can
+    never produce.
+    """
+    global _DEBUG
+    rest = list(args)
+    while rest:
+        arg = rest[0]
+        if not arg.startswith('--winpy-'):
+            break
+        rest.pop(0)
+        if arg == '--winpy-help':
+            sys.stdout.write(_USAGE % DEFAULT_WINDOWS_PYTHON)
+            sys.exit(0)
+        elif arg == '--winpy-version':
+            sys.stdout.write('winpy %s\n' % __version__)
+            sys.exit(0)
+        elif arg == '--winpy-debug':
+            _DEBUG = True
+        elif arg == '--winpy-python':
+            if not rest:
+                _usage_error('--winpy-python requires a value')
+            os.environ['WINPY_PYTHON'] = rest.pop(0)
+        elif arg.startswith('--winpy-python='):
+            os.environ['WINPY_PYTHON'] = arg.partition('=')[2]
+        else:
+            _usage_error('unknown option %s' % arg)
+    return rest
+
+
+# === MODE DISPATCH ===
+if _is_proxy_invocation():
+    _rest = _take_winpy_options(sys.argv[1:])
+    if _is_cygwin_python():
+        _run_windows_python(_convert_args(_rest))
+    else:
+        # Already native: hand the arguments to this interpreter unchanged.
+        sys.exit(subprocess.call([sys.executable] + _rest))
+elif _is_cygwin_python():
+    _run_windows_python(
+        _cygpath('-w', [_script_path()]) + _convert_args(sys.argv[1:]))
+    # Unreachable: the call above always exits.
+
+# === YOUR CODE GOES BELOW THIS LINE ===
+# From here on, Windows Python is guaranteed.
+
+# --- end winpy preamble ------------------------------------------
+
 import ctypes
 import json
 import os
