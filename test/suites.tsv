@@ -112,6 +112,7 @@ runtime/face/t/sigclass.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsys
 runtime/face/t/sigtls.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	signal delivery against the TLS carrier
 runtime/face/t/typed-face.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the typed faces, DR-0044's sv2ms shapes
 runtime/face/t/unlisted.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	unlisted-face disposition, DR-0046
+runtime/winsup/t/errno-numbering.sh	report	/c/-/repo/newlib-cygwin	DR-0093's bar: the floor's errno constants are el8's, name for name, compiled from both header stacks
 runtime/winsup/t/smoke-hello.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the from-source DLL runs a hello, WP-26
 veneer/t/ftm-diff.sh	report	-	features.h resolves __USE_* byte-identically to the vendor header over 43 input sets
 veneer/wiring/t/xlat-pairs.sh	gate	-	the errno and signal translation core against hand-written pairs; host compiler only, a second to run
