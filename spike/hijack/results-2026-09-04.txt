@@ -1,0 +1,36 @@
+delivering a signal into a thread that is not cooperating
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-04T08:39:08Z
+script      hijack 1.0
+probe       hijack 1.0
+
+reading, question by question
+
+  q1 a thread spinning in user mode is hijacked, the handler runs, and it returns to its loop -- hijacked,handler-ran,clean-return,deliveries:2000,iters-after:681070 [pass]
+  q2 the frame sits below the reserved 128 and the interrupted red zone survives the return -- redzone-intact,reserved-nearest:136,naive-nearest:8 [pass]
+  q3 a thread blocked in a kernel wait reports where, and its rewrite takes hold when -- user-rip-at-syscall-return,in-ntdll,rewrite-deferred-to-wait-return,rip:0x7ffea52c0404 [pass]
+  q4 the in-kernel flag seen after suspend describes where the thread stopped -- flag-reliable,violations:0,delivered:9807,deferred:10193 [pass]
+  q5 the %rip rewrite against this build's shadow-stack configuration -- shadow-stack-off,ip-validation:off,rip-rewrite-holds,flags:0x100 [pass]
+  q6 a user APC at the spinning thread, the alternative the design rejects -- never-runs-on-spinning-thread,queued:2000,ran-on-spinning:0,ran-on-alertable:1 [pass]
+  q7 latency from the decision to deliver to the handler's first instruction -- measured,median_ns:17891,p99_ns:39887,samples:2000 [pass]
+
+raw
+
+    q1_spinning_user_thread=hijacked,handler-ran,clean-return,deliveries:2000,iters-after:681070
+    q2_frame_below_redzone=redzone-intact,reserved-nearest:136,naive-nearest:8
+    q3_thread_in_syscall=user-rip-at-syscall-return,in-ntdll,rewrite-deferred-to-wait-return,rip:0x7ffea52c0404
+    q4_in_kernel_flag=flag-reliable,violations:0,delivered:9807,deferred:10193
+    q5_cet_shadow_stack=shadow-stack-off,ip-validation:off,rip-rewrite-holds,flags:0x100
+    q6_apc_alternative=never-runs-on-spinning-thread,queued:2000,ran-on-spinning:0,ran-on-alertable:1
+    q7_latency_ns=measured,median_ns:17891,p99_ns:39887,samples:2000
+
+verdict
+
+    shape=q1_spinning_user_thread:pass,q2_frame_below_redzone:pass,q3_thread_in_syscall:pass,q4_in_kernel_flag:pass,q5_cet_shadow_stack:pass,q6_apc_alternative:pass,q7_latency_ns:pass
+    verdict=yes
+    finding=hijack-delivers-user-defers-kernel
+    probe=hijack 1.0
