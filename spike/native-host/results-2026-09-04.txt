@@ -4,7 +4,7 @@ host        ins-15
 windows     10.0.26200
 cygwin      3.6.10-1.x86_64
 compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
-date        2026-09-04T08:32:30Z
+date        2026-09-04T09:19:38Z
 script      native-host 1.0
 probe       host-probe 1.0
 
@@ -16,7 +16,13 @@ reading, question by question
   q2  launched by cmd.exe with CreateProcess:
         native subsystem  cmd refused it (not a Win32 application)
         console subsystem started and ran (exit 15)
-  q3  AFD endpoint: device open success; socket open packet refused (0x00000000c000000d); bind refused (0x00000000c0000001)
+  q3a AFD endpoint for TCP over IPv4 created: success
+  q3b IOCTL_AFD_BIND 127.0.0.1:0, port read back: bind success, getsockname success, port 62889
+  q3c listen/connect/accept in one process: listen success, connect success, accept success;
+        8 of 8 bytes sent then received, contents match
+  q3d IOCTL_AFD_POLL readiness: not-ready before data yes, read-ready after send yes, write-ready connected yes
+  q3e poll repeated across the change: after send 0x0000000000000001 then 0x0000000000000001, drained 0x0000000000000000 -- level-triggered, no intrinsic edge
+  q3f loader list after the round trip (2 modules): kernel32 no
   q4  RtlWaitOnAddress / RtlWakeAddressSingle over two threads: yes
   q5  ALPC port: create success; connect success
   q6  modules mapped into the native process (2): native-child-native.exe ntdll.dll
@@ -42,17 +48,36 @@ raw
     mod=native-child-native.exe
     mod=ntdll.dll
     q4_rtlwaitonaddress=1
-    q3_afd_open_ntstatus=0x0000000000000000
-    q3_afd_socket_ntstatus=0x00000000c000000d
-    q3_afd_bind_ntstatus=0x00000000c0000001
-    q3_afd_poll_ntstatus=0x00000000c0000001
+    q3a_create_ntstatus=0x0000000000000000
+    q3b_bind_ntstatus=0x0000000000000000
+    q3b_getsockname_ntstatus=0x0000000000000000
+    q3b_port=62889
+    q3c_listen_ntstatus=0x0000000000000000
+    q3c_connect_ntstatus=0x0000000000000000
+    q3c_wait_ntstatus=0x0000000000000000
+    q3c_accept_ntstatus=0x0000000000000000
+    q3c_send_ntstatus=0x0000000000000000
+    q3c_send_bytes=8
+    q3c_recv_ntstatus=0x0000000000000000
+    q3c_recv_bytes=8
+    q3c_recv_match=1
+    q3d_poll_before_ntstatus=0x0000000000000102
+    q3d_poll_notready_ev=0x0000000000000000
+    q3d_poll_read_ready_ev=0x0000000000000001
+    q3d_poll_write_ready_ev=0x0000000000000004
+    q3e_poll_after1_ev=0x0000000000000001
+    q3e_poll_after2_ev=0x0000000000000001
+    q3e_poll_drained_ev=0x0000000000000000
     q5_alpc_create_ntstatus=0x0000000000000000
     q5_alpc_connect_ntstatus=0x0000000000000000
     q6_module_count=2
     q6_kernel32_present=0
     q6_kernelbase_present=0
+    q3f_module_count=2
+    q3f_kernel32_present=0
+    q3f_kernelbase_present=0
     child_ran=1
 
 verdict
 
-    finding=native-host-viable
+    finding=native-host-viable-afd-complete

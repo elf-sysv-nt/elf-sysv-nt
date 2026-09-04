@@ -29,6 +29,9 @@ NTSTATUS NTAPI NtDelayExecution(BOOLEAN, PLARGE_INTEGER);
 #ifndef STATUS_UNSUCCESSFUL
 #define STATUS_UNSUCCESSFUL ((NTSTATUS) 0xC0000001)
 #endif
+#ifndef STATUS_PENDING
+#define STATUS_PENDING ((NTSTATUS) 0x00000103)
+#endif
 
 /* freestanding memory helpers: the CRT is not linked. Named memset/memcpy so a
  * call the compiler synthesises for a struct copy still resolves to ours. */
@@ -148,87 +151,247 @@ static int q4_run(void)
 	return (q4_entered && q4_wait_status == STATUS_SUCCESS) ? 1 : 0;
 }
 
-/* ---- q3: AFD ----------------------------------------------------------- */
-static NTSTATUS q3_open_status, q3_socket_status, q3_bind_status, q3_poll_status;
+/* ---- q3: AFD sockets and readiness ------------------------------------- */
+/* A loopback TCP round trip inside this one ntdll-only process: two endpoints
+ * created through the AFD open packet, bound, listened, connected, accepted,
+ * a message sent across, and IOCTL_AFD_POLL read for readiness on each edge.
+ * The open packet's EaName is the literal "AfdOpenPacketXX"; the create runs
+ * in TDI form with \Device\Tcp as the transport, which is the shape this
+ * build's afd.sys accepts. The connect uses the modern AFD_CONNECT_JOIN_INFO
+ * (two endpoint handles ahead of the address), not the older AFD_CONNECT_INFO
+ * -- afd.sys refuses the latter here with STATUS_INVALID_PARAMETER. */
+static NTSTATUS q3a_create = STATUS_UNSUCCESSFUL, q3b_bind = STATUS_UNSUCCESSFUL;
+static NTSTATUS q3b_getsock = STATUS_UNSUCCESSFUL, q3c_listen = STATUS_UNSUCCESSFUL;
+static NTSTATUS q3c_wait = STATUS_UNSUCCESSFUL, q3c_accept = STATUS_UNSUCCESSFUL;
+static volatile NTSTATUS q3c_connect = STATUS_UNSUCCESSFUL;
+static NTSTATUS q3c_send = STATUS_UNSUCCESSFUL, q3c_recv = STATUS_UNSUCCESSFUL;
+static NTSTATUS q3d_before_st = STATUS_UNSUCCESSFUL;
+static USHORT q3b_port;
+static long q3c_send_bytes, q3c_recv_bytes;
+static int q3c_recv_match;
+static ULONG q3d_notready_ev, q3d_read_ev, q3d_write_ev;
+static ULONG q3e_after1_ev, q3e_after2_ev, q3e_drained_ev;
 
-static HANDLE afd_bare_open(void)
-{
-	UNICODE_STRING name; OBJECT_ATTRIBUTES oa; IO_STATUS_BLOCK iosb;
-	HANDLE h = 0;
-	RtlInitUnicodeString(&name, FILE_DEVICE_AFD_OPEN);
-	InitializeObjectAttributes(&oa, &name, OBJ_CASE_INSENSITIVE, 0, 0);
-	q3_open_status = NtCreateFile(&h, 0x120089 /*generic read|sync*/, &oa, &iosb,
-		0, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, 0, 0, 0);
-	return q3_open_status >= 0 ? h : 0;
-}
+static HANDLE g_client;
+static USHORT g_port_be;
 
-/* an AF_INET/SOCK_STREAM/TCP endpoint through the AFD open packet */
-static HANDLE afd_socket_open(void)
+static ULONG afd_build_ea(unsigned char *buf)
 {
-	UNICODE_STRING name; OBJECT_ATTRIBUTES oa; IO_STATUS_BLOCK iosb;
-	HANDLE h = 0;
-	unsigned char ea[128];
-	FILE_FULL_EA_INFORMATION *fea = (FILE_FULL_EA_INFORMATION *) ea;
-	AFD_CREATE_PACKET *cp;
-	static const char eaname[] = "AfdOpenPacket";
+	FILE_FULL_EA_INFORMATION *fea = (FILE_FULL_EA_INFORMATION *) buf;
+	static const char nm[] = "AfdOpenPacketXX";   /* 15 chars, NUL after */
 	static const WCHAR tcp[] = L"\\Device\\Tcp";
-	int i;
-
-	mmemset(ea, 0, sizeof ea);
+	AFD_OPEN_PACKET *op;
+	ULONG namelen = 15, valuelen, i;
 	fea->NextEntryOffset = 0;
 	fea->Flags = 0;
-	fea->EaNameLength = (UCHAR)(sizeof eaname - 1);
-	for (i = 0; i < (int)sizeof eaname; i++) fea->EaName[i] = eaname[i];
-	cp = (AFD_CREATE_PACKET *)(fea->EaName + sizeof eaname);
-	cp->EndpointFlags = 0;
-	cp->GroupID = 0;
-	cp->AddressFamily = 2;   /* AF_INET */
-	cp->SocketType = 1;      /* SOCK_STREAM */
-	cp->Protocol = 6;        /* IPPROTO_TCP */
-	cp->SizeOfTransportName = sizeof tcp - sizeof(WCHAR);
-	mmemcpy(cp->TransportName, tcp, sizeof tcp);
-	fea->EaValueLength = (USHORT)(FIELD_OFFSET(AFD_CREATE_PACKET, TransportName)
-		+ sizeof tcp);
+	fea->EaNameLength = (UCHAR) namelen;
+	for (i = 0; i < namelen; i++) fea->EaName[i] = nm[i];
+	fea->EaName[namelen] = 0;
+	op = (AFD_OPEN_PACKET *)(fea->EaName + namelen + 1);
+	op->EndpointFlags = 0;
+	op->GroupID = 0;
+	op->AddressFamily = 2;   /* AF_INET */
+	op->SocketType = 1;      /* SOCK_STREAM */
+	op->Protocol = 6;        /* IPPROTO_TCP */
+	op->TransportDeviceNameLength = sizeof tcp - sizeof(WCHAR);
+	mmemcpy(op->TransportDeviceName, tcp, sizeof tcp);
+	valuelen = FIELD_OFFSET(AFD_OPEN_PACKET, TransportDeviceName) + sizeof tcp;
+	fea->EaValueLength = (USHORT) valuelen;
+	return FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + namelen + 1 + valuelen;
+}
 
+static HANDLE afd_create(NTSTATUS *st)
+{
+	UNICODE_STRING name; OBJECT_ATTRIBUTES oa; IO_STATUS_BLOCK iosb;
+	HANDLE h = 0; unsigned char ea[96]; ULONG ealen;
+	mmemset(ea, 0, sizeof ea);
+	ealen = afd_build_ea(ea);
 	RtlInitUnicodeString(&name, FILE_DEVICE_AFD_OPEN);
-	InitializeObjectAttributes(&oa, &name, OBJ_CASE_INSENSITIVE, 0, 0);
-	q3_socket_status = NtCreateFile(&h,
-		0xC0000000 | 0x00100000 /*GENERIC_READ|GENERIC_WRITE|SYNCHRONIZE*/,
-		&oa, &iosb, 0, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN,
-		0, ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName)
-		+ fea->EaNameLength + 1 + fea->EaValueLength));
-	return q3_socket_status >= 0 ? h : 0;
+	InitializeObjectAttributes(&oa, &name, OBJ_CASE_INSENSITIVE | OBJ_INHERIT, 0, 0);
+	*st = NtCreateFile(&h, GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE, &oa, &iosb,
+		0, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN_IF, 0, ea, ealen);
+	return (*st >= 0) ? h : 0;
+}
+
+/* an AFD IOCTL driven to completion through its own event; the endpoint is not
+ * opened for synchronous file I/O, so a pending request is waited on here */
+static NTSTATUS afd_call(HANDLE h, ULONG code, void *in, ULONG il,
+                         void *o, ULONG ol, IO_STATUS_BLOCK *iosb)
+{
+	HANDLE ev = 0; NTSTATUS st; LARGE_INTEGER to;
+	NtCreateEvent(&ev, EVENT_ALL_ACCESS, 0, 1 /*SynchronizationEvent*/, 0);
+	st = NtDeviceIoControlFile(h, ev, 0, 0, iosb, code, in, il, o, ol);
+	if (st == STATUS_PENDING) {
+		to.QuadPart = -50000000LL;   /* 5 s: a stuck request fails, not hangs */
+		NtWaitForSingleObject(ev, FALSE, &to);
+		st = iosb->Status;
+	}
+	if (ev) NtClose(ev);
+	return st;
+}
+
+/* lay a TRANSPORT_ADDRESS for addr_be:port_be into dst; return its 22 bytes */
+static ULONG afd_put_addr(unsigned char *dst, USHORT port_be, ULONG addr_be)
+{
+	TRANSPORT_ADDRESS *ta = (TRANSPORT_ADDRESS *) dst; TDI_ADDRESS_IP *ip;
+	ta->TAAddressCount = 1;
+	ta->Address[0].AddressLength = 14;
+	ta->Address[0].AddressType = TDI_ADDRESS_TYPE_IP;
+	ip = (TDI_ADDRESS_IP *) ta->Address[0].Address;
+	ip->sin_port = port_be;
+	ip->in_addr = addr_be;
+	mmemset(ip->sin_zero, 0, 8);
+	return 4 + 4 + 14;
+}
+
+/* bind h to addr_be:0; when port_out is set, read the assigned port back */
+static NTSTATUS afd_bind(HANDLE h, ULONG addr_be, USHORT *port_out)
+{
+	unsigned char bb[80], gb[80]; IO_STATUS_BLOCK iosb; NTSTATUS st; ULONG n;
+	mmemset(bb, 0, sizeof bb);
+	*(ULONG *) bb = AFD_SHARE_WILDCARD;
+	n = 4 + afd_put_addr(bb + 4, 0, addr_be);
+	st = afd_call(h, IOCTL_AFD_BIND, bb, n, bb, sizeof bb, &iosb);
+	if (st < 0 || !port_out) return st;
+	mmemset(gb, 0, sizeof gb);
+	q3b_getsock = afd_call(h, IOCTL_AFD_GET_SOCK_NAME, 0, 0, gb, sizeof gb, &iosb);
+	/* out: ActivityCount(4) count(4) len(2) type(2) port(2) addr(4) ... */
+	*port_out = *(USHORT *)(gb + 12);
+	return st;
+}
+
+/* poll one endpoint for the given events with a short timeout; return the
+ * signalled mask afd.sys writes back */
+static ULONG afd_poll(HANDLE h, ULONG events, LONGLONG timeout, NTSTATUS *st)
+{
+	AFD_POLL_INFO pi; IO_STATUS_BLOCK iosb;
+	mmemset(&pi, 0, sizeof pi);
+	pi.Timeout.QuadPart = timeout;
+	pi.NumberOfHandles = 1;
+	pi.Exclusive = 0;
+	pi.Handles[0].Handle = h;
+	pi.Handles[0].PollEvents = events;
+	*st = afd_call(h, IOCTL_AFD_POLL, &pi, sizeof pi, &pi, sizeof pi, &iosb);
+	/* on a timeout afd.sys returns NumberOfHandles==0 and leaves the handle's
+	 * PollEvents holding the stale request mask; a zero count is "not ready" */
+	return (pi.NumberOfHandles >= 1) ? pi.Handles[0].PollEvents : 0;
+}
+
+static void q3_connect_thread(void *arg)
+{
+	unsigned char cb[96]; IO_STATUS_BLOCK iosb; ULONG n;
+	(void) arg;
+	mmemset(cb, 0, sizeof cb);
+	/* AFD_CONNECT_JOIN_INFO: BOOLEAN SanActive; HANDLE Root; HANDLE Connect;
+	 * TRANSPORT_ADDRESS RemoteAddress -- the address begins at offset 24 */
+	n = 24 + afd_put_addr(cb + 24, g_port_be, 0x0100007F);
+	q3c_connect = afd_call(g_client, IOCTL_AFD_CONNECT, cb, n, 0, 0, &iosb);
+	NtTerminateProcess((HANDLE) -2, 0);
 }
 
 static void q3_run(void)
 {
-	HANDLE bare, sock;
-	q3_open_status = q3_socket_status = q3_bind_status = q3_poll_status = STATUS_UNSUCCESSFUL;
-	bare = afd_bare_open();
-	if (bare) NtClose(bare);
-	sock = afd_socket_open();
-	if (sock) {
-		IO_STATUS_BLOCK iosb;
-		unsigned char bindbuf[32];
-		AFD_POLL_INFO pi;
-		/* AFD_BIND: share type then a TRANSPORT_ADDRESS for 0.0.0.0:0 */
-		mmemset(bindbuf, 0, sizeof bindbuf);
-		*(ULONG *) bindbuf = AFD_SHARE_UNIQUE;
-		/* TRANSPORT_ADDRESS { TAAddressCount=1; { AddressLength; AddressType;
-		 * sockaddr } }; a minimal AF_INET sockaddr at 0 */
-		*(ULONG *)(bindbuf + 4) = 1;
-		*(USHORT *)(bindbuf + 8) = 14;   /* address length */
-		*(USHORT *)(bindbuf + 10) = 2;   /* AF_INET */
-		q3_bind_status = NtDeviceIoControlFile(sock, 0, 0, 0, &iosb,
-			IOCTL_AFD_BIND, bindbuf, sizeof bindbuf, bindbuf, sizeof bindbuf);
-		mmemset(&pi, 0, sizeof pi);
-		pi.Timeout.QuadPart = -10000000LL;  /* 1 s */
-		pi.NumberOfHandles = 1;
-		pi.Handles[0].Handle = sock;
-		pi.Handles[0].Events = AFD_POLL_SEND | AFD_POLL_LOCAL_CLOSE;
-		q3_poll_status = NtDeviceIoControlFile(sock, 0, 0, 0, &iosb,
-			IOCTL_AFD_POLL, &pi, sizeof pi, &pi, sizeof pi);
-		NtClose(sock);
+	NTSTATUS st; HANDLE L, A = 0; IO_STATUS_BLOCK iosb; HANDLE cth = 0;
+	LARGE_INTEGER d; USHORT port_be = 0;
+
+	L = afd_create(&q3a_create);
+	g_client = afd_create(&st);
+	if (!L || !g_client) return;
+
+	/* q3b: bind the listener to 127.0.0.1:0 and read the assigned port back */
+	q3b_bind = afd_bind(L, 0x0100007F, &port_be);
+	q3b_port = (USHORT)((port_be >> 8) | (port_be << 8));
+	afd_bind(g_client, 0x00000000, 0);   /* client on the wildcard address */
+
+	{
+		AFD_LISTEN_DATA ld;
+		mmemset(&ld, 0, sizeof ld);
+		ld.Backlog = 5;
+		q3c_listen = afd_call(L, IOCTL_AFD_START_LISTEN, &ld, sizeof ld, 0, 0, &iosb);
+	}
+
+	/* the connect runs on a second thread while this one waits to accept */
+	g_port_be = port_be;
+	NtCreateThreadEx(&cth, 0x1FFFFF, 0, (HANDLE) -1,
+		(PVOID) q3_connect_thread, 0, 0, 0, 0, 0, 0);
+
+	{
+		unsigned char rad[64];
+		mmemset(rad, 0, sizeof rad);
+		q3c_wait = afd_call(L, IOCTL_AFD_WAIT_FOR_LISTEN, 0, 0, rad, sizeof rad, &iosb);
+		A = afd_create(&st);
+		if (A) {
+			AFD_ACCEPT_DATA ad;
+			mmemset(&ad, 0, sizeof ad);
+			ad.SequenceNumber = *(ULONG *) rad;   /* first field of the reply */
+			ad.ListenHandle = A;
+			q3c_accept = afd_call(L, IOCTL_AFD_ACCEPT, &ad, sizeof ad, 0, 0, &iosb);
+		}
+	}
+	d.QuadPart = -20000000LL;
+	NtWaitForSingleObject(cth, FALSE, &d);
+	NtClose(cth);
+
+	/* q3d: the connected client is writable; the fresh server side has no data
+	 * yet, so a receive poll on it is not ready before the peer sends */
+	q3d_write_ev = afd_poll(g_client, AFD_POLL_SEND, -2000000LL, &st);
+	q3d_notready_ev = afd_poll(A, AFD_POLL_RECEIVE, -2000000LL, &q3d_before_st);
+
+	/* q3c: send from the client */
+	{
+		AFD_WSABUF wb; AFD_SEND_RECV_INFO si;
+		static char msg[] = "ping-AFD";
+		wb.len = 8; wb.buf = msg;
+		mmemset(&si, 0, sizeof si);
+		si.BufferArray = &wb; si.BufferCount = 1;
+		q3c_send = afd_call(g_client, IOCTL_AFD_SEND, &si, sizeof si, 0, 0, &iosb);
+		q3c_send_bytes = (long) iosb.Information;
+	}
+	d.QuadPart = -2000000LL;
+	NtDelayExecution(FALSE, &d);
+
+	/* q3d/q3e: the server side is now readable; the same poll repeated returns
+	 * the same readiness while the data sits unread (level-triggered) */
+	q3d_read_ev = afd_poll(A, AFD_POLL_RECEIVE, -2000000LL, &st);
+	q3e_after1_ev = afd_poll(A, AFD_POLL_RECEIVE, -2000000LL, &st);
+	q3e_after2_ev = afd_poll(A, AFD_POLL_RECEIVE, -2000000LL, &st);
+
+	/* q3c: receive on the server side and check the bytes crossed intact */
+	{
+		AFD_WSABUF wb; AFD_SEND_RECV_INFO ri; char rbuf[64];
+		static const char exp[] = "ping-AFD"; int i, ok = 1;
+		mmemset(rbuf, 0, sizeof rbuf);
+		wb.len = sizeof rbuf; wb.buf = rbuf;
+		mmemset(&ri, 0, sizeof ri);
+		ri.BufferArray = &wb; ri.BufferCount = 1; ri.TdiFlags = TDI_RECEIVE_NORMAL;
+		q3c_recv = afd_call(A, IOCTL_AFD_RECV, &ri, sizeof ri, 0, 0, &iosb);
+		q3c_recv_bytes = (long) iosb.Information;
+		for (i = 0; i < 8; i++) if (rbuf[i] != exp[i]) ok = 0;
+		q3c_recv_match = ok;
+	}
+
+	/* q3e: once drained the receive poll reports not ready again */
+	q3e_drained_ev = afd_poll(A, AFD_POLL_RECEIVE, -2000000LL, &st);
+
+	if (A) NtClose(A);
+	NtClose(g_client);
+	NtClose(L);
+}
+
+/* q3f: re-walk the loader list after all the AFD work, to confirm the socket
+ * round trip pulled nothing new in behind it */
+static int q3f_count, q3f_kernel32, q3f_kernelbase;
+static void q3f_modules(PPEB peb)
+{
+	MY_PEB_LDR_DATA *ldr = (MY_PEB_LDR_DATA *) peb->Ldr;
+	MY_LIST_ENTRY *head = &ldr->InLoadOrderModuleList;
+	MY_LIST_ENTRY *cur = head->Flink;
+	while (cur != head && q3f_count < 64) {
+		MY_LDR_ENTRY *e = (MY_LDR_ENTRY *) cur;
+		if (wide_is(&e->BaseDllName, "kernel32.dll")) q3f_kernel32 = 1;
+		if (wide_is(&e->BaseDllName, "kernelbase.dll")) q3f_kernelbase = 1;
+		q3f_count++;
+		cur = cur->Flink;
 	}
 }
 
@@ -321,26 +484,47 @@ void __stdcall NtProcessStartup(void *param)
 	q4ok = q4_run();
 	q3_run();
 	q5_run();
+	q3f_modules(peb);
 
-	q3ok = (q3_open_status >= 0);
+	q3ok = (q3a_create >= 0);
 	q5ok = (q5_create_status >= 0);
 
 	putkv_i("q4_rtlwaitonaddress", q4ok);
-	putkv_x("q3_afd_open_ntstatus", (unsigned) q3_open_status);
-	putkv_x("q3_afd_socket_ntstatus", (unsigned) q3_socket_status);
-	putkv_x("q3_afd_bind_ntstatus", (unsigned) q3_bind_status);
-	putkv_x("q3_afd_poll_ntstatus", (unsigned) q3_poll_status);
+	/* q3a-q3f: the AFD socket round trip and its readiness poll */
+	putkv_x("q3a_create_ntstatus", (unsigned) q3a_create);
+	putkv_x("q3b_bind_ntstatus", (unsigned) q3b_bind);
+	putkv_x("q3b_getsockname_ntstatus", (unsigned) q3b_getsock);
+	putkv_i("q3b_port", q3b_port);
+	putkv_x("q3c_listen_ntstatus", (unsigned) q3c_listen);
+	putkv_x("q3c_connect_ntstatus", (unsigned) q3c_connect);
+	putkv_x("q3c_wait_ntstatus", (unsigned) q3c_wait);
+	putkv_x("q3c_accept_ntstatus", (unsigned) q3c_accept);
+	putkv_x("q3c_send_ntstatus", (unsigned) q3c_send);
+	putkv_i("q3c_send_bytes", q3c_send_bytes);
+	putkv_x("q3c_recv_ntstatus", (unsigned) q3c_recv);
+	putkv_i("q3c_recv_bytes", q3c_recv_bytes);
+	putkv_i("q3c_recv_match", q3c_recv_match);
+	putkv_x("q3d_poll_before_ntstatus", (unsigned) q3d_before_st);
+	putkv_x("q3d_poll_notready_ev", q3d_notready_ev);
+	putkv_x("q3d_poll_read_ready_ev", q3d_read_ev);
+	putkv_x("q3d_poll_write_ready_ev", q3d_write_ev);
+	putkv_x("q3e_poll_after1_ev", q3e_after1_ev);
+	putkv_x("q3e_poll_after2_ev", q3e_after2_ev);
+	putkv_x("q3e_poll_drained_ev", q3e_drained_ev);
 	putkv_x("q5_alpc_create_ntstatus", (unsigned) q5_create_status);
 	putkv_x("q5_alpc_connect_ntstatus", (unsigned) q5_connect_status);
 	putkv_i("q6_module_count", q6_count);
 	putkv_i("q6_kernel32_present", q6_kernel32);
 	putkv_i("q6_kernelbase_present", q6_kernelbase);
+	putkv_i("q3f_module_count", q3f_count);
+	putkv_i("q3f_kernel32_present", q3f_kernel32);
+	putkv_i("q3f_kernelbase_present", q3f_kernelbase);
 	putkv_i("child_ran", 1);
 
 	flush(peb);
 
 	/* exit code: a summary the parent reads even if the file is gone.
-	 * bit0 ran, bit1 q3 open, bit2 q4, bit3 q5 create, bit4 no kernel32 */
+	 * bit0 ran, bit1 q3 endpoint, bit2 q4, bit3 q5 create, bit4 no kernel32 */
 	code |= 1u;
 	if (q3ok) code |= 2u;
 	if (q4ok) code |= 4u;

@@ -6,8 +6,10 @@ without anything dragging `kernel32` in behind its back? `native-child.c` is the
 process under test, `host-probe.c` is the Win32 parent that creates it,
 `measure.sh` builds both and writes `results-<date>.txt`, and the reading of
 that transcript is under **The verdict** below. It ran on 2026-09-04:
-`native-host-viable`, with one service reached only to its floor and one whole
-class of question this host cannot answer.
+`native-host-viable-afd-complete`. The AFD socket, left at its floor the first
+time through, now carries a whole loopback connection; one class of question
+about injection this host still cannot answer, and that limit is recorded as a
+limit rather than a finding.
 
 ## Why it matters
 
@@ -41,15 +43,31 @@ path.
 The child is built twice from one source, differing only in the subsystem field
 of the PE header: once `IMAGE_SUBSYSTEM_NATIVE`, once console. Both link no CRT
 and import only `ntdll`; `objdump -p` confirms it before every run. The child
-does the four inside-the-process questions itself, because they can only be
+does the inside-the-process questions itself, because they can only be
 answered from inside an ntdll-only process: it walks the PEB loader list (q6),
 runs `RtlWaitOnAddress` against `RtlWakeAddressSingle` across two threads under
-a timeout (q4), opens an AFD endpoint (q3), and creates and connects an ALPC
-port (q5). It reports through two channels that need nothing but `ntdll`: a
-`key=value` file opened with `NtCreateFile`, and an exit code whose low bits
-encode a summary the parent reads even when the file does not survive. Wine's
-and `wepoll`'s public AFD reimplementations were the reading guide for the open
-packet and the poll IOCTL; neither was copied.
+a timeout (q4), drives a whole AFD socket through its life (q3a-q3f), and
+creates and connects an ALPC port (q5). The AFD part is the substantial one. It
+opens two `\Device\Afd\Endpoint` handles through the `AfdOpenPacketXX` extended
+attribute, binds one to `127.0.0.1:0` and reads the assigned port back, listens
+on it, connects the second to it from a worker thread, accepts the connection
+onto a third endpoint, sends eight bytes across and receives them, and reads
+`IOCTL_AFD_POLL` at each edge for readiness. Then it re-walks the loader list
+(q3f), so a module dragged in by the socket work would show. It reports through
+two channels that need nothing but `ntdll`: a `key=value` file opened with
+`NtCreateFile`, and an exit code whose low bits encode a summary the parent
+reads even when the file does not survive.
+
+The open packet's exact shape was read, not guessed. ReactOS's `msafd` and its
+`afd` driver, System Informer's `phnt` header for the modern packet, and
+`wepoll` for the poll IOCTL and its event bits were the reading guide; none was
+copied. Two details this build insists on came out of that reading and a run of
+one-hypothesis-at-a-time probes against the live driver: the endpoint is
+created in TDI form with `\Device\Tcp` as the transport, and the connect carries
+the modern `AFD_CONNECT_JOIN_INFO`, two endpoint handles ahead of the address.
+The older layout `msafd` documents is refused here with
+`STATUS_INVALID_PARAMETER`, which is what the first run mistook for a closed
+door.
 
 The parent then launches each image through `cmd.exe` with `CreateProcess`
 (q2), and relaunches the native image twenty times to watch it survive the
@@ -83,16 +101,38 @@ Win32 application and exits non-zero. It runs the console image, which then maps
 creates `lk-host` with `NtCreateUserProcess` and no shell is ever in the path;
 the measurement records the boundary rather than tripping over it.
 
-The two executive services the host reaches inside the ntdll-only process both
-answer. `RtlWaitOnAddress` and `RtlWakeAddressSingle` carried a wake from one
-thread to another under a five-second guard that turns a hang into a failure
-rather than a hang. An ALPC port was created and connected. The AFD endpoint
-answers to its floor and no further: the bare device open of
-`\Device\Afd\Endpoint` succeeds, which is the reachability the question asks
-for, but the socket open packet that would build a bound TCP endpoint returned
-`STATUS_INVALID_PARAMETER` on this build, so the bind and the `IOCTL_AFD_POLL`
-were not reached. The device is reachable from an ntdll-only process; the exact
-open-packet layout that `msafd` uses is left for the phase that needs a socket.
+The executive services the host reaches inside the ntdll-only process answer.
+`RtlWaitOnAddress` and `RtlWakeAddressSingle` carried a wake from one thread to
+another under a five-second guard that turns a hang into a failure rather than a
+hang. An ALPC port was created and connected.
+
+AFD is the one that grew. The endpoint no longer stops at the device open: two
+were created for TCP over IPv4 (q3a), one bound to `127.0.0.1:0` with the kernel
+handing back an ephemeral port the child reads through `IOCTL_AFD_GET_SOCK_NAME`
+(q3b), and a loopback connection ran end to end inside the single process (q3c).
+The listener started listening, a worker thread connected the second endpoint,
+`IOCTL_AFD_WAIT_FOR_LISTEN` returned the pending connection, `IOCTL_AFD_ACCEPT`
+grafted it onto a third endpoint, and eight bytes sent from the client came back
+byte-for-byte on the accepted side. This is the claim proposal 0011 rested on an
+unmeasured driver: that a socket can be built and driven from a process holding
+nothing but `ntdll`.
+
+`IOCTL_AFD_POLL` reports the readiness the design's `epoll` needs (q3d). The
+freshly accepted endpoint polls not-ready for read before its peer sends; the
+connected client polls ready for write; once the peer's bytes arrive the server
+side polls ready for read. Poll issued repeatedly across that change is
+consistent with level-triggered reporting (q3e): the read-ready poll returns the
+same signalled bit each time while the eight bytes sit unread, and returns
+not-ready again once the receive drains them. Nothing in a single poll marks the
+transition itself, so a caller wanting an edge holds its own last-state and
+compares; open question 8 asks exactly whether that is enough, and this spike
+reports what the driver does without settling it. That decision is the
+operator's.
+
+The whole round trip happened without a module joining the loader list. The
+re-walk after the socket work (q3f) found the same two modules the start-of-run
+walk found, `kernel32` among neither. The socket path is `ntdll` down to the
+syscall, and it stays that way.
 
 Twenty launches, twenty clean exits, nothing crashed and nothing quarantined.
 
@@ -109,11 +149,17 @@ a real EDR agent is a different measurement, and the proposal's deployment note
 already says an injected DLL is a reality to expect there. Rerun this spike on
 such a box before trusting the result on it.
 
-A usable AFD socket. The device opens; a bound endpoint does not, because the
-open packet was refused on this build. That is a userland-structure detail and
-not a statement about whether the ntdll-only process can reach the driver, which
-it plainly can. The bind, the poll, and the readiness semantics behind
-`EPOLLET` belong to the phase that builds sockets, not to this one.
+AFD past a loopback TCP stream. The socket that runs here is `AF_INET`,
+`SOCK_STREAM`, `IPPROTO_TCP`, connected over `127.0.0.1` inside one process. No
+IPv6, no UDP, no traffic that leaves the loopback interface, no second process
+on the other end, and no scale past a single connection polled one handle at a
+time. The connection is created in the driver's TDI form; the mswsock-style TLI
+create with no transport name faulted here and is not the path this takes. And
+the readiness measured is one poll at a time on a blocking handle, not the
+`IOCP`-driven poll a real `epoll` emulation would run; `wepoll`'s pattern of one
+endpoint-less `\Device\Afd` handle bound to a completion port is read about but
+not built. Whether the level-triggered poll this spike records is the right
+base for `EPOLLET` is open question 8, and it stays open.
 
 A full ALPC round trip. The port was created and connected; the spike did not
 run a message across it with the accept handshake, so `create` and `connect`

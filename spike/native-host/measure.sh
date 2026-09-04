@@ -10,12 +10,16 @@
 # the parent create the child with NtCreateUserProcess, and writes a dated
 # transcript with a per-question reading and a verdict.
 #
-# It answers seven questions: creation from a Win32 parent (q1) and from cmd
-# (q2), an AFD endpoint (q3), RtlWaitOnAddress across two threads (q4), an ALPC
-# port (q5), the module list at steady state (q6), and survival across many
-# launches (q7). It measures; the verdict word is the finding, the numbers ride
-# along. The injection question is answered for Windows Defender only, which is
-# the sole antivirus on this host.
+# It answers creation from a Win32 parent (q1) and from cmd (q2); a full AFD
+# socket round trip inside the ntdll-only child -- endpoint create (q3a), bind
+# with the port read back (q3b), a loopback listen/connect/accept with bytes
+# crossing (q3c), IOCTL_AFD_POLL readiness (q3d) and its level-triggered edges
+# (q3e), and a loader-list re-walk that the round trip pulled nothing in (q3f);
+# RtlWaitOnAddress across two threads (q4); an ALPC port (q5); the module list
+# at steady state (q6); and survival across many launches (q7). It measures;
+# the verdict word is the finding, the numbers ride along. The injection
+# question is answered for Windows Defender only, the sole antivirus on this
+# host.
 #
 # Usage:
 #   measure.sh [options]
@@ -125,9 +129,26 @@ q2n_started=$(val q2_cmd_native_started)
 q2n_exit=$(val q2_cmd_native_exit)
 q2c_started=$(val q2_cmd_console_started)
 q2c_exit=$(val q2_cmd_console_exit)
-q3_open=$(val q3_afd_open_ntstatus)
-q3_socket=$(val q3_afd_socket_ntstatus)
-q3_bind=$(val q3_afd_bind_ntstatus)
+q3a=$(val q3a_create_ntstatus)
+q3b_bind=$(val q3b_bind_ntstatus)
+q3b_gsn=$(val q3b_getsockname_ntstatus)
+q3b_port=$(val q3b_port)
+q3c_listen=$(val q3c_listen_ntstatus)
+q3c_connect=$(val q3c_connect_ntstatus)
+q3c_accept=$(val q3c_accept_ntstatus)
+q3c_send=$(val q3c_send_ntstatus)
+q3c_recv=$(val q3c_recv_ntstatus)
+q3c_sbytes=$(val q3c_send_bytes)
+q3c_rbytes=$(val q3c_recv_bytes)
+q3c_match=$(val q3c_recv_match)
+q3d_notready=$(val q3d_poll_notready_ev)
+q3d_read=$(val q3d_poll_read_ready_ev)
+q3d_write=$(val q3d_poll_write_ready_ev)
+q3e_after1=$(val q3e_poll_after1_ev)
+q3e_after2=$(val q3e_poll_after2_ev)
+q3e_drained=$(val q3e_poll_drained_ev)
+q3f_count=$(val q3f_module_count)
+q3f_k32=$(val q3f_kernel32_present)
 q4=$(val q4_rtlwaitonaddress)
 q5_create=$(val q5_alpc_create_ntstatus)
 q5_connect=$(val q5_alpc_connect_ntstatus)
@@ -146,16 +167,30 @@ fi
 
 # The finding. The kernel's work needs a process that is created, stays
 # ntdll-only (no kernel32 dragged in by injection), and reaches the executive
-# services it depends on. AFD's floor is a device open; the socket open packet
-# is a userland detail, not a reachability question.
+# services it depends on. AFD is complete when an endpoint is created, bound
+# with its port read back, driven through a loopback connect/accept with bytes
+# crossing, and its readiness poll reports the level-triggered state epoll
+# rests on -- all without a module joining the loader list behind it.
+afd_ok=0
+if is_ok "$q3a" && is_ok "$q3b_bind" && is_ok "$q3b_gsn" \
+   && is_ok "$q3c_listen" && is_ok "$q3c_connect" && is_ok "$q3c_accept" \
+   && is_ok "$q3c_send" && is_ok "$q3c_recv" \
+   && [ "$q3c_match" = 1 ] && [ "$q3c_sbytes" = 8 ] && [ "$q3c_rbytes" = 8 ] \
+   && [ $((q3d_notready)) -eq 0 ] && [ $((q3d_read & 1)) -ne 0 ] \
+   && [ $((q3d_write & 4)) -ne 0 ] && [ $((q3e_drained)) -eq 0 ]; then
+	afd_ok=1
+fi
+
 finding=native-host-refused
 if [ "$created" = 1 ]; then
-	if [ "$q6_k32" = 1 ]; then
+	if [ "$q6_k32" = 1 ] || [ "$q3f_k32" = 1 ]; then
 		finding=native-host-injected
-	elif ! is_ok "$q3_open"; then
+	elif ! is_ok "$q3a"; then
 		finding=ntdll-only-but-no-afd
+	elif [ "$afd_ok" = 1 ]; then
+		finding=native-host-viable-afd-complete
 	else
-		finding=native-host-viable
+		finding=native-host-viable-afd-partial
 	fi
 fi
 
@@ -183,8 +218,22 @@ okword() { is_ok "$1" && printf 'success' || printf 'refused (%s)' "$1"; }
 		"$([ "$q2n_started" = 1 ] && { [ "$q2n_exit" = 1 ] && printf 'cmd refused it (not a Win32 application)' || printf "ran (exit $q2n_exit)"; } || printf 'CreateProcess failed')"
 	printf '        console subsystem %s\n' \
 		"$([ "$q2c_started" = 1 ] && printf "started and ran (exit $q2c_exit)" || printf 'CreateProcess failed')"
-	printf '  q3  AFD endpoint: device open %s; socket open packet %s; bind %s\n' \
-		"$(okword "$q3_open")" "$(okword "$q3_socket")" "$(okword "$q3_bind")"
+	printf '  q3a AFD endpoint for TCP over IPv4 created: %s\n' \
+		"$(okword "$q3a")"
+	printf '  q3b IOCTL_AFD_BIND 127.0.0.1:0, port read back: bind %s, getsockname %s, port %s\n' \
+		"$(okword "$q3b_bind")" "$(okword "$q3b_gsn")" "$q3b_port"
+	printf '  q3c listen/connect/accept in one process: listen %s, connect %s, accept %s;\n' \
+		"$(okword "$q3c_listen")" "$(okword "$q3c_connect")" "$(okword "$q3c_accept")"
+	printf '        %s of %s bytes sent then received, contents %s\n' \
+		"$q3c_rbytes" "$q3c_sbytes" "$([ "$q3c_match" = 1 ] && printf match || printf differ)"
+	printf '  q3d IOCTL_AFD_POLL readiness: not-ready before data %s, read-ready after send %s, write-ready connected %s\n' \
+		"$([ $((q3d_notready)) -eq 0 ] && printf yes || printf no)" \
+		"$([ $((q3d_read & 1)) -ne 0 ] && printf yes || printf no)" \
+		"$([ $((q3d_write & 4)) -ne 0 ] && printf yes || printf no)"
+	printf '  q3e poll repeated across the change: after send %s then %s, drained %s -- level-triggered, no intrinsic edge\n' \
+		"$q3e_after1" "$q3e_after2" "$q3e_drained"
+	printf '  q3f loader list after the round trip (%s modules): kernel32 %s\n' \
+		"$q3f_count" "$(yn "$q3f_k32")"
 	printf '  q4  RtlWaitOnAddress / RtlWakeAddressSingle over two threads: %s\n' \
 		"$(yn "$q4")"
 	printf '  q5  ALPC port: create %s; connect %s\n' \
