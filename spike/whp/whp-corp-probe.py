@@ -53,6 +53,7 @@ Run it as:
 import ctypes
 import json
 import os
+import re
 import subprocess
 import sys
 from collections import OrderedDict
@@ -70,6 +71,108 @@ MEM_RELEASE = 0x8000
 PAGE_READWRITE = 0x04
 
 HOST_FLOOR_BUILD = 17134          # 1803; below it the rest of the design fails
+
+
+# --- redaction -------------------------------------------------------------
+#
+# A diagnostic transcript is a disclosure. The failure this guards against is
+# a real one, seen in this project's own tooling: a `gh` diagnostic printed a
+# section headed "full environment (redacted)" and redacted nothing, carrying
+# a live Azure DevOps PAT and a set of database passwords into a file written
+# for sharing. The label was the whole defence and the label was false.
+#
+# Two rules follow from that, and both matter more than the pattern list.
+#
+# First, redaction is applied on the way out, to every value and every line of
+# prose, rather than trusted to the collector not to have picked anything up.
+# The probe reads named fields and never enumerates the environment, so in
+# principle it cannot carry a secret; this exists because "in principle" is
+# exactly what the gh diagnostic also had.
+#
+# Second, it fails closed. A canary containing known secret shapes is run
+# through the scrubber before any transcript is produced, and a canary that
+# survives means the scrubber is broken, which stops the run instead of
+# emitting an unredacted transcript that claims to be redacted. A redaction
+# claim nobody checks is worth nothing, so this one is checked every run and
+# the result is printed in the transcript as `scrub_self_test`.
+
+SECRET_KEY_RE = re.compile(
+    r"(?i)(^|_)(pass(word|wd)?|secret|token|pat|apikey|api_key|cred(ential)?s?"
+    r"|privkey|private_key|access_key|sas|auth)(_|$)")
+
+# Ordered most specific first. Each is a shape that is a secret whatever the
+# field is called, because the gh diagnostic's PAT sat in a variable this
+# probe would not have thought to look at.
+SECRET_VALUE_PATTERNS = [
+    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("github-token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}")),
+    ("github-pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}")),
+    ("aws-key-id", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+                       r"\.[A-Za-z0-9_-]{10,}")),
+    ("inline-password", re.compile(r"(?i)\b(?:password|pwd)\s*=\s*[^;,\s\"']{1,200}")),
+    # The catch-all that would have caught the Azure DevOps PAT: a long
+    # unbroken run of mixed-case alphanumerics. Length and the demand for
+    # upper, lower and digit together keep it off this probe's own values --
+    # hex digests are single-case and every field here is far shorter.
+    ("high-entropy", re.compile(r"\b(?=[A-Za-z0-9]{40,}\b)"
+                                r"(?=[A-Za-z0-9]*[a-z])"
+                                r"(?=[A-Za-z0-9]*[A-Z])"
+                                r"(?=[A-Za-z0-9]*[0-9])"
+                                r"[A-Za-z0-9]{40,}\b")),
+]
+
+
+def scrub_text(s):
+    """Redact secret-shaped substrings anywhere in a string.
+
+    Returns (text, [reasons]). Values are replaced rather than masked in
+    part: a partial mask still leaks length and prefix, and neither is worth
+    keeping in a file written to be shared.
+    """
+    if not isinstance(s, str) or not s:
+        return s, []
+    reasons = []
+    for reason, rx in SECRET_VALUE_PATTERNS:
+        if rx.search(s):
+            s = rx.sub("<redacted:%s>" % reason, s)
+            reasons.append(reason)
+    return s, reasons
+
+
+def scrub_value(key, value):
+    """Redact by field name, then by value shape. Returns (value, reasons)."""
+    if value is None:
+        return value, []
+    text = value if isinstance(value, str) else str(value)
+    if SECRET_KEY_RE.search(str(key)):
+        return "<redacted:key-name>", ["key-name"]
+    return scrub_text(text)
+
+
+# A canary carrying one instance of each shape above. If any of it survives
+# the scrubber, redaction is broken and the run stops.
+_CANARY = (
+    "AZURE_DEVOPS_PAT=AzGXD5D6TPSZwiRLInn18046lalQt2LDfDVgTEYLqRB5"
+    "l56W9Z4QJQQJ99CHACAAAAAAAAAAAAASAZDO4UoN "
+    "ghp_0123456789abcdefghijklmnopqrstuvwxyz "
+    "AKIAIOSFODNN7EXAMPLE "
+    'LODESTAR_DSN="Data Source=x;User ID=y;Password=hunter2;" '
+    "-----BEGIN RSA PRIVATE KEY-----"
+)
+_CANARY_MARKERS = ("AzGXD5D6TPSZ", "ghp_0123456789", "AKIAIOSFODNN7EXAMPLE",
+                   "hunter2", "BEGIN RSA PRIVATE KEY")
+
+
+def scrub_self_test():
+    """Prove the scrubber works before claiming a transcript is redacted."""
+    cleaned, _ = scrub_text(_CANARY)
+    leaked = [m for m in _CANARY_MARKERS if m in cleaned]
+    by_key, _ = scrub_value("AZURE_DEVOPS_PAT", "anything at all")
+    if by_key != "<redacted:key-name>":
+        leaked.append("key-name-rule")
+    return (not leaked), leaked
 
 
 def envflag(name, default=False):
@@ -744,10 +847,36 @@ class Probe:
 
     # -- the report ---------------------------------------------------------
 
+    def _scrubbed(self):
+        """Every value and every line of prose, on the way out.
+
+        Nothing reaches a transcript except through here, which is the point:
+        the collector is not trusted to have avoided picking a secret up.
+        """
+        ok, leaked = scrub_self_test()
+        n = 0
+        out = OrderedDict()
+        for k, v in self.f.items():
+            nv, reasons = scrub_value(k, v)
+            n += len(reasons)
+            out[k] = nv
+        notes, asks = [], []
+        for s in self.notes:
+            ns, reasons = scrub_text(s)
+            n += len(reasons)
+            notes.append(ns)
+        for s in self.ask:
+            ns, reasons = scrub_text(s)
+            n += len(reasons)
+            asks.append(ns)
+        out["redactions"] = str(n)
+        out["scrub_self_test"] = "pass" if ok else ("FAIL:" + ",".join(leaked))
+        return out, notes, asks
+
     def report(self, as_json):
+        f, notes, asks = self._scrubbed()
         if as_json:
-            return json.dumps(self.f, indent=2)
-        f = self.f
+            return json.dumps(f, indent=2)
         L = []
         L.append("would the hypervisor substrate work on this machine")
         L.append("")
@@ -787,17 +916,17 @@ class Probe:
         L.append("")
         for k, v in f.items():
             L.append("    %s=%s" % (k, v))
-        if self.notes:
+        if notes:
             L.append("")
             L.append("what this means")
             L.append("")
-            for n in self.notes:
+            for n in notes:
                 L.append("  - " + n)
-        if self.ask:
+        if asks:
             L.append("")
             L.append("what to ask for")
             L.append("")
-            for a in self.ask:
+            for a in asks:
                 L.append("  - " + a)
         L.append("")
         L.append("verdict")
@@ -854,6 +983,15 @@ def main(argv):
         print("whp-corp-probe.py: this measures Windows, and is not running on it",
               file=sys.stderr)
         return 2
+
+    # Fail closed, before anything is collected. A transcript that claims to
+    # be redacted by a scrubber that does not work is worse than one that
+    # makes no claim, because the claim is what gets it shared.
+    ok, leaked = scrub_self_test()
+    if not ok:
+        print("whp-corp-probe.py: redaction self-test FAILED (%s); refusing to "
+              "write a transcript" % ",".join(leaked), file=sys.stderr)
+        return 3
 
     p = Probe(quiet=quiet, build_path=build_path)
     is_vm = p.host()

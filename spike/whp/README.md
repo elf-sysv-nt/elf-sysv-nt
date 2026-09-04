@@ -220,6 +220,47 @@ build number corrects it at the 22000 boundary. And PowerShell hands back
 `hypervisor_running` reading differently in two transcripts describing one
 machine.
 
+### Redaction, and why it fails closed
+
+A diagnostic transcript is a disclosure, and this project has a live example of
+that going wrong. A `gh` auth diagnostic in the sibling `logs` repo prints a
+section headed "full environment (redacted)" and redacts nothing: it carries an
+Azure DevOps personal access token and a set of database passwords in
+cleartext, in a file whose entire purpose is to be sent to somebody. The label
+was the only defence and the label was false.
+
+The Python probe therefore scrubs on the way out. Every emitted value and every
+line of generated prose passes through `scrub_value` / `scrub_text` before it
+reaches a transcript, rather than the collector being trusted not to have
+picked anything up. That ordering is the point: this probe reads named fields
+and never enumerates the environment, so in principle it cannot carry a secret,
+and "in principle" is exactly what the gh diagnostic had too.
+
+Two rules do the work. Field names that look like credentials are dropped
+whole. Values that look like secrets are dropped whatever the field is called —
+GitHub tokens, AWS key ids, Slack tokens, JWTs, PEM private-key headers,
+`Password=` inside a connection string, and a catch-all for long mixed-case
+alphanumeric runs, which is the rule that catches an Azure DevOps PAT sitting
+in a variable nobody thought to look at.
+
+The part worth copying is that it fails closed. A canary carrying one instance
+of each shape runs through the scrubber before anything is collected; if any of
+it survives, the probe prints the failure and exits 3 rather than writing a
+transcript that claims a redaction it did not perform. The result is reported
+in the transcript itself as `scrub_self_test`, beside a `redactions` count, so
+the claim is checkable by the person receiving the file rather than taken on
+trust.
+
+Verified 2026-09-04 against the real thing: fed the actual `gh-auth.txt`, the
+scrubber catches both the Azure DevOps PAT and the inline DSN password, and
+fires only its `high-entropy` and `inline-password` rules doing it. Fed the
+probe's own field values — an HRESULT, a BIOS model string, a Windows path, a
+module name, a verdict word, and a 64-character SHA-256 digest — it changes
+none of them, the digest surviving because the entropy rule demands upper,
+lower and digit together and a hex digest is single-case. Sabotaging both rule
+sets makes `main` refuse with exit 3, which is the behaviour that matters and
+the one the gh diagnostic did not have.
+
 ### What a Citrix desktop adds, and what it takes away
 
 The Python probe carries an environment section the PowerShell twin does not,
