@@ -331,6 +331,9 @@ class Probe:
         else:
             self.f["citrix_shape"] = "n/a"
 
+        if self.f["machine_is_virtual"] == "yes":
+            self._platform()
+
         if self.f["multi_session_os"] == "yes":
             self.notes.append(
                 "This is a multi-session (server) OS, so the desktop is shared with "
@@ -374,6 +377,68 @@ class Probe:
 
         # -- the disk the design would actually live on
         self._storage(self.build_path or os.getcwd())
+
+    def _platform(self):
+        """Which hypervisor is underneath, and can it grant nested virt at all?
+
+        On a virtual desktop the hypervisor question stops being about this
+        machine and becomes a question about the farm, and the answer differs
+        sharply by platform -- from "not supported for Windows guests at all"
+        to "a checkbox your platform team can tick". Naming the platform turns
+        'ask IT' into a request they can actually action or refuse on the
+        merits.
+
+        The support positions below were read on 2026-09-04 and are the kind
+        of thing that moves; each is a starting point for the conversation
+        with whoever runs the farm, not a substitute for it.
+        """
+        model = self.f.get("machine_model", "").lower()
+        azure = (self._reg_exists("HKEY_LOCAL_MACHINE",
+                                  r"SOFTWARE\Microsoft\Windows Azure")
+                 or os.path.exists(r"C:\WindowsAzure"))
+
+        if "xen" in model or "citrix" in model:
+            plat, verdict = "xenserver", "unsupported"
+            ask = ("The farm is XenServer / Citrix Hypervisor, which does not "
+                   "support nested virtualisation for Windows VMs on either 8.4 "
+                   "or 9. This is not a setting anyone can turn on for you; it "
+                   "is absent from the product. Substrate H is closed on this "
+                   "platform.")
+        elif "vmware" in model:
+            plat, verdict = "vmware-esxi", "outside-support"
+            ask = ("The farm is VMware ESXi. Nested virtualisation exists there "
+                   "as the per-VM 'Expose hardware assisted virtualization to "
+                   "the guest OS' setting (hardware version 9+), so it is "
+                   "technically possible. But VMware's support statement covers "
+                   "nested Hyper-V only for VBS, not for running guest VMs, and "
+                   "creating a WHP partition is the latter. Expect the platform "
+                   "team to decline on the support boundary rather than on the "
+                   "capability.")
+        elif azure or ("microsoft" in model and "virtual" in model):
+            plat, verdict = ("azure" if azure else "hyper-v"), "possible"
+            ask = ("The farm is %s. Nested virtualisation is supported on the "
+                   "right sizes -- Dv4/Dv5, Ev4/Ev5, Fv2 and parts of the M "
+                   "series -- but not when the VM's security type is Trusted "
+                   "Launch, which is the default for new VMs. So the ask is "
+                   "specific and answerable: what size is this desktop, and is "
+                   "Trusted Launch on? This is the platform where the answer "
+                   "can be yes."
+                   % ("Azure" if azure else "Hyper-V"))
+        elif "nutanix" in model:
+            plat, verdict = "nutanix-ahv", "unknown"
+            ask = ("The farm is Nutanix AHV. Its nested-virtualisation position "
+                   "was not checked here; ask the platform team directly, and "
+                   "treat it as unknown rather than as a yes.")
+        else:
+            plat, verdict = "unidentified", "unknown"
+            ask = ("The underlying platform could not be identified from the "
+                   "BIOS strings (%s). Ask whoever runs the farm which "
+                   "hypervisor it is before asking for nested virtualisation."
+                   % (self.f.get("machine_model") or "unreadable"))
+
+        self.f["host_platform"] = plat
+        self.f["nested_virt_position"] = verdict
+        self.ask.append(ask)
 
     def _foreign_modules(self):
         try:
@@ -699,6 +764,8 @@ class Probe:
         for label, key in (
                 ("machine is a virtual desktop:", "machine_is_virtual"),
                 ("Citrix, and which shape:", "citrix_shape"),
+                ("hypervisor running the farm:", "host_platform"),
+                ("can that farm grant nested virt:", "nested_virt_position"),
                 ("multi-session (shared) OS:", "multi_session_os"),
                 ("Developer Mode:", "developer_mode"),
                 ("modules injected into this process:", "foreign_modules_count"),
