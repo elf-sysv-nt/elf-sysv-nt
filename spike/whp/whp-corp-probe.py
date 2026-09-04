@@ -31,6 +31,9 @@ Options:
   -p DIR, --path=DIR      The directory you would actually build in, whose
                           volume is checked for the metadata the on-disk
                           format needs. [default: the working directory]
+  -S, --share-safe        Withhold machine identity: hostname, exact patch
+                          level, build path, BIOS model, endpoint vendor and
+                          defensive posture. Every substrate finding is kept.
   -j, --json              Emit the findings as JSON instead of a report.
   -n, --no-live-test      Read the policy surface only; create no partition.
   -q, --quiet             Errors only.
@@ -165,6 +168,52 @@ _CANARY_MARKERS = ("AzGXD5D6TPSZ", "ghp_0123456789", "AKIAIOSFODNN7EXAMPLE",
                    "hunter2", "BEGIN RSA PRIVATE KEY")
 
 
+# --- host identity -----------------------------------------------------------
+#
+# Redaction and this are different jobs, and conflating them is how a
+# transcript that passed the credential scrubber still turned out to be a
+# reconnaissance profile: a machine name, an exact patch level, the endpoint
+# product in use and the fact that HVCI was off. None of that is a secret in
+# the scrubber's sense and all of it is a disclosure.
+#
+# The split that matters is between what identifies *this machine* and what
+# describes *this class of environment*. The substrate decision needs the
+# second and none of the first. So --share-safe withholds the machine and
+# keeps the environment: the platform, the Citrix shape, the injected module
+# names, the filesystem capabilities and every WHP result survive intact, and
+# a transcript is still worth reading afterwards.
+#
+# The injected module names are deliberately kept. They are product names
+# rather than machine names, and they are the measured evidence for spike (b)
+# -- withholding them would remove the finding while protecting nothing.
+
+WITHHELD = "<withheld:share-safe>"
+
+# Identifies the machine, the person, or the defensive posture.
+SHARE_SAFE_FIELDS = (
+    "windows_ubr",           # build number alone is a public patch tier; the
+                             # UBR pins the exact host
+    "build_path",            # carries the account name
+    "machine_model",         # BIOS strings can be asset-tagged
+    "security_products",     # third_party_edr keeps the finding without the
+                             # vendor
+    "vbs_status",
+    "hvci_running",
+    "wdac_policy_enforced",
+    "ps_transcript_dir",
+    "session_name",
+)
+
+
+def share_safe(fields, host):
+    """Withhold machine identity; keep everything the decision rests on."""
+    out = OrderedDict()
+    for k, v in fields.items():
+        out[k] = WITHHELD if k in SHARE_SAFE_FIELDS else v
+    out["share_safe"] = "on"
+    return out, WITHHELD
+
+
 def scrub_self_test():
     """Prove the scrubber works before claiming a transcript is redacted."""
     cleaned, _ = scrub_text(_CANARY)
@@ -183,12 +232,13 @@ def envflag(name, default=False):
 
 
 class Probe:
-    def __init__(self, quiet=False, build_path=None):
+    def __init__(self, quiet=False, build_path=None, share=False):
         self.f = OrderedDict()
         self.notes = []
         self.ask = []
         self.quiet = quiet
         self.build_path = build_path
+        self.share = share
 
     def note(self, msg):
         if not self.quiet:
@@ -871,16 +921,26 @@ class Probe:
             asks.append(ns)
         out["redactions"] = str(n)
         out["scrub_self_test"] = "pass" if ok else ("FAIL:" + ",".join(leaked))
-        return out, notes, asks
+        out["share_safe"] = "on" if self.share else "off"
+
+        host = os.environ.get("COMPUTERNAME", "unknown")
+        if self.share:
+            out, host = share_safe(out, host)
+            # The prose interpolates several of the withheld values, so it is
+            # rewritten from the fields rather than trusted to be clean.
+            notes = [n for n in notes if WITHHELD not in n]
+            notes = [re.sub(r"\(Windows Defender[^)]*\)", "(withheld)", s)
+                     for s in notes]
+        return out, notes, asks, host
 
     def report(self, as_json):
-        f, notes, asks = self._scrubbed()
+        f, notes, asks, host = self._scrubbed()
         if as_json:
             return json.dumps(f, indent=2)
         L = []
         L.append("would the hypervisor substrate work on this machine")
         L.append("")
-        L.append("host        %s" % os.environ.get("COMPUTERNAME", "unknown"))
+        L.append("host        %s" % host)
         L.append("windows     %s build %s" % (f["windows_caption"], f["windows_build"]))
         L.append("edition     %s" % f["windows_edition"])
         L.append("runtime     %s" % f["probe_runtime"])
@@ -941,6 +1001,7 @@ def main(argv):
     no_live = envflag("NO_LIVE_TEST")
     quiet = envflag("QUIET")
     build_path = os.environ.get("WHP_CORP_PROBE_PATH")
+    share = envflag("SHARE_SAFE")
 
     args = argv[1:]
     i = 0
@@ -968,6 +1029,8 @@ def main(argv):
             build_path = args[i]
         elif a.startswith("--path="):
             build_path = a.split("=", 1)[1]
+        elif a in ("-S", "--share-safe"):
+            share = True
         elif a in ("-j", "--json"):
             as_json = True
         elif a in ("-n", "--no-live-test"):
@@ -993,7 +1056,7 @@ def main(argv):
               "write a transcript" % ",".join(leaked), file=sys.stderr)
         return 3
 
-    p = Probe(quiet=quiet, build_path=build_path)
+    p = Probe(quiet=quiet, build_path=build_path, share=share)
     is_vm = p.host()
     p.policy()
     p.proxies()
