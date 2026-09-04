@@ -1,0 +1,63 @@
+NtCreateProcessEx null-section clone as a fork primitive
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-04T08:30:49Z
+script      measure 1.0
+probe       clone-probe 1.0
+
+reading, question by question
+
+  q1  NtCreateProcessEx(NULL section) clones: yes (status 0x00000000)
+  q2  private pre-clone data readable in the child at the same address: yes, post-clone write isolated
+      method: NtReadVirtualMemory from the parent
+  q3  an inheritable handle valid in the child at the same value: yes, the non-inheritable one absent
+  q4  a shared ViewShare section view present and coherent both ways: yes
+  q5  a thread created in the child after the clone runs: no (status 0xc000010a; control thread in this process: yes)
+  q6  mitigations, parent / child: CFG disabled / disabled, CET disabled / disabled
+  q7  median clone 458.1 us vs Cygwin fork 9997.7 us over 200 each (context, not a finding)
+
+raw
+
+    NtCreateProcessEx with a null section, as a fork primitive
+    
+    
+    view_size=0x10000
+    q1_clone_created=1
+    q1_status=0x00000000
+    q2_address_space_cloned=1
+    q2_method=NtReadVirtualMemory-from-parent
+    q2_post_clone_write_isolated=1
+    q3_inherited_handles=1
+    q3_noninherited_absent=1
+    q4_shared_section_view=1
+    q4_parent_to_child=1
+    q4_child_to_parent=1
+    q5_thread_created=0
+    q5_thread_after_clone=0
+    q5_child_saw_private=na
+    q5_plain_status=0xc000010a
+    q5_status=0xc00000f5
+    q5_flags=0x00000082
+    q5_wait=na
+    q5_attempts=4
+    q5_control_self_thread=1
+    q5_clone_exit_status=0x00000103
+    q5_rtl_ran=0
+    q5_rtl_status=0xc000010a
+    q6_parent_cfg=off
+    q6_child_cfg=off
+    q6_parent_cet=off
+    q6_child_cet=off
+    q7_clone_iterations=200
+    q7_clone_failures=0
+    q7_clone_median_us=458.1
+    q7_cygwin_fork_iterations=200
+    q7_cygwin_fork_failures=0
+    q7_cygwin_fork_median_us=9997.7
+
+verdict
+
+    finding=clone-without-threads
