@@ -220,6 +220,55 @@ build number corrects it at the 22000 boundary. And PowerShell hands back
 `hypervisor_running` reading differently in two transcripts describing one
 machine.
 
+### What a Citrix desktop adds, and what it takes away
+
+The Python probe carries an environment section the PowerShell twin does not,
+because a virtual desktop moves the question. It reads the ICA session name,
+the Citrix registry, the installation type, Developer Mode, whatever is
+injected into the probe's own process, and the volume flags of the directory
+you would build in.
+
+Three of those bear directly on findings phase 0 recorded, and each is a place
+where a phase 0 verdict does not carry:
+
+Spike (f)'s answer does not survive virtualisation on its own terms. WHP in a
+guest needs nested virtualisation from whatever runs the farm, it is off by
+default on Citrix Hypervisor, ESXi, Hyper-V and the usual cloud SKUs alike, and
+turning it on is a change to the farm rather than to the desktop. The probe
+separates the two Citrix shapes for exactly this reason: a Citrix registry on
+physical hardware is Remote PC Access — a real workstation reached over ICA —
+and the nested-virt objection does not apply to it at all.
+
+Spike (b)'s answer is bounded to Windows Defender, and a Citrix VDA hooks user
+sessions. The ntdll-only host process is the one shape that cannot tolerate an
+injected module importing `kernel32`, so `foreign_modules` is the list to
+re-measure that finding against. The scan reports what is loaded into the
+probe's own ordinary process, on the reasoning that whatever reaches this one
+reaches that one.
+
+Spike (e)'s answer was measured on local NTFS. Its on-disk format puts uid,
+gid, mode and device nodes in extended attributes and symlinks in reparse
+points, and a redirected profile or mapped home drive supports neither — which
+on a Citrix desktop is very often the directory you would actually build in.
+`fs_carries_lx_metadata` answers it from the volume flags without writing a
+byte, and `--path` points it at the drive you mean rather than the one you
+happen to be standing in.
+
+Developer Mode is worth reading precisely so it is not overread. It grants
+unprivileged symlink creation, which is real: spike (e) needed a privilege for
+LX symlinks and this supplies it. It grants nothing toward the hypervisor —
+enabling an optional Windows feature still wants an administrator and a reboot.
+
+Honesty about coverage: everything else in this README was measured here, and
+the Citrix branch was not, because this machine is not a Citrix desktop. The
+registry paths, the ICA session name and the installation type are written from
+documentation, and the first real Citrix transcript should be read with that in
+mind. What *was* verified here is the machinery underneath: the module scanner
+reports nothing on a clean process and reports `cygwin1.dll` once one is loaded
+from outside the system directories, and the volume flags read `NTFS`, EAs and
+reparse points on a local disk. The detection works; which branch a Citrix box
+takes is unmeasured.
+
 One reading worth carrying into the decision, which the script says out loud
 when it applies: wherever WSL2 is permitted, the hypervisor is already on, and
 substrate H is available for the same reason WSL2 is — so the case for building

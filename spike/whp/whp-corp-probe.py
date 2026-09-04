@@ -28,6 +28,9 @@ Usage:
 
 Options:
   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+  -p DIR, --path=DIR      The directory you would actually build in, whose
+                          volume is checked for the metadata the on-disk
+                          format needs. [default: the working directory]
   -j, --json              Emit the findings as JSON instead of a report.
   -n, --no-live-test      Read the policy surface only; create no partition.
   -q, --quiet             Errors only.
@@ -77,11 +80,12 @@ def envflag(name, default=False):
 
 
 class Probe:
-    def __init__(self, quiet=False):
+    def __init__(self, quiet=False, build_path=None):
         self.f = OrderedDict()
         self.notes = []
         self.ask = []
         self.quiet = quiet
+        self.build_path = build_path
 
     def note(self, msg):
         if not self.quiet:
@@ -265,6 +269,219 @@ class Probe:
         docker = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"),
                               "Docker", "Docker", "Docker Desktop.exe")
         self.f["docker_desktop_present"] = "yes" if os.path.exists(docker) else "no"
+
+    # -- the environment ----------------------------------------------------
+
+    def environment(self):
+        """Citrix, Developer Mode, injection, and the disk you would build on.
+
+        The hypervisor question is not the only one a managed machine decides.
+        A Citrix virtual desktop settles it early -- WHP in a guest needs
+        nested virtualisation the farm has to grant -- and then raises two
+        questions about the *other* substrate that phase 0 never asked,
+        because phase 0 ran on a physical box with a local NTFS disk.
+
+        The first is injection. Spike (b) built a process whose only module is
+        ntdll, and its finding was explicitly bounded to Windows Defender on a
+        machine with no third-party agent. A Citrix VDA hooks user sessions,
+        and a hook that arrives importing kernel32 is the one thing that shape
+        cannot survive. The module scan below measures it directly: whatever
+        is in this process is what would be in that one.
+
+        The second is the disk. Spike (e) put uid, gid, mode and device nodes
+        in extended attributes and symlinks in reparse points. A redirected
+        profile or a mapped home drive supports neither, and on a Citrix
+        desktop the directory you would actually build in is very often
+        exactly that. The volume flags answer it without writing a byte.
+        """
+        # -- Citrix, and which shape of it
+        sess = os.environ.get("SESSIONNAME", "")
+        self.f["session_name"] = sess or "unknown"
+        self.f["session_is_ica"] = "yes" if sess.upper().startswith("ICA") else "no"
+
+        citrix = self._reg_exists("HKEY_LOCAL_MACHINE", r"SOFTWARE\Citrix")
+        vda = self._reg_exists("HKEY_LOCAL_MACHINE", r"SOFTWARE\Citrix\VirtualDesktopAgent")
+        self.f["citrix_present"] = "yes" if citrix else "no"
+        self.f["citrix_vda"] = "yes" if vda else "no"
+
+        cv = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+        instype = str(self._reg("HKEY_LOCAL_MACHINE", cv, "InstallationType", "unknown"))
+        self.f["installation_type"] = instype
+        self.f["multi_session_os"] = "yes" if instype.lower() == "server" else "no"
+
+        if citrix and self.f["machine_is_virtual"] == "no":
+            # Remote PC Access hands you a real workstation over ICA. Nothing
+            # about the substrate question is virtual, and the nested-virt
+            # objection simply does not apply.
+            self.f["citrix_shape"] = "remote-pc-access-or-physical"
+            self.notes.append(
+                "Citrix is present but the hardware reads physical, which is the "
+                "Remote PC Access shape: a real workstation reached over ICA. The "
+                "nested-virtualisation objection does not apply to it, and the "
+                "hypervisor answer is whatever the live test below says.")
+        elif citrix:
+            self.f["citrix_shape"] = "virtual-desktop"
+            self.notes.append(
+                "This is a Citrix virtual desktop, so WHP needs nested "
+                "virtualisation from whatever runs the farm -- Citrix Hypervisor, "
+                "ESXi, Hyper-V or a cloud SKU. It is off by default on all of them, "
+                "it is a change to the farm rather than to this desktop, and on "
+                "several it is unsupported rather than merely disabled. Treat a "
+                "negative here as the expected answer, not as a misconfiguration.")
+        else:
+            self.f["citrix_shape"] = "n/a"
+
+        if self.f["multi_session_os"] == "yes":
+            self.notes.append(
+                "This is a multi-session (server) OS, so the desktop is shared with "
+                "other users. A per-user hypervisor partition is a much larger ask "
+                "there than on a single-session desktop, whatever the hardware allows.")
+
+        # -- Developer Mode: worth reading, and worth not overreading
+        devmode = str(self._reg(
+            "HKEY_LOCAL_MACHINE",
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock",
+            "AllowDevelopmentWithoutDevLicense", "0"))
+        self.f["developer_mode"] = "on" if devmode == "1" else "off"
+        if self.f["developer_mode"] == "on":
+            self.notes.append(
+                "Developer Mode is on. It grants unprivileged symlink creation, "
+                "which is worth real money to the filesystem design -- spike (e) "
+                "needed a privilege for LX symlinks and this supplies it. It grants "
+                "nothing at all toward the hypervisor: enabling an optional Windows "
+                "feature still wants an administrator and a reboot.")
+
+        # -- who is already inside this process
+        self.f["appinit_dlls"] = str(self._reg(
+            "HKEY_LOCAL_MACHINE",
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows",
+            "AppInit_DLLs", "")) or "none"
+        self.f["appinit_enabled"] = "yes" if str(self._reg(
+            "HKEY_LOCAL_MACHINE",
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows",
+            "LoadAppInit_DLLs", "0")) == "1" else "no"
+
+        foreign = self._foreign_modules()
+        self.f["foreign_modules_count"] = str(len(foreign))
+        self.f["foreign_modules"] = "; ".join(foreign[:8]) if foreign else "none"
+        if foreign:
+            self.notes.append(
+                "Modules from outside Windows' own directories are loaded into this "
+                "ordinary process (%s). Spike (b)'s ntdll-only host process is the "
+                "one shape that cannot tolerate an injected module importing "
+                "kernel32, so this is the list to re-measure that finding against "
+                "before relying on it here." % "; ".join(foreign[:4]))
+
+        # -- the disk the design would actually live on
+        self._storage(self.build_path or os.getcwd())
+
+    def _foreign_modules(self):
+        try:
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        except OSError:
+            return []
+        try:
+            hproc = k32.GetCurrentProcess()
+            k32.GetCurrentProcess.restype = ctypes.c_void_p
+            hproc = ctypes.c_void_p(k32.GetCurrentProcess())
+            arr = (ctypes.c_void_p * 1024)()
+            need = ctypes.c_uint32(0)
+            enum = getattr(psapi, "EnumProcessModules", None)
+            if enum is None:
+                return []
+            enum.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+                             ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32)]
+            enum.restype = ctypes.c_int32
+            if not enum(hproc, arr, ctypes.sizeof(arr), ctypes.byref(need)):
+                return []
+            count = min(need.value // ctypes.sizeof(ctypes.c_void_p), 1024)
+
+            getname = psapi.GetModuleFileNameExW
+            getname.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                ctypes.c_wchar_p, ctypes.c_uint32]
+            getname.restype = ctypes.c_uint32
+
+            win = (os.environ.get("SystemRoot", r"C:\Windows")).lower()
+            here = os.path.dirname(sys.executable).lower()
+            out = []
+            buf = ctypes.create_unicode_buffer(32768)
+            for i in range(count):
+                if getname(hproc, arr[i], buf, 32768):
+                    p = buf.value
+                    low = p.lower()
+                    if low.startswith(win) or low.startswith(here):
+                        continue
+                    out.append(os.path.basename(p))
+            return sorted(set(out))
+        except Exception:
+            return []
+
+    def _storage(self, path):
+        """Can the on-disk metadata format live on this directory's volume?"""
+        self.f["build_path"] = path
+        try:
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        except OSError:
+            return
+
+        root = os.path.splitdrive(os.path.abspath(path))[0] + "\\"
+        if path.startswith("\\\\"):
+            self.f["build_path_drive_type"] = "unc-network"
+        else:
+            k32.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
+            k32.GetDriveTypeW.restype = ctypes.c_uint32
+            dt = k32.GetDriveTypeW(root)
+            self.f["build_path_drive_type"] = {
+                2: "removable", 3: "fixed", 4: "network", 5: "cdrom",
+                6: "ramdisk"}.get(dt, "unknown-%d" % dt)
+
+        fsname = ctypes.create_unicode_buffer(64)
+        volname = ctypes.create_unicode_buffer(64)
+        serial = ctypes.c_uint32(0)
+        maxcomp = ctypes.c_uint32(0)
+        flags = ctypes.c_uint32(0)
+        k32.GetVolumeInformationW.argtypes = [
+            ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_uint32),
+            ctypes.POINTER(ctypes.c_uint32), ctypes.c_wchar_p, ctypes.c_uint32]
+        k32.GetVolumeInformationW.restype = ctypes.c_int32
+        ok = k32.GetVolumeInformationW(
+            root if self.f["build_path_drive_type"] != "unc-network" else None,
+            volname, 64, ctypes.byref(serial), ctypes.byref(maxcomp),
+            ctypes.byref(flags), fsname, 64)
+        if not ok:
+            self.f["build_path_filesystem"] = "unknown"
+            return
+
+        # from winnt.h, read rather than recalled
+        FILE_CASE_SENSITIVE_SEARCH = 0x00000001
+        FILE_SUPPORTS_REPARSE_POINTS = 0x00000080
+        FILE_SUPPORTS_EXTENDED_ATTRIBUTES = 0x00800000
+
+        v = flags.value
+        self.f["build_path_filesystem"] = fsname.value
+        self.f["fs_supports_eas"] = "yes" if v & FILE_SUPPORTS_EXTENDED_ATTRIBUTES else "no"
+        self.f["fs_supports_reparse"] = "yes" if v & FILE_SUPPORTS_REPARSE_POINTS else "no"
+        self.f["fs_case_sensitive_search"] = "yes" if v & FILE_CASE_SENSITIVE_SEARCH else "no"
+
+        lx_ok = (self.f["fs_supports_eas"] == "yes"
+                 and self.f["fs_supports_reparse"] == "yes")
+        self.f["fs_carries_lx_metadata"] = "yes" if lx_ok else "no"
+        if not lx_ok:
+            self.notes.append(
+                "The volume behind %s is %s and does not support both extended "
+                "attributes and reparse points, so spike (e)'s on-disk format -- "
+                "uid, gid, mode and device nodes in EAs, symlinks in reparse points "
+                "-- cannot live there. On a Citrix desktop this usually means a "
+                "redirected profile or a mapped home drive; the fix is to build on "
+                "a local fixed volume, not to change the format."
+                % (path, self.f["build_path_filesystem"]))
+        elif self.f["build_path_drive_type"] in ("network", "unc-network"):
+            self.notes.append(
+                "The build path is on a network volume. It reports the flags the "
+                "metadata format needs, but spike (e) measured local NTFS and a "
+                "redirector is not that; re-measure there before relying on it.")
 
     # -- the live test ------------------------------------------------------
 
@@ -481,6 +698,12 @@ class Probe:
         L.append("")
         for label, key in (
                 ("machine is a virtual desktop:", "machine_is_virtual"),
+                ("Citrix, and which shape:", "citrix_shape"),
+                ("multi-session (shared) OS:", "multi_session_os"),
+                ("Developer Mode:", "developer_mode"),
+                ("modules injected into this process:", "foreign_modules_count"),
+                ("build volume:", "build_path_filesystem"),
+                ("build volume carries LX metadata:", "fs_carries_lx_metadata"),
                 ("WHP reports hypervisor present:", "whp_hypervisor_present"),
                 ("partition created:", "whp_partition_created"),
                 ("virtual processor created:", "whp_vcpu_created"),
@@ -521,6 +744,7 @@ def main(argv):
     as_json = envflag("JSON")
     no_live = envflag("NO_LIVE_TEST")
     quiet = envflag("QUIET")
+    build_path = os.environ.get("WHP_CORP_PROBE_PATH")
 
     args = argv[1:]
     i = 0
@@ -540,6 +764,14 @@ def main(argv):
             out = args[i]
         elif a.startswith("--output="):
             out = a.split("=", 1)[1]
+        elif a in ("-p", "--path"):
+            i += 1
+            if i >= len(args):
+                print("whp-corp-probe.py: --path needs a value", file=sys.stderr)
+                return 2
+            build_path = args[i]
+        elif a.startswith("--path="):
+            build_path = a.split("=", 1)[1]
         elif a in ("-j", "--json"):
             as_json = True
         elif a in ("-n", "--no-live-test"):
@@ -556,10 +788,11 @@ def main(argv):
               file=sys.stderr)
         return 2
 
-    p = Probe(quiet=quiet)
+    p = Probe(quiet=quiet, build_path=build_path)
     is_vm = p.host()
     p.policy()
     p.proxies()
+    p.environment()
     p.live(no_live)
     finding = p.verdict(is_vm, no_live)
 
