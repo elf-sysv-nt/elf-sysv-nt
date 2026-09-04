@@ -145,3 +145,17 @@ reent-realproc-low-window	/c/-/repo/elf-sysv-nt/a/build/wp26/x86_64-pc-cygwin/wi
 # needs the newlib-cygwin checkout WP-26 builds from, and is INCOMPLETE without
 # it rather than skipped, because the audit is the whole content.
 errno-funnel	/c/-/repo/newlib-cygwin/winsup/cygwin	results-2026-[0-9]*.txt	bash measure.sh -o -
+
+# Proposal 0011's phase 0: six measurements of what NT actually does, run
+# 2026-09-04. Each is self-contained -- it builds its own probes with the
+# Cygwin and mingw toolchains already required here and needs no vendor dump,
+# no network and no build product -- so none carries a `needs` path. whp is
+# the exception in kind rather than in form: it needs the hypervisor present,
+# which its own q1 measures and reports rather than requiring up front, so an
+# absent hypervisor is a changed finding rather than an absent input.
+nt-clone-fork	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+native-host	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+arena	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+hijack	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+lxfs	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+whp	-	results-2026-[0-9]*.txt	bash measure.sh -o -
