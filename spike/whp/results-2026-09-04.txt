@@ -1,0 +1,79 @@
+windows hypervisor platform as a substrate
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    gcc (GCC) 14.4.0
+date        2026-09-04T08:31:14Z
+script      measure 1.0
+probe       whp-probe 1.0
+
+reading, question by question
+
+  q1  hypervisor present: yes, vendor amd
+  q2  partition created, sized to one processor, set up: yes
+  q3  host allocation mapped as guest physical memory: yes
+  q4  virtual processor created, registers set: yes
+  q5  long mode at CPL 3, guest code executing: yes
+  q6  a ring-3 syscall reaching the host: halt-in-shim
+  q7  an unmapped guest page as a memory-access exit at the right GPA: yes
+  q8  exit latency over 20000 exits, mechanism guest-hlt-cpl0: median 5000 ns, p99 10200 ns
+      a full ring-3 syscall round trip: median 5000 ns, p99 11900 ns
+      a native NT syscall on the same host: median 679 ns
+
+raw
+
+    windows hypervisor platform as a substrate
+    
+    
+    q1_hypervisor_present=1
+    q1_capability_hresult=0x00000000
+    q1_features=0x00000000000002ff
+    q1_processor_vendor=amd
+    q1_processor_features=0x06037fcb67f39fbf
+    q1_extended_vm_exits=0x0000000000007fff
+    q2_partition_created=1
+    q2_setup_hresult=0x00000000
+    q3_memory_mapped=1
+    q3_map_hresult=0x00000000
+    q3_mapped_bytes=0x400000
+    q3_unmapped_gpa=0x800000
+    q4_vcpu_created=1
+    q4_vcpu_hresult=0x00000000
+    q4_registers_set=1
+    q4_register_hresult=0x00000000
+    q5_exit_reason=1
+    q5_rax=0xc0ffee
+    q5_cs_selector=0x002b
+    q5_cpl=3
+    q5_long_mode_ring3=1
+    q6_exit_reason=8
+    q6_rip=0x9001
+    q6_rcx=0x6102
+    q6_r11=0x2
+    q6_cs_selector=0x0008
+    q6_syscall_exit=halt-in-shim
+    q7_exit_reason=1
+    q7_gpa=0x800000
+    q7_gva=0x0
+    q7_access_type=1
+    q7_page_fault_exit=1
+    q8_exit_mechanism=guest-hlt-cpl0
+    q8_exit_median_ns=5000
+    q8_exit_p99_ns=10200
+    q8_exit_min_ns=4700
+    q8_exit_mean_ns=5610
+    q8_exit_exits_timed=20000
+    q8_loop_iterations=0x55f1
+    q8_syscall_mechanism=ring3-syscall-hlt-sysret
+    q8_syscall_median_ns=5000
+    q8_syscall_p99_ns=11900
+    q8_syscall_min_ns=4700
+    q8_syscall_mean_ns=6156
+    q8_syscall_exits_timed=20000
+    q8_native_call_ns=4
+    q8_native_syscall_ns=679
+
+verdict
+
+    finding=whp-usable
