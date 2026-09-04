@@ -73,9 +73,11 @@ trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then
 	probe=$here/clone-probe.exe
 	timer=$here/fork-timer.exe
+	native=$here/native-clone.exe
 else
 	probe=$work/clone-probe.exe
 	timer=$work/fork-timer.exe
+	native=$work/native-clone.exe
 fi
 
 note 'building the native clone probe'
@@ -83,12 +85,21 @@ note 'building the native clone probe'
 	"$here/clone-probe.c" > "$work/build-probe.log" 2>&1 ||
 	{ cat "$work/build-probe.log" >&2; die 'the clone probe did not build'; }
 
+# q11's csrss-free parent: an ntdll-only native-subsystem image, built the way
+# sibling spike (b) native-host established. clone-probe launches it through
+# NtCreateUserProcess, because CreateProcess refuses a native image.
+note 'building the native-subsystem parent for q11'
+"$cross" -nostdlib -nodefaultlibs -e NtProcessStartup -Wl,--subsystem,native \
+	-O1 -Wall -Wextra -o "$native" "$here/native-clone.c" -lntdll \
+	> "$work/build-native.log" 2>&1 ||
+	{ cat "$work/build-native.log" >&2; die 'the native parent did not build'; }
+
 note 'building the Cygwin fork timer'
 gcc -std=gnu11 -O1 -Wall -Wextra -o "$timer" \
 	"$here/fork-timer.c" > "$work/build-timer.log" 2>&1 ||
 	{ cat "$work/build-timer.log" >&2; die 'the fork timer did not build'; }
 
-probe_args="-n $iterations"
+probe_args="-n $iterations --native-probe=$(cygpath -w "$native")"
 [ "$verbose" = 1 ] && probe_args="$probe_args --verbose"
 
 note 'running the clone probe'
@@ -121,19 +132,37 @@ q5_status=$(val q5_plain_status)
 q5_control=$(val q5_control_self_thread)
 q6_pcfg=$(val q6_parent_cfg); q6_ccfg=$(val q6_child_cfg)
 q6_pcet=$(val q6_parent_cet); q6_ccet=$(val q6_child_cet)
+q8_ran=$(val q8_child_ran)
+q8_status=$(val q8_rtlclone_status)
+q8_priv=$(val q8_child_saw_private)
+q8_handle=$(val q8_child_used_handle)
+q8_view=$(val q8_child_shared_view)
+q9_status=$(val q9_inherit_from_parent_status)
+q10_status=$(val q10_suspended_status)
+q10_exit=$(val q10_clone_exit_status)
+q11_launched=$(val q11_native_parent_launched)
+q11_status=$(val q11_native_thread_status)
+q11_ran=$(val q11_native_thread_ran)
+q11_matters=$(val q11_parent_shape_matters)
 
-# The finding, stated as what the clone is worth as a fork primitive. The clone
-# either refuses outright, or is created and clones the address space but
-# cannot host a thread -- the csrss break -- or clones and runs a thread, which
-# would be the whole primitive. The ladder reads the facts in that order and
-# never reads a timing.
+# The finding, stated as what fork rests on across the whole candidate set. The
+# ladder reads the strongest surviving primitive first: if RtlCloneUserProcess
+# forks a child that runs (q8), that is the fork primitive, whatever the raw
+# NtCreateProcessEx path does. Only if no candidate carries a live thread does
+# the verdict fall back through the NtCreateProcessEx path's own outcomes -- the
+# native-parent retry (q11), the address-space-only clone, an outright refusal.
+# A timing is never read.
 finding=inconclusive
-if [ "$q1_created" != 1 ]; then
-	finding=clone-refused
-elif [ "$q2_cloned" = 1 ] && [ "$q5_ran" = 1 ]; then
+if [ "$q8_ran" = 1 ]; then
+	finding=clone-works-via-rtlclone
+elif [ "$q1_created" = 1 ] && [ "$q5_ran" = 1 ]; then
 	finding=clone-works
-elif [ "$q2_cloned" = 1 ] && [ "$q5_ran" = 0 ]; then
-	finding=clone-without-threads
+elif [ "$q11_ran" = 1 ]; then
+	finding=clone-needs-native-parent
+elif [ "$q1_created" != 1 ]; then
+	finding=clone-refused
+elif [ "$q2_cloned" = 1 ]; then
+	finding=clone-without-threads-all-candidates
 else
 	finding=clone-partial
 fi
@@ -142,7 +171,7 @@ flag()  { [ "$1" = on ] && printf 'enabled' || { [ "$1" = off ] && printf 'disab
 yn()    { [ "$1" = 1 ] && printf 'yes' || { [ "$1" = 0 ] && printf 'no' || printf 'n/a'; }; }
 
 {
-	printf 'NtCreateProcessEx null-section clone as a fork primitive\n\n'
+	printf 'Cloning a process for fork: the candidate primitives on Windows 11\n\n'
 	printf 'host        %s\n' "$(hostname 2>/dev/null)"
 	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | grep -o '[0-9][0-9.]*' | head -1)"
 	printf 'cygwin      %s\n' "$(uname -r)"
@@ -169,6 +198,24 @@ yn()    { [ "$1" = 1 ] && printf 'yes' || { [ "$1" = 0 ] && printf 'no' || print
 		"$(flag "$q6_pcfg")" "$(flag "$q6_ccfg")" "$(flag "$q6_pcet")" "$(flag "$q6_ccet")"
 	printf '  q7  median clone %s us vs Cygwin fork %s us over %s each (context, not a finding)\n\n' \
 		"$(val q7_clone_median_us)" "$(tval q7_cygwin_fork_median_us)" "$iterations"
+
+	printf '  q8  RtlCloneUserProcess, the fork-shaped clone that returns in the child:\n'
+	printf '      the child comes back running and reaches its own code: %s (status %s)\n' \
+		"$(yn "$q8_ran")" "$q8_status"
+	printf '      it reads its cloned private page (q2 again): %s;' "$(yn "$q8_priv")"
+	printf ' signals an inherited handle back (q3 again): %s;' "$(yn "$q8_handle")"
+	printf ' the shared view is coherent (q4 again): %s\n' "$(yn "$q8_view")"
+	printf '      median RtlCloneUserProcess %s us vs Cygwin fork %s us over %s each (context, not a finding)\n' \
+		"$(val q8_rtlclone_median_us)" "$(tval q7_cygwin_fork_median_us)" "$iterations"
+	printf '  q9  NtCreateUserProcess with inherit-from-parent, the bare syscall: status %s\n' \
+		"$q9_status"
+	printf '  q10 NtCreateProcessEx clone, first thread created suspended then resumed: status %s\n' \
+		"$q10_status"
+	printf '      the clone is not terminating -- its ExitStatus is %s (STATUS_PENDING is a running process)\n' \
+		"$q10_exit"
+	printf '  q11 the whole clone retried from a native, csrss-free parent:\n'
+	printf '      launched: %s; its NtCreateThreadEx status %s; a thread ran: %s; the parent shape matters: %s\n\n' \
+		"$(yn "$q11_launched")" "$q11_status" "$(yn "$q11_ran")" "$(yn "$q11_matters")"
 
 	printf 'raw\n\n'
 	sed -e 's/^/    /' "$work/probe.out"
