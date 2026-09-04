@@ -69,7 +69,10 @@ export PATH=/c/-/x-elfsysvnt/bin:$PATH
 # across the environments DR-0038 moved between. Those rows align their value
 # under two or more spaces (or sit behind an = sign); a prose finding that opens
 # with the same word -- "host mmap...", "kernel dispatch..." -- has a single
-# space after it and is kept. Live temp paths collapse to TMPPATH, so an mktemp
+# space after it and is kept. A source audit's source_tree, source_ref and
+# source_pin rows are the same kind of thing -- which checkout the audit read,
+# and its git describe, whose hash letters survive the number reduction -- and
+# drop with the rest of the header. Live temp paths collapse to TMPPATH, so an mktemp
 # suffix and the root a transcript was captured under fall away; the rows of a
 # VirtualQuery memory survey (MEM_FREE, MEM_COMMIT, MEM_RESERVE) drop whole,
 # since the address space's region list varies run to run and is context, not a
@@ -77,7 +80,7 @@ export PATH=/c/-/x-elfsysvnt/bin:$PATH
 # numbers and matches; a rotted one produces different words, or none, and does
 # not. Sorted, so a reordering does not read as a change.
 findings() {
-	grep -avE '^[[:space:]]*($|#|Captured|Generated)|^[[:space:]]*(kernel|compiler|date|run_date|host|hostname|toolchain|uname|os|platform|ld|readelf|nm|objdump)([[:space:]]{2,}|=)|MEM_(FREE|COMMIT|RESERVE)' "$1" 2>/dev/null \
+	grep -avE '^[[:space:]]*($|#|Captured|Generated)|^[[:space:]]*(kernel|compiler|date|run_date|host|hostname|toolchain|uname|os|platform|ld|readelf|nm|objdump|source_tree|source_ref|source_pin)([[:space:]]{2,}|=)|MEM_(FREE|COMMIT|RESERVE)' "$1" 2>/dev/null \
 	| sed -E '
 	    s@[^[:space:]]*[/\\][Tt][Mm][Pp][/\\][^[:space:]]*@TMPPATH@g;
 	    s/0x[0-9a-fA-F]+/0xN/g;
