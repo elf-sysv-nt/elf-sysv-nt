@@ -117,8 +117,8 @@ the pair and says which reading is current.
 | [0090](0090-the-wiring-is-regenerated-to-the-minimised-surface.md) | the wiring regenerates to the minimised surface: seventeen empty slices lose their files, a shim's target is claimed, and the jmp_buf face loses its credit | provisional 2026-09-03 | none |
 | [0091](0091-the-errno-location-is-linux-numbered.md) | the errno location is Linux-numbered, as deep as that must go | accepted 2026-09-03 | none |
 | [0092](0092-an-unmapped-constant-declines.md) | a constant the runtime cannot name declines to 0 rather than passing through onto a numeral that is already taken | provisional 2026-09-03 | none |
-| [0093](0093-the-floor-is-renumbered-not-translated.md) | the floor's errno constants are el8's; nothing translates | provisional 2026-09-03 | none |
-| [0094](0094-the-floor-only-errno-block.md) | the six floor-only errno names take 250..255, `_sys_errlist` is generated, and `__errno_location` forwards by a spelling rule | provisional 2026-09-03 | none |
+| [0093](0093-the-floor-is-renumbered-not-translated.md) | the floor's errno constants are el8's; nothing translates | provisional 2026-09-03 | 0009 |
+| [0094](0094-the-floor-only-errno-block.md) | the six floor-only errno names take 250..255, `_sys_errlist` is generated, and `__errno_location` forwards by a spelling rule | provisional 2026-09-03 | 0009 |
 
 ## What earns a record
 
