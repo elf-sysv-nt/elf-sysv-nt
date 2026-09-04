@@ -120,3 +120,73 @@ The measurement was taken on an idle host, on one machine, one AMD processor,
 one Windows build. It says nothing about Intel, about a machine with other
 hypervisor-rooted features contending, or about what happens under a nested
 hypervisor.
+
+## Asking the same question of a machine you do not own
+
+`whp-corp-probe.ps1` is the portable half of this spike. The probe above needs
+a Cygwin root, a mingw cross-compiler and a machine you can build on; a managed
+corporate laptop has none of those, and the question it has to answer is not
+the same question anyway. Here the question was what an exit costs. There the
+question is whether the substrate is permitted at all, which on a managed
+machine is decided by policy long before it is decided by hardware.
+
+Run it as:
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\whp-corp-probe.ps1
+
+It is read-only and unelevated: no registry write, no feature install, no
+service start, nothing written outside the transcript. That is deliberate, and
+it is what makes the script safe to hand to whoever administers the machine —
+which is the likely next step, since the common verdicts are requests rather
+than answers.
+
+It reports the policy surface (Windows edition and build, whether the machine
+is itself a virtual desktop, whether the Microsoft hypervisor is running,
+VBS/HVCI, code-integrity enforcement, AppLocker, the endpoint product) and then
+takes one live measurement: bind `WinHvPlatform.dll`, ask
+`WHvGetCapability(HypervisorPresent)`, and, if it says yes, create a partition,
+set it up, create a virtual processor and map guest memory. That is enough to
+prove the substrate functions. It deliberately does not run guest code or time
+an exit — that needs the compiled probe beside it, and the answer to "how fast"
+only matters once "is it allowed" is yes.
+
+The binding is `DefinePInvokeMethod` rather than `Add-Type`, because
+`Add-Type` needs a C# compiler and writes a temporary DLL, and a fleet strict
+enough to be worth probing is a fleet where both may be refused. Constrained
+Language Mode refuses the reflection either way; the script detects that,
+reports `blocked-cannot-measure`, and keeps the policy surface it already
+gathered. Two `whp-` findings that read alike are kept apart on purpose:
+`not-measured-by-request` is `-NoLiveTest`, and only `blocked-cannot-measure`
+says something about the fleet.
+
+The verdicts are `whp-usable`, `whp-partial`, `whp-feature-disabled`,
+`hypervisor-not-running`, `nested-virt-unavailable`, `edition-unsupported`,
+`host-below-floor`, `blocked-cannot-measure`, `not-measured-by-request`. Exit
+status is 0 for usable, 1 for not, 3 for could-not-measure.
+
+It is not in `test/spike-regen.tsv`, and that is the point rather than an
+oversight. A regen row asserts that a rerun here reproduces a recorded finding;
+this script's findings are *supposed* to differ per machine, and the one thing
+it would certify on this host — that WHP works — is what the compiled probe
+already certifies. Registering it would tie the suite to a fact it does not
+own.
+
+Verified on this host on 2026-09-04: `finding=whp-usable`, agreeing with the
+compiled probe, and stable across reruns. Two probe defects were found and
+fixed in the writing, both of which would have read as corporate refusals and
+were not: `Marshal::AllocHGlobal` is not page-aligned, so `WHvMapGpaRange`
+returned `E_INVALIDARG` on a perfectly healthy machine until the allocation
+moved to `VirtualAlloc`; and `wsl.exe -l -v` writes UTF-16, so the WSL2 check
+reported "no" on a host that has a distro. The Constrained Language Mode path
+was exercised in a deliberately constrained runspace rather than reasoned
+about.
+
+One reading worth carrying into the decision, which the script says out loud
+when it applies: wherever WSL2 is permitted, the hypervisor is already on, and
+substrate H is available for the same reason WSL2 is — so the case for building
+it has to be made against WSL2 rather than against its absence. Where WSL2 is
+forbidden, the feature it rests on is usually forbidden with it, and substrate
+H goes with it. The environment where H is the answer is the narrow one that
+permits the hypervisor and not the Linux userland on top. Substrate N is the
+one that survives a locked-down fleet, and that asymmetry is worth knowing
+before either is built.
