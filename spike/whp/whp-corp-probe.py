@@ -31,9 +31,10 @@ Options:
   -p DIR, --path=DIR      The directory you would actually build in, whose
                           volume is checked for the metadata the on-disk
                           format needs. [default: the working directory]
-  -S, --share-safe        Withhold machine identity: hostname, exact patch
-                          level, build path, BIOS model, endpoint vendor and
-                          defensive posture. Every substrate finding is kept.
+  -F, --full              Keep machine identity in the transcript. Off by
+                          default: the capture is generated already scrubbed
+                          of client and system identity, because it exists to
+                          be transferred. Use only on a machine you own.
   -j, --json              Emit the findings as JSON instead of a report.
   -n, --no-live-test      Read the policy surface only; create no partition.
   -q, --quiet             Errors only.
@@ -178,10 +179,19 @@ _CANARY_MARKERS = ("AzGXD5D6TPSZ", "ghp_0123456789", "AKIAIOSFODNN7EXAMPLE",
 #
 # The split that matters is between what identifies *this machine* and what
 # describes *this class of environment*. The substrate decision needs the
-# second and none of the first. So --share-safe withholds the machine and
-# keeps the environment: the platform, the Citrix shape, the injected module
-# names, the filesystem capabilities and every WHP result survive intact, and
-# a transcript is still worth reading afterwards.
+# second and none of the first. So the machine is withheld and the environment
+# kept: the platform, the Citrix shape, the injected module names, the
+# filesystem capabilities and every WHP result survive intact, and a
+# transcript is still worth reading afterwards.
+#
+# This is on by default, and that is the whole design. The transcript exists
+# to be carried off the machine that produced it -- that is what it is for --
+# so the safe form has to be the one you get without asking. Gating the
+# transfer instead (a .gitignore rule, a hook that refuses the file) fights
+# the purpose of the artifact and loses: the file still has to move, so the
+# rule gets removed by whoever needs to move it, and the identity ships anyway.
+# Generate it clean and the transfer needs no policing at all. `--full` opts
+# back in, for a run on a machine you own.
 #
 # The injected module names are deliberately kept. They are product names
 # rather than machine names, and they are the measured evidence for spike (b)
@@ -1001,7 +1011,7 @@ def main(argv):
     no_live = envflag("NO_LIVE_TEST")
     quiet = envflag("QUIET")
     build_path = os.environ.get("WHP_CORP_PROBE_PATH")
-    share = envflag("SHARE_SAFE")
+    share = not envflag("FULL")
 
     args = argv[1:]
     i = 0
@@ -1029,8 +1039,8 @@ def main(argv):
             build_path = args[i]
         elif a.startswith("--path="):
             build_path = a.split("=", 1)[1]
-        elif a in ("-S", "--share-safe"):
-            share = True
+        elif a in ("-F", "--full"):
+            share = False
         elif a in ("-j", "--json"):
             as_json = True
         elif a in ("-n", "--no-live-test"):
