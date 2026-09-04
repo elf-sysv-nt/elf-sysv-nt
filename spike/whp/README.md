@@ -181,6 +181,45 @@ reported "no" on a host that has a distro. The Constrained Language Mode path
 was exercised in a deliberately constrained runspace rather than reasoned
 about.
 
+### The Python twin
+
+`whp-corp-probe.py` asks the same questions with the same verdict words and
+prints the same transcript shape, and it exists for one case the PowerShell
+version cannot reach.
+
+Constrained Language Mode is the lockdown a strict fleet actually applies, and
+it is more surgical than it sounds: cmdlets keep working under it, so the
+PowerShell probe keeps its whole policy surface, and what it loses is
+`DefinePInvokeMethod` — the one thing standing between it and the measurement.
+That is the worst possible trade, because it fails exactly on the machine you
+most wanted an answer from. Python is not subject to CLM, and a `.py` file is
+not one of the script classes WDAC's script enforcement covers, so `ctypes`
+reaches `WinHvPlatform.dll` where reflection is refused. Where PowerShell is
+unrestricted the two agree and either will do; where it is restricted, use the
+Python one.
+
+It shells out to PowerShell for the handful of fields only WMI knows (VBS,
+HVCI, code-integrity status, the endpoint product), which is safe to do here
+precisely because those cmdlets survive CLM. When PowerShell is missing or
+refuses, those fields read `unknown` and the live test is unaffected — the
+split is deliberate, so that a restricted policy surface never costs the
+measurement.
+
+Run it as:
+
+    py -3 whp-corp-probe.py
+
+Verified against the PowerShell twin on this host on 2026-09-04: both report
+`finding=whp-usable`, and after two fixes they agree on every shared key.
+Both fixes were in the Python side and both are worth naming, because each
+would have put a false line in a corporate transcript. `ProductName` under
+`CurrentVersion` still reads "Windows 10 Pro" on Windows 11 — Microsoft never
+revised the value, and WMI's `Caption` is where the true name lives — so the
+build number corrects it at the 22000 boundary. And PowerShell hands back
+.NET's `True`/`False` where the twin's vocabulary is `yes`/`no`, which left
+`hypervisor_running` reading differently in two transcripts describing one
+machine.
+
 One reading worth carrying into the decision, which the script says out loud
 when it applies: wherever WSL2 is permitted, the hypervisor is already on, and
 substrate H is available for the same reason WSL2 is — so the case for building
