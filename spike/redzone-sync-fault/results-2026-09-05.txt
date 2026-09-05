@@ -1,0 +1,62 @@
+the red zone across a synchronous fault dispatched by NT
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-05T20:54:31Z
+script      measure 1.0
+probe       redzone-probe 1.0
+
+reading, question by question
+
+  q1  a leaf with a painted red zone stores to an uncommitted page; the handler commits it and the store re-executes:
+      0 of 1000 runs lost a byte; nearest clobbered offset 0
+      where NT put the dispatch: EXCEPTION_RECORD 584 bytes below the interrupted rsp, CONTEXT 1848 below, the handler's own frame 2604 below
+  q2  the same leaf hits int3; the handler steps over it: 0 of 1000 runs lost a byte; nearest 0
+  q3  the same leaf, no fault at all: 0 runs lost a byte (the leaf does not corrupt itself)
+  q4  the handler deliberately flips one byte eight below rsp: 1000 of 1000 runs lost a byte; nearest 8 (the watcher can see)
+      faults handled 1000, breakpoints 2000, unexpected exceptions 0
+
+raw
+
+    handler_installed=1
+    q1_lazy_commit_fault_runs=1000
+    q1_lazy_commit_fault_runs_with_loss=0
+    q1_lazy_commit_fault_bytes_lost_min=0
+    q1_lazy_commit_fault_bytes_lost_max=0
+    q1_lazy_commit_fault_nearest_clobbered_offset=0
+    q1_lazy_commit_fault_context_below_rsp=1848
+    q1_lazy_commit_fault_record_below_rsp=584
+    q1_lazy_commit_fault_handler_frame_below_rsp=2604
+    q2_breakpoint_runs=1000
+    q2_breakpoint_runs_with_loss=0
+    q2_breakpoint_bytes_lost_min=0
+    q2_breakpoint_bytes_lost_max=0
+    q2_breakpoint_nearest_clobbered_offset=0
+    q2_breakpoint_context_below_rsp=1848
+    q2_breakpoint_record_below_rsp=584
+    q2_breakpoint_handler_frame_below_rsp=2604
+    q3_control_no_fault_runs=1000
+    q3_control_no_fault_runs_with_loss=0
+    q3_control_no_fault_bytes_lost_min=0
+    q3_control_no_fault_bytes_lost_max=0
+    q3_control_no_fault_nearest_clobbered_offset=0
+    q3_control_no_fault_context_below_rsp=0
+    q3_control_no_fault_record_below_rsp=0
+    q3_control_no_fault_handler_frame_below_rsp=0
+    q4_control_handler_clobbers_runs=1000
+    q4_control_handler_clobbers_runs_with_loss=1000
+    q4_control_handler_clobbers_bytes_lost_min=1
+    q4_control_handler_clobbers_bytes_lost_max=1
+    q4_control_handler_clobbers_nearest_clobbered_offset=8
+    q4_control_handler_clobbers_context_below_rsp=1848
+    q4_control_handler_clobbers_record_below_rsp=584
+    q4_control_handler_clobbers_handler_frame_below_rsp=2604
+    faults_handled=1000
+    breakpoints_handled=2000
+    unexpected_exceptions=0
+
+verdict
+
+    finding=redzone-intact-through-fault-dispatch

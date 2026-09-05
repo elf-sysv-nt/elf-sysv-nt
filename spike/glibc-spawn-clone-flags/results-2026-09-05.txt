@@ -1,0 +1,49 @@
+what glibc 2.28 asks the kernel for in posix_spawn and vfork
+
+host        ins-15
+libc        /c/-/el8/vendor-image-shape/ref/usr/lib64/libc-2.28.so
+objdump     GNU objdump (GNU Binutils) 2.42
+date        2026-09-05T20:50:49Z
+script      measure 1.0
+
+reading, question by question
+
+  q1  posix_spawn -> __spawni -> __spawnix -> __clone: posix-spawn-clones-with-vm-and-vfork
+      flags 0x4111: CLONE_VM yes, CLONE_VFORK yes, exit signal SIGCHLD yes; child function <__spawni_child>
+  q2  __vfork: vfork-is-syscall-58; return address popped before and pushed after the instruction: 1/1
+
+raw
+
+    posix_spawn_calls_spawni=1
+    posix_spawnp_calls_spawni=1
+    spawni_reaches_spawnix=1
+    spawnix_calls_clone=1
+    spawnix_clone_flags=0x4111
+    spawnix_clone_vm=1
+    spawnix_clone_vfork=1
+    spawnix_clone_sigchld=1
+    spawnix_child=<__spawni_child>
+    vfork_symbols=1
+    vfork_syscall_nr=0x3a
+    vfork_pops_return_address=1
+    vfork_pushes_return_address=1
+
+    __spawnix, the call and what feeds it:
+          12cfb3:	mov    $0x4111,%edx
+          12cfb8:	lea    (%r15,%rbp,1),%rsi
+          12cfbc:	mov    %rbx,%rcx
+          12cfbf:	xor    %eax,%eax
+          12cfc1:	lea    0x158(%rip),%rdi        # 12d120 <__spawni_child>
+          12cfc8:	call   39910 <__clone>
+
+    __vfork, the first six instructions:
+           38910:	endbr64
+           38914:	pop    %rdi
+           38915:	mov    $0x3a,%eax
+           3891a:	syscall
+           3891c:	push   %rdi
+           3891d:	cmp    $0xfffff001,%eax
+
+verdict
+
+    finding=posix-spawn-clones-with-vm-and-vfork,vfork-is-syscall-58

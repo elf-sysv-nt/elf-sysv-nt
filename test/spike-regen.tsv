@@ -159,3 +159,9 @@ whp-gpa-map	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 whp-partition-cost	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 whp-pagetable-fork	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 whp-clone-host	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+# Proposal 0012's phase 0: two fact forks the review of 0011 raised from
+# memory, measured before the design leaned on either. glibc-spawn-clone-flags
+# reads the vendor libc the vendor-image-shape spike stages; redzone-sync-fault
+# builds native with mingw and needs nothing.
+glibc-spawn-clone-flags	$ELFSYSVNT_EL8/vendor-image-shape/ref/usr/lib64/libc-2.28.so	results-2026-[0-9]*.txt	bash measure.sh -o -
+redzone-sync-fault	-	results-2026-[0-9]*.txt	bash measure.sh -o -
