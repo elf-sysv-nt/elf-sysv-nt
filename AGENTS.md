@@ -19,9 +19,8 @@ What has been built is tracked in
 `bin/refresh-next-steps.py` renders as the `Next-Steps.md` dashboard; both
 documents here are the plan rather than the record of progress, and may be
 wrong about anything not yet built. `doc/ROADMAP.md` inventories what has to be
-written once the spikes have answered, and `veneer:doc/IMPLEMENTATION-PLAN.md` cuts
-that inventory into work packages; both are written along the recommended path
-and name the branch where a spike could send the program elsewhere.
+written, and proposal 0011 § 18 cuts it into phases in dependency order; both
+name the branch where a measurement could send the program elsewhere.
 
 ## Risks worth knowing before touching anything
 
@@ -169,8 +168,8 @@ records and the proposals behind them. `doc/history/` holds what was true and
 is kept as reasoning rather than as a plan — the founding surveys, the closed
 design-gaps review, the landed handoffs — and nothing there is authority for
 present behaviour. `doc/` itself keeps the plans and the ledgers, which are
-neither: `veneer:doc/IMPLEMENTATION-PLAN.md`, `doc/ROADMAP.md`, `doc/milestones.md`,
-`doc/deferred-work.md`, `doc/status/`, and the generated `veneer:doc/Next-Steps.md`.
+neither: `doc/ROADMAP.md`, `doc/milestones.md`, `doc/deferred-work.md` and
+`doc/status/`, plus the Next-Steps dashboard, which is generated and untracked.
 A document whose claim changes class moves, and the citations move with it in
 the same commit.
 
@@ -213,10 +212,11 @@ the agent records taken before the convention existed.
 A governed set states what the system is, in the present tense, current at
 every commit: `doc/design/Requirements.md`, `doc/design/Architecture.md`,
 `doc/design/Verification-Plan.md`, `doc/design/target-definition.md`,
-`doc/design/licensing.md`, and this file, plus four sub-documents carrying a
-subsystem each — `veneer:doc/design/ABI-Boundary.md`,
-`veneer:doc/design/Symbol-Resolution.md`, `doc/design/Address-Space.md` and
-`veneer:doc/design/Runtime-Crossing.md`. Read them to learn the design; read the
+`doc/design/licensing.md`, `doc/design/test-environment.md` and this file, plus
+`doc/design/Address-Space.md` for the subsystem that has grown its own
+document. `doc/design/Substrate-Interface.md`, `doc/design/Substrate-N.md` and
+`doc/design/Core-Phase1.md` carry the layers that are built. Read them to learn
+the design; read the
 records to learn why it is that and not something else, or what it was before.
 The bar on all of them is that a reader implementing a layer never has to open
 a record to find a value, a constant, a limit or a rule.
@@ -280,8 +280,9 @@ proposing anything about the triple. The fields are `cpu-vendor-kernel-os`,
 `gnu` is glibc without qualification, and `linux` is a claim this project means
 everywhere except raw syscall dispatch. Neither load-bearing field is a lie, so
 "the triple is dishonest" is not an opening for a reopen; the measured price of
-substituting either is in that record and in
-`veneer:doc/design/proposals/0004-the-bounded-linux-claim.md`.
+substituting either is in that record, and proposal 0011 inverts the claim:
+the `syscall` instruction is never reached under substrate N and is the
+interface itself under H.
 
 The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
 FS base does not survive a context switch, or even a preemption, on this
