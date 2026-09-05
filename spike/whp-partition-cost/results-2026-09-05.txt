@@ -1,0 +1,91 @@
+what a partition and a vCPU cost, and how many one process may hold
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    gcc (GCC) 14.4.0
+processors  12
+date        2026-09-05T20:22:14Z
+script      measure 1.0
+probe       partition-probe 1.0
+
+reading, question by question
+
+  q1  create, size to one processor, set up: 40 of 40; median 404100 ns, delete 643800 ns
+  q2  the whole way to the first exit (create, set up, map, vCPU, registers, run): 40 of 40; median 831400 ns
+  q3  partitions one process may hold with memory mapped: one-mapped-partition-per-process
+      held 1 before a refusal at stage map (0xffffffffc0370008); a second process holding its own: held
+      two set-up partitions both mapping: refused; the other may map once the first unmaps: accepted
+  q3c one section, two processes, two partitions: section-shared-across-processes (mapped,sees-parent-write:1)
+  q4  ProcessorCount accepted up to 2048; 240 of 256 vCPUs created (refusal 0xffffffffc035000e), 240 ran to a halt; create median 141400 ns
+  q5  one vCPU run alternately from two threads: vcpu-hands-off-between-threads
+  q6  8 vCPUs exiting at once: concurrent-exits-run; single-vCPU exit 5900 ns, concurrent per-vCPU medians 6100 to 9300 ns
+      aggregate 834799 exits/s against 169491 for one vCPU
+
+raw
+
+    hypervisor_present=1
+    host_processors=12
+    q1_created=40
+    q1_create_setup_median_ns=404100
+    q1_create_setup_p99_ns=1987500
+    q1_create_setup_min_ns=382200
+    q1_create_setup_samples=40
+    q1_delete_median_ns=643800
+    q1_delete_p99_ns=985500
+    q1_delete_min_ns=558000
+    q1_delete_samples=40
+    q2_first_run_ok=40
+    q2_create_to_first_exit_median_ns=831400
+    q2_create_to_first_exit_p99_ns=914700
+    q2_create_to_first_exit_min_ns=683100
+    q2_create_to_first_exit_samples=40
+    q3_partitions_held=1
+    q3_cap=512
+    q3_stopped_by=refusal
+    q3_refusal_hresult=0xffffffffc0370008
+    q3_refusal_stage=map
+    q3_second_process=held
+    q3_second_process_exit=0
+    q3_private_kb_per_partition=32868
+    q3_delete_all_ns=2072500
+    q3b_two_partitions_set_up=1
+    q3b_second_created_maps_first=0x00000000
+    q3b_first_created_maps_second=0xffffffffc0370008
+    q3b_two_partitions_both_map=refused
+    q3b_other_maps_after_unmap=accepted:0x00000000
+    q3c_parent_maps_view=0x00000000
+    q3c_child_maps_own_view=mapped,sees-parent-write:1
+    q3c_child_exit=0
+    q4_processor_count_max_accepted=2048
+    q4_processor_count_refused=none
+    q4_vcpus_attempted=256
+    q4_vcpus_created=240
+    q4_vcpu_create_refusal_hresult=0xffffffffc035000e
+    q4_private_kb_per_vcpu=0
+    q4_vcpu_create_median_ns=141400
+    q4_vcpu_create_p99_ns=11116700
+    q4_vcpu_create_min_ns=100400
+    q4_vcpu_create_samples=240
+    q4_vcpus_ran_to_halt=240
+    q5_setup=1
+    q5_handoff=alternates
+    q5_halts_a=1000
+    q5_halts_b=1000
+    q5_run_failures=0
+    q5_loop_count_rax=2000
+    q6_setup=1
+    q6_vcpus=8
+    q6_exits_per_vcpu=5000
+    q6_single_vcpu_median_ns=5900
+    q6_single_vcpu_failures=0
+    q6_concurrent=ran
+    q6_concurrent_failures=0
+    q6_concurrent_median_ns_min=6100
+    q6_concurrent_median_ns_max=9300
+    q6_aggregate_exits_per_second=834799
+    q6_single_exits_per_second=169491
+
+verdict
+
+    finding=one-mapped-partition-per-process,section-shared-across-processes,created-vcpus-all-run,vcpu-hands-off-between-threads,concurrent-exits-run

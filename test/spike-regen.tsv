@@ -150,3 +150,12 @@ whp	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 # substrate-interface calls. Needs the hypervisor present, which its own q1
 # measures rather than requiring up front.
 whp-vcpu-interrupt	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+# The H-topology measurements of 2026-09-05: what
+# WHvMapGpaRange does to host memory, what a partition costs and how many one
+# process may hold, fork as a page-table copy in one partition, and a clone of
+# a partition-holding Win32 process. Each needs the hypervisor present, which
+# its own first key measures; whp-clone-host builds native with mingw.
+whp-gpa-map	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+whp-partition-cost	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+whp-pagetable-fork	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+whp-clone-host	-	results-2026-[0-9]*.txt	bash measure.sh -o -

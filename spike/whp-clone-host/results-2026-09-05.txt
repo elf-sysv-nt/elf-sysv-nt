@@ -1,0 +1,111 @@
+RtlCloneUserProcess of a process holding a WHP partition
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-05T20:38:40Z
+script      measure 1.0
+probe       clone-host-probe 1.0
+
+reading, question by question
+
+  q1  the parent: kernel32 yes, WinHvPlatform yes, its partition runs to a halt yes
+  q2a a clone whose first WHP call runs the inherited partition handle: hangs (child stopped at step 1)
+  q2  a clone that builds its own partition first: reported, ran yes
+      heap yes, event yes, wait yes, VirtualAlloc yes, TLS yes, LoadLibrary no
+      own partition to first halt yes in 2371900 ns; a second mapped partition beside it: 0xc0370008
+      the inherited handle, run last: returned, exit reason 0x8
+  q3  the parent's partition still runs after the clones: yes
+  q4  clone cost, 4 MB mapped: median 3964100 ns over 20, 0 failures
+  q5  clone cost, 256 MB touched and mapped (0x00000000): median 7716400 ns, 0 failures; child report as q2: yes
+      control, the same 256 MB touched and unmapped: median 7959700 ns
+
+raw
+
+    rtlclone_available=1
+    hypervisor_present=1
+    q1_kernel32_loaded=1
+    q1_winhvplatform_loaded=1
+    q1_parent_partition_first_exit_halt=1
+    q2a_clone_status=0x00000000
+    q2a_child=hung
+    q2a_child_ran=1
+    q2a_child_last_step=1
+    q2a_inherited_handle_run_hresult=0x00000000
+    q2a_inherited_handle_run_reason=0x0
+    q2a_heap_ok=0
+    q2a_event_ok=0
+    q2a_wait_ok=0
+    q2a_virtualalloc_ok=0
+    q2a_tls_ok=0
+    q2a_loadlibrary_ok=0
+    q2a_partition_create_hresult=0x00000000
+    q2a_partition_setup_hresult=0x00000000
+    q2a_partition_map_hresult=0x00000000
+    q2a_partition_vcpu_hresult=0x00000000
+    q2a_partition_regs_hresult=0x00000000
+    q2a_partition_first_exit_reason=0x0
+    q2a_partition_first_exit_halt=0
+    q2a_partition_create_to_exit_ns=0
+    q2a_second_partition_map_hresult=0x00000000
+    q2a_inherited_handle_run=hangs
+    q2_clone_status=0x00000000
+    q2_child=reported
+    q2_child_ran=1
+    q2_child_last_step=8
+    q2_inherited_handle_run_hresult=0x00000000
+    q2_inherited_handle_run_reason=0x8
+    q2_heap_ok=1
+    q2_event_ok=1
+    q2_wait_ok=1
+    q2_virtualalloc_ok=1
+    q2_tls_ok=1
+    q2_loadlibrary_ok=0
+    q2_partition_create_hresult=0x00000000
+    q2_partition_setup_hresult=0x00000000
+    q2_partition_map_hresult=0x00000000
+    q2_partition_vcpu_hresult=0x00000000
+    q2_partition_regs_hresult=0x00000000
+    q2_partition_first_exit_reason=0x8
+    q2_partition_first_exit_halt=1
+    q2_partition_create_to_exit_ns=2371900
+    q2_second_partition_map_hresult=0xc0370008
+    q2_inherited_handle_run=returned
+    q3_parent_partition_runs_after_clone=1
+    q3_parent_run_hresult=0x00000000
+    q4_clone_iterations=20
+    q4_clone_failures=0
+    q4_clone_median_ns_4mb_mapped=3964100
+    q5_map_256mb_hresult=0x00000000
+    q5_clone_failures=0
+    q5_clone_median_ns_260mb_mapped=7716400
+    q5_clone_status=0x00000000
+    q5_child=reported
+    q5_child_ran=1
+    q5_child_last_step=8
+    q5_inherited_handle_run_hresult=0x00000000
+    q5_inherited_handle_run_reason=0x8
+    q5_heap_ok=1
+    q5_event_ok=1
+    q5_wait_ok=1
+    q5_virtualalloc_ok=1
+    q5_tls_ok=1
+    q5_loadlibrary_ok=0
+    q5_partition_create_hresult=0x00000000
+    q5_partition_setup_hresult=0x00000000
+    q5_partition_map_hresult=0x00000000
+    q5_partition_vcpu_hresult=0x00000000
+    q5_partition_regs_hresult=0x00000000
+    q5_partition_first_exit_reason=0x8
+    q5_partition_first_exit_halt=1
+    q5_partition_create_to_exit_ns=1182000
+    q5_second_partition_map_hresult=0xc0370008
+    q5_inherited_handle_run=returned
+    q5_parent_partition_runs_after=1
+    q5b_clone_failures=0
+    q5b_clone_median_ns_256mb_touched_unmapped=7959700
+
+verdict
+
+    finding=clone-runs,win32-works-loadlibrary-fails,child-builds-and-runs-partition,inherited-handle-hangs-first-runs-after-own,one-mapped-partition-in-child,parent-partition-survives-clones,clones-with-mapped-memory-succeed
