@@ -66,7 +66,7 @@ consulted.
 
 ## Consequences
 
-`doc/design/Address-Space.md` states the scope in prose and describes the
+`doc/history/veneer-address-space.md` states the scope in prose and describes the
 sole-runtime shape separately, so the governing document answers the question
 without a reader reaching the records at all.
 

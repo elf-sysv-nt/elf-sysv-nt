@@ -27,10 +27,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
 
 GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
-            'doc/design/ABI-Boundary.md', 'doc/design/Symbol-Resolution.md',
-            'doc/design/Address-Space.md', 'doc/design/Runtime-Crossing.md',
-            'doc/design/Verification-Plan.md', 'doc/design/glibc-reuse.md',
-            'doc/design/target-definition.md', 'doc/design/licensing.md', 'AGENTS.md')
+            'doc/design/Verification-Plan.md', 'doc/design/target-definition.md',
+            'doc/design/licensing.md', 'doc/design/test-environment.md',
+            'doc/design/Substrate-Interface.md', 'doc/design/Substrate-N.md',
+            'doc/design/Core-Phase1.md', 'AGENTS.md')
 
 INDEX_ROW = re.compile(r'^\|\s*\[(\d{4})\]\(([^)]+)\)\s*\|')
 TIER = re.compile(r'\b[Tt]ier (\d)\b')

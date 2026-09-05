@@ -3,9 +3,11 @@
 What this system is, in the present tense. A reader who wants to know why a
 thing is the way it is goes to `doc/design/decisions/`; a reader who wants to
 know what is built goes to `doc/status/`. Proposal 0011 is the design of
-record, and it is long, complete and accepted: this document is the map over
-it, not a summary of it. Where 0011 settles something in detail, the section
-here says what the shape is and points at the section that carries the detail.
+record, completed by proposal 0012 where 0011 was silent or spoke for one
+substrate only; both are accepted, and this document is the map over them,
+not a summary of them. Where a proposal settles something in detail, the
+section here says what the shape is and points at the section that carries
+the detail.
 
 A section a decision record settled ends in one line naming the records.
 
@@ -35,7 +37,9 @@ Settled by: DR-0097.
 
 ## The shape of the system
 
-One kernel, two substrates, one interface between them.
+One kernel, two substrates, and two seams beneath the kernel on different
+axes: the substrate interface, which is how user code is run, and the process
+seam, which is where state that crosses Linux processes lives.
 
 The **core** is the Linux personality: the syscall table, the process and
 thread model, signals, the VMA tree, the VFS, and the descriptor layer. It is
@@ -43,6 +47,29 @@ written once and knows nothing about NT. `bin/check-substrate-line` enforces
 that mechanically — nothing above the line may name `Nt*`, `WHv*`, `CONTEXT`,
 an NT `HANDLE` type, or dereference a user pointer — and it walks `core/` on
 every gate run.
+
+The **process seam** is what one Linux process cannot own: pid allocation
+and parent links, process groups and sessions, wait queues and exit status,
+signal send to another process, ttys and the line discipline, the `AF_UNIX`
+rendezvous namespace, the SysV and POSIX IPC namespaces, advisory locks, the
+inotify registry, process-shared futex queues, and `SIGKILL`, `SIGSTOP` and
+`SIGCONT` applied to a process that may not be responding. The core calls
+it as an interface; its realisation is chosen with the substrate. Under N it
+is the supervisor, `lk-init.exe`, reached over ALPC with a shared page and
+named sections, because under N every Linux process is an NT process and
+nothing else can hold the table. Under H it is a set of tables in the one
+kernel process, and the calls are calls. The core is written against the
+seam and never against ALPC by name, for the same reason it is written
+against the nine calls and never against `Nt*`.
+
+The core never hands a host call a user address. Every byte that moves
+between user memory and a host object goes through `user_copy_in` or
+`user_copy_out` and a kernel buffer, in chunks; Phase 1's `write` is the
+pattern. Under N a user buffer in a lazily committed range fails inside the
+host call, since the I/O manager probes it in kernel mode where no vectored
+handler runs; under H a user address is a guest virtual address no host call
+can take. The rule holds for both substrates and is the reason the host glue
+takes kernel pointers and lengths and never a user address.
 
 A **substrate** is the nine calls the core needs from whatever is underneath:
 `as_map`, `as_unmap`, `as_protect`, `as_clone`, `thread_start`,
@@ -64,11 +91,23 @@ segment register under each, and a sentence that leaves the substrate out is
 wrong about one of them.
 
 **Substrate H** is the hypervisor: WHP vCPUs running shipped el8 binaries
-unmodified, at about five microseconds a syscall against N's one. It is
-designed, its nine calls are each backed by a landed spike, and it is not
-built. The two exist because different deployments need different ones, and
-the choice is not always the fast one: a client environment with nested
-virtualisation outside support forces N whatever the measurements say.
+unmodified, at about five microseconds a syscall against N's one. Its shape
+is one kernel process per Windows user per installation root,
+`lk-kernel.exe`, a Win32 process because `WinHvPlatform.dll` needs
+`kernel32`, holding one partition; a Linux process is a page-table root in
+guest physical memory, a Linux thread is a task that runs on a vCPU from a
+pool while in user mode and holds an NT thread of its own for the kernel's
+waits. The shape is measured rather than chosen: a process may hold one
+mapped partition at a time on this host (spike 43), so a partition per
+Linux process inside the kernel process is not available, and a host
+process per Linux process was measured (spike 45) and declined for its fork
+cost. H is designed, its nine calls are each backed by a landed spike, and
+it is not built. The two substrates exist because different deployments
+need different ones, and the choice is not always the fast one: a client
+environment with nested virtualisation outside support forces N whatever
+the measurements say, and a client that needs stock el8 binaries forces H.
+
+Settled by: DR-0098.
 
 ## The gate, and what has run
 
@@ -78,6 +117,17 @@ the auxiliary vector as `AT_SYSINFO` and user code reaches it with a plain
 `%rdi %rsi %rdx %r10 %r8 %r9`, result in `%rax`, with `%rcx` and `%r11`
 clobbered. The gate switches to a per-thread kernel stack before running any
 core frame, captures the call, and restores the user state on the way out.
+
+A syscall interrupted by a signal restarts through a vDSO stub under N,
+because there is no two-byte instruction to back `%rip` over: the gate saves
+the number at entry as `orig_rax`, and when its exit path finds a restartable
+result with a handler to run, the signal frame names `__lk_restart` (`jmp
+*_lk_gate`) as `%rip`, the gate-entry `%rsp` still holding the original
+return address, and `%rax` reset from `orig_rax`; `rt_sigreturn` lands in
+the stub and the stub re-enters the gate with the stack exactly as the
+original `call` left it. Under H the instruction is real and the restart is
+Linux's own rewind. `ptrace` reads `orig_rax` from the gate's saved word
+under N and from the shim's spill under H.
 
 Phase 1 of the core is built and runs: a static ELF written to that ABI is
 mapped through the substrate, entered on the psABI initial stack with its
@@ -201,31 +251,56 @@ Settled by: DR-0011, DR-0016, DR-0022, DR-0027, DR-0073.
 
 ## Process shape
 
-`fork` clones the address space. Under N that is `RtlCloneUserProcess`, the
-fork-shaped wrapper over `NtCreateUserProcess`, which returns
-`STATUS_PROCESS_CLONED` in a child on a live thread; the raw path of creating a
-process from a null section clones the address space but cannot start a thread
-in it. Under H the kernel owns the guest page tables, so `fork` is the ordinary
-one: mark every writable entry read-only in parent and child, and copy on the
-first write fault. What crosses the fork is enumerated rather than assumed
-either way, and the child checks what it received rather than trusting that it
-arrived.
+`fork` clones the address space, and the two substrates do it in different
+processes. Under N a Linux process is an NT process and `fork` is
+`RtlCloneUserProcess`, the fork-shaped wrapper over `NtCreateUserProcess`,
+which returns `STATUS_PROCESS_CLONED` in a child on a live thread (spike 35:
+the raw null-section clone copies the address space but cannot start a
+thread in it; the wrapper measured 5.1 ms on a small process). Under H every
+Linux process is a page-table root in the one kernel process, and `fork` is
+the kernel's own: copy the tables, clear the write bit in every eligible leaf
+of both trees, count the frames, and resolve the first write on either side
+when the guest's `#PF` reaches the kernel as an exception exit, with `%rip`
+still at the store and no flush needed (spike 44: 0.5 to 0.75 ms for 576 MB
+of tables, about 25 µs a copy-on-write fault). What crosses the fork is
+enumerated rather than assumed either way, and the child checks what it
+received rather than trusting that it arrived.
+
+`vfork`, and `clone` with `CLONE_VM | CLONE_VFORK`, is what el8's glibc 2.28
+`posix_spawn` issues (spike 46: `__spawnix` calls `__clone` with `0x4111`,
+and `__vfork` is syscall 58). Under H it is a task on the parent's root with
+the parent's tasks held until `execve` or exit, which is Linux's semantics
+exactly. Under N there is no shared address space to offer, so it is a fork
+plus a wait, and the `sysdeps` port patches `spawni.c` back to the pipe-based
+error report and `vfork.S` to a fork; a program relying on `vfork`'s shared
+memory in its own code sees a recorded divergence under N.
 
 A signal is delivered by building a frame on the target's stack and resuming
 it there. The frame is built below the red zone, so a handler that returns into
 code relying on those 128 bytes finds them intact, and a thread already inside
 a kernel wait takes the delivery when the wait returns rather than in the
-middle of it.
+middle of it. That holds on both delivery paths: the asynchronous one, where
+the kernel builds the frame (spike 38), and the synchronous one under N,
+where NT dispatches a fault on the faulting thread and places its own records
+568 bytes and more below the interrupted `%rsp` (spike 47). `SIGSTOP`,
+`SIGCONT` and `SIGKILL` are the process seam's: under N the supervisor
+applies `NtSuspendProcess`, `NtResumeProcess` and `NtTerminateProcess` to the
+process handle; under H the kernel marks the tasks, cancels those on vCPUs,
+and releases the root.
 
 A fatal signal leaves an ELF core, written by the kernel from the VMA tree and
 the thread state it already holds.
 
-Settled by: DR-0029, DR-0030, DR-0033.
+Settled by: DR-0029, DR-0030, DR-0033, DR-0099.
 
 ## The address space
 
-`doc/design/Address-Space.md` carries this in detail. The two substrates differ
-here as much as they do over the thread pointer.
+The kernel keeps the address space of record itself, a tree of VMAs it edits
+first and asks the substrate to realise second, under both substrates. The
+two substrates differ here as much as they do over the thread pointer.
+`AT_PAGESZ` reports 4096 under both: it is the unit at which presence and
+protection change once memory is mapped, which is what a program does
+arithmetic with, and not the unit at which a reservation may start.
 
 **Under N** the kernel reserves the user range as a placeholder in the sense
 `NtAllocateVirtualMemoryEx` gives the word, and replaces pieces of it with
@@ -243,9 +318,22 @@ machine's measurement.
 **Under H** none of that applies. The kernel writes the guest page tables, so a
 VMA is realised at page granularity by writing entries, a file mapping at any
 alignment is a question of which host pages back which guest pages, and there
-is no arena because there is no NT VAD in the guest's way. The lazy-commit
-handler still exists, one level down, because the host memory behind guest
-physical pages is still NT memory in the host process.
+is no arena because there is no NT VAD in the guest's way. Guest physical
+memory is the kernel process's own address space mapped into the partition,
+identity, and the mapping is lazy and pins nothing (spike 42): a reserved
+host range sits behind a mapping until the guest touches it, the touch
+arrives as a memory-access exit that says the GPA is mapped and the host page
+absent, and the kernel commits there. That exit is the lazy-commit handler
+one level down. A first touch costs about 13 µs against 4 µs for a resident
+page, so the kernel commits and populates in 2 MB chunks around a fault
+rather than page by page; `MADV_DONTNEED` is a decommit, and the guest's next
+touch is the same exit.
+
+The veneer's address-space protocol, a low window a parent reserved for a
+suspended child and mapped through Cygwin's `mmap`, is history
+(`doc/history/veneer-address-space.md`) and none of its records govern here.
+
+Settled by: DR-0014, DR-0098, DR-0100.
 
 ## Verification
 
@@ -276,11 +364,21 @@ program end to end. It has not run a real el8 binary, a dynamic image, a second
 thread, or a signal.
 
 Substrate H is unbuilt. Its nine calls are each backed by a spike, including
-the interrupt call that the two-substrate bet depends on, but no core has sat
-on it.
+the interrupt call that the two-substrate bet depends on, and its shape (one
+kernel process, one partition, a root per Linux process) is backed by spikes
+42 to 45, but no core has sat on it. The vCPU pool was measured at two
+threads over one vCPU, not a pool over many; the lazy mapping at one
+gigabyte on an idle host, not at tens under pressure; the copy-on-write fault
+from ring 0, not ring 3.
+
+The process seam is an inventory restated from 0011's supervisor, not a
+built interface; phase 3 will find what it misses. The keyed-event protocol
+for process-shared futexes under N is a design; criterion 12 under contention
+is its measurement.
 
 Everything in "The loader" and "Process shape" above is designed and recorded,
-and none of it is built. Those sections describe what the records settle, which
-is not the same as describing what runs. The distinction is the one this
+and none of it is built. The restart stub under "The gate" is a design too;
+Phase 1 delivers no signals. Those sections describe what the records settle,
+which is not the same as describing what runs. The distinction is the one this
 document exists to keep, and it is easier to lose here than anywhere else in
 the tree.

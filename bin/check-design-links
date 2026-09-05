@@ -42,7 +42,7 @@ import os, re, sys
 VERSION = 'check-design-links 1.0'
 
 GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
-            'doc/design/Address-Space.md', 'doc/design/Verification-Plan.md',
+            'doc/design/Verification-Plan.md',
             'doc/design/target-definition.md', 'doc/design/licensing.md',
             'doc/design/test-environment.md', 'AGENTS.md')
 ADOPTION = 75            # the convention's own record; at or below it, no Amends
@@ -165,9 +165,17 @@ def assert_citations_resolve(root, rows, lines, verbose):
     return n, bad
 
 
-def assert_amends(root, verbose):
+def assert_amends(root, rows, verbose):
     bad, n = [], 0
     for num, fname in record_files(root):
+        # A retired record stands where it was taken, and the section it amended
+        # may have left the governed set with it (DR-0077 amends the veneer's
+        # Address-Space.md, now under doc/history/). Its Amends line is history,
+        # not a link the tree has to keep resolving.
+        if num != 'XXXX' and num in rows and not in_force(rows[num][1]):
+            if verbose:
+                print('  DR-%s superseded, Amends not required to resolve' % num)
+            continue
         path = os.path.join(root, 'doc', 'design', 'decisions', fname)
         header = read(path).split('\n')[:20]
         line, lineno = None, 0
@@ -251,7 +259,7 @@ def main(argv):
     checks = (
         ('records homed', lambda: assert_every_record_cited(root, rows, lines, verbose)),
         ('citations', lambda: assert_citations_resolve(root, rows, lines, verbose)),
-        ('amends', lambda: assert_amends(root, verbose)),
+        ('amends', lambda: assert_amends(root, rows, verbose)),
         ('governed set', lambda: assert_governed_set(root)),
     )
     for label, fn in checks:

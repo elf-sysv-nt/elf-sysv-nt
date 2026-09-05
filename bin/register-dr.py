@@ -14,13 +14,13 @@ def main():
     if len(sys.argv) != 2:
         sys.exit("usage: register-dr.py '<row>'")
     row = sys.argv[1].rstrip("\n")
-    if not re.match(r"^\| \[00\d\d\]\(00", row):
+    if not re.match(r"^\| \[\d{4}\]\(\d{4}", row):
         sys.exit("row does not look like a DR index row: %r" % row)
     with open(INDEX, encoding="utf-8") as fh:
         lines = fh.readlines()
     last = None
     for i, line in enumerate(lines):
-        if re.match(r"^\| \[00\d\d\]\(", line):
+        if re.match(r"^\| \[\d{4}\]\(", line):
             last = i
     if last is None:
         sys.exit("no existing DR rows in %s" % INDEX)

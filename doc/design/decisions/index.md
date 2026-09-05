@@ -30,7 +30,7 @@ the pair and says which reading is current.
 | [0005](0005-bounded-linux-claim.md) | The `linux` field is a bounded claim, not a lie; DR-0001 stands | accepted 2026-08-29 | 0004 |
 | [0006](0006-red-zone-direction.md) | The red zone is repaired at the delivery site; `-mno-red-zone` is scaffolding | accepted 2026-08-29; superseded by 0050 | none |
 | [0007](0007-runtime-base-version.md) | The runtime is based on Cygwin 3.6.10 (`newlib-cygwin` b11613e47), not the pinned 3.0.7 | accepted 2026-08-30; superseded by 0097 | none |
-| [0008](0008-mmap-granule-protection.md) | Segment mapping goes through the runtime's `mmap`, one region per object, protection at the host granule; a granule-sharing object is refused | accepted 2026-08-30 | none |
+| [0008](0008-mmap-granule-protection.md) | Segment mapping goes through the runtime's `mmap`, one region per object, protection at the host granule; a granule-sharing object is refused | accepted 2026-08-30; superseded by 0100 | none |
 | [0009](0009-down-call-wrapper-convention.md) | The down-call wrapper is a signature-agnostic `ms_abi` tail jump; translation lands at the call site | accepted 2026-08-30; superseded by 0097 | none |
 | [0010](0010-veneer-header-provenance.md) | The veneer's `features.h` is el8's arithmetic, copied not paraphrased | accepted 2026-08-30; superseded by 0097 | none |
 | [0011](0011-ldso-cache-format.md) | the loader's cache is this project's own format, not glibc's | accepted 2026-08-30 | none |
@@ -45,7 +45,7 @@ the pair and says which reading is current.
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
 | [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30; superseded by 0097 | none |
 | [0027](0027-the-exec-branch-and-the-interpreter-limit.md) | one classifier for the exec branch, and a four-hop interpreter limit | accepted 2026-08-30 | none |
-| [0028](0028-the-low-window-is-reserved-by-the-parent.md) | the low window is reserved by the parent, into a suspended stub | accepted 2026-08-30 | none |
+| [0028](0028-the-low-window-is-reserved-by-the-parent.md) | the low window is reserved by the parent, into a suspended stub | accepted 2026-08-30; superseded by 0100 | none |
 | [0029](0029-what-crosses-the-fork-and-how-it-is-checked.md) | what crosses the fork, and how the child knows | accepted 2026-08-30 | none |
 | [0030](0030-the-shape-of-a-signal-delivery.md) | the receiving thread builds the signal frame, and the return is an iretq | accepted 2026-08-30 | none |
 | [0031](0031-status-lives-in-a-tracked-ledger.md) | build status is a tracked ledger and the worker is driven from the plan | accepted 2026-08-30 | none |
@@ -61,18 +61,21 @@ the pair and says which reading is current.
 | [0061](0061-images-are-linked-granule-separable.md) | every image the platform loads is linked granule-separable | accepted 2026-09-01 | none |
 | [0062](0062-cet-opt-out-is-a-toolchain-default.md) | CET opt-out belongs in the toolchain default, not only the rpm macros | accepted 2026-09-01 | none |
 | [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
-| [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01 | none |
+| [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01; superseded by 0100 | none |
 | [0070](0070-the-ladder-measures-before-it-escalates.md) | the decision ladder measures before it escalates | accepted 2026-09-01 | none |
 | [0073](0073-a-weak-undefined-is-not-a-demand.md) | a weak undefined symbol is not a demand on the runtime | provisional 2026-09-02 | none |
 | [0074](0074-lifts-are-cleared-by-text-and-practice.md) | a lift is cleared by licence text and recorded practice; LGPL-2.1-or-later is open | provisional 2026-09-02 | none |
 | [0075](0075-governing-documents-cite-their-records.md) | the governing documents carry the citations, and a checker holds them | accepted 2026-09-02 | 0006 |
 | [0076](0076-architecture-is-sized-by-coherence.md) | the architecture document is sized by coherence, not by a word ceiling | accepted 2026-09-02 | none |
-| [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03 | none |
+| [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03; superseded by 0100 | none |
 | [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
 | [0084](0084-every-check-is-designated-where-it-is-written.md) | every check carries a written designation in test/suites.tsv, and the gate tier matches ci/suites.txt | accepted 2026-09-03 | none |
 | [0095](0095-the-licence-is-chosen-not-inherited.md) | the licence is LGPL-2.1-or-later, chosen here rather than inherited from what the veneer derived from | accepted 2026-09-05 | 0011 |
 | [0096](0096-paths-resolve-from-named-roots.md) | scripts and registries resolve three named roots instead of writing a machine's paths out longhand | accepted 2026-09-05 | none |
 | [0097](0097-proposal-0011-is-ratified.md) | proposal 0011 is ratified, and every record whose subject is the veneer arc retires with it | accepted 2026-09-05 | 0011 |
+| [0098](0098-proposal-0012-is-ratified.md) | proposal 0012 is ratified: two seams under the core, one kernel process under H, the interface's object, the I/O rule | accepted 2026-09-05 | 0012 |
+| [0099](0099-vfork-and-clone-vm-per-substrate.md) | `vfork` and `CLONE_VM \| CLONE_VFORK` share the parent's memory under H and are a fork under N | accepted 2026-09-05 | 0012 |
+| [0100](0100-the-veneer-address-space-records-retire.md) | the veneer's address-space records (DR-0008, 0028, 0064, 0077) retire; `AT_PAGESZ` is rehomed | accepted 2026-09-05 | 0012 |
 
 ## What earns a record
 

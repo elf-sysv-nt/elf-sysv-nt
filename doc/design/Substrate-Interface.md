@@ -1,10 +1,10 @@
 
 The nine calls the core makes to run user code, and the contract each one owes,
 so that the core is written once and a substrate is an implementation rather
-than a rewrite. Proposal 0011 § 3 names the interface and sizes it; this is the
-protocol. `doc/design/Architecture.md` § The core and the two substrates places
-it; `doc/design/Address-Space.md` is the VMA protocol that sits just above
-`as_map`.
+than a rewrite. Proposal 0011 § 3 names the interface and sizes it; proposal
+0012 § 3 names the object the calls act on; this is the protocol.
+`doc/design/Architecture.md` § The shape of the system places it, and
+§ The address space is the VMA protocol that sits just above `as_map`.
 
 The whole value of the interface is a line the core does not cross. Above it
 sit the syscall table, the VFS, the process and signal model, epoll, sockets,
@@ -15,6 +15,20 @@ by its Linux tid and a range by its address, and never learns which substrate
 is under it. A substrate that cannot honour a call's contract without the core
 knowing is a leak, and a leak is where "the second is not a rewrite" stops
 being true.
+
+## The object
+
+Every call takes a substrate instance, `struct substrate *s` in the C form
+(`substrate/substrate.h`), and an instance is one address space together with
+the threads that run in it. The core holds one per Linux process: the first
+comes from `substrate_create` at the first `exec`, every later one from
+`as_clone` at `fork`, and `execve` reuses the instance with its ranges
+dropped. A tid names a thread within its instance and nowhere else. Under N an
+instance is an NT process, so `as_clone` produces a child process; under H an
+instance is a page-table root in the one kernel process, and the partition
+that runs every root is state shared by all instances, which no call names.
+That is why the interface needs no address-space argument: the receiver is
+the address space, and the C form has always said so.
 
 ## The nine calls
 
@@ -42,9 +56,10 @@ counted as one; `user_copy_in` and `user_copy_out` likewise. Nine, as § 3 says.
 **`as_map(vma, backing, offset, prot)`.** After it returns success, a load or
 store within the VMA that `prot` permits reads or writes the backing, and the
 range appears in the core's VMA tree as the core recorded it — the substrate
-does not keep its own map of record (Address-Space.md: the core keeps the map,
-the substrate realises edits to it). Backing is one of: anonymous zero-fill; a
-file at `offset`; a shared section; the vDSO; the stack. A first touch of an
+does not keep its own map of record (Architecture.md § The address space: the
+core keeps the map, the substrate realises edits to it). Backing is one of:
+anonymous zero-fill; a file at `offset`; a shared section; the vDSO; the
+stack. A first touch of an
 anonymous page reads as zero without the core having written it. The call is
 idempotent against the core's tree: re-realising a range the tree already
 describes is not an error, because `as_clone` and demand paging both re-issue
@@ -67,7 +82,14 @@ the parent's at the call, with copy-on-write semantics: a later write on either
 side is private to that side. This is `fork`'s address-space half; the core
 rebuilds the child's VMA tree from its own description and expects `as_clone` to
 have made the pages match. N realises it by the executive clone spike 35 proved
-(`RtlCloneUserProcess`); H by duplicating guest page tables copy-on-write.
+(`RtlCloneUserProcess`), and the child instance lives in a new NT process. H
+realises it by copying the parent's page-table tree in the kernel process,
+clearing the write bit in every copy-on-write-eligible leaf of both trees and
+counting the frames, and resolving the first write on either side when the
+guest's `#PF` reaches the kernel as an exception exit (spike 44: the exit
+carries the fault address and `%rip` at the store, the stale translation
+needs no flush, and the copy costs what the tables cost). The child instance
+is a new root in the same process.
 
 **`thread_start(tid, ctx, tls)`.** Begins executing user code for `tid` from the
 register state `ctx`, with the thread pointer at `tls`. Under N this is an NT
@@ -122,7 +144,8 @@ core owes these, or the abstraction leaks from the top.
 
 1. The core keeps the address space of record. Every `mmap`/`munmap`/`mprotect`
    edits the VMA tree first and asks the substrate to realise it second
-   (Address-Space.md). The core never reads back a map from the substrate.
+   (Architecture.md § The address space). The core never reads back a map
+   from the substrate.
 2. The core touches user memory only through `user_copy_*`. No direct
    dereference of a user address anywhere above the line — that is what lets H
    put user memory in guest-physical space the core cannot name directly.

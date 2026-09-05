@@ -1,4 +1,18 @@
-# The address space
+# The veneer's address space
+
+History, not design. This was doc/design/Address-Space.md from 2026-08-30
+to 2026-09-05: the address-space protocol of the veneer arc, in which a
+Cygwin-derived runtime mapped ELF images through its own `mmap` into a low
+window a parent reserved for a suspended child. Proposal 0011 replaced that
+arc and proposal 0012 § 10 retired this document with the four records it
+homed (DR-0008, DR-0028, DR-0064, DR-0077, all retired by DR-0100). The
+address space of record is `doc/design/Architecture.md` § The address space.
+One argument here survived into the new design and is stated there:
+`AT_PAGESZ` reports 4096 (DR-0014). The text below is as it was, kept because
+the reasoning is worth reading and because the window arithmetic was certified
+work; nothing in it is authority for present behaviour.
+
+---
 
 Who owns which addresses, when they are claimed, at what precision they are
 protected, and what a program is told about all of it.

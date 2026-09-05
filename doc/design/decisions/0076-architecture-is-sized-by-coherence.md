@@ -25,7 +25,7 @@ A sub-document is created for a subsystem of significant complexity, and length
 is not what qualifies one. Incoherence is: a subject is split out when a reader
 of it is not reading the architecture at the time. Four exist —
 `veneer:doc/design/ABI-Boundary.md`, `veneer:doc/design/Symbol-Resolution.md`,
-`doc/design/Address-Space.md` and `veneer:doc/design/Runtime-Crossing.md` — plus
+`doc/history/veneer-address-space.md` and `veneer:doc/design/Runtime-Crossing.md` — plus
 `doc/design/target-definition.md`, which predates this and joined the governed
 set unchanged. A section that hands off keeps its own values and invariants
 inline, so the architecture still reads end to end.
