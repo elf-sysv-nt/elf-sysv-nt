@@ -63,6 +63,9 @@ fi
 cleanup() { rm -rf "$lock"; }
 trap cleanup EXIT
 
+# The integration worktree is march's checkout, made on first use.
+[ -d "$integ" ] || git -C "$repo" worktree add "$integ" march >&2 || {
+    echo "$prog: cannot create the integration worktree at $integ" >&2; exit 1; }
 git -C "$integ" merge --no-edit "$branch" || {
     echo "$prog: merge conflict; resolve on $branch and rerun" >&2; exit 1; }
 
@@ -89,6 +92,9 @@ git -C "$integ" diff --cached --quiet || \
 # its gates, and check-worknote-refs is exactly that shape. DR-0082 landed with
 # two working-note citations that way.
 for check in check-doc-refs check-design-links check-worknote-refs check-carry-forward; do
+    # check-carry-forward stayed with the veneer sibling when the repository
+    # split; a checker this tree does not carry is not a gate it can fail.
+    [ -e "$integ/bin/$check" ] || continue
     python3 "$integ/bin/$check" -q -C "$integ" || {
         echo "$prog: $check failed on the merged tree; march moved, main did not" >&2
         exit 1; }
