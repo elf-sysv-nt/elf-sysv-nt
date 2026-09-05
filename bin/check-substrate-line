@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+#
+# Nothing above the substrate line names a substrate primitive.
+#
+# doc/design/Substrate-Interface.md draws a line the core does not cross: above
+# it is everything that is Linux rather than Windows, written once; below it are
+# the two ways user code is run, N and H.  The document names the mechanical
+# half of that boundary and calls this check its teeth -- a leak is a red build,
+# not a discovery during the second substrate.  Five things may not appear in a
+# core source:
+#
+#   1. an NT call, spelled Nt<Name> (NtSuspendThread, NtMapViewOfSection);
+#   2. a WHP call, spelled WHv<Name> (WHvRunVirtualProcessor);
+#   3. the NT register block CONTEXT, which the core never assembles -- it hands
+#      whole register states across in Linux terms (invariant 5);
+#   4. an NT HANDLE type (HANDLE, PHANDLE): the core names a thread by its tid
+#      and a range by its address, never by a substrate handle (invariant 3);
+#   5. a raw user-pointer dereference: the core touches user memory only through
+#      user_copy_* (invariant 2), so a dereference of a user pointer above the
+#      line is the leak that check has teeth for.
+#
+# The first four are matched on the symbol.  The fifth is matched on a naming
+# convention -- a core pointer into user memory is named uaddr, uptr, user_addr
+# or user_ptr -- because a dereference cannot be told from a kernel one by shape
+# alone; the substantive guarantee is that user memory is reached through
+# user_copy_*, and the naming rule is what makes a slip mechanically visible.  A
+# line that must name a forbidden token for a legitimate reason carries the
+# marker `substrate-line-ok`, the escape hatch check-worknote-refs relies on.
+#
+# The core does not exist yet, so the set of paths this walks is normally empty,
+# and an empty set is clean: the check is written now, with the interface, so it
+# is already standing when the first core source lands.
+#
+# Usage:
+#   check-substrate-line [options] [PATH...]
+#
+# PATH is a file or a shell glob naming a core source to check.  With none, and
+# no --glob, the set is empty and the check is a clean no-op.
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -g PAT, --glob=PAT       Add files matching a glob; repeatable.
+#   -n N, --count=N          Ignored; accepted so the gate can run every suite
+#                            the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every file examined.
+#   -V, --version            Print the version and exit.
+#   -h, --help               Print this message and exit.
+#
+# Exit: 0 no leak (or nothing to check), 1 a leak, 2 a usage error.
+
+import glob as globmod
+import os
+import re
+import sys
+
+VERSION = "check-substrate-line 1.0"
+ALLOW = "substrate-line-ok"
+
+# One rule per forbidden thing, each with a name for the message.
+RULES = [
+    ("NT call",          re.compile(r"\bNt[A-Z][A-Za-z0-9_]*")),
+    ("WHP call",         re.compile(r"\bWHv[A-Z][A-Za-z0-9_]*")),
+    ("NT CONTEXT",       re.compile(r"\bP?CONTEXT\b")),
+    ("NT HANDLE type",   re.compile(r"\b(?:HANDLE|PHANDLE)\b")),
+    ("user-ptr deref",   re.compile(
+        r"\*\s*(?:uaddr|uptr|user_ptr|user_addr)\b"
+        r"|\b(?:uaddr|uptr|user_ptr|user_addr)\s*\[")),
+]
+
+
+def usage():
+    with open(__file__, encoding="utf-8") as f:
+        emit = False
+        for line in f:
+            if line.startswith("# Usage:"):
+                emit = True
+            if emit:
+                if not line.startswith("#"):
+                    break
+                print(line[2:].rstrip() if len(line) > 2 else "")
+
+
+def repo_root(start):
+    d = os.path.abspath(start)
+    while d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, ".git")):
+            return d
+        d = os.path.dirname(d)
+    return os.path.abspath(start)
+
+
+def is_binary(path):
+    try:
+        with open(path, "rb") as f:
+            return b"\0" in f.read(8192)
+    except OSError:
+        return True
+
+
+def scan(path):
+    hits = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for n, line in enumerate(f, 1):
+                if ALLOW in line:
+                    continue
+                for label, rx in RULES:
+                    m = rx.search(line)
+                    if m:
+                        hits.append((n, label, m.group(0).strip(),
+                                     line.rstrip("\n")[:70]))
+    except OSError as e:
+        hits.append((0, "unreadable", str(e), ""))
+    return hits
+
+
+def main(argv):
+    directory = None
+    globs = []
+    paths = []
+    quiet = verbose = False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            usage(); return 0
+        elif a in ("-V", "--version"):
+            print(VERSION); return 0
+        elif a in ("-q", "--quiet"):
+            quiet = True
+        elif a in ("-v", "--verbose"):
+            verbose = True
+        elif a in ("-C", "--directory"):
+            i += 1
+            if i >= len(argv):
+                sys.stderr.write("check-substrate-line: -C wants a value\n")
+                return 2
+            directory = argv[i]
+        elif a.startswith("--directory="):
+            directory = a.split("=", 1)[1]
+        elif a in ("-g", "--glob"):
+            i += 1
+            if i >= len(argv):
+                sys.stderr.write("check-substrate-line: --glob wants a value\n")
+                return 2
+            globs.append(argv[i])
+        elif a.startswith("--glob="):
+            globs.append(a.split("=", 1)[1])
+        elif a in ("-n", "--count"):
+            i += 1
+        elif a.startswith("--count="):
+            pass
+        elif a == "--":
+            paths.extend(argv[i + 1:]); break
+        elif a.startswith("-") and a != "-":
+            sys.stderr.write("check-substrate-line: unknown option %s\n" % a)
+            return 2
+        else:
+            paths.append(a)
+        i += 1
+
+    root = repo_root(directory or ".")
+
+    # Resolve the file set: explicit paths and globs, each a file or a pattern,
+    # taken relative to the chosen directory when not absolute.
+    def resolve(token):
+        pat = token if os.path.isabs(token) else os.path.join(root, token)
+        matched = globmod.glob(pat, recursive=True)
+        return matched if matched else ([pat] if os.path.exists(pat) else [])
+
+    files = []
+    for token in paths + globs:
+        for p in resolve(token):
+            if os.path.isfile(p) and p not in files:
+                files.append(p)
+
+    if not files:
+        if not quiet:
+            print("check-substrate-line: no core sources named; nothing above "
+                  "the line to check")
+        return 0
+
+    problems = 0
+    for path in sorted(files):
+        rel = os.path.relpath(path, root)
+        if is_binary(path):
+            continue
+        if verbose:
+            print("  %s" % rel)
+        for n, label, tok, text in scan(path):
+            problems += 1
+            sys.stderr.write("FAIL %s:%d names %s above the substrate line: %s\n"
+                             % (rel, n, label, tok))
+            if text:
+                sys.stderr.write("       %s\n" % text)
+
+    if problems:
+        sys.stderr.write("check-substrate-line: %d file(s) checked, %d leak(s)\n"
+                         % (len(files), problems))
+        return 1
+    if not quiet:
+        print("check-substrate-line: %d file(s) checked, none crosses the line"
+              % len(files))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
