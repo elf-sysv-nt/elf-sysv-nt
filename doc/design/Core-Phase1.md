@@ -85,4 +85,51 @@ noted and not blocking this increment.
   program under Rocky 8. Confirmed available: `wsl -d rocky8` returns `hello`
   and exit 0.
 
-Further decisions are appended as the run makes them.
+- **D3 -- the syscall path is fixed-width, never `long`.** Tier 1. The host
+  compiler is LLP64, so `long` is 32 bits, while the gate pushes 64-bit words
+  and the Linux ABI passes 64-bit values. `struct sysframe` declared with
+  `long` read every argument as half a register: `a1` came back as the high
+  half of `%rax`, `a2` as the low half of `%rdi`, and `write` was handed a
+  length of zero. It ran, printed nothing, and exited 0, which is the shape of
+  this defect -- no warning, no crash, a clean green nothing. The frame, the
+  dispatcher's return and the host write are `int64_t` now. The same reasoning
+  covers a negative errno, which as a 32-bit return would reach userland
+  zero-extended and read as a large positive count.
+
+- **D4 -- the oracle runs the twin of the test program, not a stand-in.**
+  Tier 1. The comparison was written as `wsl -d rocky8 -- /bin/echo hello`,
+  which prints `hello` whatever the ELF under test contains, so it could not
+  fail and was not a check. `test/core/hello-oracle.S` is the twin: the same
+  two syscalls with the same arguments, differing only in reaching the kernel
+  through the `syscall` instruction and in having no auxv walk, since there is
+  no gate address to find. The cross toolchain targets Linux, so what it emits
+  runs on el8 unmodified. D2 said the oracle is behavioural rather than
+  bit-for-bit; this is what that has to mean in practice.
+
+- **D5 -- the harness hands the core a path its own runtime understands.**
+  Tier 1. `lk-host` is a native Windows binary and cannot open the POSIX path
+  the shell writes; the run failed at `fopen`. `run.sh` converts through
+  `cygpath` where it exists and leaves the path alone where it does not, so
+  the script still works from a plain Linux shell once the core builds there.
+
+- **D6 -- check-substrate-line walks `core/` by default, and gates.** Tier 2.
+  Its registry note said it was no-op-clean until the core existed and would
+  promote then. Called with no arguments it examined nothing and passed, which
+  is a green that reports the absence of a check rather than the absence of a
+  leak. It now defaults to the core's sources, an explicit path still wins,
+  and it is registered at the gate tier.
+
+## The result
+
+Criterion 1's minimum is met. A static ELF, hand-written to the gate ABI and
+built by the cross toolchain, runs on substrate N under `lk-host`, prints
+`hello`, and exits 0; the twin program on the Rocky 8 oracle prints the same
+bytes and returns the same code. `core/run.sh` is the check, registered in
+`test/suites.tsv`, and every half of its bar has been watched to fail: the
+wrong message, a nonzero exit, and a diverging oracle each turn it red, and
+restoring each turns it green.
+
+The remainder of criterion 1 is not met and is not faked. `/proc/self/maps`
+listing the program, the stack and the vDSO, and the vDSO itself, are
+untouched: there is no `/proc` and no vDSO in this increment. That is the
+boundary the plan said to name if it did not fit.
