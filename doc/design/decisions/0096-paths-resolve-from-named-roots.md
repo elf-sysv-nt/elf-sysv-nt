@@ -4,6 +4,7 @@ Status: accepted
 Date: 2026-09-05
 Deciding: the operator, on the publish-gate survey of the split repository
 Proposal: none; taken while parameterising the tree for publication.
+Amends: doc/design/test-environment.md § Where the environment is named
 
 ## What was decided
 

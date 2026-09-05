@@ -3,7 +3,7 @@
 Status: accepted
 Date: 2026-08-29
 Deciding: the operator
-Proposal: `doc/design/proposals/0001-triple-and-el8-sources.md`
+Proposal: `veneer:doc/design/proposals/0001-triple-and-el8-sources.md`
 
 ## What was decided
 

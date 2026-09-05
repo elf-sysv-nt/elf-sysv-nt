@@ -103,7 +103,7 @@ scope and a different decision.
 
 ## Where it is written down
 
-`AGENTS.md`, under the reserved decisions. `doc/IMPLEMENTATION-PLAN.md`, WP-13
+`AGENTS.md`, under the reserved decisions. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-13
 and WP-43. `toolchain/gcc/README.md` and the target header the patch installs,
 where the flag is defaulted. `toolchain/rpm/macros.elfsysvnt`, where it is
 repeated into every build log.

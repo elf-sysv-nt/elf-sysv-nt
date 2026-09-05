@@ -54,7 +54,7 @@ A prebuilt stock-Linux binary carries psABI %fs TLS in its shipped code and so
 cannot be loaded here. This makes explicit, as a requirement, what DR-0000
 states as the floor: the userland is rebuilt from source through this
 toolchain, not mapped as vendor binaries.
-`doc/design/proposals/0003-vendor-binary-tls-rewriting.md` records the only
+`veneer:doc/design/proposals/0003-vendor-binary-tls-rewriting.md` records the only
 escape, and it is unbuilt.
 
 ## What it does not decide

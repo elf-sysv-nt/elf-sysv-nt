@@ -122,7 +122,11 @@ def check_spikes(root):
     mp = os.path.join(root, 'doc', 'milestones.md')
     if os.path.isfile(mp):
         mtext = open(mp, encoding='utf-8', errors='replace').read()
-    rows = set(re.findall(r'spike/([A-Za-z0-9_-]+)/', mtext))
+    # A `veneer:` prefix says the citation points into the sibling repository,
+    # so it is a reference this tree cannot resolve and is not meant to. The
+    # milestone rows for the veneer arc's spikes are written that way: the
+    # ledger keeps the record, the checker stops asking for the directory.
+    rows = set(re.findall(r'(?<!veneer:)spike/([A-Za-z0-9_-]+)/', mtext))
     bad = []
     for d in sorted(dirs):
         if d not in rows:

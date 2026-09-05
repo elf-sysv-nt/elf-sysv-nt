@@ -70,7 +70,7 @@ only replacements are a libc field `config.sub` refuses outright and a kernel
 field that costs a gcc, binutils and glibc port; DR-0005 carries the
 measurement. And the vendor binaries this platform exists to run were compiled
 under the unbounded claim, so their raw syscalls sit exactly on the axis where
-ours stops. `doc/design/proposals/0003-vendor-binary-tls-rewriting.md` handles
+ours stops. `veneer:doc/design/proposals/0003-vendor-binary-tls-rewriting.md` handles
 the TLS half of that problem and the syscall half is not yet anybody's work
 package.
 

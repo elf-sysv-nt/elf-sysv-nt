@@ -43,7 +43,7 @@ be placed above the line fails rather than falling back below it.
 
 The reservation is narrower than the contract on purpose. A `MEM_RESERVE` of
 4 GB is refused from `_dll_crt0` in a sole-runtime process, measured in
-`spike/reent-realproc-low-window/`, so widening the reservation to the contract
+`veneer:spike/reent-realproc-low-window/`, so widening the reservation to the contract
 line would trade a rule that holds for one that does not. Discipline covers the
 span the reservation cannot.
 
@@ -131,7 +131,7 @@ all. `elf_window_reserve`'s realproc branch claims the window as bookkeeping
 with no host reservation, and `elf_window_yield`'s realproc branch hands the
 already-free window straight to the placer — no survey, no `MEM_RELEASE`, no
 re-reservation — and keeps it held. Measured in
-`spike/reent-realproc-low-window/`: `region base=0x400000 size=0x200000 free`,
+`veneer:spike/reent-realproc-low-window/`: `region base=0x400000 size=0x200000 free`,
 `realproc_mmap_fixed_window=ok at 0x400000`, `verdict=cleared`.
 
 ## Segment mapping
@@ -286,13 +286,13 @@ the line is held by the host side — must be built; it is what makes the band
 that carries no reservation checkable at all. Proof is that walk, and a case
 placing a host allocation at `0x50000000` and expecting a refusal.
 
-Settled by: DR-0008, DR-0014, DR-0028, DR-0064, DR-0068, DR-0069, DR-0072, DR-0077.
+Settled by: DR-0008, DR-0014, DR-0028, DR-0064, DR-0077.
 
 ## Not verified
 
 The reconciling fallback does not clear a real cygwin-linked child, and the two
 records that describe it were never amended.
-`spike/reent-stub-realproc-window-reconcile/results-2026-09-01.txt` reports
+`veneer:spike/reent-stub-realproc-window-reconcile/results-2026-09-01.txt` reports
 `realproc_reserve_in=win_err_refused` against a low window that is
 `reserved+committed`, not the bare `MEM_RESERVE` DR-0068 models: two committed
 regions at `0x5fc000` and `0x5ff000`. `elf_window_plan` refuses any committed

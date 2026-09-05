@@ -68,5 +68,5 @@ new record pointing back here.
 
 `loader/graph/ldso_cache.h`, which defines the layout, and `loader/graph/ldso_cache.c`,
 which reads and writes it. `loader/graph/README.md`, under "The cache and its
-tool", points here. `doc/IMPLEMENTATION-PLAN.md`, WP-33, where the delivery note
+tool", points here. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-33, where the delivery note
 cites this record.

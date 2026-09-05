@@ -3,7 +3,7 @@
 Status: accepted
 Date: 2026-08-29
 Deciding: the operator
-Proposal: `doc/design/proposals/0001-triple-and-el8-sources.md`
+Proposal: `veneer:doc/design/proposals/0001-triple-and-el8-sources.md`
 
 ## What was decided
 
@@ -68,7 +68,7 @@ Reopening means a new record pointing back at this one. Do not edit this one.
 
 ## Where it is written down
 
-`doc/ROADMAP.md`, the assumed-path table. `doc/IMPLEMENTATION-PLAN.md`, WP-10
+`doc/ROADMAP.md`, the assumed-path table. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-10
 and WP-11. `doc/history/elf-technical-breakdown.md`, in `The toolchain and the
 triple`. `doc/milestones.md`, spike 5. `AGENTS.md`, under the reserved
 decisions.

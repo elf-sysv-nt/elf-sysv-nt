@@ -92,7 +92,7 @@ surface puts nothing behind it, so the inventory is generated from the partition
 before the withdrawal rather than after. Generated after, it would read 21, and
 the capability-gap record a later glibc port inherits would have evaporated
 without anyone deciding to remove it. That file is the reason proposal 0008 §4
-exists and the reason `bin/check-carry-forward` names it.
+exists and the reason `veneer:bin/check-carry-forward` names it.
 
 ## The residue
 

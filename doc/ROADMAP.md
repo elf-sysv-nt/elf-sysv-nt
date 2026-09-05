@@ -509,7 +509,7 @@ Recorded so a later reader does not mistake these for measured.
 The runtime face at a DLL's width. Spike 3 measured it on 2026-08-29 and every
 case passed, so the row at the top no longer stands on an assumption, but it
 stands on one function rather than on `cygwin1.dll` rebuilt. What the spike did
-not reach is in `spike/abi-crossing/README.md`: unwind data crossing a
+not reach is in `veneer:spike/abi-crossing/README.md`: unwind data crossing a
 `sysv_abi` frame, `DllMain` and PE TLS callbacks into a System V-faced DLL, and
 Cygwin's source compiled rather than called. Section 2 is written as though
 those follow, and they have not been shown to.

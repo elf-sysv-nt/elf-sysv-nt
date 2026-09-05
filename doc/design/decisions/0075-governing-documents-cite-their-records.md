@@ -3,8 +3,8 @@
 Status: accepted 2026-09-02
 Date: 2026-09-02
 Amends: AGENTS.md § Layout
-Deciding: the operator, by accepting `doc/design/proposals/0006-governing-documents-and-the-citation-check.md` on 2026-09-02
-Proposal: `doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
+Deciding: the operator, by accepting `veneer:doc/design/proposals/0006-governing-documents-and-the-citation-check.md` on 2026-09-02
+Proposal: `veneer:doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
 
 ## What was decided
 

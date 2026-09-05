@@ -21,7 +21,7 @@ The classes, largest first:
 
 - **`doc/milestones.md`** carries rows for the 23 veneer spikes and cites
   their transcripts. Roughly half the total.
-- **`doc/IMPLEMENTATION-PLAN.md` and `doc/Next-Steps.md`** did not carry, and
+- **`veneer:doc/IMPLEMENTATION-PLAN.md` and `veneer:doc/Next-Steps.md`** did not carry, and
   a dozen decision records cite one or the other in their header block. The
   records are otherwise live.
 - **`AGENTS.md`, `doc/design/Architecture.md`, `Address-Space.md`,

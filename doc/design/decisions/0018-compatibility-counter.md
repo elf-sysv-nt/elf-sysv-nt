@@ -93,5 +93,5 @@ Reversing this is a new record pointing back here, not an edit to this one.
 `runtime/version/compat.c` and `compat.h`, the check.
 `runtime/version/CHANGELOG.md`, the changelog discipline and the `0.1` baseline.
 `runtime/version/README.md`, which names this record and reads the Cygwin
-mechanism against b11613e47. `doc/IMPLEMENTATION-PLAN.md`, WP-25, marked
+mechanism against b11613e47. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-25, marked
 delivered.

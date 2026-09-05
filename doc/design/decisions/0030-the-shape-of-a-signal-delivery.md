@@ -84,7 +84,7 @@ reservation is one subtraction inside a path whose price is three system calls
 and a thread suspension, and it is several orders of magnitude below the noise.
 
 DR-0006's bands read this as "under 5%: proceed", and this record proceeds. But
-the honest reading is the one `spike/cygwin-from-source` reached first: those
+the honest reading is the one `veneer:spike/cygwin-from-source` reached first: those
 bands could only ever return proceed, and the number was never the question.
 
 What the number does not settle, and what this record does not claim, is
@@ -93,14 +93,14 @@ process does not go through it: the hijack redirects into this package's
 trampoline, and the frame this package places is the only frame built. The
 measurement that DR-0006 sent here — the reserving `sigdelayed` against the
 unmodified one — is a measurement of a path that has been replaced rather than
-repaired, and `spike/cygwin-from-source/reserve-redzone.patch` remains the
+repaired, and `veneer:spike/cygwin-from-source/reserve-redzone.patch` remains the
 record of how it would have been done had the delivery stayed Cygwin's.
 
 ## What the control arm establishes
 
 That the measurement can see what it claims to see.
 
-`spike/cygwin-from-source` failed on exactly this: its probe reported the
+`veneer:spike/cygwin-from-source` failed on exactly this: its probe reported the
 nearest write moving in the wrong direction by the size of ordinary variation,
 which meant it was not watching `sigdelayed`'s frame at all. So the delivery
 here carries a switch that puts the frame back at the interrupted stack pointer
@@ -127,7 +127,7 @@ two that each work sometimes.
 ## Where it is written down
 
 `runtime/signal/README.md` and the headers of `sigenter.S` and `sig_host.c`.
-`doc/IMPLEMENTATION-PLAN.md`, WP-43. DR-0006, whose price this settles.
+`veneer:doc/IMPLEMENTATION-PLAN.md`, WP-43. DR-0006, whose price this settles.
 
 ## Not verified
 

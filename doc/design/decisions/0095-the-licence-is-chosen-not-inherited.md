@@ -4,6 +4,7 @@ Status: accepted
 Date: 2026-09-05
 Deciding: the operator
 Proposal: 0011
+Amends: doc/design/licensing.md § Why this licence
 
 ## What was decided
 

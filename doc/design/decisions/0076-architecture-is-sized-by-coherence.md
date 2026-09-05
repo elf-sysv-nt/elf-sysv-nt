@@ -5,8 +5,8 @@ Date: 2026-09-02
 Amends: AGENTS.md § Layout
 Deciding: the operator, in conversation on 2026-09-02, lifting a resolved
 question of
-`doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
-Proposal: `doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
+`veneer:doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
+Proposal: `veneer:doc/design/proposals/0006-governing-documents-and-the-citation-check.md`
 
 ## What was decided
 
@@ -24,8 +24,8 @@ outright, and where it names a measurement it names the figure.
 A sub-document is created for a subsystem of significant complexity, and length
 is not what qualifies one. Incoherence is: a subject is split out when a reader
 of it is not reading the architecture at the time. Four exist —
-`doc/design/ABI-Boundary.md`, `doc/design/Symbol-Resolution.md`,
-`doc/design/Address-Space.md` and `doc/design/Runtime-Crossing.md` — plus
+`veneer:doc/design/ABI-Boundary.md`, `veneer:doc/design/Symbol-Resolution.md`,
+`doc/design/Address-Space.md` and `veneer:doc/design/Runtime-Crossing.md` — plus
 `doc/design/target-definition.md`, which predates this and joined the governed
 set unchanged. A section that hands off keeps its own values and invariants
 inline, so the architecture still reads end to end.

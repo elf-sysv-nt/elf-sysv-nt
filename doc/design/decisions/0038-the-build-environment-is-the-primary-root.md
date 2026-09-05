@@ -49,7 +49,7 @@ root:
 
 Two divergences, and they are one root cause seen twice:
 
-1. **Fault under a System V frame.** `spike/abi-crossing` (spike 3) flips from
+1. **Fault under a System V frame.** `veneer:spike/abi-crossing` (spike 3) flips from
    `yes` to `no`: its `fault-through` case goes pass to fail, everything else
    still passing. This is the gate that justified the whole architecture over
    the veneer-thunk fallback. The same fault delivery is what WP-22, WP-43 and

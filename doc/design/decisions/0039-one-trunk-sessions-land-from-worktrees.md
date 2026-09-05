@@ -1,7 +1,7 @@
 # DR-0039 — one merge-only trunk; every session lands from its own worktree
 
 Accepted 2026-08-30. Source:
-`doc/design/proposals/0005-branch-management-for-concurrent-sessions.md`.
+`veneer:doc/design/proposals/0005-branch-management-for-concurrent-sessions.md`.
 
 ## Context
 

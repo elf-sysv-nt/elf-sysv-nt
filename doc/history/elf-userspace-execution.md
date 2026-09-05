@@ -222,7 +222,7 @@ dispatch, and the honest name sits in the vendor slot beside them.
    an `ms_abi` thunk; deliver a signal mid-call and inspect the 128 bytes
    below rsp. Settles the red-zone claim by measurement. Run 2026-08-29:
    yes on the crossing, and the red zone goes to Cygwin's delivery rather
-   than to Windows. `spike/abi-crossing/`.
+   than to Windows. `veneer:spike/abi-crossing/`.
 4. The payoff check. Synthesize a shim `libc.so.6` carrying one verdef
    node, run `elfdeps` from el8's rpm against a consumer linked to it, and
    confirm the vendor-shaped Requires line appears. Proves the fidelity

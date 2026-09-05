@@ -7,7 +7,7 @@ along the way, and the exact point the next session starts from.
 ## What the session did
 
 It applied
-`doc/design/proposals/0005-branch-management-for-concurrent-sessions.md` and
+`veneer:doc/design/proposals/0005-branch-management-for-concurrent-sessions.md` and
 recorded the model as DR-0039. The occasion was a recurring pair of collisions:
 the trunk kept diverging because sessions committed straight onto it, and two
 sessions once drew the same decision-record number, which is how DR-0037 came

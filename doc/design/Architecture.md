@@ -33,11 +33,11 @@ The section list here is the taxonomy the rest of the governed set follows.
 Length is not a reason to split a section out; incoherence is. Depth belongs
 here by default, and a sub-document exists only where a subject is large and
 self-contained enough that a reader of it is not reading this document at the
-time. Six exist: `doc/design/ABI-Boundary.md` for the seam's per-symbol rules,
-`doc/design/glibc-reuse.md` for what of glibc may be taken and on what grounds,
-`doc/design/Symbol-Resolution.md` for the lookup engine and the version
+time. Six exist: `veneer:doc/design/ABI-Boundary.md` for the seam's per-symbol rules,
+`veneer:doc/design/glibc-reuse.md` for what of glibc may be taken and on what grounds,
+`veneer:doc/design/Symbol-Resolution.md` for the lookup engine and the version
 matcher, `doc/design/Address-Space.md` for the low window and protection
-precision, `doc/design/Runtime-Crossing.md` for how a process comes to host the
+precision, `veneer:doc/design/Runtime-Crossing.md` for how a process comes to host the
 faced runtime, and `doc/design/target-definition.md` for the measurement behind
 each of the six target values. All are governed, all are cited from the section
 that owns them, and all carry the same Settled-by lines. None is a summary. A
@@ -85,7 +85,7 @@ is why the ref is named rather than implied.
 ### Why the C library is a face rather than glibc
 
 The veneer is a face over newlib plus Cygwin. It is not el8's glibc, and the
-reason is a measurement rather than a licence. `doc/design/glibc-reuse.md`
+reason is a measurement rather than a licence. `veneer:doc/design/glibc-reuse.md`
 carries the argument in full, because three separate questions are collapsed
 into this one often enough that they need somewhere to be kept apart.
 
@@ -201,7 +201,7 @@ backward only. A program built against a higher combined value does not run on
 a lower runtime, which is why borrowing a binary from a newer tree is never an
 option and building from source is the only route.
 
-Settled by: DR-0000, DR-0007, DR-0018.
+Settled by: DR-0007, DR-0018.
 
 ## Target and claim: x86_64-elfsysvnt-linux-gnu
 
@@ -530,7 +530,7 @@ is the outstanding half of WP-13, alongside the build-side image scan that
 would catch what the link accepts. Until both exist, the requirement holds on
 every image and is enforced on one class of them.
 
-`doc/design/proposals/0007-the-veneer-under-a-real-glibc.md` records why this
+`veneer:doc/design/proposals/0007-the-veneer-under-a-real-glibc.md` records why this
 matters beyond this section: a source port of glibc cannot compile its own
 plain C until the sequence exists, and glibc is saturated with `__thread`.
 
@@ -541,7 +541,7 @@ Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
 The loader is this project's own code, in `loader/`, with no Cygwin behind it.
 It never hands an ELF file to the Windows loader. Two subsystems inside it are
 large enough to carry their own governed documents —
-`doc/design/Symbol-Resolution.md` for the lookup engine and the version
+`veneer:doc/design/Symbol-Resolution.md` for the lookup engine and the version
 matcher, and `doc/design/Address-Space.md` for the low window, placement and
 protection precision — and the invariants they must satisfy are stated in
 those. What follows is everything else the loader does, in the order it does
@@ -719,7 +719,7 @@ Settled by: DR-0011, DR-0016, DR-0022, DR-0025, DR-0027, DR-0059.
 ## The ABI seam
 
 The boundary between System V-faced code and the Microsoft-faced runtime
-beneath it. `doc/design/ABI-Boundary.md` carries the per-symbol rules and the
+beneath it. `veneer:doc/design/ABI-Boundary.md` carries the per-symbol rules and the
 five kinds of divergence a shim may have to translate; this is the shape.
 
 ### Calls down
@@ -750,7 +750,7 @@ the dispatcher's own search, which begins wherever the fault happened and has
 no trampoline to route through. A System V fault on a runtime-created thread is
 not delivered today: it dies on the second-chance exception.
 
-Settled by: DR-0009, DR-0012, DR-0015, DR-0020, DR-0041, DR-0042, DR-0044, DR-0049, DR-0051, DR-0053, DR-0054, DR-0055, DR-0065.
+Settled by: DR-0009, DR-0012, DR-0015, DR-0020.
 
 ## Veneer and classification
 
@@ -764,7 +764,7 @@ was a violation of.
 ### The dispositions
 
 The veneer is the glibc-ABI face: `libc.so.6` and the eight companions, built
-from the version map that `doc/design/Symbol-Resolution.md` describes. Every
+from the version map that `veneer:doc/design/Symbol-Resolution.md` describes. Every
 name el8's glibc exports gets a disposition, and the dispositions partition the
 surface with nothing left over:
 
@@ -786,7 +786,7 @@ dropping them would leave the partition incomplete.
 ### The rules a table must satisfy
 
 Three rules govern how a row gets its disposition, and they are stated with the
-seam's other rules in `doc/design/ABI-Boundary.md`. An alias is as strict as
+seam's other rules in `veneer:doc/design/ABI-Boundary.md`. An alias is as strict as
 its target, to a fixed point, re-derived from the committed table so a hand
 edit cannot pass. Every name on the face has a disposition, with the unlisted
 set resolved in two layers — by declaration where a header declares the name,
@@ -813,7 +813,7 @@ weak symbol the classification map does carry still reports its own bucket,
 exactly as a strong one does. Only a weak symbol the map does not carry becomes
 optional.
 
-Settled by: DR-0010, DR-0046, DR-0047, DR-0052, DR-0056, DR-0073.
+Settled by: DR-0010, DR-0073.
 
 ## Process shape
 
@@ -825,7 +825,7 @@ process rather than being hosted by one, and there is exactly one crossing
 into it.
 
 How a process comes to host the faced runtime at all is
-`doc/design/Runtime-Crossing.md`, which is a bring-up problem rather than a
+`veneer:doc/design/Runtime-Crossing.md`, which is a bring-up problem rather than a
 shape; this section is what the process looks like once it is up, and what
 happens at each of its edges.
 
@@ -925,7 +925,7 @@ is framed with namesz 5 and the eight bytes `"CORE\0\0\0\0"`. It opens no file
 and walks no memory: collecting the segments is the caller's job, and under the
 stub that means the link map plus `VirtualQuery`.
 
-Settled by: DR-0029, DR-0030, DR-0033, DR-0048.
+Settled by: DR-0029, DR-0030, DR-0033.
 
 ## Delivery and installation
 
@@ -976,7 +976,7 @@ Settled by: DR-0034, DR-0040.
 
 ## Not verified
 
-That the summary in The ABI seam and the detail in `doc/design/ABI-Boundary.md`
+That the summary in The ABI seam and the detail in `veneer:doc/design/ABI-Boundary.md`
 say the same thing, and likewise for the three other sub-documents. Nothing
 checks a section against the document it hands off to, and the lint over the
 classification tables that would check one of them is its own proposal.

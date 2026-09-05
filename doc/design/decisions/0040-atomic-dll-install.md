@@ -1,6 +1,6 @@
 # DR-0040 — the faced DLL is installed by rename, not by copy
 
-Accepted 2026-08-31. Source: `doc/design/proposals/atomic-dll-build.md`.
+Accepted 2026-08-31. Source: `veneer:doc/design/proposals/atomic-dll-build.md`.
 
 ## Context
 

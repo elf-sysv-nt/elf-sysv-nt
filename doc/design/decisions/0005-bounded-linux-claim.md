@@ -3,7 +3,7 @@
 Status: accepted
 Date: 2026-08-29
 Deciding: the operator
-Proposal: `doc/design/proposals/0004-the-bounded-linux-claim.md`
+Proposal: `veneer:doc/design/proposals/0004-the-bounded-linux-claim.md`
 
 ## What was decided
 
@@ -54,7 +54,7 @@ without inline system calls, or when a vendor binary's raw syscalls prove more
 expensive to handle than its TLS accesses were. One package is enough if it is
 the wrong package, and a hundred harmless ones are not. Either finding widens
 the bound rather than changing the triple, and the change lands in the loader,
-which is where `doc/design/proposals/0003-vendor-binary-tls-rewriting.md`
+which is where `veneer:doc/design/proposals/0003-vendor-binary-tls-rewriting.md`
 already lives.
 
 A finding that `gnu` is the wrong libc field, which would mean this project had
@@ -67,5 +67,5 @@ suggests it.
 the `uname` section that used to call the field a lie. `doc/milestones.md`,
 spike
 5. `doc/history/elf-technical-breakdown.md`, in `The toolchain and the triple`.
-`doc/ROADMAP.md`, the assumed-path table. `doc/IMPLEMENTATION-PLAN.md`, WP-10.
+`doc/ROADMAP.md`, the assumed-path table. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-10.
 `AGENTS.md`, under the reserved decisions.

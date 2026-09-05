@@ -93,4 +93,4 @@ fixed compiled set stands.
 `runtime/core/callback.h` and `runtime/core/callback.c`, whose header comments
 state the slot-and-fixed-trampoline shape and the no-codegen reason.
 `runtime/core/README.md`, under "The callback trampolines".
-`doc/IMPLEMENTATION-PLAN.md`, WP-23, whose delivery note points here.
+`veneer:doc/IMPLEMENTATION-PLAN.md`, WP-23, whose delivery note points here.

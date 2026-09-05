@@ -3,7 +3,7 @@
 Status: accepted
 Date: 2026-08-29
 Deciding: the operator
-Proposal: `doc/design/proposals/0002-tls-model.md`
+Proposal: `veneer:doc/design/proposals/0002-tls-model.md`
 
 ## What was decided
 
@@ -83,7 +83,7 @@ Reopening means a new record pointing back at this one. Do not edit this one.
 ## Where it is written down
 
 `AGENTS.md`, under the reserved decisions. `doc/ROADMAP.md`, the assumed-path
-table. `doc/IMPLEMENTATION-PLAN.md`, WP-30 and its dependency line, and WP-13's
+table. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-30 and its dependency line, and WP-13's
 specs default. `doc/milestones.md`, spike 1.
 `doc/history/elf-technical-breakdown.md`, in the TLS sections and the
 open-questions list. `doc/history/elf-userspace-execution.md`, where the model

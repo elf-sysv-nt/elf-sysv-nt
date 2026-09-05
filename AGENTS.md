@@ -19,7 +19,7 @@ What has been built is tracked in
 `bin/refresh-next-steps.py` renders as the `Next-Steps.md` dashboard; both
 documents here are the plan rather than the record of progress, and may be
 wrong about anything not yet built. `doc/ROADMAP.md` inventories what has to be
-written once the spikes have answered, and `doc/IMPLEMENTATION-PLAN.md` cuts
+written once the spikes have answered, and `veneer:doc/IMPLEMENTATION-PLAN.md` cuts
 that inventory into work packages; both are written along the recommended path
 and name the branch where a spike could send the program elsewhere.
 
@@ -169,8 +169,8 @@ records and the proposals behind them. `doc/history/` holds what was true and
 is kept as reasoning rather than as a plan — the founding surveys, the closed
 design-gaps review, the landed handoffs — and nothing there is authority for
 present behaviour. `doc/` itself keeps the plans and the ledgers, which are
-neither: `doc/IMPLEMENTATION-PLAN.md`, `doc/ROADMAP.md`, `doc/milestones.md`,
-`doc/deferred-work.md`, `doc/status/`, and the generated `doc/Next-Steps.md`.
+neither: `veneer:doc/IMPLEMENTATION-PLAN.md`, `doc/ROADMAP.md`, `doc/milestones.md`,
+`doc/deferred-work.md`, `doc/status/`, and the generated `veneer:doc/Next-Steps.md`.
 A document whose claim changes class moves, and the citations move with it in
 the same commit.
 
@@ -214,9 +214,9 @@ A governed set states what the system is, in the present tense, current at
 every commit: `doc/design/Requirements.md`, `doc/design/Architecture.md`,
 `doc/design/Verification-Plan.md`, `doc/design/target-definition.md`,
 `doc/design/licensing.md`, and this file, plus four sub-documents carrying a
-subsystem each — `doc/design/ABI-Boundary.md`,
-`doc/design/Symbol-Resolution.md`, `doc/design/Address-Space.md` and
-`doc/design/Runtime-Crossing.md`. Read them to learn the design; read the
+subsystem each — `veneer:doc/design/ABI-Boundary.md`,
+`veneer:doc/design/Symbol-Resolution.md`, `doc/design/Address-Space.md` and
+`veneer:doc/design/Runtime-Crossing.md`. Read them to learn the design; read the
 records to learn why it is that and not something else, or what it was before.
 The bar on all of them is that a reader implementing a layer never has to open
 a record to find a value, a constant, a limit or a rule.
@@ -281,7 +281,7 @@ proposing anything about the triple. The fields are `cpu-vendor-kernel-os`,
 everywhere except raw syscall dispatch. Neither load-bearing field is a lie, so
 "the triple is dishonest" is not an opening for a reopen; the measured price of
 substituting either is in that record and in
-`doc/design/proposals/0004-the-bounded-linux-claim.md`.
+`veneer:doc/design/proposals/0004-the-bounded-linux-claim.md`.
 
 The TLS model. Spike 1 ran on 2026-08-29 and the answer was no: a user-written
 FS base does not survive a context switch, or even a preemption, on this

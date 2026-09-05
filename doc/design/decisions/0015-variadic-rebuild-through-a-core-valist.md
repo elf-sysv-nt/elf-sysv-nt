@@ -82,5 +82,5 @@ Reversal is a new record pointing back here, not an edit to this one.
 
 `runtime/varargs/README.md`, which carries the pattern and the two shapes.
 `runtime/varargs/sv2ms.c` and `runtime/varargs/core.h`, whose header comments
-state the rebuild and the contract. `doc/IMPLEMENTATION-PLAN.md`, WP-24, whose
+state the rebuild and the contract. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-24, whose
 delivery note points here.

@@ -89,75 +89,6 @@ It is the failure the class exists to make impossible.
 Every symbol on the face belongs to exactly one class, and the classification
 tables under `veneer/libc/` are where that assignment lives.
 
-## The claimed surface
-
-The veneer claims a surface smaller than glibc's, and states it as a set that
-is derived rather than curated. Everything in the set has a body — a forward,
-a wired shim, or a filled stub. Everything outside it is not exported at all:
-absent from the version script, absent from `.dynsym`, and absent from the
-`Provides` `elfdeps` generates, so a package needing such a name fails at link
-naming it, and a package requiring it fails dependency resolution before it is
-installed. Both are earlier than a body that returns zero with the program's
-state already committed, and diagnosability is what is being bought.
-
-The set is the union of three inputs, each mechanically derivable, so that it
-regenerates instead of being maintained:
-
-    A  what the acceptance package set imports
-    B  what the loader, the runtime and the startup files require of libc.so.6
-    C  the closure of A and B under the alias rule
-
-Input C is not decoration. An alias is as strict as its target, so claiming a
-name claims what it resolves to; without the closure the set would be
-internally inconsistent in the way the `open64` defect was. Input B is claimed
-by construction whatever the acceptance set imports, and it is small: the
-loader and the runtime are built freestanding and demand nothing, so the
-startup files are the whole of it.
-
-The closure runs over the classification's target column, and that column
-means one thing for a forward and another for a shim: a forward's target is
-the name it resolves to, a shim's is the runtime export its body calls. Both
-are closed over, and deliberately. A shim body that cannot reach its export
-is not a shim, and the bind-table row it reaches is generated from the same
-column, so a target the closure declines to claim is a body with nothing
-behind it. The set therefore holds three names no package imports — `fopen`
-for `fopen64`, `open` for `open64`, `vfprintf` for `__fprintf_chk` — and each
-is exported because the veneer's own code calls it, which is what "nothing is
-exported that nothing calls" says. A shim whose target has no name in the
-version map, as the stat pair's `stat` and `lstat` do not, adds nothing:
-there is no glibc symbol there to claim.
-
-The set is exactly those three inputs. Nothing is exported that nothing calls,
-and there is no fourth contribution: a name is claimed because something needs
-it, or it is not claimed.
-
-Two constraints bound the withdrawal, and a third was withdrawn with the rule
-that carried it. A weak undefined reference stays optional, because weakness is
-the program's own statement that it can proceed without the name, and refusing
-it would break a program entitled to proceed. A name input B requires is
-claimed however narrow the acceptance set is.
-
-The third said no version node might be left without a member, and retained one
-where the inputs would empty a node. That is withdrawn: the version script
-declares the node, so a node emptied by the withdrawal keeps its entry in
-`.gnu.version_d` regardless, and a consumer names a node only because it
-references a symbol there, so a retained stand-in never satisfied it anyway.
-All sixty-seven nodes are still defined and `elfdeps` still generates the same
-thirty `Provides` lines; twenty-four of `libc.so.6`'s twenty-nine now carry no
-member. `spike/empty-version-node/` measures it and DR-0083 records it.
-
-The consequence is that every claimed name has a body without exception, which
-is what §1 above promises and what the retention rule had been quietly
-breaking.
-
-`veneer/classification/claimed-surface.tsv` is the set, one row per name with
-the input that claimed it. `veneer/classification/claimed.py` derives it and
-`veneer/classification/t/reproduce.sh` certifies that it re-derives, that it
-agrees with the classification in both directions, and that no claimed name
-lacks a body.
-
-Settled by: DR-0079, DR-0083, DR-0090.
-
 ## Acceptance
 
 Acceptance is a count, not a judgement.
@@ -224,13 +155,12 @@ the other two are both small.
 
 One thing the census must count, because it is currently uncounted and the
 bound above does not cover it: how many packages call `syscall` the libc
-function directly. It is a public glibc export, its disposition here is a
-bucket-4 stub, and a rebuilt package reaching it has used no raw instruction,
-so DR-0005's bound does not reach the case. Whichever way the count falls, the
-answer is a record widening or restating that bound against a number rather
-than against an impression.
-
-Settled by: DR-0082.
+function directly. Under a kernel at the syscall boundary the question changes
+shape rather than going away -- the instruction is the interface under H and is
+never reached under N -- so what the count now bounds is how much of the el8 set
+needs the gate-calling rebuild rather than the shipped binary. Whichever way it
+falls, the answer is a record written against a number rather than against an
+impression.
 
 ## Not verified
 

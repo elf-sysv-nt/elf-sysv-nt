@@ -34,21 +34,21 @@ deferred" — and WP-26 and WP-27, the re-face packages, are both delivered.
 Now WP-46.
 
 **The `%fs` TLS rewriting subsystem was never cut into a package.**
-`doc/IMPLEMENTATION-PLAN.md:59-70` says so in as many words: "cutting it into
+`veneer:doc/IMPLEMENTATION-PLAN.md:59-70` says so in as many words: "cutting it into
 a package is not done here." Nothing downstream picks it up, and yet WP-33's
 and WP-54's exit criteria both run a vendor binary, which is exactly the case
 that needs it. The read-modify-write gap and its `SIGSEGV` failure mode are at
 `doc/milestones.md:390-398`. Now WP-47, with the census below folded in.
 
 **Spike 13's site census lost its row.** The plan cuts it at
-`doc/IMPLEMENTATION-PLAN.md:95-99` — the read-modify-write, `lock`-prefixed and
+`veneer:doc/IMPLEMENTATION-PLAN.md:95-99` — the read-modify-write, `lock`-prefixed and
 self-pointer shares, plus the raw-`syscall` count that prices DR-0005's
-bound — but `doc/milestones.md:43` row 13 is now `spike/reent-bringup/`, and
+bound — but `doc/milestones.md:43` row 13 is now `veneer:spike/reent-bringup/`, and
 the census owns no row and no package. `doc/milestones.md:396` still reads "a
 census nobody has run." Folded into WP-47, since it is what sizes that hole.
 
 **`getcontext`, `setcontext` and `swapcontext` are knowingly broken across the
-face.** `doc/design/decisions/0041-context-transparent-faces.md:53-59`: "They
+face.** `veneer:doc/design/decisions/0041-context-transparent-faces.md:53-59`: "They
 are deferred, not settled: a written face that captures at the seam is the
 likely repair, and whoever takes it should reopen this record." No package
 names `ucontext` outside WP-43's signal-frame layout. Now WP-48.
@@ -57,7 +57,7 @@ names `ucontext` outside WP-43's signal-frame layout. Now WP-48.
 
 **May the veneer call NT directly, or must every host call reach the OS through
 `elfsysv1.dll`?** Nothing forbids it. The one auditable no-Win32 criterion,
-`doc/IMPLEMENTATION-PLAN.md:369`, is WP-21's and is scoped to `runtime/`; what
+`veneer:doc/IMPLEMENTATION-PLAN.md:369`, is WP-21's and is scoped to `runtime/`; what
 is recorded is narrower, `veneer/wiring/wire.h` and DR-0049 keeping the wiring
 layer free of Windows headers so it certifies under a host compiler with a fake
 resolver, which is testability rather than layering. DR-0065 already has a
@@ -113,7 +113,7 @@ credit by 42 more rows.
 `DT_FINI`; `loader/exec/dyn_init.c` has the init half and no fini half at all,
 and nothing plays the part `_dl_fini` plays on Linux. C++ static destructors and
 anything a loaded object registers for its own teardown never run.
-`doc/IMPLEMENTATION-PLAN.md` § WP-45 names it and orders it behind WP-56, which
+`veneer:doc/IMPLEMENTATION-PLAN.md` § WP-45 names it and orders it behind WP-56, which
 is why WP-45 landed without it on 2026-09-03: DR-0048 puts the atexit chain in
 glibc's own `exit`, so the loader's fini has to register through the veneer's
 `__cxa_atexit`, and that body is not live. This entry is the register the plan's
@@ -122,7 +122,7 @@ work becomes schedulable, or when a package takes it.
 
 **The `SA_RESTART` down-call wrapper is not written.**
 `doc/design/decisions/0030-the-shape-of-a-signal-delivery.md:151-154`, restated
-at `doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote
+at `veneer:doc/IMPLEMENTATION-PLAN.md:1167-1170` under "What is not here". WP-21 wrote
 the wrappers and WP-43 the signals; both delivered. DR-0009 is a convention,
 not a package.
 
@@ -132,15 +132,15 @@ be (`0030:139-143`). WP-43 delivered.
 
 **The loader-lock bracket does not move inside `dl_open`/`dl_close`.**
 `doc/design/decisions/0029-what-crosses-the-fork-and-how-it-is-checked.md:98-104`,
-echoed at `doc/IMPLEMENTATION-PLAN.md:1111-1113`.
+echoed at `veneer:doc/IMPLEMENTATION-PLAN.md:1111-1113`.
 
 **Static-offset assignment for a late initial-exec module.**
 `doc/design/decisions/0024-static-tls-surplus-and-dtv-shape.md:61-63` and
-`doc/IMPLEMENTATION-PLAN.md:856` both point at WP-38, which is delivered
+`veneer:doc/IMPLEMENTATION-PLAN.md:856` both point at WP-38, which is delivered
 without such a path.
 
 **`__libc_start_main` is not adopted in the startup files.**
-`doc/design/decisions/0048-main-returns-through-exit.md:29-31` — "stays open;
+`veneer:doc/design/decisions/0048-main-returns-through-exit.md:29-31` — "stays open;
 when it lands, the call to `exit` moves into it." Nothing mentions it.
 
 **Exact `long double` across the core `va_list` seam.**
@@ -149,7 +149,7 @@ The walk narrows to `double`; whether the runtime needs more, and at what cost,
 is open. WP-24 delivered.
 
 **`fnmatch`'s flag bits are swapped between el8 and Cygwin.**
-`doc/design/decisions/0056-the-stat-family-does-not-forward.md:79-87` leaves
+`veneer:doc/design/decisions/0056-the-stat-family-does-not-forward.md:79-87` leaves
 the shim to `diff-slice.sh`, "where a differential will show it" — a tool, not
 an owner.
 
@@ -158,7 +158,7 @@ an owner.
 fortification.
 
 **`XCRYPT_2.0` may have no body, and the companion set closed by omission.**
-`doc/design/decisions/0013-version-map-companion-sources.md:64-74` makes
+`veneer:doc/design/decisions/0013-version-map-companion-sources.md:64-74` makes
 `ld-linux`, `libnss_*`, `libmvec` and `libanl` "WP-54's scope call"; WP-54 is
 delivered and DR-0032 fixed the set at eight without answering the question.
 `crypt` and `crypt_r` carry real el8 demand.
@@ -173,7 +173,7 @@ disturbing `#!` is untested.
 
 **The `[0, 4 GB)` walk at process init is not built**, because it needs a
 census of what is legitimately mapped low first.
-`doc/design/decisions/0072-the-low-window-belongs-to-the-guest.md:108-114`.
+`veneer:doc/design/decisions/0072-the-low-window-belongs-to-the-guest.md:108-114`.
 
 **Whether a larger `MEM_RESERVE` is honored at `_dll_crt0`**, which is what
 would let the reserved window widen from 1 GB toward the contract line.
@@ -199,13 +199,13 @@ and nothing proves Cygwin has no timer or worker thread running by then
 `doc/design/target-definition.md:237-239` — "listed rather than done."
 
 **The four-hop interpreter limit was matched to Linux from memory.**
-`doc/design/decisions/0027-...md:87-90`.
+`veneer:doc/design/decisions/0027-...md:87-90`.
 
 **The fork rebase result is one machine, one day, no ASLR variation.**
-`doc/design/decisions/0029-...md:111-115`.
+`veneer:doc/design/decisions/0029-...md:111-115`.
 
 **`iretq` under a hardened Windows is untested.**
-`doc/design/decisions/0030-...md:134-137`. DR-0062 opts out at the compiler and
+`veneer:doc/design/decisions/0030-...md:134-137`. DR-0062 opts out at the compiler and
 says it does not cover the host setting (`0062:46-49`).
 
 **Cygwin's `fork` replaying every `mmap` mapping is asserted, not measured**,
@@ -226,7 +226,7 @@ build is undecided.
 `doc/design/decisions/0063-images-carry-no-fs-relative-tls.md:61-63`.
 
 **The 128-byte gap in the delivery path has never been priced.**
-`doc/IMPLEMENTATION-PLAN.md:44-45`. A reserved call, deliberately not a task,
+`veneer:doc/IMPLEMENTATION-PLAN.md:44-45`. A reserved call, deliberately not a task,
 but with no trigger that would raise it.
 
 ## Stale prose, not open work
@@ -234,8 +234,8 @@ but with no trigger that would raise it.
 Two places describe a question as open that a later record answered. Correcting
 them is a five-minute job for whoever is next in the file.
 
-`doc/design/what-a-stub-means.md:113-117` and
-`doc/design/decisions/0052-a-stub-may-be-filled-with-a-synthesized-body.md:53-56`
+`veneer:doc/design/what-a-stub-means.md:113-117` and
+`veneer:doc/design/decisions/0052-a-stub-may-be-filled-with-a-synthesized-body.md:53-56`
 both say the acceptance verdict for a filled stub "is left to a follow-up".
 DR-0057 settled it on 2026-09-01: `ready` is forward, wired or filled, and
 bzip2 reads 34/5/1 against that rule.
@@ -306,6 +306,6 @@ deferral phrased in words that search did not cover is still out there, and the
 only honest way to find it is to read the tree rather than grep it.
 
 That each entry's owning package is really absent rather than merely unnamed.
-The check was a search of `doc/IMPLEMENTATION-PLAN.md` for each item's
+The check was a search of `veneer:doc/IMPLEMENTATION-PLAN.md` for each item's
 vocabulary. A package whose text covers an item in different words would read
 here as unowned when it is not.

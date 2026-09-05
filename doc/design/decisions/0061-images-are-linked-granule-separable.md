@@ -29,7 +29,7 @@ coalescing them to the union would surrender the W^X and NX the second-pass
 protection exists to hold, so the loader refuses. That makes granule-separable
 linking a property every loadable image must have.
 
-Until now it lived only as an assumption in prose. `doc/IMPLEMENTATION-PLAN.md`
+Until now it lived only as an assumption in prose. `veneer:doc/IMPLEMENTATION-PLAN.md`
 and `doc/ROADMAP.md` both note that el8 binaries carry the linker's 2 MB
 max-page-size default, which puts every segment in its own granule with room to
 spare — true for stock el8, and the reason the refusal was expected never to

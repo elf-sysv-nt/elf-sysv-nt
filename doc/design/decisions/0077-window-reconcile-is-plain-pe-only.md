@@ -27,7 +27,7 @@ and reserves around it. DR-0069 extends the same model to the placement side.
 Both are sound against that model.
 
 The model is not what a real cygwin-linked child presents.
-`spike/reent-stub-realproc-window-reconcile/results-2026-09-01.txt` measures
+`veneer:spike/reent-stub-realproc-window-reconcile/results-2026-09-01.txt` measures
 the low window as `reserved+committed`, with two committed regions above the
 reservation. `elf_window_plan` refuses any committed occupant by design — a
 committed region is not a bare reservation and cannot be reconciled — so

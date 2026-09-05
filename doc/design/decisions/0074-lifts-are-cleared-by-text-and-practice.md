@@ -7,7 +7,7 @@ ratification under the non-reserved decision policy, since licensing is a
 reserved area and DR-0004 is the standing record
 Proposal: none; taken against the licence-restriction analysis of 2026-09-02,
 kept as a working note, and the open items of
-`doc/design/proposals/licensing-issue.md`
+`veneer:doc/design/proposals/licensing-issue.md`
 
 ## What was decided
 

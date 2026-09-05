@@ -102,5 +102,5 @@ different scope.
 
 `runtime/core/README.md`, under "The unwind seam". `runtime/core/core.h`, whose
 unwind contract states it. `runtime/core/t/core_test.c`, whose `unwind-present`
-and `unwind-seam` cases measure it. `doc/IMPLEMENTATION-PLAN.md`, WP-22, whose
+and `unwind-seam` cases measure it. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-22, whose
 delivery note points here.

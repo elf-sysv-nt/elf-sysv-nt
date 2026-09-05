@@ -76,5 +76,5 @@ Reversal is a new record pointing back here, not an edit to this one.
 
 `runtime/imports/README.md`, which carries the thunk and the reasoning for the
 call-site split. `runtime/imports/gen-wrappers.sh`, whose generated thunk is
-this shape and whose header comment states it. `doc/IMPLEMENTATION-PLAN.md`,
+this shape and whose header comment states it. `veneer:doc/IMPLEMENTATION-PLAN.md`,
 WP-21, whose delivery note points here.

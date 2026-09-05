@@ -57,6 +57,6 @@ Reversal is a new record pointing back here, not an edit to this one.
 ## Where it is written down
 
 `runtime/exports/README.md`, which names the ref and whose reproduce test pins
-it. `doc/IMPLEMENTATION-PLAN.md`, WP-20, where "a named ref" becomes this ref.
+it. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-20, where "a named ref" becomes this ref.
 `doc/design/test-environment.md`, which already separates the two roots by
 their jobs and can now cite this record for which one the runtime comes from.

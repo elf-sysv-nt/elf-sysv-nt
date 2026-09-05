@@ -101,7 +101,7 @@ ways across four documents, and the suite runs a step that is absent from its
 own plan, so a reader cannot tell what passing means. Whichever enumeration is
 right, one of them is, and the others are corrected to match it.
 
-Settled by: DR-0035, DR-0038, DR-0085.
+Settled by: DR-0035, DR-0038.
 
 ## Substitution
 
@@ -154,28 +154,6 @@ import has a body; it now means every import is claimed and has a body, which
 is the same statement with its second half made explicit. A package importing
 a name the veneer does not claim never reaches the harness at all, because it
 fails at link.
-
-## The bootstrap bar
-
-Veneer work is finished when one named package from the acceptance set builds
-from vendor source, runs, and passes its own test suite, with no substitution
-left open against it. Past that bar, further veneer work is justified per name
-rather than by default.
-
-The bar is a measurement rather than an appetite, and it is chosen because
-everything it certifies is a prerequisite of anything built on this platform
-afterwards: the loader mapping and relocating a real vendor image, the crossing
-into the faced runtime, the process shape a real program observes, and a
-toolchain producing something that runs. Work begun before that bar is work
-begun on an uncertified floor.
-
-Which package is not settled. It is discriminated by the demand-side census
-that the acceptance number already turns on — what share of the acceptance
-set's import surface a candidate's imports cover — so one census answers two
-questions, and a small share settles it toward a second package of a different
-shape without anyone's appetite entering.
-
-Settled by: DR-0079.
 
 ## Fuzz and unit obligations
 

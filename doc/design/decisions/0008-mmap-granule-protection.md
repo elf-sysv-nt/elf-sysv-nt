@@ -101,5 +101,5 @@ new branch in one function rather than a rewrite.
 
 `loader/map/README.md`, which carries the reserve/commit/protect sequence and
 the visibility guarantee, and `loader/map/elf_map.c`, whose header comment
-points here. `doc/IMPLEMENTATION-PLAN.md`, WP-32, where the delivery note cites
+points here. `veneer:doc/IMPLEMENTATION-PLAN.md`, WP-32, where the delivery note cites
 this record.

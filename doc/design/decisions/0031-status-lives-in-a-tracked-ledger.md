@@ -17,7 +17,7 @@ held, and has every dependency delivered. Delivered status is a tracked ledger,
 `doc/status/delivered.txt`, one id per line, to which the worker appends when a
 package lands. Packages set aside from autonomous building are a second tracked
 list, `doc/status/hold.txt`, undelivered but not attempted. The plan,
-`doc/IMPLEMENTATION-PLAN.md`, is read only for structure — a section's `Needs`
+`veneer:doc/IMPLEMENTATION-PLAN.md`, is read only for structure — a section's `Needs`
 line and its spec — and never written for status.
 
 ## Why
