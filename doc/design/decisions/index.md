@@ -29,35 +29,35 @@ the pair and says which reading is current.
 | [0003](0003-tls-model.md) | The TLS model is a runtime-owned thread pointer through `%gs`, carrier C3 | accepted 2026-08-29 | 0002 |
 | [0005](0005-bounded-linux-claim.md) | The `linux` field is a bounded claim, not a lie; DR-0001 stands | accepted 2026-08-29 | 0004 |
 | [0006](0006-red-zone-direction.md) | The red zone is repaired at the delivery site; `-mno-red-zone` is scaffolding | accepted 2026-08-29; superseded by 0050 | none |
-| [0007](0007-runtime-base-version.md) | The runtime is based on Cygwin 3.6.10 (`newlib-cygwin` b11613e47), not the pinned 3.0.7 | accepted 2026-08-30 | none |
+| [0007](0007-runtime-base-version.md) | The runtime is based on Cygwin 3.6.10 (`newlib-cygwin` b11613e47), not the pinned 3.0.7 | accepted 2026-08-30; superseded by 0097 | none |
 | [0008](0008-mmap-granule-protection.md) | Segment mapping goes through the runtime's `mmap`, one region per object, protection at the host granule; a granule-sharing object is refused | accepted 2026-08-30 | none |
-| [0009](0009-down-call-wrapper-convention.md) | The down-call wrapper is a signature-agnostic `ms_abi` tail jump; translation lands at the call site | accepted 2026-08-30 | none |
-| [0010](0010-veneer-header-provenance.md) | The veneer's `features.h` is el8's arithmetic, copied not paraphrased | accepted 2026-08-30 | none |
+| [0009](0009-down-call-wrapper-convention.md) | The down-call wrapper is a signature-agnostic `ms_abi` tail jump; translation lands at the call site | accepted 2026-08-30; superseded by 0097 | none |
+| [0010](0010-veneer-header-provenance.md) | The veneer's `features.h` is el8's arithmetic, copied not paraphrased | accepted 2026-08-30; superseded by 0097 | none |
 | [0011](0011-ldso-cache-format.md) | the loader's cache is this project's own format, not glibc's | accepted 2026-08-30 | none |
-| [0012](0012-host-facing-unwind-seam.md) | host-facing entry points are ms_abi with compiler unwind data; System V frames carry none | accepted 2026-08-30 | none |
+| [0012](0012-host-facing-unwind-seam.md) | host-facing entry points are ms_abi with compiler unwind data; System V frames carry none | accepted 2026-08-30; superseded by 0097 | none |
 | [0014](0014-at-pagesz-commit-granularity.md) | AT_PAGESZ reports the commit granularity, not the reservation one | accepted 2026-08-30 | none |
-| [0015](0015-variadic-rebuild-through-a-core-valist.md) | the variadic veneer rebuilds a Microsoft va_list and repasses through a va_list core | accepted 2026-08-30 | none |
+| [0015](0015-variadic-rebuild-through-a-core-valist.md) | the variadic veneer rebuilds a Microsoft va_list and repasses through a va_list core | accepted 2026-08-30; superseded by 0097 | none |
 | [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
-| [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30 | none |
-| [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30 | none |
+| [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30; superseded by 0097 | none |
+| [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30; superseded by 0097 | none |
 | [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30 | none |
 | [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
-| [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30 | none |
+| [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30; superseded by 0097 | none |
 | [0027](0027-the-exec-branch-and-the-interpreter-limit.md) | one classifier for the exec branch, and a four-hop interpreter limit | accepted 2026-08-30 | none |
 | [0028](0028-the-low-window-is-reserved-by-the-parent.md) | the low window is reserved by the parent, into a suspended stub | accepted 2026-08-30 | none |
 | [0029](0029-what-crosses-the-fork-and-how-it-is-checked.md) | what crosses the fork, and how the child knows | accepted 2026-08-30 | none |
 | [0030](0030-the-shape-of-a-signal-delivery.md) | the receiving thread builds the signal frame, and the return is an iretq | accepted 2026-08-30 | none |
 | [0031](0031-status-lives-in-a-tracked-ledger.md) | build status is a tracked ledger and the worker is driven from the plan | accepted 2026-08-30 | none |
 | [0033](0033-an-elf-core-from-the-runtime.md) | a fatal signal leaves an ELF core, written by the runtime | accepted 2026-08-30 | none |
-| [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30 | none |
+| [0034](0034-the-manifest-is-the-installers-memory.md) | the installer's only memory is a manifest under the root | accepted 2026-08-30; superseded by 0097 | none |
 | [0035](0035-ci-is-the-pre-merge-gate.md) | CI is a pre-merge gate on the pinned root, not a hosted service | accepted 2026-08-30 | none |
 | [0036](0036-ratification-sweep-0008-0035.md) | ratification sweep: DR-0008 through DR-0035 pass the decision ladder and are ratified | accepted 2026-08-30 | proposal F7 |
 | [0038](0038-the-build-environment-is-the-primary-root.md) | the build and certification environment is the primary Cygwin root (3.6.10); supersedes DR-0035 on the CI root | accepted 2026-08-30 | none |
 | [0039](0039-one-trunk-sessions-land-from-worktrees.md) | one merge-only trunk; every session lands from its own worktree via session-start/session-land | accepted 2026-08-30 | proposal 0005 |
-| [0040](0040-atomic-dll-install.md) | the faced DLL is installed by rename, not by copy | accepted 2026-08-31 | none |
+| [0040](0040-atomic-dll-install.md) | the faced DLL is installed by rename, not by copy | accepted 2026-08-31; superseded by 0097 | none |
 | [0050](0050-retire-mno-red-zone.md) | `-mno-red-zone` is retired; the red zone is honored at the delivery site | accepted 2026-08-31 | none |
-| [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01 | none |
+| [0059](0059-run-init-chain-before-entry.md) | the loader runs a crossed image's DT_INIT chain before entry, across the ABI boundary | accepted 2026-09-01; superseded by 0097 | none |
 | [0061](0061-images-are-linked-granule-separable.md) | every image the platform loads is linked granule-separable | accepted 2026-09-01 | none |
 | [0062](0062-cet-opt-out-is-a-toolchain-default.md) | CET opt-out belongs in the toolchain default, not only the rpm macros | accepted 2026-09-01 | none |
 | [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
@@ -72,6 +72,7 @@ the pair and says which reading is current.
 | [0084](0084-every-check-is-designated-where-it-is-written.md) | every check carries a written designation in test/suites.tsv, and the gate tier matches ci/suites.txt | accepted 2026-09-03 | none |
 | [0095](0095-the-licence-is-chosen-not-inherited.md) | the licence is LGPL-2.1-or-later, chosen here rather than inherited from what the veneer derived from | accepted 2026-09-05 | 0011 |
 | [0096](0096-paths-resolve-from-named-roots.md) | scripts and registries resolve three named roots instead of writing a machine's paths out longhand | accepted 2026-09-05 | none |
+| [0097](0097-proposal-0011-is-ratified.md) | proposal 0011 is ratified, and every record whose subject is the veneer arc retires with it | accepted 2026-09-05 | 0011 |
 
 ## What earns a record
 
