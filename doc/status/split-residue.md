@@ -62,8 +62,10 @@ pointing at the sibling repository, not at a mistake.
 - **`triple-fidelity`** loses one progress line, `count-vendor-misses:
   classifying`, from an otherwise identical transcript. Also identical in the
   veneer checkout, so it predates the split by some days.
-- **`demand-census`** reports UNMET, twice. Its inputs live in the checkout's
-  untracked `a/` annex, which no repository carries. DR-0096 records it.
+- **`demand-census`** no longer reports at all. Its two analysis rows are
+  retired: they wanted the untracked census annex *and* two veneer
+  classification tables that left with the arc, and both questions they answer
+  are veneer-framed. `census.py`, the collection half, still runs anywhere.
 
 Two defects were found and fixed getting there, both of which would have hit
 the first person to clone this repository. `spike/versioned-libc` was dropped

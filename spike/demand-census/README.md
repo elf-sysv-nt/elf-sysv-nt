@@ -113,3 +113,23 @@ the rpm container against synthetic archives, and the ELF reader against
 `t/fixture.elf` — a committed binary built from `t/fixture.c` with the
 cross toolchain against the veneer libc, so its undefined symbols carry
 exactly the GLIBC-versioned shape the census reads in the field.
+
+## What still runs here
+
+The collection half does. `census.py` reads the el8 package set for its
+versioned undefined symbols and needs python3 and a network, so the census can
+be taken again on any machine.
+
+The two analysis halves cannot, in this repository. `split-demand.py` reads
+`veneer/classification/bucket4-inventory.tsv` and `pin-cost.py` reads
+`claimed-surface.tsv`; both tables went to the veneer sibling with the arc that
+built them, and both scripts also want the per-package demand under the
+checkout's untracked `a/census-work`, which no repository carries. Their rows
+were retired from `test/spike-regen.tsv` rather than left reporting an absent
+input forever.
+
+Their questions went with the tables. "Touches bucket 4" and "what does pinning
+this package cost against the claimed surface" are questions about a veneer;
+a kernel at the syscall boundary asks which syscalls el8 reaches for. The
+transcripts below record what was measured, and the numbers in them are still
+the honest answer to what they asked.

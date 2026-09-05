@@ -44,17 +44,25 @@ versioned-libc	$ELFSYSVNT_EL8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d 
 demand-census	SKIP	-	true
 # empty-version-node needs the cross binutils and nothing else: no
 # network, no vendor input, no el8 host.
-# The census's analysis half is a different animal from its collection half: it
-# reads committed tables plus the per-package demand already on disk, runs
-# offline in seconds, and is worth certifying. An absent work root makes it
-# INCOMPLETE rather than skipped, which is correct -- the split cannot be taken
-# without the census having run.
-demand-census	$ELFSYSVNT_ROOT/a/census-work/frag	results-split-[0-9]*.txt	./split-demand.py --root $ELFSYSVNT_ROOT/a/census-work -o -
-# pin-cost is the same data read against the claimed surface rather than the
-# floor, so unlike the split it moves when a package is pinned. That is the
-# finding, not drift: the frontier it describes shrinks as the surface grows,
-# and a rerun after a pin is expected to differ.
-demand-census	$ELFSYSVNT_ROOT/a/census-work/frag	results-pin-cost-[0-9]*.txt	./pin-cost.py --root $ELFSYSVNT_ROOT/a/census-work -o -
+# The census's two analysis rows, split-demand and pin-cost, are retired here
+# rather than left to report INCOMPLETE forever. Each needed three things and
+# this repository can supply none of them: the per-package demand under the
+# checkout's untracked a/census-work, which no repository carries; and
+# veneer/classification's bucket4-inventory.tsv and claimed-surface.tsv, which
+# went to the veneer sibling with the arc that produced them.
+#
+# The inputs are not merely absent, they are unreconstitutable, and both
+# questions are veneer-framed besides. split-demand discriminates on the
+# fourth-bucket inventory's category column; pin-cost prices a package against
+# DR-0079's claimed surface. A kernel at the syscall boundary asks which
+# syscalls el8 needs, not which glibc symbols a floor lacks, so neither verdict
+# is one this design would take again.
+#
+# What carries is the mechanism, which is what 0011 says carries: census.py
+# reads the el8 package set for its versioned undefined symbols and needs
+# python3 and a network and nothing else. The transcripts stay as the record of
+# what was measured. When the syscall-side question is asked, it gets its own
+# rows against inputs this tree can rebuild.
 # cygwin-from-source has no standalone regeneration script: its rerun is WP-26's
 # from-source DLL build, tracked in that package rather than here.
 # reent-bringup contrasts the cygload and real-process host shapes against
