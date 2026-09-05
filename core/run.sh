@@ -135,7 +135,13 @@ fi
 
 # --- run the ELF under the core ----------------------------------------------
 say "running the ELF under the core"
-core_out=$("$exe" "$elf"); core_rc=$?
+# lk-host is a native Windows binary, so it opens the path its own runtime
+# understands, not the POSIX one this shell writes. Convert where cygpath
+# exists and leave the path alone where it does not, so the same script works
+# from a plain Linux shell once the core builds there.
+elf_arg=$elf
+command -v cygpath >/dev/null 2>&1 && elf_arg=$(cygpath -w "$elf")
+core_out=$("$exe" "$elf_arg"); core_rc=$?
 core_norm=$(printf '%s' "$core_out" | tr -d '\r')
 
 printf '%s: core stdout=[%s] exit=%d\n' "$prog" "$core_norm" "$core_rc"
