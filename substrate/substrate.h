@@ -171,6 +171,36 @@ struct substrate {
 			    size_t len, uint64_t *fault);
 	int (*user_copy_out)(struct substrate *s, uint64_t uaddr,
 			     const void *src, size_t len, uint64_t *fault);
+
+	/*
+	 * Cross-process clone -- a capability, and the two hooks the as_clone
+	 * conformance group needs to drive it.  These are not a tenth call; they
+	 * describe how as_clone's one contract is exercised when the child is a
+	 * separate process rather than an in-process copy.
+	 *
+	 * clone_cross_process is filled by the substrate: 1 when as_clone forks a
+	 * child process (N's RtlCloneUserProcess), 0 when it copies the address
+	 * space in-process (the mock).  The as_clone group reads it to choose its
+	 * driving; a substrate that leaves it 0 keeps the in-process path, so the
+	 * mock is untouched.  The contract asserted is identical either way -- the
+	 * child reads the parent's pre-clone contents, and a later write on either
+	 * side stays private -- only the driving differs.
+	 *
+	 * clone_child_certify is filled by the conformance suite, not the
+	 * substrate, and matters only when clone_cross_process is 1.  as_clone runs
+	 * it on the cloned thread inside the child, and its return value becomes the
+	 * child's exit status, the verdict the parent reads.  It runs where a fresh
+	 * clone is fragile, so it must touch only its own pages -- no heap, no
+	 * service call.
+	 *
+	 * clone_wait is filled by a cross-process substrate on the child holder a
+	 * successful as_clone returns; it blocks until that child exits and yields
+	 * its exit status (negative on error).  NULL on an in-process substrate,
+	 * where the suite never calls it.
+	 */
+	int clone_cross_process;
+	int (*clone_child_certify)(struct substrate *s);
+	int (*clone_wait)(struct substrate *child);
 };
 
 /*

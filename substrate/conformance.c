@@ -245,6 +245,78 @@ static int grp_as_protect(struct substrate *s)
 
 /* ---- group 4: as_clone -------------------------------------------------- */
 
+/*
+ * A cross-process substrate (N's RtlCloneUserProcess) produces a child that is
+ * a separate process, so the parent cannot reach into it with the child
+ * substrate's user copies the way it can an in-process copy (the mock).  The
+ * contract is unchanged -- the child reads the parent's pre-clone contents, and
+ * a later write on either side stays private -- but the driving differs: the
+ * parent leaves the address and the two patterns where the clone carries them,
+ * the child certifies on its own pages, and the parent reads the verdict from
+ * the child's exit status.  This block is reached only when the substrate
+ * declares clone_cross_process; the mock keeps the in-process path below it.
+ */
+static struct {
+	uint64_t uaddr;
+	unsigned char pre[8];
+	unsigned char child_val[8];
+} clone_plan;
+
+/* Runs on the cloned thread inside the child.  It reads the parent's pre-clone
+ * bytes and writes a value of its own, then confirms that write, touching its
+ * page directly: a fresh clone must not reach the heap or a service, and the
+ * page is known mapped, so no fault guard is owed.  A nonzero return is the
+ * child's exit code and says which half failed. */
+static int clone_child_certify(struct substrate *s)
+{
+	volatile unsigned char *p =
+		(volatile unsigned char *)(uintptr_t)clone_plan.uaddr;
+	int i;
+
+	(void)s;
+	for (i = 0; i < 8; i++)
+		if (p[i] != clone_plan.pre[i])
+			return 11;	/* the address space did not clone */
+	for (i = 0; i < 8; i++)
+		p[i] = clone_plan.child_val[i];
+	for (i = 0; i < 8; i++)
+		if (p[i] != clone_plan.child_val[i])
+			return 12;	/* the child's own write did not hold */
+	return 0;
+}
+
+static int as_clone_cross(struct substrate *s, uint64_t u,
+			  const unsigned char *pre)
+{
+	struct substrate *child = NULL;
+	unsigned char child_val[8], par_val[8], rb[8];
+	uint64_t fault = 0;
+	int verdict, i, ok = 1;
+
+	memset(child_val, 0x22, 8);
+	memset(par_val, 0x33, 8);
+	clone_plan.uaddr = u;
+	memcpy(clone_plan.pre, pre, 8);
+	memcpy(clone_plan.child_val, child_val, 8);
+	s->clone_child_certify = clone_child_certify;
+
+	if (s->as_clone(s, &child) || !child)
+		return 0;
+
+	/* The child ran its certification and exited with the verdict. */
+	verdict = child->clone_wait ? child->clone_wait(child) : -1;
+
+	/* The parent's own post-clone write is private to the parent: it still
+	 * reads its own value, never the child's. */
+	if (s->user_copy_out(s, u, par_val, 8, &fault)) ok = 0;
+	if (s->user_copy_in(s, rb, u, 8, &fault)) ok = 0;
+	for (i = 0; i < 8; i++)
+		if (rb[i] != par_val[i])
+			ok = 0;
+
+	return ok && verdict == 0;
+}
+
 static int grp_as_clone(struct substrate *s)
 {
 	struct substrate *child = NULL;
@@ -259,6 +331,10 @@ static int grp_as_clone(struct substrate *s)
 	u = (uint64_t)p;
 	memset(pre, 0x11, 8);
 	if (s->user_copy_out(s, u, pre, 8, &fault)) ok = 0;
+
+	/* A clone that crosses a process boundary is certified by the child. */
+	if (s->clone_cross_process)
+		return ok && as_clone_cross(s, u, pre);
 
 	if (s->as_clone(s, &child) || !child)
 		return 0;
