@@ -144,7 +144,7 @@ is a red build, not a discovery during the second substrate.
 
 ## Conformance
 
-A substrate is conformant when it passes the suite in `test/substrate/`, one
+A substrate is conformant when it passes the suite in `substrate/`, one
 group per call, each asserting the contract above rather than an implementation
 detail. The suite is written against the interface, not against N or H, so both
 run the same tests and a third substrate (the DBT option § 4 names) would too.

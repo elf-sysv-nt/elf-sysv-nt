@@ -7,7 +7,7 @@ This document records what N realises each call with, the construction plan,
 and the decision log for the run.
 
 The interface contract is fixed (Substrate-Interface.md) and the certification
-bar is written (the conformance suite in `test/substrate/`). This is therefore
+bar is written (the conformance suite in `substrate/`). This is therefore
 leaf-first construction: N is the leaf the core will sit on, built to a bar it
 did not get to relax.
 
