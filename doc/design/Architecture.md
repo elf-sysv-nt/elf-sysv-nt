@@ -170,28 +170,32 @@ Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
 
 ## The loader
 
-The kernel maps a static image itself; a dynamic one is handed to a dynamic
-loader that runs above the kernel like any other userland code.
+The kernel maps a static image itself, under either substrate. `exec` has one
+classifier, and an interpreter chain is followed at most four hops before it is
+refused, which is a limit rather than a recursion. That is kernel behaviour,
+above the substrate line, and it is the same either way.
 
-The loader's cache is this project's own format rather than glibc's. Reading
-glibc's would tie the platform to a layout that changes for reasons that have
-nothing to do with it, and the cache is small enough that owning it is cheaper
-than tracking it.
+Which dynamic loader then runs is not. **Under H the userland is Rocky 8's own
+RPMs**, so the dynamic loader is el8's `ld.so`, reading el8's
+`/etc/ld.so.cache` in glibc's format, and this platform supplies neither.
+Everything remaining in this section is therefore **substrate N's**, where the
+userland is rebuilt and the loader is the platform's own.
+
+N's loader cache is this project's format rather than glibc's. Reading glibc's
+would tie the platform to a layout that changes for reasons unrelated to it,
+and the cache is small enough that owning it is cheaper than tracking it.
 
 Relocation types the platform will never emit are certified against real vendor
 objects rather than assumed absent, which is the only way to know that the set
 a loader implements covers the set a distribution ships.
 
 A weak undefined symbol is not a demand on the runtime. It resolves to zero and
-the program tests it, which is what the ABI says and what a program that ships
-one expects.
+the program tests it, which is what the ABI says and what a program shipping one
+expects.
 
-The debugger rendezvous is the standard link map, so a host debugger attaching
-to a process can walk the loaded objects without the platform inventing a
-protocol for it.
-
-`exec` has one classifier, and an interpreter chain is followed at most four
-hops before it is refused, which is a limit rather than a recursion.
+The debugger rendezvous is the standard link map either way, so a host debugger
+can walk the loaded objects without the platform inventing a protocol; what
+differs is only who maintains it, N's loader or el8's.
 
 Settled by: DR-0011, DR-0016, DR-0022, DR-0027, DR-0073.
 
@@ -201,8 +205,11 @@ Settled by: DR-0011, DR-0016, DR-0022, DR-0027, DR-0073.
 fork-shaped wrapper over `NtCreateUserProcess`, which returns
 `STATUS_PROCESS_CLONED` in a child on a live thread; the raw path of creating a
 process from a null section clones the address space but cannot start a thread
-in it. What crosses the fork is enumerated rather than assumed, and the child
-checks what it received rather than trusting that it arrived.
+in it. Under H the kernel owns the guest page tables, so `fork` is the ordinary
+one: mark every writable entry read-only in parent and child, and copy on the
+first write fault. What crosses the fork is enumerated rather than assumed
+either way, and the child checks what it received rather than trusting that it
+arrived.
 
 A signal is delivered by building a frame on the target's stack and resuming
 it there. The frame is built below the red zone, so a handler that returns into
@@ -217,17 +224,28 @@ Settled by: DR-0029, DR-0030, DR-0033.
 
 ## The address space
 
-`doc/design/Address-Space.md` carries this in detail. The shape: the kernel
-reserves the user range as a placeholder and replaces pieces of it with section
-views, committing lazily through a fault handler. A single placeholder holds at
-half the user range, and the practical claim is the half-range one; the literal
-whole-range claim does not hold on this kernel.
+`doc/design/Address-Space.md` carries this in detail. The two substrates differ
+here as much as they do over the thread pointer.
 
-The alignment invariant the design builds against is the documented 64 KB —
-`p_vaddr ≡ p_offset (mod 64 KB)` — even though this host's kernel accepts a
-4 KB split and a 4 KB file-backed view. Building against the coarser rule and
-probing for the finer one costs little and does not rest a shipped artifact on
-one machine's measurement.
+**Under N** the kernel reserves the user range as a placeholder in the sense
+`NtAllocateVirtualMemoryEx` gives the word, and replaces pieces of it with
+section views, committing lazily through a vectored handler on first touch. NT's
+VADs are the mechanism and the kernel's tree is the record over them. A single
+placeholder holds at half the user range; the literal whole-range claim does not
+hold on this kernel, and the practical half-range one does.
+
+The alignment invariant N builds against is the documented 64 KB —
+`p_vaddr ≡ p_offset (mod 64 KB)` — even though this host accepts a 4 KB split
+and a 4 KB file-backed view. Building against the coarser rule and probing for
+the finer one costs little and does not rest a shipped artifact on one
+machine's measurement.
+
+**Under H** none of that applies. The kernel writes the guest page tables, so a
+VMA is realised at page granularity by writing entries, a file mapping at any
+alignment is a question of which host pages back which guest pages, and there
+is no arena because there is no NT VAD in the guest's way. The lazy-commit
+handler still exists, one level down, because the host memory behind guest
+physical pages is still NT memory in the host process.
 
 ## Verification
 
