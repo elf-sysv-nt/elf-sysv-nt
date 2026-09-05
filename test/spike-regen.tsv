@@ -159,3 +159,8 @@ arena	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 hijack	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 lxfs	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 whp	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+# whp-vcpu-interrupt (spike g): the H-side thread_interrupt via
+# WHvCancelRunVirtualProcessor, the least-proven of proposal 0011's nine
+# substrate-interface calls. Needs the hypervisor present, which its own q1
+# measures rather than requiring up front.
+whp-vcpu-interrupt	-	results-2026-[0-9]*.txt	bash measure.sh -o -
