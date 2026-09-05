@@ -1,5 +1,5 @@
 /* The static hello WP-14 has to link.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../../COPYING.LESSER.
 
    It prints nothing, because printing needs a libc and a libc needs the
    runtime, and WP-14 sits three packages before either.  What it does instead

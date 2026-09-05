@@ -1,5 +1,5 @@
 /* An _exit that returns to spike 2's stub, for want of a runtime.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../../COPYING.LESSER.
 
    Scaffolding, and deliberately in the test directory rather than beside the
    startup files.  crt1.o calls _exit and does not care who supplies it; on a

@@ -70,6 +70,8 @@ the pair and says which reading is current.
 | [0077](0077-window-reconcile-is-plain-pe-only.md) | the window reconcile of DR-0068 and DR-0069 is live for the plain-PE shape only | accepted 2026-09-03 | none |
 | [0078](0078-doc-splits-by-what-a-file-claims.md) | doc/ splits by what a file claims about the present: design, history, and the plans between them | accepted 2026-09-03 | none |
 | [0084](0084-every-check-is-designated-where-it-is-written.md) | every check carries a written designation in test/suites.tsv, and the gate tier matches ci/suites.txt | accepted 2026-09-03 | none |
+| [0095](0095-the-licence-is-chosen-not-inherited.md) | the licence is LGPL-2.1-or-later, chosen here rather than inherited from what the veneer derived from | accepted 2026-09-05 | 0011 |
+| [0096](0096-paths-resolve-from-named-roots.md) | scripts and registries resolve three named roots instead of writing a machine's paths out longhand | accepted 2026-09-05 | none |
 
 ## What earns a record
 

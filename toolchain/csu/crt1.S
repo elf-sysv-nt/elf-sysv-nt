@@ -1,5 +1,5 @@
 /* Process entry for a statically linked image.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../COPYING.LESSER.
 
    Entered by a jump with %rsp on argc, which is what the psABI says a process
    entry point is entered with and what WP-40 builds.  Not a call: there is no

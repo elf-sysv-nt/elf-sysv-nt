@@ -1,5 +1,5 @@
 /* Process entry for a position-independent image.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../COPYING.LESSER.
 
    The same protocol as crt1.S; read that file first.  What differs is one
    line, and it is the line that matters more than it looks: main is reached

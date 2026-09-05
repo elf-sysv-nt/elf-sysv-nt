@@ -1,5 +1,5 @@
 /* The closing half of _init and _fini.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../COPYING.LESSER.
 
    Pairs with crti.S; read the comment there.  This file must be last on the
    link line, after every object that might contribute to .init or .fini.  */

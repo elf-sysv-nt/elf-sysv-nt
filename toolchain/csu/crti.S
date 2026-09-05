@@ -1,5 +1,5 @@
 /* The opening half of _init and _fini.
-   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../LICENSE.
+   Copyright (C) 2026 Philip Dye.  Distributed under the terms in ../../COPYING.LESSER.
 
    These two files are a matched pair and a link that includes one without the
    other produces a function with a prologue and no return, or a return and no
