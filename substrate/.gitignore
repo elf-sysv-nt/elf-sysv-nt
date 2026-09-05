@@ -1,0 +1,4 @@
+# run.sh builds here; nothing under it is tracked.
+.build/
+*.exe
+*.o
