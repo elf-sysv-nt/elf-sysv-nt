@@ -29,3 +29,4 @@ bin/check-suites
 # fixture shims table and held to a pin while the surface does not claim it.
 # Host tools only; the cross assembler, when present, also assembles it.
 bin/check-roots
+bin/check-substrate-line

@@ -63,5 +63,5 @@ spike/versioned-libc/t/run-tests.sh	report	-	as above
 # face suite" means knowing all fifteen names. That is a gap in the package,
 # not in this registry, and it is why they appear here one by one.
 substrate/run.sh	report	-	substrate-interface conformance; nine groups pass against the mock. Promotes to gate when N or H must pass it
-bin/check-substrate-line	report	-	no symbol above the substrate line names Nt*/WHv*/CONTEXT/HANDLE or derefs a user ptr; no-op-clean until the core exists, promotes to gate then
+bin/check-substrate-line	gate	-	no symbol above the substrate line names Nt*/WHv*/CONTEXT/HANDLE or derefs a user pointer; walks core/ by default, which exists as of Phase 1
 bin/check-roots	gate	-	nothing runnable hard-codes a root; the harness resolves them through bin/roots.sh, so a pasted absolute path fails here rather than on the next machine

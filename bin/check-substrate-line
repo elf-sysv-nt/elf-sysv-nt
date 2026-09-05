@@ -169,6 +169,12 @@ def main(argv):
         matched = globmod.glob(pat, recursive=True)
         return matched if matched else ([pat] if os.path.exists(pat) else [])
 
+    # With nothing named, walk the core: that is what "above the line" means
+    # in this tree, and a check that examines nothing passes for the wrong
+    # reason. Explicit paths or globs still win, so a caller can narrow it.
+    if not paths and not globs:
+        globs = ["core/*.c", "core/*.h"]
+
     files = []
     for token in paths + globs:
         for p in resolve(token):
