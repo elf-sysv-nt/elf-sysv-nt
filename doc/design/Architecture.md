@@ -58,6 +58,11 @@ cannot trap `syscall`. It is built and certified 9/9 against that bar —
 it needs a rebuilt userland, since a shipped el8 binary reaches the kernel with
 an instruction N does not see.
 
+Where the two substrates answer a question differently, the section says which
+one it means. That is not padding: the thread pointer sits in a different
+segment register under each, and a sentence that leaves the substrate out is
+wrong about one of them.
+
 **Substrate H** is the hypervisor: WHP vCPUs running shipped el8 binaries
 unmodified, at about five microseconds a syscall against N's one. It is
 designed, its nine calls are each backed by a landed spike, and it is not
@@ -102,10 +107,15 @@ Settled by: DR-0001, DR-0002, DR-0005.
 
 ## Toolchain and images
 
-The toolchain builds the userland that runs above the kernel. Three defaults
-are compiled in rather than left to a build's command line, because a default
-that has to be remembered is one that will be forgotten in a package nobody
-reviews.
+This section is substrate N's. N cannot trap `syscall`, so the userland above
+it is rebuilt to reach the gate, and the toolchain is what rebuilds it. Under H
+there is no toolchain in the path at all: the whole point of that substrate is
+that shipped el8 binaries run unmodified, so every default below is a statement
+about images N loads and about nothing else.
+
+Three defaults are compiled in rather than left to a build's command line,
+because a default that has to be remembered is one that will be forgotten in a
+package nobody reviews.
 
 The red zone is honoured. `-mno-red-zone` was carried for a while as insurance
 against a delivery that would clobber the 128 bytes below `%rsp`, and it is
@@ -125,21 +135,36 @@ Settled by: DR-0050, DR-0061, DR-0062.
 
 ## Thread pointer and TLS
 
-The thread pointer is reached through `%gs`, not `%fs`. That is a measurement,
-not a preference: Windows does not preserve a user-written `%fs` base across a
-context switch, four carriers were measured, and the one this platform uses is
-the carrier the spike called C3. Under substrate N the kernel sets it through
-the interface's `tp_set`; under H it is the guest's own register and the
-question does not arise.
+The two substrates answer this differently, and the difference is the clearest
+example of why the interface exists. Under N the thread pointer is reached
+through `%gs`; under H it is `%fs`, where Linux has always kept it.
 
-No image the platform loads may carry a `%fs`-relative thread-pointer access.
-The linker emits such relocations unasked, so the toolchain refuses them at
-link time rather than rewriting them at load time — a rewriter would have to be
-a heuristic, and a heuristic in the TLS path fails silently.
+**Under N**, `%fs` is not available. Windows does not preserve a user-written
+`%fs` base across a context switch — the spike measured that on 2026-08-29 and
+the answer was no, which took the ordinary Linux carrier off the table before
+any code was written. Four `%gs` carriers were measured; three persist and
+address at about five cycles, and the one in use is the carrier the spike
+called C3. The ABI above it is glibc's own: `%gs:TP` holds the TCB pointer,
+`%gs:TP+8` the stack-protector canary, `%gs:TP+16` the pointer guard, which is
+what `tls.h`, `-fstack-protector` and `PTR_MANGLE` read. The kernel sets it
+through the interface's `tp_set`, and `arch_prctl(ARCH_SET_FS)` returns
+`EINVAL`, because a program built for this substrate never asks.
+
+**Under H**, the guest owns its own segment bases and
+`arch_prctl(ARCH_SET_FS)` writes the vCPU's FS base. The three words sit where
+glibc always put them, no carrier had to be chosen, and none of the measurement
+above applies.
+
+The consequence for images is N's alone. No image N loads may carry a
+`%fs`-relative thread-pointer access; the linker emits such relocations unasked,
+so the toolchain refuses them at link time rather than rewriting them at load
+time, a rewriter being a heuristic and a heuristic in the TLS path failing
+silently. Under H the shipped el8 binaries are full of exactly those
+relocations, and that is what H is for.
 
 The static-TLS surplus and the shape of the DTV are fixed so that a vendor
-image's own TLS requirements are satisfied without the kernel having to
-renegotiate them after the fact.
+image's own TLS requirements are satisfied without renegotiation after the
+fact.
 
 Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
 
