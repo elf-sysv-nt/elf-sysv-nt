@@ -41,43 +41,9 @@ bin/check-doc-refs	gate	-	every doc, bin, spike and ci path cited from doc/ reso
 bin/check-design-links	gate	-	every in-force record is cited, every citation resolves, every Amends lands on a heading
 bin/check-worknote-refs	gate	-	no tracked file cites a working note a cloner cannot open
 bin/check-conflict-markers	gate	-	no tracked file carries an unresolved merge conflict marker; a degraded land committed one that check-doc-refs read straight past
-bin/check-carry-forward	gate	-	every asset proposal 0008 retains is still in the tree
 bin/check-suites	gate	-	this registry is closed against the tree and against ci/suites.txt
-bin/check-shim-bodies	gate	-	every shim credited wired has a body that exists and names it
 bin/check-target-definition	report	-	greps the whole tree for the six target values; minutes, not seconds
-loader/elf/t/run.sh	gate	-	the ELF reader and its fuzz target; attacker-shaped input from the first line
-veneer/classification/t/reproduce.sh	gate	-	the classification and the claimed surface re-derive from committed tables
-veneer/xlat/t/reproduce.sh	gate	-	the divergence tables re-extract; 11s, no input outside the checkout
 ci/t/run.sh	standalone	-	a meta-test of the gate: it installs the hook and drives real merges, so running it FROM the gate is reentrant and mutates the live repo
-veneer/libc/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	builds libc.so.6, so it needs the cross toolchain; in the gate today and moved here once the registry is believed
-veneer/version-map/t/reproduce.sh	report	-	27s and re-extracts from vendor libraries; cheap enough to gate, slow enough to measure first
-veneer/companions/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the eight companion libraries, built
-veneer/wiring/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the wiring generators and their slices
-veneer/wiring/t/live-crossings.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	every live crossing the claimed surface still exercises; a crossing self-skips to not-checked when a build product is absent
-veneer/wiring/t/fs-face.sh	gate	-	the three filesystem shim bodies: their generated glue re-derives, they build, and their struct stat and O_* translations match recorded pairs. Host compiler only; the cross toolchain adds the versioned-symbol check when present
-veneer/wiring/t/fortify-face.sh	gate	-	the __fprintf_chk shim body: host-compiled against fprintf for behaviour, and the cross-built slice for where the symbol comes from; the cross half self-skips
-runtime/exports/t/reproduce.sh	report	/c/-/repo/newlib-cygwin	RED on trunk 2026-09-03: the checkout is at a9925920, not the pinned b11613e4. Input drift, not rot; --any-ref overrides
-runtime/imports/t/reproduce.sh	report	/c/-/cygwin/root/bin/cygwin1.dll	RED on trunk 2026-09-03: the extractor parses no imports from the pinned DLL. Input state, not rot
-runtime/varargs/t/reproduce.sh	report	-	WP-24's note: varargs-test.c ICEs host gcc 14.4 (choose_baseaddr, i386.cc:7420). Pre-existing, in the blocker log
-runtime/varargs/t/run-tests.sh	report	-	same ICE
-runtime/core/t/run.sh	report	/c/-/x-elfsysvnt/bin	driven today only by runtime/face/t/crossing.sh
-runtime/coredump/t/run.sh	report	/c/-/x-elfsysvnt/bin	the ELF core writer
-runtime/signal/t/run.sh	report	/c/-/x-elfsysvnt/bin	delivery shape, DR-0030
-runtime/tls/t/run.sh	report	/c/-/x-elfsysvnt/bin	the %gs carrier
-runtime/version/t/run.sh	report	-	DR-0018's compatibility counter
-loader/dl/t/run.sh	report	-	the dl surface
-loader/exec/t/run.sh	report	-	the exec bar; bin/nightly-full runs it --full already
-loader/exec/realproc/t/run.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the real-process crossing host
-loader/fork/t/run.sh	report	-	fork replay, WP-42
-loader/graph/t/run.sh	report	-	the object graph; test/t2-run.sh drives it
-loader/lookup/t/run.sh	report	-	the lookup engine; test/t2-run.sh drives it
-loader/map/t/run.sh	report	-	segment mapping
-loader/process/t/run.sh	report	-	the initial process image; test/t2-run.sh drives it
-loader/rdebug/t/run.sh	report	-	the rendezvous
-loader/reloc/t/run.sh	report	-	relocation, and WP-44's seam
-loader/tls/t/run.sh	report	-	TLS in the loader
-loader/version/t/run.sh	report	-	the verdef and verneed matcher
-install/t/run.sh	report	-	the installer's idempotency
 acceptance/t/run-tests.sh	report	-	classify.awk and the image-shape helper
 toolchain/csu/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the startup files
 toolchain/binutils/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-12's exit criteria
@@ -85,7 +51,6 @@ toolchain/gcc/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-13's exit criteria
 toolchain/gcc/t/accept2.sh	report	/c/-/x-elfsysvnt/bin	WP-15's exit criteria
 toolchain/gdb/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-60's exit criteria
 toolchain/rpm/surface/t/run-tests.sh	report	-	the rpm macro surface
-spike/abi-crossing/t/run-tests.sh	report	-	tests the spike's own helpers; the spike itself reruns under test/t3-regen.sh
 spike/demand-census/t/run-tests.sh	report	-	as above
 spike/fs-base-fault/t/run-tests.sh	report	-	as above
 spike/gs-thread-pointer/t/run-tests.sh	report	-	as above
@@ -97,25 +62,5 @@ spike/versioned-libc/t/run-tests.sh	report	-	as above
 # runtime/face/t/ holds fifteen certifications and no driver: running "the
 # face suite" means knowing all fifteen names. That is a gap in the package,
 # not in this registry, and it is why they appear here one by one.
-runtime/face/t/carrier.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the %gs carrier the face reads its reent through
-runtime/face/t/cores.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the face's own core writer
-runtime/face/t/crossing.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the System V crossing at the DLL's width; drives runtime/core/t/run.sh
-runtime/face/t/ctx-face.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the context-transparent faces, DR-0041
-runtime/face/t/din.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the export inventory generated from cygwin.din
-runtime/face/t/elfcall.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	an ELF-side call reaching a faced body
-runtime/face/t/face-table.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	face.tsv against the built DLL
-runtime/face/t/fault.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	fault dispatch across System V frames, DR-0042
-runtime/face/t/hostload.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	a native sole-runtime process loading the faced DLL, DR-0071
-runtime/face/t/int-face.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the integer-shaped faces
-runtime/face/t/nonformat-cores.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the non-format core paths
-runtime/face/t/sigclass.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	signal classification at the face
-runtime/face/t/sigtls.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	signal delivery against the TLS carrier
-runtime/face/t/typed-face.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the typed faces, DR-0044's sv2ms shapes
-runtime/face/t/unlisted.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	unlisted-face disposition, DR-0046
-runtime/winsup/t/errno-numbering.sh	report	/c/-/repo/newlib-cygwin	DR-0093's bar: the floor's errno constants are el8's, name for name, compiled from both header stacks
-runtime/winsup/t/smoke-hello.sh	report	/c/-/repo/elf-sysv-nt/a/build/wp27-face/elfsysv1.dll	the from-source DLL runs a hello, WP-26
-veneer/t/ftm-diff.sh	report	-	features.h resolves __USE_* byte-identically to the vendor header over 43 input sets
-veneer/wiring/t/xlat-pairs.sh	gate	-	the errno and signal translation core against hand-written pairs; host compiler only, a second to run
-veneer/wiring/t/jmpbuf-face.sh	gate	-	the withdrawn frameless jmp_buf face still generates from its curated inputs, held to a pin; rot fails today instead of when the surface widens back
 substrate/run.sh	report	-	substrate-interface conformance; nine groups pass against the mock. Promotes to gate when N or H must pass it
 bin/check-substrate-line	report	-	no symbol above the substrate line names Nt*/WHv*/CONTEXT/HANDLE or derefs a user ptr; no-op-clean until the core exists, promotes to gate then

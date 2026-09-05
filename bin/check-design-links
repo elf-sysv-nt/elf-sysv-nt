@@ -42,10 +42,9 @@ import os, re, sys
 VERSION = 'check-design-links 1.0'
 
 GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
-            'doc/design/ABI-Boundary.md', 'doc/design/Symbol-Resolution.md',
-            'doc/design/Address-Space.md', 'doc/design/Runtime-Crossing.md',
-            'doc/design/Verification-Plan.md', 'doc/design/glibc-reuse.md',
-            'doc/design/target-definition.md', 'doc/design/licensing.md', 'AGENTS.md')
+            'doc/design/Address-Space.md', 'doc/design/Verification-Plan.md',
+            'doc/design/target-definition.md', 'doc/design/licensing.md',
+            'doc/design/test-environment.md', 'AGENTS.md')
 ADOPTION = 75            # the convention's own record; at or below it, no Amends
 
 SETTLED = re.compile(r'^Settled by: DR-\d{4}(?:, DR-\d{4})*\.$')

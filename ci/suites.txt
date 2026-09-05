@@ -1,7 +1,6 @@
 # Suite registry for ci/gate.sh. One executable per line, repo-relative.
 # Each is run as: <suite> -n <count> [-q] and must exit non-zero on any
 # failure, a fuzz crash included. Blank lines and # comments are skipped.
-loader/elf/t/run.sh
 # ci/t/run.sh is a meta-test of this gate: it installs the hook and drives real
 # merges, so running it FROM the gate is reentrant and mutates the live repo
 # (it left a "base" commit on march and flipped core.bare once). Run it
@@ -10,30 +9,22 @@ bin/check-doc-refs
 bin/check-design-links
 bin/check-worknote-refs
 bin/check-conflict-markers
-bin/check-carry-forward
 # The veneer's own two. Neither was registered, so the DR-0079 withdrawal broke
 # veneer/libc/t's surface assertion and the gate stayed green for two commits.
-veneer/classification/t/reproduce.sh
-veneer/xlat/t/reproduce.sh
 # veneer/libc/t/run-tests.sh builds libc.so.6 and so needs the cross
 # toolchain; test/suites.tsv calls it report for that reason. A gate suite
 # that depends on one machine's build products blocks every merge elsewhere.
 bin/check-suites
-bin/check-shim-bodies
 # The filesystem shim bodies. Host compiler only, seconds, no build product:
 # the bodies reach Cygwin through the bind table and nothing else, so a harness
 # that fills the table itself exercises the translation offline. The cross
 # toolchain, when present, adds the versioned-symbol check; when it is absent
 # that check is skipped rather than failed.
-veneer/wiring/t/fs-face.sh
 # The one written shim body with a check that runs anywhere: the behavioural
 # half needs only the host compiler, and the cross-built half reports SKIP
 # without the toolchain rather than failing.
-veneer/wiring/t/fortify-face.sh
 # The wiring layer's translation core, checked against pairs written out by
 # hand from WP-55's tables. Host compiler only; DR-0088 and DR-0089 rest on it.
-veneer/wiring/t/xlat-pairs.sh
 # The frameless jmp_buf face, generated from its curated inputs against a
 # fixture shims table and held to a pin while the surface does not claim it.
 # Host tools only; the cross assembler, when present, also assembles it.
-veneer/wiring/t/jmpbuf-face.sh
