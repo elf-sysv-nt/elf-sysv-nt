@@ -1,0 +1,34 @@
+interrupting a running virtual processor from another thread
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-05T04:37:16Z
+script      measure 1.0
+probe       whp-vcpu-interrupt 1.0
+
+reading, question by question
+
+  q1 a running vCPU is forced out by a cancel from another thread -- canceled,exit-reason:0x2001,cpl:3,runs:200,other:0,failed:0 [pass]
+  q2 latency from the cancel call to the vCPU thread seeing the return -- measured,median_ns:4100,p99_ns:16400,min_ns:3800,samples:2000,non-canceled:0 [pass]
+  q3 after a cancel the vCPU re-enters and the guest resumes where it stopped -- resumes,rip-in-loop,rax0:0x232de,rax1:0x479c7,rip:0x6003 [pass]
+  q4 on the cancel the host injects a handler stub, it runs, then the loop resumes -- delivers-and-resumes,stub-ran:1,rsp-adjusted:1,restored:1,magic:0xc0de5347 [pass]
+  q5 a cancel issued while the vCPU is not inside a run -- latched,next-run-canceled,trials:200,latched:200,lost:0,progress-max:0x0 [pass]
+  q6 every cancel over many iterations yields exactly one canceled exit -- one-to-one,cancels:10000,canceled:10000,other:0,lost:0 [pass]
+
+raw
+
+    q1_cancel_returns_running_vcpu=canceled,exit-reason:0x2001,cpl:3,runs:200,other:0,failed:0
+    q2_latency_ns=measured,median_ns:4100,p99_ns:16400,min_ns:3800,samples:2000,non-canceled:0
+    q3_resumable=resumes,rip-in-loop,rax0:0x232de,rax1:0x479c7,rip:0x6003
+    q4_deliver_then_resume=delivers-and-resumes,stub-ran:1,rsp-adjusted:1,restored:1,magic:0xc0de5347
+    q5_cancel_before_run=latched,next-run-canceled,trials:200,latched:200,lost:0,progress-max:0x0
+    q6_pending_vs_delivered=one-to-one,cancels:10000,canceled:10000,other:0,lost:0
+
+verdict
+
+    shape=q1_cancel_returns_running_vcpu:pass,q2_latency_ns:pass,q3_resumable:pass,q4_deliver_then_resume:pass,q5_cancel_before_run:pass,q6_pending_vs_delivered:pass
+    verdict=yes
+    finding=interrupt-delivers-resumable
+    probe=whp-vcpu-interrupt 1.0
