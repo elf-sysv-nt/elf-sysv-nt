@@ -153,17 +153,37 @@ pass=1
 # --- oracle comparison -------------------------------------------------------
 if [ "$oracle" = 1 ]; then
 	say "comparing against the Rocky 8 oracle"
-	orc_out=$(cmd /c "wsl -d rocky8 -- /bin/echo hello" 2>/dev/null); orc_rc=$?
+	# The oracle runs the twin of the test program, not a stand-in: same two
+	# syscalls, same arguments, reached through the `syscall` instruction a
+	# real kernel traps. An oracle that ran /bin/echo would print hello no
+	# matter what the ELF under test contained, which is a check that cannot
+	# fail and therefore is not one.
+	orc_elf=$builddir/hello-oracle.elf
+	if ! "$cross" -nostdlib -static -no-pie -o "$orc_elf" \
+		"$root/test/core/hello-oracle.S" 2> "$builddir/oracle.log"; then
+		printf '%s: oracle ELF build failed\n' "$prog" >&2
+		cat "$builddir/oracle.log" >&2
+		exit 1
+	fi
+	orc_win=$orc_elf
+	command -v cygpath >/dev/null 2>&1 && orc_win=$(cygpath -w "$orc_elf")
+	orc_path=$(cmd /c "wsl -d rocky8 -- wslpath -a '$orc_win'" 2>/dev/null | tr -d '\r')
+	orc_out=$(cmd /c "wsl -d rocky8 -- $orc_path" 2>/dev/null); orc_rc=$?
 	orc_norm=$(printf '%s' "$orc_out" | tr -d '\r\n')
 	printf '%s: oracle stdout=[%s] exit=%d\n' "$prog" "$orc_norm" "$orc_rc"
 	[ "$orc_norm" = "hello" ] || { pass=0; printf '%s: FAIL oracle stdout differs\n' "$prog" >&2; }
 	[ "$orc_rc" = 0 ] || { pass=0; printf '%s: FAIL oracle exit code is not 0\n' "$prog" >&2; }
 	[ "$core_norm" = "$orc_norm" ] || { pass=0; printf '%s: FAIL core and oracle stdout differ\n' "$prog" >&2; }
+	[ "$core_rc" = "$orc_rc" ] || { pass=0; printf '%s: FAIL core and oracle exit codes differ\n' "$prog" >&2; }
 fi
 
 [ "$keep" = 1 ] && say "build kept in $builddir"
 if [ "$pass" = 1 ]; then
-	say "PASS: hello, exit 0, oracle matched"
+	if [ "$oracle" = 1 ]; then
+		say "PASS: hello, exit 0, oracle matched"
+	else
+		say "PASS: hello, exit 0 (oracle not run)"
+	fi
 	exit 0
 fi
 printf '%s: the bar was not met\n' "$prog" >&2
