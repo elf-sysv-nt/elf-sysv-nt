@@ -44,7 +44,7 @@
 # Usage: accept.sh [options] PACKAGE
 #   PACKAGE   a name in packages.tsv (default: every package there)
 # Options:
-#   -D DIR    fetch and build under DIR       [default: /c/-/el8/accept]
+#   -D DIR    fetch and build under DIR       [default: $ELFSYSVNT_EL8/accept]
 #   -p FILE   the package pin                 [default: beside this script]
 #   -m URL    the mirror root                 [default: Rocky 8.10]
 #   -o FILE   write the report here           [default: stdout]
@@ -57,9 +57,10 @@ set -u
 prog=accept
 release='accept 1.0'
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/../bin/roots.sh"
 root=$(cd "$here/.." && pwd)
 
-dest=${ACCEPT_DEST:-/c/-/el8/accept}
+dest=${ACCEPT_DEST:-$ELFSYSVNT_EL8/accept}
 pins=$here/packages.tsv
 mirror=${ACCEPT_MIRROR:-https://dl.rockylinux.org/pub/rocky/8.10}
 out=-
@@ -92,7 +93,7 @@ done
 only=$*
 [ "$out" = - ] || exec > "$out"
 
-command -v "$cross" >/dev/null 2>&1 || die "cross compiler not on PATH: $cross (add /c/-/x-elfsysvnt/bin)"
+command -v "$cross" >/dev/null 2>&1 || die "cross compiler not on PATH: $cross (add $ELFSYSVNT_PREFIX/bin)"
 [ -r "$pins" ] || die "no package pin at $pins"
 [ -r "$classification" ] || die "no classification table at $classification"
 

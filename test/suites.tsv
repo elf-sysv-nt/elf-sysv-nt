@@ -45,11 +45,11 @@ bin/check-suites	gate	-	this registry is closed against the tree and against ci/
 bin/check-target-definition	report	-	greps the whole tree for the six target values; minutes, not seconds
 ci/t/run.sh	standalone	-	a meta-test of the gate: it installs the hook and drives real merges, so running it FROM the gate is reentrant and mutates the live repo
 acceptance/t/run-tests.sh	report	-	classify.awk and the image-shape helper
-toolchain/csu/t/run-tests.sh	report	/c/-/x-elfsysvnt/bin	the startup files
-toolchain/binutils/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-12's exit criteria
-toolchain/gcc/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-13's exit criteria
-toolchain/gcc/t/accept2.sh	report	/c/-/x-elfsysvnt/bin	WP-15's exit criteria
-toolchain/gdb/t/accept.sh	report	/c/-/x-elfsysvnt/bin	WP-60's exit criteria
+toolchain/csu/t/run-tests.sh	report	$ELFSYSVNT_PREFIX/bin	the startup files
+toolchain/binutils/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-12's exit criteria
+toolchain/gcc/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-13's exit criteria
+toolchain/gcc/t/accept2.sh	report	$ELFSYSVNT_PREFIX/bin	WP-15's exit criteria
+toolchain/gdb/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-60's exit criteria
 toolchain/rpm/surface/t/run-tests.sh	report	-	the rpm macro surface
 spike/demand-census/t/run-tests.sh	report	-	as above
 spike/fs-base-fault/t/run-tests.sh	report	-	as above
@@ -64,3 +64,4 @@ spike/versioned-libc/t/run-tests.sh	report	-	as above
 # not in this registry, and it is why they appear here one by one.
 substrate/run.sh	report	-	substrate-interface conformance; nine groups pass against the mock. Promotes to gate when N or H must pass it
 bin/check-substrate-line	report	-	no symbol above the substrate line names Nt*/WHv*/CONTEXT/HANDLE or derefs a user ptr; no-op-clean until the core exists, promotes to gate then
+bin/check-roots	gate	-	nothing runnable hard-codes a root; the harness resolves them through bin/roots.sh, so a pasted absolute path fails here rather than on the next machine

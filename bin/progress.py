@@ -49,6 +49,9 @@ Usage:
       progress.py matrix bzip2        one package's stored symbols, resolved now, blocked ones by slice
 """
 import os, re, sys, subprocess, time, glob, json, shutil, hashlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import roots
+
 
 
 def term_width(default=100):
@@ -798,7 +801,7 @@ def render_dynexec_step(model, step):
     for _id, state, rc, cmd in cmds:
         mark = 'ok' if state == 'ok' else ('FAIL rc=%s' % rc)
         # keep the command readable: drop the long worktree prefix
-        short = re.sub(r'/c/-/repo/elf-sysv-nt/a/wt/[^/]+/', '', cmd)
+        short = re.sub(re.escape(roots.ROOT) + r'/a/wt/[^/]+/', '', cmd)
         print('    [%-9s] %s' % (mark, short))
     return 0
 

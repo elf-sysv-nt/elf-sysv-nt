@@ -36,10 +36,10 @@
 # `build_status.py --next` is empty, it exits before any model call.
 #
 # Register with Cygwin cron:
-#   */5 * * * *  /c/-/repo/elf-sysv-nt/bin/elf-build-worker
+#   */5 * * * *  <repo>/bin/elf-build-worker
 # or with the Windows scheduler, from an elevated prompt:
 #   schtasks /create /tn elf-build-worker /sc minute /mo 5 ^
-#     /tr "C:\-\cygwin\root\bin\bash.exe -l -c /c/-/repo/elf-sysv-nt/bin/elf-build-worker"
+#     /tr "C:\-\cygwin\root\bin\bash.exe -l -c <repo>/bin/elf-build-worker"
 # Either way, pause the Cowork task for the same hours; two workers on one
 # repo only ever cost a wasted LOCKED tick, but they cost it every five minutes.
 #
@@ -64,12 +64,13 @@
 
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/roots.sh"
 repo=$(cd "$here/.." && pwd)
 
 export HOME=${HOME:-/home/phdye}
 # cron hands over almost no environment. Rebuild the one the prompt assumes:
 # the cross toolchain first, then this root's bin, then wherever npm put claude.
-export PATH="/c/-/x-elfsysvnt/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$PATH"
+export PATH="$ELFSYSVNT_PREFIX/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$PATH"
 export CLAUDE_CODE_GIT_BASH_PATH=${CLAUDE_CODE_GIT_BASH_PATH:-/c/-/cygwin/root/bin/bash.exe}
 
 # claude.exe is a native program: its home is the Windows profile, not the
@@ -143,7 +144,7 @@ if [ "$check" = 1 ]; then
 	if c=$(claude_bin); then ok "claude: $c ($("$c" --version 2>/dev/null | head -1))"; else bad "claude binary (set ELF_WORKER_CLAUDE)"; fi
 	[ -x "$CLAUDE_CODE_GIT_BASH_PATH" ] && ok "bash: $CLAUDE_CODE_GIT_BASH_PATH" || bad "bash at $CLAUDE_CODE_GIT_BASH_PATH"
 	[ -f "$skill" ] && ok "prompt: $skill" || bad "prompt: $skill"
-	command -v x86_64-elfsysvnt-linux-gnu-gcc >/dev/null 2>&1 && ok "cross toolchain on PATH" || bad "cross toolchain (/c/-/x-elfsysvnt/bin)"
+	command -v x86_64-elfsysvnt-linux-gnu-gcc >/dev/null 2>&1 && ok "cross toolchain on PATH" || bad "cross toolchain ($ELFSYSVNT_PREFIX/bin)"
 	for s in verify-first reproducible-spike leaf-to-trunk-tdd human-writing; do
 		found=
 		for d in "$winhome/.claude/skills/$s" "$winhome/.claude/plugins"/*/skills/"$s" \

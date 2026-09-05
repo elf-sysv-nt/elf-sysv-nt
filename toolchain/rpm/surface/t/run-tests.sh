@@ -28,7 +28,7 @@
 #   -T TRIPLE, --target=TRIPLE
 #                          [default: x86_64-elfsysvnt-linux-gnu]
 #   -S DIR, --sysroot=DIR  The fetched el8 sysroot holding elfdeps.
-#                          [default: /c/-/el8/versioned-libc/sysroot]
+#                          [default: $ELFSYSVNT_EL8/versioned-libc/sysroot]
 #   -q, --quiet   Errors only.
 #   -h, --help    Print this message and exit.
 #
@@ -38,11 +38,12 @@ set -u
 
 prog=run-tests
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/../../../../bin/roots.sh"
 surface=$(cd "$here/.." && pwd)
 root=$(cd "$surface/../../.." && pwd)
 prefix=${RUN_TESTS_PREFIX:-$HOME/x-elfsysvnt}
 target=${RUN_TESTS_TARGET:-x86_64-elfsysvnt-linux-gnu}
-sysroot=${RUN_TESTS_EL8_SYSROOT:-/c/-/el8/versioned-libc/sysroot}
+sysroot=${RUN_TESTS_EL8_SYSROOT:-$ELFSYSVNT_EL8/versioned-libc/sysroot}
 quiet=0
 
 usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }

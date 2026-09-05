@@ -6,11 +6,12 @@
 # Usage: sh run-census.sh   (from spike/demand-census)
 
 here=$(cd "$(dirname "$0")" && pwd)
-root=/c/-/repo/elf-sysv-nt/a/census-work
-log=/c/-/repo/elf-sysv-nt/a/build-logs/wp56-wiring-bodies.log
+. "$(cd "$(dirname "$0")" && pwd)/../../bin/roots.sh"
+root=$ELFSYSVNT_ROOT/a/census-work
+log=$ELFSYSVNT_ROOT/a/build-logs/wp56-wiring-bodies.log
 pidfile=$root/census.pid
 
-mkdir -p "$root" /c/-/repo/elf-sysv-nt/a/build-logs
+mkdir -p "$root" $ELFSYSVNT_ROOT/a/build-logs
 
 if [ -s "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     echo "census already running, pid $(cat "$pidfile")"

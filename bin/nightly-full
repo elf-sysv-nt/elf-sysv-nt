@@ -20,10 +20,11 @@
 
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/roots.sh"
 repo=$(cd "$here/.." && pwd)
 
 export HOME=${HOME:-/home/phdye}
-export PATH="/c/-/x-elfsysvnt/bin:$PATH"
+export PATH="$ELFSYSVNT_PREFIX/bin:$PATH"
 
 logdir=$repo/a/build-logs
 while [ $# -gt 0 ]; do

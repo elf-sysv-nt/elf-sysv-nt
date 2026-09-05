@@ -23,7 +23,7 @@
 #   -x PATH, --rpmx=PATH     The unpacker.
 #                            [default: ../versioned-libc/rpmx.py]
 #   -c PATH, --cross=PATH    The cross compiler.
-#                            [default: the target gcc under /c/-/x-elfsysvnt/bin]
+#                            [default: the target gcc under $ELFSYSVNT_PREFIX/bin]
 #   -q, --quiet              Errors only.
 #   -v, --verbose            Name every step as it is taken.
 #   -d, --debug              Trace execution; implies --verbose.
@@ -41,7 +41,8 @@ prog=measure-vendor-build
 release='measure-vendor-build 1.0'
 
 here=$(cd "$(dirname "$0")" && pwd)
-xbin=/c/-/x-elfsysvnt/bin/x86_64-elfsysvnt-linux-gnu
+. "$(cd "$(dirname "$0")" && pwd)/../../bin/roots.sh"
+xbin=$ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu
 
 dest=${MEASURE_VENDOR_BUILD_DEST:-}
 packages=${MEASURE_VENDOR_BUILD_PACKAGES:-$here/packages.tsv}

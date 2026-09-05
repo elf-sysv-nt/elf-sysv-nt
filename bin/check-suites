@@ -44,6 +44,9 @@
 # Exit: 0 the registry is closed, 1 a violation, 2 a usage error.
 
 import os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import roots
+
 
 VERSION = 'check-suites 1.0'
 REGISTRY = 'test/suites.tsv'
@@ -153,6 +156,7 @@ def main(argv):
         if not os.path.exists(os.path.join(root, suite)):
             bad.append('%s:%d: names %s, which is not in the tree'
                        % (REGISTRY, lineno, suite))
+        needs = roots.expand(needs)
         if needs != '-' and not os.path.exists(needs):
             absent.append((suite, needs))
 

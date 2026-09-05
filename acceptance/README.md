@@ -19,7 +19,7 @@ verdict improves on its own until the package runs.
 
 ## Running it
 
-    export PATH=/c/-/x-elfsysvnt/bin:$PATH
+    export PATH=$ELFSYSVNT_PREFIX/bin:$PATH
     ./accept.sh bzip2          # one package
     ./accept.sh                # every package in packages.tsv
     ./accept.sh -t bzip2       # the key=value line alone

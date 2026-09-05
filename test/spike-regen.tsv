@@ -28,16 +28,16 @@ redzone-delivery	-	results-2026-[0-9]*.txt	bash redzone-delivery.sh
 gs-thread-pointer	-	results-2026-[0-9]*.txt	bash measure-gs-tp.sh
 fs-base-fault	-	results-2026-[0-9]*.txt	bash measure-fs-base-fault.sh
 fs-base-persistence	-	results-2026-[0-9]*.txt	bash measure-fs-base.sh
-ld-tls-relaxation	/c/-/x-elfsysvnt/bin	results-2026-[0-9]*.txt	bash measure-relaxation.sh -B /c/-/x-elfsysvnt/bin
-vendor-image-shape	/c/-/el8/vendor-image-shape	results-2026-[0-9]*.txt	bash measure-shape.sh -D /c/-/el8/vendor-image-shape
+ld-tls-relaxation	$ELFSYSVNT_PREFIX/bin	results-2026-[0-9]*.txt	bash measure-relaxation.sh -B $ELFSYSVNT_PREFIX/bin
+vendor-image-shape	$ELFSYSVNT_EL8/vendor-image-shape	results-2026-[0-9]*.txt	bash measure-shape.sh -D $ELFSYSVNT_EL8/vendor-image-shape
 # vendor-hardened-build cross-builds bzip2 twice, so its rerun costs a minute
 # rather than a second; it needs the cross toolchain, not just the el8 dump.
-vendor-hardened-build	/c/-/x-elfsysvnt/bin	results-2026-[0-9]*.txt	bash measure-vendor-build.sh -D /c/-/el8/vendor-hardened-build -q
+vendor-hardened-build	$ELFSYSVNT_PREFIX/bin	results-2026-[0-9]*.txt	bash measure-vendor-build.sh -D $ELFSYSVNT_EL8/vendor-hardened-build -q
 # rtld-lift-survey reads pinned FreeBSD sources and needs no toolchain; the
 # fetch is its only prerequisite, so it has no `needs` beyond network reach.
-rtld-lift-survey	-	results-2026-[0-9]*.txt	bash survey-rtld.sh -D /c/-/el8/rtld-lift-survey -q
-triple-fidelity	/c/-/el8/dump	results-2026-[0-9]*.txt	bash count-vendor-misses.sh --dump /c/-/el8/dump
-versioned-libc	/c/-/el8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d rocky8 -- bash probe-elfdeps.sh -D /mnt/c/-/el8/versioned-libc -o -
+rtld-lift-survey	-	results-2026-[0-9]*.txt	bash survey-rtld.sh -D $ELFSYSVNT_EL8/rtld-lift-survey -q
+triple-fidelity	$ELFSYSVNT_EL8/dump	results-2026-[0-9]*.txt	bash count-vendor-misses.sh --dump $ELFSYSVNT_EL8/dump
+versioned-libc	$ELFSYSVNT_EL8/versioned-libc	results-2026-[0-9]*.txt	wsl.exe -d rocky8 -- bash probe-elfdeps.sh -D /mnt$ELFSYSVNT_EL8/versioned-libc -o -
 # demand-census regenerates by re-running the detached, resumable census over
 # every package (outputs under results/, work under a/census-work), not by a
 # quick transcript rerun this runner can time and diff; skipped here.
@@ -49,12 +49,12 @@ demand-census	SKIP	-	true
 # offline in seconds, and is worth certifying. An absent work root makes it
 # INCOMPLETE rather than skipped, which is correct -- the split cannot be taken
 # without the census having run.
-demand-census	/c/-/repo/elf-sysv-nt/a/census-work/frag	results-split-[0-9]*.txt	./split-demand.py --root /c/-/repo/elf-sysv-nt/a/census-work -o -
+demand-census	$ELFSYSVNT_ROOT/a/census-work/frag	results-split-[0-9]*.txt	./split-demand.py --root $ELFSYSVNT_ROOT/a/census-work -o -
 # pin-cost is the same data read against the claimed surface rather than the
 # floor, so unlike the split it moves when a package is pinned. That is the
 # finding, not drift: the frontier it describes shrinks as the surface grows,
 # and a rerun after a pin is expected to differ.
-demand-census	/c/-/repo/elf-sysv-nt/a/census-work/frag	results-pin-cost-[0-9]*.txt	./pin-cost.py --root /c/-/repo/elf-sysv-nt/a/census-work -o -
+demand-census	$ELFSYSVNT_ROOT/a/census-work/frag	results-pin-cost-[0-9]*.txt	./pin-cost.py --root $ELFSYSVNT_ROOT/a/census-work -o -
 # cygwin-from-source has no standalone regeneration script: its rerun is WP-26's
 # from-source DLL build, tracked in that package rather than here.
 # reent-bringup contrasts the cygload and real-process host shapes against

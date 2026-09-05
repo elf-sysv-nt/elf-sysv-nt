@@ -19,6 +19,7 @@
 set -u
 prog=t2-run
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/../bin/roots.sh"
 root=$(cd "$here/.." && pwd)
 
 distro=${LINUX_REF_DISTRO:-rocky8}
@@ -35,7 +36,7 @@ done
 export LINUX_REF_DISTRO=$distro
 [ "$out" = - ] || exec > "$out" 2>&1
 
-export PATH=/c/-/x-elfsysvnt/bin:$PATH
+export PATH=$ELFSYSVNT_PREFIX/bin:$PATH
 
 printf '# WP-T2 differentials against a real glibc\n'
 printf '# %s, reference distro=%s\n' "$(date +%F)" "$distro"

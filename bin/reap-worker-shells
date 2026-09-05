@@ -18,7 +18,8 @@
 #        reap-worker-shells -n     # dry run: name what it would kill
 
 set -u
-log=/c/-/repo/elf-sysv-nt/a/worker-live.log
+. "$(cd "$(dirname "$0")" && pwd)/roots.sh"
+log=$ELFSYSVNT_ROOT/a/worker-live.log
 pat="script -q -a -f $log"
 dry=0
 [ "${1:-}" = -n ] && dry=1

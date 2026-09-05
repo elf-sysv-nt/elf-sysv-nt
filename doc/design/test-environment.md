@@ -51,3 +51,20 @@ newer glibc hid is recorded rather than assumed away; the substitution row close
 when the rerun matches or when its divergence is written down as justified. The
 environment is pinned and named here so that "ran against el8" means one specific
 userland rather than whatever was to hand.
+
+## Where the environment is named
+
+Nothing in the tree writes out where the toolchain or the scratch root lives.
+`bin/roots.sh` and `bin/roots.py` name three roots -- the checkout, the cross
+toolchain's prefix, the el8 scratch -- and every script and both registries
+resolve against them, with the values this machine happens to use as the
+defaults. A second machine exports what it has; a script that pastes an
+absolute path back in fails `bin/check-roots` rather than failing quietly on
+somebody else's disk.
+
+The two registries hold the variable, not the value, so `test/t3-regen.sh` and
+`bin/check-suites` expand a path before they test it. Expansion substitutes
+those three names and nothing more, because a manifest field is data: a typo
+should be a path that does not exist, not a command that runs.
+
+Settled by: DR-0096.

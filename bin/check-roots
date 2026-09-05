@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+#
+# Nothing runnable hard-codes a root.
+#
+# The harness resolves three roots through bin/roots.sh and bin/roots.py: the
+# checkout, the cross toolchain's prefix, and the el8 scratch. A script or a
+# registry that writes one of them out longhand pins the tree to one machine's
+# layout, which is how it was before DR-0096 and how it will be again the first
+# time somebody pastes a working path into a new script. So this check exists to
+# fail then, rather than on the day a second machine tries to run the suite.
+#
+# What is deliberately exempt, and why:
+#
+#   spike/**/results-*.txt   a transcript is evidence of a run that happened on
+#   acceptance/results-*.txt a real machine at a real path. Rewriting one is
+#   toolchain/**/*trace*.txt falsifying it.
+#   doc/**                   a record describes what was true when it was taken;
+#                            prose is read, not executed.
+#   bin/roots.sh, roots.py   they are where the values live.
+#
+# Usage:
+#   check-roots [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -n N, --count=N          Ignored; accepted so ci/suites.txt can run every
+#                            suite the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -V, --version            Print version and exit.
+#   -h, --help               This help.
+#
+# Exit: 0 nothing hard-codes a root, 1 something does, 2 a usage error.
+
+import os, re, subprocess, sys
+
+VERSION = 'check-roots 1.0'
+
+LITERALS = ('/c/-/repo/elf-sysv-nt', '/c/-/x-elfsysvnt', '/c/-/el8')
+
+EXEMPT = (
+    re.compile(r'^bin/roots\.(sh|py)$'),
+    re.compile(r'^bin/check-roots$'),   # it has to name what it looks for
+    re.compile(r'^doc/'),
+    re.compile(r'results-.*\.txt$'),
+    re.compile(r'trace-.*\.txt$|.*-trace-.*\.txt$'),
+    re.compile(r'^spike/.*\.(txt|tsv|md)$'),
+    # Quotes a finding from a recorded run, down to the path it ran against.
+    re.compile(r'^test/t3-runner-notes\.md$'),
+)
+
+
+def tracked(root):
+    out = subprocess.run(['git', '-C', root, 'ls-files'],
+                         capture_output=True, text=True)
+    return out.stdout.split()
+
+
+def main(argv):
+    root, quiet = None, False
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-h', '--help'):
+            print(__doc__ or '')
+            return 0
+        if a in ('-V', '--version'):
+            print(VERSION)
+            return 0
+        if a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-n', '--count'):
+            i += 1
+        elif a.startswith('--count='):
+            pass
+        elif a in ('-C', '--directory'):
+            i += 1
+            root = argv[i] if i < len(argv) else None
+        elif a.startswith('--directory='):
+            root = a.split('=', 1)[1]
+        else:
+            sys.stderr.write('check-roots: unknown option %s\n' % a)
+            return 2
+        i += 1
+
+    if root is None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.dirname(here)
+
+    bad, checked = [], 0
+    for rel in tracked(root):
+        if any(x.search(rel) for x in EXEMPT):
+            continue
+        path = os.path.join(root, rel)
+        try:
+            with open(path, encoding='utf-8', errors='ignore') as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        checked += 1
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for lit in LITERALS:
+                if lit in line:
+                    bad.append('%s:%d: hard-codes %s' % (rel, lineno, lit))
+
+    for b in bad:
+        sys.stderr.write('FAIL %s\n' % b)
+    if bad:
+        sys.stderr.write('check-roots: %d file(s) checked, %d hard-coded '
+                         'root(s)\n' % (checked, len(bad)))
+        return 1
+    if not quiet:
+        print('check-roots: %d file(s) checked, none hard-codes a root' % checked)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

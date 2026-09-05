@@ -41,6 +41,7 @@
 set -u
 prog=t3-regen
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/../bin/roots.sh"
 root=$(cd "$here/.." && pwd)
 manifest=${T3_MANIFEST:-$here/spike-regen.tsv}
 
@@ -55,7 +56,7 @@ done
 only=" $* "
 [ "$out" = - ] || exec > "$out" 2>&1
 
-export PATH=/c/-/x-elfsysvnt/bin:$PATH
+export PATH=$ELFSYSVNT_PREFIX/bin:$PATH
 
 # The findings of a transcript, reduced to its structure and verdicts. A rerun
 # reproduces findings, not measurements: the case labels, the pass/fail words,
@@ -105,6 +106,7 @@ while IFS=$'\t' read -r dir needs txt cmd <&3; do
 	# rows that share a directory read apart; fall back to the directory.
 	scr=$(printf '%s\n' "$cmd" | grep -oE '[[:alnum:]_-]+\.sh' | head -1)
 	label=${scr:+${scr%.sh}}; label=${label:-$dir}
+	needs=$(elfsysvnt_expand "$needs")
 	sdir=$root/spike/$dir
 	[ -d "$sdir" ] || { printf '%-28s UNMET no such spike directory (manifest names one that is not here)\n' "$label"; absent=$((absent+1)); continue; }
 
@@ -128,7 +130,13 @@ while IFS=$'\t' read -r dir needs txt cmd <&3; do
 		printf '%-28s FAIL  the script rotted: it regenerated no transcript\n' "$label"; fail=$((fail+1)); rm -f "$fresh"; continue
 	fi
 
-	committed=$(ls -t "$sdir"/$txt 2>/dev/null | head -1)
+	# Newest by name, not by mtime. Transcripts are date-named, so a reverse
+	# lexical sort is the same ordering -- and it is the same ordering in a
+	# fresh clone, where every file carries the checkout's mtime and `ls -t`
+	# silently picks whichever tied name sorts first. That failure is quiet and
+	# it lies: it diffs today's run against a superseded transcript and reports
+	# the finding as moved.
+	committed=$(ls -1 "$sdir"/$txt 2>/dev/null | sort -r | head -1)
 	if [ -z "$committed" ]; then
 		printf '%-28s FAIL  no committed transcript matches %s\n' "$label" "$txt"; fail=$((fail+1)); rm -f "$fresh"; continue
 	fi

@@ -25,6 +25,7 @@
 set -u
 prog=shape
 here=$(cd "$(dirname "$0")" && pwd)
+. "$(cd "$(dirname "$0")" && pwd)/../../bin/roots.sh"
 acc=$here/..
 root=$acc/..
 elf=$root/loader/elf
@@ -38,7 +39,7 @@ fail() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
 export PATH="$HOME/x-elfsysvnt/bin:$PATH"
 xg=x86_64-elfsysvnt-linux-gnu-gcc
 xre=x86_64-elfsysvnt-linux-gnu-readelf
-command -v "$xg" >/dev/null 2>&1 || fail "cross gcc $xg not on PATH (add /c/-/x-elfsysvnt/bin)"
+command -v "$xg" >/dev/null 2>&1 || fail "cross gcc $xg not on PATH (add $ELFSYSVNT_PREFIX/bin)"
 
 cc=${CC:-gcc}
 work=$(mktemp -d "${TMPDIR:-/tmp}/wp56shape.XXXXXX")
