@@ -18,7 +18,7 @@
 /* Write len bytes to host fd (1 stdout, 2 stderr).  Returns the count written,
  * or -1 if the fd is not one the host backs.  This is the foreign-handle write
  * the plan's `write` syscall funnels fd 1 into. */
-long host_console_write(int fd, const void *buf, size_t len);
+int64_t host_console_write(int fd, const void *buf, size_t len);
 
 /* A kernel stack for the gate to switch onto, so the core's dispatch frames
  * never run on the user thread's small stack.  Returns a 16-aligned top (one

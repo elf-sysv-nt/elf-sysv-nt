@@ -26,9 +26,9 @@ void gate_init(struct substrate *s, int tid, void *kstack_top)
 	g_kstack_top = kstack_top;
 }
 
-long gate_dispatch(const struct sysframe *f)
+int64_t gate_dispatch(const struct sysframe *f)
 {
-	long r;
+	int64_t r;
 
 	/* Enter the gate window: the thread is in the kernel path now, so an
 	 * interrupt aimed at it latches rather than lands. */

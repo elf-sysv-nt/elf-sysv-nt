@@ -8,6 +8,8 @@
 #ifndef CORE_GATE_H
 #define CORE_GATE_H
 
+#include <stdint.h>
+
 #include "substrate.h"
 
 /*
@@ -16,10 +18,17 @@
  * stack from %rax and %rdi %rsi %rdx %r10 %r8 %r9, and hands its address to
  * gate_dispatch.  Passing one pointer sidesteps the Linux-to-Win64 argument
  * remapping that the host compiler would otherwise force into the assembly.
+ *
+ * The widths are fixed, never `long`.  The host compiler is LLP64, where `long`
+ * is 32 bits, while every word the gate pushes and every value the Linux ABI
+ * passes is 64.  Declared as `long`, this structure reads each argument as half
+ * a register -- a1 becomes the high half of %rax, a2 the low half of %rdi -- and
+ * a returned negative errno goes back to userland zero-extended rather than
+ * sign-extended.  Nothing about that is visible in a build log.
  */
 struct sysframe {
-	long nr;
-	long a1, a2, a3, a4, a5, a6;
+	int64_t nr;
+	int64_t a1, a2, a3, a4, a5, a6;
 };
 
 /*
@@ -32,7 +41,7 @@ struct sysframe {
 extern void gate_entry(void);
 
 /* The C half.  Runs on the kernel stack; its return value becomes %rax. */
-long gate_dispatch(const struct sysframe *f);
+int64_t gate_dispatch(const struct sysframe *f);
 
 /*
  * Wire the gate before any user code runs: the substrate and tid it brackets

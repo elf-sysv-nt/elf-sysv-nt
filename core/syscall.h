@@ -15,6 +15,6 @@
  * the gate hands back in %rax: a count, or a negative errno.  exit_group does
  * not return through here -- it ends the run and parks its thread.
  */
-long syscall_dispatch(struct substrate *s, const struct sysframe *f);
+int64_t syscall_dispatch(struct substrate *s, const struct sysframe *f);
 
 #endif /* CORE_SYSCALL_H */

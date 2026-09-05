@@ -17,7 +17,7 @@
 
 #include "host.h"
 
-long host_console_write(int fd, const void *buf, size_t len)
+int64_t host_console_write(int fd, const void *buf, size_t len)
 {
 	HANDLE h;			/* substrate-line-ok: host console fd */
 	DWORD wrote = 0;
@@ -32,7 +32,7 @@ long host_console_write(int fd, const void *buf, size_t len)
 
 	if (!WriteFile(h, buf, want, &wrote, NULL))	/* substrate-line-ok */
 		return -1;
-	return (long)wrote;
+	return (int64_t)wrote;
 }
 
 void *host_alloc_kstack(size_t size)
