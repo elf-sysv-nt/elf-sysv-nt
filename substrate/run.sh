@@ -14,6 +14,9 @@
 #       --no-quiet     Undo a quiet set by the environment.
 #   -k, --keep         Keep the build directory instead of removing it on exit.
 #       --no-keep      Undo a keep set by the environment.
+#   -s, --substrate=NAME
+#                      Which substrate to build with conformance.c and certify:
+#                      "mock" or "n". [default: mock]
 #       --cc=CC        The C compiler to build with.
 #                      [default: x86_64-w64-mingw32-gcc]
 #   -V, --version      Print the version and exit.
@@ -21,7 +24,7 @@
 #
 # Every option also reads from an environment variable, and the option wins:
 #   SUBSTRATE_CONFORMANCE_QUIET, SUBSTRATE_CONFORMANCE_KEEP,
-#   SUBSTRATE_CONFORMANCE_CC.
+#   SUBSTRATE_CONFORMANCE_SUBSTRATE, SUBSTRATE_CONFORMANCE_CC.
 #
 # Exit: 0 every group passes, 1 a group fails or the build breaks, 2 a usage
 #       error, 77 the compiler is absent so nothing was built (not-checked, the
@@ -38,9 +41,11 @@ truthy() { case ${1:-} in 1|true|TRUE|yes|YES|on|ON) return 0 ;; *) return 1 ;; 
 
 quiet=0
 keep=0
+substrate=mock
 cc=x86_64-w64-mingw32-gcc
 truthy "${SUBSTRATE_CONFORMANCE_QUIET:-}" && quiet=1
 truthy "${SUBSTRATE_CONFORMANCE_KEEP:-}" && keep=1
+substrate=${SUBSTRATE_CONFORMANCE_SUBSTRATE:-$substrate}
 cc=${SUBSTRATE_CONFORMANCE_CC:-$cc}
 
 usage() { sed -n '/^# Usage:/,/^# *Exit:/p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -70,17 +75,29 @@ while [ $# -gt 0 ]; do
 		--no-quiet) quiet=0 ;;
 		--keep) keep=1 ;;
 		--no-keep) keep=0 ;;
+		--substrate) shift; [ $# -gt 0 ] || die "--substrate wants a value"; substrate=$1 ;;
+		--substrate=*) substrate=${1#--substrate=} ;;
 		--cc) shift; [ $# -gt 0 ] || die "--cc wants a value"; cc=$1 ;;
 		--cc=*) cc=${1#--cc=} ;;
 		--version) echo "$version"; exit 0 ;;
 		--help) usage; exit 0 ;;
 		--*) die "unknown option $1" ;;
+		-s) shift; [ $# -gt 0 ] || die "-s wants a value"; substrate=$1 ;;
+		-s=*) substrate=${1#-s=} ;;
+		-s?*) substrate=${1#-s} ;;
 		-?*) set_short "${1#-}" ;;
 		*) die "unexpected argument $1" ;;
 	esac
 	shift
 done
 [ $# -eq 0 ] || die "unexpected argument $1"
+
+# Which substrate source links with conformance.c.  Both must build and certify.
+case $substrate in
+	mock) src=$here/mock_substrate.c ;;
+	n)    src=$here/substrate_n.c ;;
+	*)    die "unknown substrate $substrate (want mock or n)" ;;
+esac
 
 # --- build -------------------------------------------------------------------
 if ! command -v "$cc" >/dev/null 2>&1; then
@@ -97,9 +114,9 @@ trap cleanup EXIT
 exe=$builddir/conformance.exe
 cflags="-O2 -Wall -Wextra -std=gnu11"
 
-[ "$quiet" = 1 ] || printf '%s: building with %s\n' "$prog" "$cc"
+[ "$quiet" = 1 ] || printf '%s: building substrate %s with %s\n' "$prog" "$substrate" "$cc"
 if ! "$cc" $cflags -I"$here" -o "$exe" \
-	"$here/conformance.c" "$here/mock_substrate.c" 2> "$builddir/build.log"; then
+	"$here/conformance.c" "$src" 2> "$builddir/build.log"; then
 	printf '%s: build failed\n' "$prog" >&2
 	cat "$builddir/build.log" >&2
 	exit 1
