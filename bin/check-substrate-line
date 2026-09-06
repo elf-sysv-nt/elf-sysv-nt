@@ -27,6 +27,11 @@
 # user_copy_*, and the naming rule is what makes a slip mechanically visible.  A
 # line that must name a forbidden token for a legitimate reason carries the
 # marker `substrate-line-ok`, the escape hatch check-worknote-refs relies on.
+# A whole file that is host glue by design -- the NT band beneath the core,
+# which exists to name these things so nothing above it has to -- declares so
+# with `substrate-line: below` in its first ten lines, and is skipped; the walk
+# still reaches every other file under core/, so a declaration is a decision a
+# reviewer sees at the top of the file, not a marker scattered through it.
 #
 # The core does not exist yet, so the set of paths this walks is normally empty,
 # and an empty set is clean: the check is written now, with the interface, so it
@@ -57,6 +62,7 @@ import sys
 
 VERSION = "check-substrate-line 1.0"
 ALLOW = "substrate-line-ok"
+BELOW = "substrate-line: below"
 
 # One rule per forbidden thing, each with a name for the message.
 RULES = [
@@ -107,8 +113,24 @@ def is_binary(path):
         return True
 
 
+def declared_below(path):
+    """Whether the file's head declares it host glue beneath the line."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for n, line in enumerate(f, 1):
+                if n > 10:
+                    return False
+                if BELOW in line:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def scan(path):
     hits = []
+    if declared_below(path):
+        return hits
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for n, line in enumerate(f, 1):

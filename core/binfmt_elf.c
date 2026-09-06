@@ -16,6 +16,17 @@
 #include <string.h>
 
 #include "binfmt_elf.h"
+#include "vma.h"
+
+static char image_name[256] = "";
+
+void elf_set_image_name(const char *name)
+{
+	size_t n = strlen(name);
+	if (n >= sizeof image_name) n = sizeof image_name - 1;
+	memcpy(image_name, name, n);
+	image_name[n] = 0;
+}
 
 #define PAGE		4096u
 #define ROUND_DN(x)	((uint64_t)(x) & ~(uint64_t)(PAGE - 1))
@@ -92,6 +103,7 @@ static int map_load(struct substrate *s, const void *image, size_t len,
 
 		if (s->as_map(s, &addr, maplen, &file, foff, prot) != 0)
 			return -1;
+		vma_record((uint64_t)(uintptr_t)addr, maplen, prot, SUB_BACKING_FILE, foff, image_name);
 
 		/* Clear the file page's tail where .bss begins mid-page; the
 		 * segment must carry write for there to be a tail to clear. */
@@ -118,6 +130,7 @@ static int map_load(struct substrate *s, const void *image, size_t len,
 			if (s->as_map(s, &addr, (size_t)(want - have), &anon, 0,
 				      prot) != 0)
 				return -1;
+			vma_record((uint64_t)(uintptr_t)addr, (size_t)(want - have), prot, SUB_BACKING_ANON, 0, "");
 		}
 	}
 	return 0;

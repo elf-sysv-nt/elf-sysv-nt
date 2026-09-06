@@ -19,6 +19,8 @@
 #include "exec.h"
 #include "gate.h"
 #include "host.h"
+#include "task.h"
+#include "vma.h"
 
 #define PROG		"lk-host"
 #define VERSION		"lk-host (elf-sysv-nt core) 1.0"
@@ -38,6 +40,10 @@ static const char usage_text[] =
 "  -q, --quiet        Suppress diagnostics; only the program's output remains.\n"
 "      --timeout=MS   Give up if the run has not finished in MS milliseconds\n"
 "                     [default: 10000].  Also LK_HOST_TIMEOUT.\n"
+"      --root=DIR     The host directory that is the Linux root file system\n"
+"                     [default: the ELF's directory].  Also LK_HOST_ROOT.\n"
+"      --exe=PATH     The Linux path the program is known by, for\n"
+"                     /proc/self/exe and maps [default: /<ELF's base name>].\n"
 "  -h, --help         Print this message and exit.\n"
 "  -V, --version      Print the version and exit.\n"
 "\n"
@@ -91,6 +97,10 @@ int main(int argc, char **argv)
 	unsigned timeout = timeout_env ? (unsigned)strtoul(timeout_env, NULL, 10)
 				       : 10000;
 	const char *elf_path = NULL;
+	const char *root_env = getenv("LK_HOST_ROOT");
+	const char *root_dir = root_env ? root_env : NULL;
+	const char *exe_name = NULL;
+	char root_buf[4096], exe_buf[4096];
 	char **prog_argv;
 	int prog_argc, i = 1, code;
 	size_t len = 0;
@@ -118,6 +128,13 @@ int main(int argc, char **argv)
 		} else if (!strcmp(a, "--timeout")) {
 			if (++i >= argc) { usage(stderr); return 2; }
 			timeout = (unsigned)strtoul(argv[i], NULL, 10);
+		} else if (!strncmp(a, "--root=", 7)) {
+			root_dir = a + 7;
+		} else if (!strcmp(a, "--root")) {
+			if (++i >= argc) { usage(stderr); return 2; }
+			root_dir = argv[i];
+		} else if (!strncmp(a, "--exe=", 6)) {
+			exe_name = a + 6;
 		} else {
 			fprintf(stderr, "%s: unknown option %s\n", PROG, a);
 			usage(stderr);
@@ -135,6 +152,36 @@ int main(int argc, char **argv)
 		diag("cannot read the ELF file");
 		return 1;
 	}
+	if (!root_dir) {
+		/* the ELF's own directory, in the host's spelling */
+		const char *sl = strrchr(elf_path, '\\');
+		const char *sl2 = strrchr(elf_path, '/');
+		if (sl2 > sl) sl = sl2;
+		if (sl) {
+			size_t n = (size_t)(sl - elf_path);
+			if (n == 0) n = 1;
+			if (n >= sizeof root_buf) n = sizeof root_buf - 1;
+			memcpy(root_buf, elf_path, n);
+			root_buf[n] = 0;
+		} else {
+			strcpy(root_buf, ".");
+		}
+		root_dir = root_buf;
+	}
+	if (!exe_name) {
+		const char *sl = strrchr(elf_path, '\\');
+		const char *sl2 = strrchr(elf_path, '/');
+		if (sl2 > sl) sl = sl2;
+		snprintf(exe_buf, sizeof exe_buf, "/%s", sl ? sl + 1 : elf_path);
+		exe_name = exe_buf;
+	}
+	if (task_init(root_dir) != 0) {
+		diag("cannot open the root directory");
+		return 1;
+	}
+	vfs_set_exe_path(exe_name);
+	elf_set_image_name(exe_name);
+	vma_reset();
 
 	s = substrate_create();
 	kstack = host_alloc_kstack(KSTACK_SIZE);

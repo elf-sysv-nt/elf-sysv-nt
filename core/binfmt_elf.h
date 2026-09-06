@@ -31,4 +31,8 @@ struct load_info {
 int elf_load(struct substrate *s, const void *image, size_t len,
 	     struct load_info *out);
 
+/* The name /proc/self/maps shows for the image's segments: the program's
+ * Linux path.  Set before elf_load. */
+void elf_set_image_name(const char *name);
+
 #endif /* CORE_BINFMT_ELF_H */

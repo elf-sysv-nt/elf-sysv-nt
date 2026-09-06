@@ -20,6 +20,10 @@
  * the plan's `write` syscall funnels fd 1 into. */
 int64_t host_console_write(int fd, const void *buf, size_t len);
 
+/* Read up to len bytes from host fd 0 into buf; the count, 0 at end of input,
+ * or -1 if the fd is not one the host backs. */
+int64_t host_console_read(int fd, void *buf, size_t len);
+
 /* A kernel stack for the gate to switch onto, so the core's dispatch frames
  * never run on the user thread's small stack.  Returns a 16-aligned top (one
  * past the highest usable byte), or NULL on failure.  size is rounded up. */

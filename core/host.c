@@ -35,6 +35,22 @@ int64_t host_console_write(int fd, const void *buf, size_t len)
 	return (int64_t)wrote;
 }
 
+int64_t host_console_read(int fd, void *buf, size_t len)
+{
+	HANDLE h;			/* substrate-line-ok: host console fd */
+	DWORD got = 0;
+
+	if (fd != 0)
+		return -1;
+	h = GetStdHandle(STD_INPUT_HANDLE);	/* substrate-line-ok */
+	if (!ReadFile(h, buf, (DWORD)len, &got, NULL)) {	/* substrate-line-ok */
+		if (GetLastError() == ERROR_BROKEN_PIPE)
+			return 0;
+		return -1;
+	}
+	return (int64_t)got;
+}
+
 void *host_alloc_kstack(size_t size)
 {
 	size_t n = (size + 15) & ~(size_t)15;

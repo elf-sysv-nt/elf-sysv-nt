@@ -113,7 +113,9 @@ elf=$builddir/hello.elf
 # --- build the core ----------------------------------------------------------
 say "building the core with $cc"
 core_srcs="$here/main.c $here/gate.c $here/gate.S $here/syscall.c \
-	$here/binfmt_elf.c $here/exec.c $here/host.c \
+	$here/binfmt_elf.c $here/exec.c $here/host.c $here/vma.c $here/vdso.c \
+	$here/hostfs_nt.c $here/file.c $here/vfs.c $here/vfs_synth.c \
+	$here/task.c $here/sys_fs.c \
 	$root/substrate/substrate_n.c"
 if ! "$cc" -O2 -Wall -Wextra -std=gnu11 \
 	-I"$here" -I"$root/substrate" \

@@ -18,6 +18,8 @@
 #include <string.h>
 
 #include "exec.h"
+#include "vma.h"
+#include "vdso.h"
 
 #define STK_SIZE	0x4000u		/* the 16 KB user stack */
 
@@ -30,6 +32,7 @@
 #define AT_ENTRY	9
 #define AT_RANDOM	25
 #define AT_SYSINFO	32
+#define AT_SYSINFO_EHDR	33
 
 /* The page size the auxv advertises; the target's PAGE, not the host's. */
 #define PAGE_SIZE_AUX	4096
@@ -43,7 +46,8 @@ int exec_enter(struct substrate *s, const struct load_info *li,
 	uint64_t ub, argc_va, rnd_va, fault = 0;
 	uint64_t *argv_va;
 	size_t sp, o;
-	int i, envc = 0, naux = 8, words;
+	int i, envc = 0, naux = 9, words;
+	uint64_t vdso_base = 0;
 	struct sub_regs ctx;
 	static const unsigned char rnd[16] = {
 		0x9e, 0x37, 0x79, 0xb9, 0x7f, 0x4a, 0x7c, 0x15,
@@ -54,6 +58,9 @@ int exec_enter(struct substrate *s, const struct load_info *li,
 		      SUB_PROT_WRITE) != 0)
 		return -1;
 	ub = (uint64_t)(uintptr_t)ubase;
+	vma_record(ub, STK_SIZE, SUB_PROT_READ | SUB_PROT_WRITE, SUB_BACKING_STACK, 0, "[stack]");
+	if (vdso_map(s, &vdso_base) != 0)
+		return -1;
 
 	hb = calloc(1, STK_SIZE);
 	argv_va = calloc((size_t)argc, sizeof *argv_va);
@@ -99,6 +106,7 @@ int exec_enter(struct substrate *s, const struct load_info *li,
 	PUT(AT_ENTRY);  PUT(li->entry);
 	PUT(AT_RANDOM); PUT(rnd_va);
 	PUT(AT_SYSINFO); PUT(gate_addr);
+	PUT(AT_SYSINFO_EHDR); PUT(vdso_base);
 	PUT(AT_NULL);   PUT(0);
 #undef PUT
 
