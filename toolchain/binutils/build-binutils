@@ -162,19 +162,30 @@ fi
 # Patches are applied to a source tree that is kept between runs, so applying
 # them twice would fail on the second. Each is recorded once it lands and the
 # stamp is what makes a rerun a no-op rather than an error.
+#
+# The stamp carries the patch's checksum. A patch edited after it went in
+# cannot be re-applied over the old text, so the tree is declared stale and
+# unpacked again from the pin; a stamp with no checksum, from an earlier
+# revision of this script, is stale the same way. That is what let a
+# superseded revision of gcc's 0001 sit in its tree for a week while the
+# tracked patch said otherwise.
 applied=$srcdir/.elfsysvnt-patches
 touch "$applied"
 for p in "$here"/patches/*.patch; do
     [ -e "$p" ] || break
     name=$(basename "$p")
-    if grep -qxF "$name" "$applied"; then
+    sum=$(sha256sum "$p" | cut -d' ' -f1)
+    if grep -qxF "$name	$sum" "$applied"; then
         chat "already applied: $name"
         continue
+    fi
+    if grep -q "^$name" "$applied"; then
+        die "$name changed after it was applied to $srcdir; remove that tree and rerun"
     fi
     chat "applying $name"
     ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
         die "$name did not apply to binutils $version"
-    printf '%s\n' "$name" >> "$applied"
+    printf '%s\t%s\n' "$name" "$sum" >> "$applied"
 done
 
 rm -rf "$builddir" || die "cannot clear $builddir"

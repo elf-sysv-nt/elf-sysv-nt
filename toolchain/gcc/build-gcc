@@ -166,16 +166,26 @@ if [ ! -d "$srcdir/gmp" ]; then
         die "the prerequisites did not download"
 fi
 
+# Each patch is applied once and recorded with its checksum. A patch that
+# was edited after it went in cannot be re-applied over the old text, so the
+# tree is declared stale and unpacked again from the pin; a marker with no
+# checksum, from an earlier revision of this script, is stale the same way.
+# That is what let a superseded revision of 0001 sit in the tree for a week
+# while the tracked patch said otherwise.
 applied=$srcdir/.elfsysvnt-patches
 touch "$applied"
 for p in "$here"/patches/*.patch; do
     [ -e "$p" ] || break
     name=$(basename "$p")
-    if grep -qxF "$name" "$applied"; then chat "already applied: $name"; continue; fi
+    sum=$(sha256sum "$p" | cut -d' ' -f1)
+    if grep -qxF "$name	$sum" "$applied"; then chat "already applied: $name"; continue; fi
+    if grep -q "^$name" "$applied"; then
+        die "$name changed after it was applied to $srcdir; remove that tree and rerun"
+    fi
     chat "applying $name"
     ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
         die "$name did not apply to gcc $version"
-    printf '%s\n' "$name" >> "$applied"
+    printf '%s\t%s\n' "$name" "$sum" >> "$applied"
 done
 
 rm -rf "$builddir" || die "cannot clear $builddir"
