@@ -14,7 +14,8 @@
  * walk, since there is no gate address to find, and `syscall` where hello.S has
  * `call *%r15`.
  *
- * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie.  The cross
+ * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie (the triple is
+ * doc/design/target-definition.md's).  The cross
  * toolchain targets Linux, so what it emits here runs unmodified on el8.
  */
 	.text

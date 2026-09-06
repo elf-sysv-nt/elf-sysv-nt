@@ -7,7 +7,8 @@
  * the oracle build there is no gate in the auxv and none is needed; the walk
  * simply finds AT_NULL and moves on.
  *
- * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie.
+ * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie (the triple is
+ * doc/design/target-definition.md's).
  */
 	.text
 	.globl	_start

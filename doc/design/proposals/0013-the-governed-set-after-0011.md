@@ -1,6 +1,6 @@
 # Proposal 0013 — the governed set after 0011: Requirements, the verification plan, the target definition, and the roadmap
 
-Status: proposed, awaiting the operator's acceptance
+Status: accepted
 Author: drafted 2026-09-06 for Philip Dye, under the grant of 2026-09-05
 Date: 2026-09-06
 Analysed against: `47726d8` on `main`; the audit note
@@ -267,3 +267,15 @@ D6. The note's payload. Tier 8, reserved; recommendation in § 6.
 D7. Stop here. The grant of 2026-09-05 covers the audit and the proposal;
 acceptance belongs to the operator, and no document is edited until it is
 given.
+
+D8 (2026-09-06, on acceptance). The operator accepted the proposal as
+written with the grant "proceed without stopping". D5 is revised: the
+loader question is not a choice between two designs but a governing
+document contradicting the ratified design (0011 § 5, DR-0097), which the
+ladder's first tier settles for 0011's; DR-0103 says so and retires
+DR-0011, DR-0016, DR-0022 and DR-0073. D6 is revised: tier 2 (reliability
+over time) picks the gate-version payload over dropping the note, since a
+changed gate would otherwise fail a stale image at its first call with no
+diagnostic. Open question 3 is the tier-7 default, two counts side by side,
+with the numbers still the operator's blanks (DR-0104). Open question 4:
+the retired roadmap keeps its "Not verified" section whole.

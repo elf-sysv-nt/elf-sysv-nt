@@ -22,6 +22,7 @@
 #                      [default: x86_64-w64-mingw32-gcc]
 #       --cross=CC     The cross compiler for the test ELF.
 #                      [default: $ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu-gcc]
+#                      (the triple is doc/design/target-definition.md's)
 #   -V, --version      Print the version and exit.
 #   -h, --help         Print this message and exit.
 #

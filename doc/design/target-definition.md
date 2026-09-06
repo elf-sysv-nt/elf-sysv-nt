@@ -42,37 +42,32 @@ are what a later package hardcodes:
 
 The tool prefix is the honest one rather than a shortened alias. A second
 spelling for the same target is how a build ends up half cross-compiled.
+All four spellings are substrate N's, whose userland is rebuilt; under
+substrate H no toolchain is in the path and the triple is a name only.
 
-## The limit of the `linux` claim
+## What the `linux` claim means
 
-Settled by DR-0005 on 2026-08-29, and written here because this is the document
-every later package cites.
+Settled by DR-0005 on 2026-08-29 as a bounded claim, and inverted by 0011
+(DR-0097): written here because this is the document every later package
+cites.
 
 `gnu` names glibc, and it is true with nothing subtracted. Everything this
-project ships is ELF, System V, versioned, and reaches `libc.so.6` through
-`ld-linux-x86-64.so.2`. That is not a field tolerated because configure reads
-it; it is the accurate one.
+project runs is ELF, System V, versioned, and reaches `libc.so.6` through
+`ld-linux-x86-64.so.2`.
 
-`linux` names the Linux kernel ABI, and this project means it: system call
-numbers, `futex`, `clone`, `/proc`, the auxv a process is entered with, the
-`uname` strings below. One item on that list is not delivered. A toolchain
-reading `linux` assumes a `syscall` instruction reaches a kernel, and here it
-does not, because `doc/history/elf-technical-breakdown.md`'s second bridge
-rebuilds each package against `elfsysv1.dll` instead of catching anything. An
-object that reaches the kernel through a raw `syscall`, rather than through a
-call into the runtime, is outside the contract the triple advertises. No field
-of any triple expresses that restriction, which is why it is written down in
-prose rather than encoded in a name.
-
-Two consequences, and the second one is the reason this section exists at all.
-The kernel field is not a lie and must not be described as one, because the
-only replacements are a libc field `config.sub` refuses outright and a kernel
-field that costs a gcc, binutils and glibc port; DR-0005 carries the
-measurement. And the vendor binaries this platform exists to run were compiled
-under the unbounded claim, so their raw syscalls sit exactly on the axis where
-ours stops. `veneer:doc/design/proposals/0003-vendor-binary-tls-rewriting.md` handles
-the TLS half of that problem and the syscall half is not yet anybody's work
-package.
+`linux` names the Linux kernel ABI, and under this design it is true
+everywhere: system call numbers, `futex`, `clone`, `/proc`, the auxv a
+process is entered with, the `uname` strings below, all as el8's 4.18
+kernel defines them. What differs between the two substrates is only how
+the call reaches the kernel. Under substrate H the `syscall` instruction is
+the interface, as it is on Linux. Under substrate N the instruction cannot
+be trapped, so the rebuilt userland calls the gate instead and the
+instruction is never reached; the post-link check refuses an image that
+still carries one. DR-0005 was written when the instruction was the thing
+the platform could not honour, and its bound is gone; its argument for
+keeping the field, that the only replacements are a libc field `config.sub`
+refuses outright and a kernel field that costs a toolchain port, stands as
+written.
 
 ## EI_OSABI
 
@@ -84,15 +79,17 @@ Of forty-one vendor objects measured, thirty-six carry `ELFOSABI_NONE` and the
 five carrying `ELFOSABI_GNU` are `libc`, `libm`, `libmvec`, `ld.so`, and
 `ldconfig` — glibc's own, and nothing besides.
 
-So the rule, and WP-12 implements it rather than choosing it: emit
-`ELFOSABI_NONE` by default, promote to `ELFOSABI_GNU` on the same trigger
-upstream `bfd` already uses, and change nothing about when that trigger fires.
+So the rule, which substrate N's toolchain implements rather than chooses:
+emit `ELFOSABI_NONE` by default, promote to `ELFOSABI_GNU` on the same
+trigger upstream `bfd` already uses, and change nothing about when that
+trigger fires.
 
 The loader has the matching obligation, and it is the reason this is written
-down at all. WP-31 accepts 0 and 3 and refuses everything else with a
-diagnostic naming the byte. Any private value would have been satisfying and
-fatal: our own objects would carry it, vendor objects would not, and the first
-`dlopen` of a Red Hat library would fail a gate we invented.
+down at all. The kernel's ELF mapper and glibc's `ld.so` accept 0 and 3 and
+refuse everything else with a diagnostic naming the byte. Any private value
+would have been satisfying and fatal: our own objects would carry it, vendor
+objects would not, and the first `dlopen` of a Red Hat library would fail a
+gate we invented.
 
 ## The .note.ABI-tag
 
@@ -113,10 +110,11 @@ active consumer would break the check to carry a string. Where the name does go
 is below.
 
 Delivery belongs to the startup files rather than to the linker, following
-glibc, whose `abi-note.o` is linked into every program by `crt1.o`. WP-14 owns
-emitting it. WP-12's acceptance test predates any startup file and therefore
-assembles the note by hand, which is enough to prove the section survives
-linking and lands in a `PT_NOTE`.
+glibc, whose `abi-note.o` is linked into every program by `crt1.o`; under
+substrate N the rebuilt glibc's startup files emit it, and under H el8's
+own do. The toolchain's acceptance test under `toolchain/` predates any
+startup file and therefore assembles the note by hand, which is enough to
+prove the section survives linking and lands in a `PT_NOTE`.
 
 ## The dynamic linker SONAME
 
@@ -131,14 +129,14 @@ running it, which is the opposite of the premise this project rests on.
 
 Two consequences follow. The file has to exist as a real ELF shared object,
 because things `stat` it, `ldd` prints it, and rpm generates a `Provides` from
-it; WP-41 short-circuits the interpreter for images it launches itself, but a
-short-circuit in the spawn path is not an excuse for an absent file. And it is
-a veneer in the same sense `libc.so.6` is: the loader's body lives in
-`elfsysv1.dll`, and this object is the ELF-shaped face of it. WP-53 builds
-both the same way.
+it. And it is glibc's own `ld.so`, not this project's: the kernel maps a
+program and the interpreter its `PT_INTERP` names and jumps to the
+interpreter's entry (0011 § 5); under substrate N that interpreter is the
+rebuilt glibc's, reaching the kernel through the gate, and under H it is
+el8's as shipped. The kernel has no dynamic loader of its own, and DR-0103
+retires the records that described one.
 
-The companion SONAMEs are Linux's throughout, and WP-54 lists them. Nothing in
-the veneer renames anything.
+The companion SONAMEs are Linux's throughout. Nothing renames anything.
 
 ## What uname reports
 
@@ -151,10 +149,9 @@ the veneer renames anything.
 
 `sysname` is `Linux` and there is no version of this project where it is not.
 Thousands of configure scripts, `config.guess` among them, branch on this
-string, and it makes the same bounded claim the triple's kernel field makes:
-the Linux kernel ABI, satisfied by rebuild rather than by syscall dispatch. The
-two have to agree, or a package cross-compiles against one answer and runs
-against the other.
+string, and it makes the same claim the triple's kernel field makes: the
+Linux kernel ABI, which this kernel presents. The two have to agree, or a
+package cross-compiles against one answer and runs against the other.
 
 `release` is where the honest name goes, and it is the interesting choice on
 this list. Every parser that reads a kernel version stops at the first
@@ -164,19 +161,18 @@ are on. The numbers are el8's because the packages are el8's: a package that
 tests for a 4.18 kernel feature gets the answer its own distribution would
 give it.
 
-That is a claim about behavior rather than about capability, and it is worth
-saying plainly. We do not have a 4.18 kernel. We have a runtime that answers
-the questions el8's userland asks, and a package that goes looking for a kernel
-interface we did not implement fails at the call rather than at the version
-test. Which call it fails at is the bound above: a runtime entry point nobody
-has written yet returns an error, and a raw `syscall` instruction has no
-runtime to reach. Moving the version down would not make it fail earlier; it
-would only make it fail differently, in the packages that gate correctly.
+That is a claim about the ABI rather than about the code behind it, and it
+is worth saying plainly. This is not Linux's 4.18 kernel; it is a kernel
+that presents 4.18's syscall table, and a package that asks for a call the
+table does not yet implement gets `ENOSYS` from it, which is exactly what a
+4.18 kernel says for a call it lacks (0011 § 1). Moving the version down
+would not make it fail earlier; it would only make it fail differently, in
+the packages that gate correctly.
 
 `version` carries the name again and nothing else. No build date, because a
-transcript that changes every run is a transcript nobody diffs. No runtime
-counter either: WP-25's API major and minor are read through an interface built
-for the purpose, not scraped out of a string field.
+transcript that changes every run is a transcript nobody diffs. No gate
+version either: the note below carries it for the images that need it,
+and nothing scrapes a string field for a number.
 
 `/proc/sys/kernel/ostype`, `/proc/sys/kernel/osrelease`,
 `/proc/sys/kernel/version` and `/proc/version` are generated from this same
@@ -184,7 +180,7 @@ table and must never be written out separately. Two tables drift; one does not.
 
 `uname -o` is not on this list because it never comes from `utsname` — GNU
 coreutils compiles it in — so `GNU/Linux` there is a build-time setting and
-belongs to WP-16 with the rest of the macro set.
+belongs to substrate N's rpm macros with the rest of the macro set.
 
 ## The PIE default
 
@@ -195,12 +191,12 @@ it — the compiler defaults to `-pie` and emits `ET_DYN` executables — becaus
 default is el8's to dictate and matching it is the whole premise. This records
 el8's choice; it is not one of ours to make.
 
-WP-13 owns the follow-up that makes the default `-pie` in the specs rather than
-a flag the caller remembers, the way `-mno-red-zone` is a target default rather
-than a spec string (DR-0006's lesson: a mandate belongs where a later flag
-cannot silently drop it). WP-41 is the consumer that depends on the answer: a
-non-PIE image has one fixed load address and DR-0028's parent-side reservation
-is what satisfies it, so the loader must know which shape it was handed.
+Substrate N's toolchain makes the default `-pie` in the specs rather than a
+flag the caller remembers, the way a target default cannot be silently
+dropped by a later flag (DR-0050's lesson, on the red zone). The kernel's
+ELF mapper is the consumer that depends on the answer: a non-PIE image has
+one fixed load address and a PIE one is placed by the mapper, so it must
+know which shape it was handed, and it reads `e_type` to learn it.
 
 ## Where the name actually lives
 
@@ -212,11 +208,14 @@ places a name can sit without a consumer already depending on it, which is why
 those are where DR-0001 and this document put it.
 
 It goes in a note of its own: owner `ELFSYSVNT`, type 1, in a section named
-`.note.elfsysvnt.abi`. The payload is two 32-bit words, the API major and the
-API minor that WP-25 defines, and this document fixes only the carrier so that
-WP-25 can settle the numbers without also having to settle where they sit.
-Nothing existing reads an unknown note owner, so the cost is thirty-two bytes
-per object and no compatibility surface at all.
+`.note.elfsysvnt.abi`. The payload is one 32-bit word, the version of the
+gate ABI the image was built against, which substrate N's rebuilt glibc
+emits and the kernel reads at `exec` so that an image built for a gate the
+kernel no longer offers is refused with a diagnostic rather than failing at
+its first system call. Under substrate H the note is absent, and its absence
+means "shipped el8, no gate". Nothing existing reads an unknown note owner,
+so the cost is thirty-two bytes per object and no compatibility surface at
+all (DR-0103).
 
 ## Done when
 
@@ -231,8 +230,9 @@ non-zero on the first unattributed site.
 
 That el8 ships no non-PIE executables uniformly. Every object in the sample was
 `ET_DYN`, but the sample was three packages picked for other reasons; the PIE
-default above records that as el8's baseline, and WP-41 is where a non-PIE image,
-should the full set hold one, is handled by DR-0028's parent-side reservation.
+default above records that as el8's baseline, and the kernel's mapper is
+where a non-PIE image, should the full set hold one, is placed at its fixed
+address.
 
 That `ELFSYSVNT` is unclaimed as a note owner. Nobody has grepped a
 distribution for it. The consequence of a collision is small and the check is
@@ -243,3 +243,5 @@ version parsers are written, not from having built anything against it. The
 first package that gates on a kernel version is where it gets tested, and if
 the suffix turns out to bother `rpm`'s own comparisons, the escape hatch is
 `4.18.0-1.elfsysvnt` rather than a return to a bare number.
+
+Settled by: DR-0001, DR-0103.

@@ -12,7 +12,8 @@
  * register but %rax, %rcx and %r11, so the gate address is kept in %r15 across
  * both calls.
  *
- * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie.
+ * Build: x86_64-elfsysvnt-linux-gnu-gcc -nostdlib -static -no-pie (the triple is
+ * doc/design/target-definition.md's).
  */
 	.text
 	.globl	_start

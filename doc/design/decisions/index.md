@@ -33,15 +33,15 @@ the pair and says which reading is current.
 | [0008](0008-mmap-granule-protection.md) | Segment mapping goes through the runtime's `mmap`, one region per object, protection at the host granule; a granule-sharing object is refused | accepted 2026-08-30; superseded by 0100 | none |
 | [0009](0009-down-call-wrapper-convention.md) | The down-call wrapper is a signature-agnostic `ms_abi` tail jump; translation lands at the call site | accepted 2026-08-30; superseded by 0097 | none |
 | [0010](0010-veneer-header-provenance.md) | The veneer's `features.h` is el8's arithmetic, copied not paraphrased | accepted 2026-08-30; superseded by 0097 | none |
-| [0011](0011-ldso-cache-format.md) | the loader's cache is this project's own format, not glibc's | accepted 2026-08-30 | none |
+| [0011](0011-ldso-cache-format.md) | the loader's cache is this project's own format, not glibc's | accepted 2026-08-30; superseded by 0103 | none |
 | [0012](0012-host-facing-unwind-seam.md) | host-facing entry points are ms_abi with compiler unwind data; System V frames carry none | accepted 2026-08-30; superseded by 0097 | none |
 | [0014](0014-at-pagesz-commit-granularity.md) | AT_PAGESZ reports the commit granularity, not the reservation one | accepted 2026-08-30 | none |
 | [0015](0015-variadic-rebuild-through-a-core-valist.md) | the variadic veneer rebuilds a Microsoft va_list and repasses through a va_list core | accepted 2026-08-30; superseded by 0097 | none |
-| [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
+| [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30; superseded by 0103 | none |
 | [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30; superseded by 0097 | none |
 | [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30; superseded by 0097 | none |
 | [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30; superseded by 0101 | none |
-| [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
+| [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30; superseded by 0103 | none |
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
 | [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30; superseded by 0097 | none |
 | [0027](0027-the-exec-branch-and-the-interpreter-limit.md) | one classifier for the exec branch, and a four-hop interpreter limit | accepted 2026-08-30 | none |
@@ -63,7 +63,7 @@ the pair and says which reading is current.
 | [0063](0063-images-carry-no-fs-relative-tls.md) | no image the platform loads carries a %fs-relative thread-pointer access | accepted 2026-09-01 | none |
 | [0064](0064-programs-get-granule-not-page-protection-precision.md) | a program's own protection changes land at the granule, not the page | accepted 2026-09-01; superseded by 0100 | none |
 | [0070](0070-the-ladder-measures-before-it-escalates.md) | the decision ladder measures before it escalates | accepted 2026-09-01 | none |
-| [0073](0073-a-weak-undefined-is-not-a-demand.md) | a weak undefined symbol is not a demand on the runtime | provisional 2026-09-02 | none |
+| [0073](0073-a-weak-undefined-is-not-a-demand.md) | a weak undefined symbol is not a demand on the runtime | provisional 2026-09-02; superseded by 0103 | none |
 | [0074](0074-lifts-are-cleared-by-text-and-practice.md) | a lift is cleared by licence text and recorded practice; LGPL-2.1-or-later is open | provisional 2026-09-02 | none |
 | [0075](0075-governing-documents-cite-their-records.md) | the governing documents carry the citations, and a checker holds them | accepted 2026-09-02 | 0006 |
 | [0076](0076-architecture-is-sized-by-coherence.md) | the architecture document is sized by coherence, not by a word ceiling | accepted 2026-09-02 | none |
@@ -87,3 +87,6 @@ deliberately lower than the bar for a proposal: a change can be cheap to undo
 and still leave a question behind it worth answering once.
 
 The three reservations in `AGENTS.md` each end in a record by construction.
+| [0103](0103-proposal-0013-is-ratified-and-the-loader-records-retire.md) | proposal 0013 is ratified: the governed set states the kernel, glibc's `ld.so` is the loader under both substrates, the loader records retire, `.note.elfsysvnt.abi` carries the gate ABI version | accepted 2026-09-06 | 0013 |
+| [0104](0104-acceptance-is-a-count-per-substrate.md) | acceptance is a count per substrate, rebuilt under N and shipped under H, reported side by side | accepted 2026-09-06 | 0013 |
+| [0105](0105-the-conformance-classes-are-defined-at-the-syscall-boundary.md) | the conformance classes are defined at the syscall boundary | accepted 2026-09-06 | 0013 |

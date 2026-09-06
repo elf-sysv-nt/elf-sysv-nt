@@ -234,34 +234,26 @@ Settled by: DR-0024, DR-0063, DR-0101.
 
 ## The loader
 
-The kernel maps a static image itself, under either substrate. `exec` has one
-classifier, and an interpreter chain is followed at most four hops before it is
-refused, which is a limit rather than a recursion. That is kernel behaviour,
-above the substrate line, and it is the same either way.
+The kernel maps an image itself, under either substrate: the program's
+segments, then the interpreter its `PT_INTERP` names, then the initial
+stack with the auxiliary vector, and it jumps to the interpreter's entry, or
+the program's when there is none (0011 § 5). `exec` has one classifier, and
+an interpreter chain is followed at most four hops before it is refused,
+which is a limit rather than a recursion. That is kernel behaviour, above
+the substrate line, and it is the same either way.
 
-Which dynamic loader then runs is not. **Under H the userland is Rocky 8's own
-RPMs**, so the dynamic loader is el8's `ld.so`, reading el8's
-`/etc/ld.so.cache` in glibc's format, and this platform supplies neither.
-Everything remaining in this section is therefore **substrate N's**, where the
-userland is rebuilt and the loader is the platform's own.
+The kernel is not a dynamic loader and has none. What runs at the
+interpreter's entry is glibc's own `ld.so`, doing its work through `mmap`,
+`mprotect`, `open` and `read` the way it does on Linux, reading glibc's own
+`/etc/ld.so.cache`, resolving symbols by glibc's rules, and maintaining the
+link map a debugger walks. Under H it is el8's `ld.so` as shipped; under N
+it is the same `ld.so` rebuilt against the gate with the rest of glibc
+(0011 § 16), and the kernel refuses at `exec` an image whose
+`.note.elfsysvnt.abi` names a gate ABI it no longer offers. Nothing about
+loading a dynamic object is this platform's to implement, and the records
+that once described a loader of its own are retired.
 
-N's loader cache is this project's format rather than glibc's. Reading glibc's
-would tie the platform to a layout that changes for reasons unrelated to it,
-and the cache is small enough that owning it is cheaper than tracking it.
-
-Relocation types the platform will never emit are certified against real vendor
-objects rather than assumed absent, which is the only way to know that the set
-a loader implements covers the set a distribution ships.
-
-A weak undefined symbol is not a demand on the runtime. It resolves to zero and
-the program tests it, which is what the ABI says and what a program shipping one
-expects.
-
-The debugger rendezvous is the standard link map either way, so a host debugger
-can walk the loaded objects without the platform inventing a protocol; what
-differs is only who maintains it, N's loader or el8's.
-
-Settled by: DR-0011, DR-0016, DR-0022, DR-0027, DR-0073.
+Settled by: DR-0027, DR-0103.
 
 ## Process shape
 
