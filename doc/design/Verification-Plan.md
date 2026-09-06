@@ -157,6 +157,15 @@ Phase 2), criterion 2 is met (`test/t/vfs-diff.sh`) and criterion 3 as
 amended is met (`test/t/lxfs-interop.sh`), both recorded in
 `Core-Phase2.md`; criteria 4 to 17 are unbuilt.
 
+Criterion 1's harness is not the file 0011 names. The proposal wrote
+`test/t/hello-static.sh` at the gate tier before phase 1 had a directory;
+what was built is `core/run.sh`, at the report tier, because a suite needing
+both toolchains and a live Rocky 8 cannot gate a merge. The criterion is
+unchanged and the addendum of 2026-09-06 records the rename. Where a
+criterion's harness moves, this section names the file that meets it and the
+proposal keeps the criterion, so the two never have to be reconciled by a
+reader guessing which is current.
+
 Settled by: DR-0102.
 
 ## Fuzz and unit obligations

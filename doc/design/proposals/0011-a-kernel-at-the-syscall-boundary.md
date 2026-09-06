@@ -1462,3 +1462,16 @@ condition is answered by the same record: both substrates are offered and
 the client's environment decides. Open question 6 is settled by DR-0101
 (`TlsSlots[63]`, reserved through the PEB bitmap). Proposal 0012 completes
 § 3 to § 7 where they spoke for one substrate.
+
+Criterion 1's harness is `core/run.sh`, not the `test/t/hello-static.sh`
+above, and it is at the report tier rather than the gate. The name was
+written before phase 1 had a directory; the criterion was built alongside the
+core it exercises, which is where the toolchains and the Rocky 8 oracle it
+needs already are, and a suite needing both toolchains and WSL cannot gate a
+merge. Criteria 2 and 3 kept the names they were given. The criterion is met in two
+places, not one: `core/run.sh` checks the program's output and exit status
+against the Rocky 8 oracle, and the `/proc/self/maps` half came with phase 2,
+where `test/core/vfs-trace.c` reads the file and `test/t/vfs-diff.sh` traces
+it (`Core-Phase1.md` records the remainder as unmet, `Core-Phase2.md` records
+it met). `test/suites.tsv` is the registry either way, and
+`Verification-Plan.md` names the files that meet each criterion.

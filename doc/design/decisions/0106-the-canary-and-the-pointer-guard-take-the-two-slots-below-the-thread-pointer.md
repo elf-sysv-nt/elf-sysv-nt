@@ -64,8 +64,9 @@ of the three, and all three bits survive. q9 writes the three words, reads
 each back with one `%gs` load, confirms a raw write to `TP-8` is what
 `TlsGetValue(62)` returns, and finds all three at zero on a new thread —
 which is why `clone.S` copies the two guards out of the TCB before the first
-protected frame runs, as `toolchain/glibc/README.md` describes. The transcript
-is `results-2026-09-06.txt`,
+protected frame runs, as the glibc port's README describes (on branch
+`toolchain/glibc-port`; it is not in this tree yet). The transcript is
+`spike/peb-tls-bitmap/results-2026-09-06.txt`,
 `finding=three-bits-reserved-array-ends-at-the-thread-pointer`.
 
 Tier 8 as taken. The glibc port made this choice inside an unattended run and
@@ -85,10 +86,10 @@ substrate's first instruction now has three slots it could take rather than
 one, and the start-up check refuses on any of them. That is still a loud
 refusal rather than a silent corruption.
 
-Reversing is three constants in one header. `sysdeps/x86_64/nptl/tls.h` in the
-glibc port defines all three for C and assembler alike, `substrate_n.c` has
-`CARRIER_TEB_OFF` and the bitmap reservation, and the GCC patch has the guard
-offset; no on-disk layout carries any of them.
+Reversing is three constants in one header. The glibc port's
+`sysdeps/x86_64/nptl/tls.h` defines all three for C and assembler alike,
+`substrate/substrate_n.c` has `CARRIER_TEB_OFF` and the bitmap reservation,
+and the GCC patch has the guard offset; no on-disk layout carries any of them.
 
 ## Consequences
 
@@ -97,7 +98,12 @@ three-bit reservation and cites this record beside DR-0101.
 `Substrate-N.md`'s `tp_set` row and `Substrate-Interface.md`'s `tp_set`
 contract cite it. `substrate/substrate_n.c` reserves three bits at start and
 refuses on any; the conformance suite's `tp_set` group is unchanged, since the
-thread pointer's own offset did not move. `toolchain/gcc/patches/0002` reads
-the canary at `%gs:0x1670`, and `toolchain/glibc/`'s `tls.h` is the one place
-the three constants are written. `spike/peb-tls-bitmap/` q7 to q9 are the
-measurement; `doc/milestones.md` row 48 carries them.
+thread pointer's own offset did not move. `spike/peb-tls-bitmap/` q7 to q9 are
+the measurement; `doc/milestones.md` row 48 carries them.
+
+Two consequences land outside this tree, on branch `toolchain/glibc-port`,
+and are named here so that whoever lands it knows what this record already
+expects of it: the GCC patch for the N target reads the canary at
+`%gs:0x1670`, and the port's `sysdeps/x86_64/nptl/tls.h` is the one place the
+three constants are written for C and assembler alike. Neither path exists on
+the trunk today, so neither is cited as one.
