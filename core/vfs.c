@@ -101,6 +101,11 @@ int vfs_mount_host(struct fs_ctx *fs, const char *point, const char *host_path)
 	m->lx_capable = hfs_volume_is_lx_capable(m->root) == 1;
 	m->default_uid = 0;
 	m->default_gid = 0;
+	/* the root tree is case-sensitive per directory (0011 § 8); the
+	 * installer marks it, and so does the kernel for what it creates; a
+	 * drive mounted under /mnt keeps Windows's rule */
+	if (strcmp(point, "/") == 0 && m->lx_capable)
+		hfs_set_case_sensitive(m->root);
 	return 0;
 }
 
@@ -244,7 +249,7 @@ static int open_host_dir(struct mount *m, const char *abs, hfs_h *out)
 	if (!owned) {
 		/* the mount root itself: hand back a duplicate so the caller can
 		 * close it uniformly */
-		r = hfs_openat(m->root, ".", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &cur, NULL);
+		r = hfs_reopen(m->root, HFS_O_READ | HFS_O_DIR, &cur, NULL);
 		if (r < 0) return r;
 	}
 	*out = cur;
@@ -445,7 +450,9 @@ static int64_t hostfile_pread(struct file *f, void *buf, size_t len, uint64_t of
 
 static int64_t hostfile_pwrite(struct file *f, const void *buf, size_t len, uint64_t off)
 {
-	return hfs_pwrite(f->h, buf, len, off, 0);
+	/* Linux appends on pwrite too when the description has O_APPEND; the
+	 * offset is ignored, and the man page says so under BUGS */
+	return hfs_pwrite(f->h, buf, len, off, (f->flags & O_APPEND) ? 1 : 0);
 }
 
 static int64_t hostfile_lseek(struct file *f, int64_t off, int whence)
@@ -520,17 +527,18 @@ int64_t dirent_pack(void *buf, size_t cap, size_t *used, uint64_t ino, int64_t o
 		    uint8_t type, const char *name)
 {
 	size_t nl = strlen(name);
-	size_t rec = (sizeof(struct lx_dirent64) + nl + 1 + 7) & ~(size_t)7;
-	struct lx_dirent64 d;
+	size_t rec = (LX_DIRENT64_HDR + nl + 1 + 7) & ~(size_t)7;
+	uint16_t reclen = (uint16_t)rec;
 	unsigned char *p = (unsigned char *)buf + *used;
 	if (*used + rec > cap) return -EINVAL;
-	d.d_ino = ino;
-	d.d_off = off;
-	d.d_reclen = (uint16_t)rec;
-	d.d_type = type;
-	memcpy(p, &d, sizeof d);
-	memcpy(p + sizeof d, name, nl + 1);
-	memset(p + sizeof d + nl + 1, 0, rec - sizeof d - nl - 1);
+	/* the header is 19 bytes and the name follows it unpadded, which no C
+	 * struct of these fields lays out; write the fields at their offsets */
+	memcpy(p, &ino, 8);
+	memcpy(p + 8, &off, 8);
+	memcpy(p + 16, &reclen, 2);
+	p[18] = type;
+	memcpy(p + LX_DIRENT64_HDR, name, nl + 1);
+	memset(p + LX_DIRENT64_HDR + nl + 1, 0, rec - LX_DIRENT64_HDR - nl - 1);
 	*used += rec;
 	return (int64_t)rec;
 }
@@ -597,16 +605,18 @@ static int64_t hostdir_lseek(struct file *f, int64_t off, int whence)
 	return -EINVAL;
 }
 
+/* A directory description has no read: Linux answers EINVAL, and EBADF for
+ * a write, since the description could only have been opened read-only. */
 static int64_t dir_read(struct file *f, void *buf, size_t len)
 {
 	(void)f; (void)buf; (void)len;
-	return -EISDIR;
+	return -EINVAL;
 }
 
 static int64_t dir_write(struct file *f, const void *buf, size_t len)
 {
 	(void)f; (void)buf; (void)len;
-	return -EISDIR;
+	return -EBADF;
 }
 
 static void hostdir_release(struct file *f)
@@ -628,8 +638,17 @@ static const struct file_ops hostdir_ops = {
 
 /* ---- the operations ------------------------------------------------------------ */
 
+static int vfs_open_depth(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
+			  unsigned flags, uint32_t mode, struct file **out, int depth);
+
 int vfs_open(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
 	     unsigned flags, uint32_t mode, struct file **out)
+{
+	return vfs_open_depth(fs, b, path, flags, mode, out, 0);
+}
+
+static int vfs_open_depth(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
+			  unsigned flags, uint32_t mode, struct file **out, int depth)
 {
 	struct vfs_loc loc;
 	struct file *f;
@@ -640,7 +659,7 @@ int vfs_open(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
 	hfs_h d = 0, h = 0;
 
 	*out = NULL;
-	if (acc == 3) return -EINVAL;
+	if (depth > 40) return -ELOOP;
 	if (flags & O_CREAT) {
 		r = walk(fs, b, path, W_PARENT, &loc);
 		if (r == -EEXIST) {
@@ -674,19 +693,20 @@ int vfs_open(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
 		/* O_CREAT on an existing symlink follows it unless O_EXCL */
 		r = hfs_openat(d, loc.last, hflags, mode & 07777 & ~fs->umask, fs->euid, fs->egid, &h, &hs);
 		if (r == HFS_REPARSE) {
-			char full[LX_PATH_MAX];
-			hfs_close(h);
+			/* O_CREAT met a symlink: Linux creates through it (the
+			 * target may not exist yet), unless O_EXCL, which is
+			 * EEXIST on the link itself */
+			char target[LX_PATH_MAX];
+			struct vfs_base lb = { loc.abs };
+			int64_t tl;
 			hfs_close(d);
-			if (flags & O_EXCL) return -EEXIST;
-			if (hs.kind != HFS_KIND_LXLINK) return -ENXIO;
-			/* resolve the link and open through it without O_CREAT's
-			 * exclusivity: walk the full path following symlinks */
-			path_join(full, sizeof full, loc.abs, loc.last);
-			r = walk(fs, NULL, full, 0, &loc);
-			if (r) return r;
-			creating = 0;
-			hflags &= ~(HFS_O_CREATE | HFS_O_EXCL | HFS_O_NODIR);
-			goto open_existing;
+			if (flags & O_EXCL) { hfs_close(h); return -EEXIST; }
+			if (hs.kind != HFS_KIND_LXLINK) { hfs_close(h); return -ENXIO; }
+			tl = hfs_readlink(h, target, sizeof target - 1);
+			hfs_close(h);
+			if (tl <= 0 || tl >= (int64_t)sizeof target) return -ENOENT;
+			target[tl] = 0;
+			return vfs_open_depth(fs, &lb, target, flags, mode, out, depth + 1);
 		}
 		hfs_close(d);
 		if (r < 0) return r;
@@ -714,7 +734,7 @@ open_existing:
 		if (S_ISDIR(st.mode)) hflags = (hflags & ~(HFS_O_WRITE | HFS_O_TRUNC)) | HFS_O_DIR | HFS_O_READ;
 		if (S_ISLNK(st.mode)) hflags |= HFS_O_REPARSE;
 		if (!*loc.rel) {
-			r = hfs_openat(loc.m->root, ".", hflags, 0, 0, 0, &h, &hs);
+			r = hfs_reopen(loc.m->root, hflags, &h, &hs);
 		} else {
 			char parent[LX_PATH_MAX];
 			strcpy(parent, loc.abs);
@@ -848,7 +868,12 @@ int vfs_unlink(struct fs_ctx *fs, const struct vfs_base *b, const char *path, in
 	hfs_h d;
 	int r;
 	r = walk(fs, b, path, W_PARENT, &loc);
-	if (r == -EEXIST) return rmdir ? -EBUSY : -EISDIR;
+	if (r == -EEXIST) {
+		/* the path resolved to the root, a mount point, or "." */
+		size_t pl = strlen(path);
+		if (rmdir && pl && path[pl - 1] == '.' && (pl == 1 || path[pl - 2] == '/')) return -EINVAL;
+		return rmdir ? -EBUSY : -EISDIR;
+	}
 	if (r) return r;
 	if (loc.m->type != MNT_HOST) return -EACCES;
 	if (strcmp(loc.last, ".") == 0) return -EINVAL;
@@ -925,7 +950,8 @@ int vfs_mkdir(struct fs_ctx *fs, const struct vfs_base *b, const char *path, uin
 	if (!strcmp(loc.last, ".") || !strcmp(loc.last, "..")) return -EEXIST;
 	r = open_host_dir(loc.m, loc.abs, &d);
 	if (r) return r;
-	r = hfs_mkdir(d, loc.last, mode & 01777 & ~fs->umask, fs->euid, fs->egid);
+	r = hfs_mkdir(d, loc.last, mode & 01777 & ~fs->umask, fs->euid, fs->egid,
+		      loc.m->lx_capable && strcmp(loc.m->point, "/") == 0);
 	hfs_close(d);
 	return r;
 }
@@ -968,7 +994,7 @@ static int open_attr(struct fs_ctx *fs, const char *abs, hfs_h *h)
 	hfs_h d;
 	int r;
 	if (!m || m->type != MNT_HOST) return -EPERM;
-	if (!*path_rel(m, abs)) return hfs_openat(m->root, ".", HFS_O_ATTR | HFS_O_DIR, 0, 0, 0, h, NULL);
+	if (!*path_rel(m, abs)) return hfs_reopen(m->root, HFS_O_ATTR | HFS_O_DIR, h, NULL);
 	strcpy(parent, abs);
 	path_parent(parent);
 	r = open_host_dir(m, parent, &d);
@@ -1015,10 +1041,22 @@ int vfs_chmod(struct fs_ctx *fs, const struct vfs_base *b, const char *path, uin
 	return r;
 }
 
+/* The description may have been opened without attribute access (O_RDONLY
+ * asks NT for none); the object is reopened for it through its handle. */
+static int reopen_attr(struct file *f, hfs_h *h)
+{
+	if (f->kind != FILE_KIND_HOST && f->kind != FILE_KIND_HOSTDIR && f->kind != FILE_KIND_SYMLINK) return -EPERM;
+	return hfs_reopen(f->h, HFS_O_ATTR | HFS_O_REPARSE | (f->kind == FILE_KIND_HOSTDIR ? HFS_O_DIR : 0), h, NULL);
+}
+
 int vfs_fchmod(struct file *f, uint32_t mode)
 {
-	if (f->kind != FILE_KIND_HOST && f->kind != FILE_KIND_HOSTDIR) return -EPERM;
-	return chmod_h(vfs_current_fs(), f->h, mode);
+	hfs_h h;
+	int r = reopen_attr(f, &h);
+	if (r) return r;
+	r = chmod_h(vfs_current_fs(), h, mode);
+	hfs_close(h);
+	return r;
 }
 
 static int chown_h(struct fs_ctx *fs, hfs_h h, uint32_t uid, uint32_t gid)
@@ -1056,8 +1094,12 @@ int vfs_chown(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
 
 int vfs_fchown(struct file *f, uint32_t uid, uint32_t gid)
 {
-	if (f->kind != FILE_KIND_HOST && f->kind != FILE_KIND_HOSTDIR) return -EPERM;
-	return chown_h(vfs_current_fs(), f->h, uid, gid);
+	hfs_h h;
+	int r = reopen_attr(f, &h);
+	if (r) return r;
+	r = chown_h(vfs_current_fs(), h, uid, gid);
+	hfs_close(h);
+	return r;
 }
 
 int vfs_utimens(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
@@ -1076,8 +1118,12 @@ int vfs_utimens(struct fs_ctx *fs, const struct vfs_base *b, const char *path,
 
 int vfs_futimens(struct file *f, int64_t atime, int64_t mtime)
 {
-	if (f->kind != FILE_KIND_HOST && f->kind != FILE_KIND_HOSTDIR) return -EPERM;
-	return hfs_set_times(f->h, atime, mtime);
+	hfs_h h;
+	int r = reopen_attr(f, &h);
+	if (r) return r;
+	r = hfs_set_times(h, atime, mtime);
+	hfs_close(h);
+	return r;
 }
 
 int vfs_truncate(struct fs_ctx *fs, const struct vfs_base *b, const char *path, uint64_t size)

@@ -164,14 +164,9 @@ struct lx_statx {
 	uint64_t __spare2[14];
 };
 
-/* struct linux_dirent64: the header, then the name */
-struct lx_dirent64 {
-	uint64_t d_ino;
-	int64_t d_off;
-	uint16_t d_reclen;
-	uint8_t d_type;
-	/* char d_name[]; */
-};
+/* struct linux_dirent64: d_ino (8), d_off (8), d_reclen (2), d_type (1),
+ * then d_name at byte 19, unpadded; records are 8-aligned overall */
+#define LX_DIRENT64_HDR	19
 
 struct lx_iovec {
 	uint64_t iov_base;		/* a user address, never dereferenced here */

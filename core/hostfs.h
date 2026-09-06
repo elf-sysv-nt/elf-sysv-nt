@@ -102,6 +102,10 @@ int hfs_openat(hfs_h dir, const char *name, unsigned flags, uint32_t mode,
 
 void hfs_close(hfs_h h);
 
+/* Open the object h refers to again, with its own access (flags as for
+ * hfs_openat, without CREATE); what a mount root or an fchdir needs. */
+int hfs_reopen(hfs_h h, unsigned flags, hfs_h *out, struct hfs_stat *st);
+
 /* Stat an open object. */
 int hfs_stat(hfs_h h, struct hfs_stat *st);
 
@@ -131,7 +135,8 @@ int hfs_set_times(hfs_h h, int64_t atime, int64_t mtime);
 
 /* Directories.  mkdir creates with the LX mode; case makes an existing
  * directory case-sensitive, which the root's installer does per directory. */
-int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t gid);
+int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t gid,
+	      int case_sensitive);
 int hfs_set_case_sensitive(hfs_h dirh);
 
 /* Remove one component: a file or an empty directory.  POSIX semantics where

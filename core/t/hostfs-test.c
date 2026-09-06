@@ -75,14 +75,14 @@ static void group_create_stat(void)
 	ok(r == 0 && st.mode == 0640, "statat reads the LX mode without keeping a handle");
 	r = hfs_openat(root, "plain.txt", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &h, NULL);
 	ok(r == -ENOTDIR, "O_DIRECTORY on a file is ENOTDIR");
-	r = hfs_mkdir(root, "d", 0750, 1000, 1000);
+	r = hfs_mkdir(root, "d", 0750, 1000, 1000, 0);
 	ok(r == 0, "mkdir with a mode");
 	r = hfs_openat(root, "d", HFS_O_READ | HFS_O_NODIR, 0, 0, 0, &h, NULL);
 	ok(r == -EISDIR, "a non-directory open of a directory is EISDIR");
 	r = hfs_openat(root, "d", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &h, &st);
 	ok(r == 0 && st.kind == HFS_KIND_DIR && st.mode == 0750, "the directory opens and carries its mode");
 	hfs_close(h);
-	r = hfs_mkdir(root, "d", 0750, 1000, 1000);
+	r = hfs_mkdir(root, "d", 0750, 1000, 1000, 0);
 	ok(r == -EEXIST, "mkdir over an existing name is EEXIST");
 }
 
@@ -157,7 +157,7 @@ static void group_names(void)
 	ok(h != 0, "a UTF-8 name");
 	hfs_close(h);
 	ok(hfs_openat(root, "names", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &d, NULL) == -ENOENT, "the names directory is not there yet");
-	ok(hfs_mkdir(root, "names", 0755, 0, 0) == 0, "mkdir names");
+	ok(hfs_mkdir(root, "names", 0755, 0, 0, 0) == 0, "mkdir names");
 	ok(hfs_openat(root, "names", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &d, NULL) == 0, "open names/");
 	hfs_close(mk("names/x", 0644, NULL));	/* a slash in a component is refused below */
 	{
@@ -167,7 +167,7 @@ static void group_names(void)
 		hfs_close(f);
 		r = hfs_openat(d, "two", HFS_O_READ | HFS_O_WRITE | HFS_O_CREATE, 0644, 0, 0, &f, NULL);
 		hfs_close(f);
-		ok(hfs_mkdir(d, "sub", 0755, 0, 0) == 0, "mkdir sub under names/");
+		ok(hfs_mkdir(d, "sub", 0755, 0, 0, 0) == 0, "mkdir sub under names/");
 	}
 	dr = hfs_dir_open(d);
 	ok(dr != NULL, "a directory reader");
@@ -219,12 +219,12 @@ static void group_unlink_rename(void)
 	hfs_close(h);
 	ok(hfs_unlink(root, "victim.txt", 0) == 0, "unlink the replacement");
 	ok(hfs_unlink(root, "victim.txt", 0) == -ENOENT, "unlink of an absent name is ENOENT");
-	ok(hfs_mkdir(root, "rmme", 0755, 0, 0) == 0, "mkdir rmme");
+	ok(hfs_mkdir(root, "rmme", 0755, 0, 0, 0) == 0, "mkdir rmme");
 	ok(hfs_unlink(root, "rmme", 0) == -EISDIR, "unlink of a directory is EISDIR");
 	hfs_close(mk("keep.txt", 0644, NULL));
 	ok(hfs_unlink(root, "keep.txt", 1) == -ENOTDIR, "rmdir of a file is ENOTDIR");
 	ok(hfs_unlink(root, "rmme", 1) == 0, "rmdir of an empty directory");
-	ok(hfs_mkdir(root, "full", 0755, 0, 0) == 0, "mkdir full");
+	ok(hfs_mkdir(root, "full", 0755, 0, 0, 0) == 0, "mkdir full");
 	hfs_close(mk("full/child", 0644, NULL) ? 0 : 0);
 	{
 		hfs_h d, f;
@@ -250,7 +250,7 @@ static void group_unlink_rename(void)
 	ok(r == -EEXIST, "RENAME_NOREPLACE over an existing name is EEXIST");
 	r = hfs_rename(root, "absent.txt", root, "whatever", 0);
 	ok(r == -ENOENT, "rename of an absent source is ENOENT");
-	ok(hfs_mkdir(root, "rd1", 0755, 0, 0) == 0 && hfs_mkdir(root, "rd2", 0755, 0, 0) == 0, "two directories");
+	ok(hfs_mkdir(root, "rd1", 0755, 0, 0, 0) == 0 && hfs_mkdir(root, "rd2", 0755, 0, 0, 0) == 0, "two directories");
 	r = hfs_rename(root, "rd1", root, "rd3", 0);
 	ok(r == 0, "rename a directory to a new name");
 	r = hfs_rename(root, "rd3", root, "rd2", 0);
@@ -302,10 +302,10 @@ static void group_case(void)
 	struct hfs_stat st;
 	hfs_h d, f;
 	int r;
-	ok(hfs_mkdir(root, "cs", 0755, 0, 0) == 0, "mkdir cs");
+	ok(hfs_mkdir(root, "cs", 0755, 0, 0, 1) == 0, "mkdir cs, case-sensitive at creation");
 	ok(hfs_openat(root, "cs", HFS_O_READ | HFS_O_DIR | HFS_O_ATTR, 0, 0, 0, &d, NULL) == 0, "open cs/ for attributes");
 	r = hfs_set_case_sensitive(d);
-	ok(r == 0, "mark the directory case-sensitive");
+	ok(r == 0, "mark the directory case-sensitive again (idempotent)");
 	hfs_stat(d, &st);
 	ok(st.lxflags & HFS_LX_CASE, "stat reports the case-sensitive flag");
 	ok(hfs_openat(d, "Makefile", HFS_O_READ | HFS_O_WRITE | HFS_O_CREATE | HFS_O_EXCL, 0644, 0, 0, &f, NULL) == 0, "create Makefile");

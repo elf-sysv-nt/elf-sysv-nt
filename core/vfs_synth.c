@@ -51,7 +51,7 @@ static int64_t snap_pread(struct file *f, void *buf, size_t len, uint64_t off)
 static int64_t snap_write(struct file *f, const void *buf, size_t len)
 {
 	(void)f; (void)buf; (void)len;
-	return -EACCES;
+	return -EINVAL;		/* a generated file has no write, as on Linux */
 }
 
 static int64_t snap_lseek(struct file *f, int64_t off, int whence)
@@ -87,7 +87,7 @@ const char *vfs_exe_path(void)
 }
 
 /* The tree, flattened: each entry knows its parent by name prefix. */
-enum { P_ROOT, P_SELF, P_MAPS, P_EXE, P_CWD, P_FD, P_FDN, P_NONE };
+enum { P_ROOT, P_SELF, P_MAPS, P_EXE, P_CWD, P_FD, P_FDN, P_SELFLINK, P_NONE };
 
 static int proc_classify(const char *rel, int *fdn)
 {
@@ -96,7 +96,8 @@ static int proc_classify(const char *rel, int *fdn)
 	*fdn = -1;
 	if (!*rel) return P_ROOT;
 	snprintf(pid, sizeof pid, "%d", 1);
-	if (strncmp(rel, "self", 4) == 0 && (rel[4] == 0 || rel[4] == '/')) p = rel + 4;
+	if (strcmp(rel, "self") == 0) return P_SELFLINK;
+	if (strncmp(rel, "self", 4) == 0 && rel[4] == '/') p = rel + 4;
 	else if (strncmp(rel, pid, strlen(pid)) == 0 && (rel[strlen(pid)] == 0 || rel[strlen(pid)] == '/')) p = rel + strlen(pid);
 	else return P_NONE;
 	if (!*p) return P_SELF;
@@ -122,7 +123,7 @@ static uint32_t proc_mode(int cls)
 	case P_ROOT: case P_SELF: return S_IFDIR | 0555;
 	case P_FD: return S_IFDIR | 0500;
 	case P_MAPS: return S_IFREG | 0444;
-	case P_EXE: case P_CWD: case P_FDN: return S_IFLNK | 0777;
+	case P_EXE: case P_CWD: case P_FDN: case P_SELFLINK: return S_IFLNK | 0777;
 	default: return 0;
 	}
 }
@@ -144,6 +145,7 @@ int64_t procfs_readlink(struct fs_ctx *fs, const char *rel, char *buf, size_t ca
 	char tmp[LX_PATH_MAX];
 	size_t n;
 	switch (cls) {
+	case P_SELFLINK: snprintf(tmp, sizeof tmp, "%d", vfs_current_fs() ? 1 : 1); t = tmp; break;
 	case P_EXE: t = exe_path; break;
 	case P_CWD: t = fs->cwd; break;
 	case P_FDN: {
@@ -231,7 +233,7 @@ int procfs_open(struct fs_ctx *fs, const char *rel, unsigned flags, struct file 
 	(void)fs;
 	*out = NULL;
 	if (cls == P_NONE) return -ENOENT;
-	if (cls == P_EXE || cls == P_CWD || cls == P_FDN) {
+	if (cls == P_EXE || cls == P_CWD || cls == P_FDN || cls == P_SELFLINK) {
 		if (flags & O_PATH) {
 			f = file_new(&snap_ops, FILE_KIND_PROC, flags);
 			if (!f) return -ENOMEM;
@@ -271,8 +273,7 @@ int procfs_open(struct fs_ctx *fs, const char *rel, unsigned flags, struct file 
 		*out = f;
 		return 0;
 	}
-	/* maps */
-	if ((flags & O_ACCMODE) != O_RDONLY) return -EACCES;
+	/* maps: root opens it for writing too, and the write then fails */
 	{
 		char *s = malloc(65536);
 		size_t n;

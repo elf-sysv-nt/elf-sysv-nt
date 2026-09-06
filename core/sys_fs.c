@@ -195,7 +195,7 @@ static int64_t do_read(struct substrate *s, struct file *f, uint64_t ubuf, int64
 	int64_t done = 0;
 	if (len < 0) return -EINVAL;
 	if (!b) return -ENOMEM;
-	if ((f->flags & O_ACCMODE) == O_WRONLY) return -EBADF;
+	if ((f->flags & O_ACCMODE) == O_WRONLY || (f->flags & O_ACCMODE) == 3) return -EBADF;
 	if (f->flags & O_PATH) return -EBADF;
 	if (positional && !f->ops->pread) return -ESPIPE;
 	if (!positional && !f->ops->read) return -EINVAL;
@@ -219,7 +219,7 @@ static int64_t do_write(struct substrate *s, struct file *f, uint64_t ubuf, int6
 	int64_t done = 0;
 	if (len < 0) return -EINVAL;
 	if (!b) return -ENOMEM;
-	if ((f->flags & O_ACCMODE) == O_RDONLY) return -EBADF;
+	if ((f->flags & O_ACCMODE) == O_RDONLY || (f->flags & O_ACCMODE) == 3) return -EBADF;
 	if (f->flags & O_PATH) return -EBADF;
 	if (positional && !f->ops->pwrite) return -ESPIPE;
 	if (!positional && !f->ops->write) return -EINVAL;

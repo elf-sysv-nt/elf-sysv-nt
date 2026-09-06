@@ -111,20 +111,9 @@ exe=$builddir/lk-host.exe
 elf=$builddir/hello.elf
 
 # --- build the core ----------------------------------------------------------
+# One source list for every build of lk-host: core/build.sh keeps it.
 say "building the core with $cc"
-core_srcs="$here/main.c $here/gate.c $here/gate.S $here/syscall.c \
-	$here/binfmt_elf.c $here/exec.c $here/host.c $here/vma.c $here/vdso.c \
-	$here/hostfs_nt.c $here/file.c $here/vfs.c $here/vfs_synth.c \
-	$here/task.c $here/sys_fs.c \
-	$root/substrate/substrate_n.c"
-if ! "$cc" -O2 -Wall -Wextra -std=gnu11 \
-	-I"$here" -I"$root/substrate" \
-	-o "$exe" $core_srcs 2> "$builddir/core.log"; then
-	printf '%s: core build failed\n' "$prog" >&2
-	cat "$builddir/core.log" >&2
-	exit 1
-fi
-[ -s "$builddir/core.log" ] && [ "$quiet" != 1 ] && cat "$builddir/core.log" >&2
+"$here/build.sh" -q --cc="$cc" -o "$exe" || exit $?
 
 # --- build the test ELF ------------------------------------------------------
 say "building the test ELF with $cross"

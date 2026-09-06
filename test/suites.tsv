@@ -66,3 +66,5 @@ substrate/run.sh	report	-	substrate-interface conformance; nine groups pass agai
 bin/check-substrate-line	gate	-	no symbol above the substrate line names Nt*/WHv*/CONTEXT/HANDLE, a Win32 named object or port, or derefs a user pointer; walks core/ by default
 bin/check-roots	gate	-	nothing runnable hard-codes a root; the harness resolves them through bin/roots.sh, so a pasted absolute path fails here rather than on the next machine
 core/run.sh	report	$ELFSYSVNT_PREFIX/bin	Core Phase 1, 0011 criterion 1: a static gate-calling ELF prints hello and exits 0 on substrate N, against the same logical program on the Rocky 8 oracle. Needs both toolchains and WSL, so report rather than gate
+core/t/hostfs-test.sh	report	-	the host file store beneath the VFS (core/hostfs_nt.c) against a scratch directory on this volume: LX attributes, POSIX delete and rename, reparse tags, names, directories. Needs the mingw compiler and an NTFS scratch, so report
+test/t/vfs-diff.sh	report	$ELFSYSVNT_PREFIX/bin	Core Phase 2, 0011 criterion 2: a scripted sequence of file operations traces identically under the core and on the Rocky 8 oracle. Needs both toolchains and WSL, so report

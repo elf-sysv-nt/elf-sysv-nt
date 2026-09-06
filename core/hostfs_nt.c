@@ -538,7 +538,7 @@ int hfs_open_root(const char *path, hfs_h *out)
 	n = MultiByteToWideChar(CP_UTF8, 0, path, -1, w + 4, 4096);
 	if (n <= 0) return -EINVAL;
 	n = (int)wcslen(w);
-	s = create(NULL, w, n, FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | FILE_READ_EA,
+	s = create(NULL, w, n, FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | FILE_READ_EA | FILE_WRITE_ATTRIBUTES,
 		   FILE_OPEN, FILE_DIRECTORY_FILE, 0, NULL, 0, &h, NULL);
 	if (!NT_SUCCESS(s)) return -errno_of(s);
 	*out = (hfs_h)(uintptr_t)h;
@@ -598,6 +598,28 @@ int hfs_openat(hfs_h dir, const char *name, unsigned flags, uint32_t mode,
 		 * a created one has the ones we asked for */
 	}
 	*out = (hfs_h)(uintptr_t)h;
+	return 0;
+}
+
+int hfs_reopen(hfs_h h, unsigned flags, hfs_h *out, struct hfs_stat *st)
+{
+	HANDLE nh;
+	NTSTATUS s;
+	ULONG options = 0;
+	int r = bind_nt();
+	if (r) return r;
+	*out = 0;
+	if (flags & HFS_O_DIR) options |= FILE_DIRECTORY_FILE;
+	if (flags & HFS_O_NODIR) options |= FILE_NON_DIRECTORY_FILE;
+	if (flags & HFS_O_REPARSE) options |= FILE_OPEN_REPARSE_POINT;
+	/* an empty name relative to a handle names the object itself */
+	s = create((HANDLE)(uintptr_t)h, L"", 0, access_of(flags), FILE_OPEN, options, 0, NULL, 0, &nh, NULL);
+	if (!NT_SUCCESS(s)) return -errno_of(s);
+	if (st) {
+		r = stat_handle(nh, st);
+		if (r) { nt.Close(nh); return r; }
+	}
+	*out = (hfs_h)(uintptr_t)nh;
 	return 0;
 }
 
@@ -687,7 +709,8 @@ int hfs_set_times(hfs_h h, int64_t atime, int64_t mtime)
 
 /* ---- names: create, remove, rename, link ------------------------------------- */
 
-int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t gid)
+int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t gid,
+	      int case_sensitive)
 {
 	WCHAR w[520];
 	unsigned char ea[256];
@@ -699,9 +722,14 @@ int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t
 	n = name_to_wide(name, w, 255);
 	if (n <= 0) return n ? -ENAMETOOLONG : -ENOENT;
 	ealen = build_lx_eas(ea, sizeof ea, HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE, uid, gid, mode, 0, 0);
-	s = create((HANDLE)(uintptr_t)dir, w, n, FILE_READ_ATTRIBUTES, FILE_CREATE,
+	s = create((HANDLE)(uintptr_t)dir, w, n, FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES, FILE_CREATE,
 		   FILE_DIRECTORY_FILE, FILE_ATTRIBUTE_DIRECTORY, ea, ealen, &h, NULL);
 	if (!NT_SUCCESS(s)) return -errno_of(s);
+	if (case_sensitive) {
+		FILE_FLAGS_INFORMATION_ f = { FILE_CS_FLAG_CASE_SENSITIVE_DIR_ };
+		IO_STATUS_BLOCK iosb;
+		nt.SetInformationFile(h, &iosb, &f, sizeof f, FileCaseSensitiveInformation_);
+	}
 	nt.Close(h);
 	return 0;
 }

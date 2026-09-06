@@ -75,64 +75,44 @@ static int prot_of(uint32_t flags)
 	return p;
 }
 
-/* A run of zeroes long enough to clear any single partial page in one copy. */
-static const unsigned char zeros[PAGE];
-
 static int map_load(struct substrate *s, const void *image, size_t len,
 		    const struct elf64_phdr *ph, uint64_t bias)
 {
 	uint64_t va = ph->p_vaddr + bias;
 	uint64_t map_start = ROUND_DN(va);
-	uint64_t delta = va - map_start;
 	uint64_t filesz = ph->p_filesz, memsz = ph->p_memsz;
+	uint64_t map_end = ROUND_UP(va + memsz);
+	size_t maplen = (size_t)(map_end - map_start);
 	int prot = prot_of(ph->p_flags);
-	struct sub_backing file = { SUB_BACKING_FILE, image, len };
 	struct sub_backing anon = { SUB_BACKING_ANON, NULL, 0 };
+	void *addr = (void *)(uintptr_t)map_start;
+	uint64_t fault = 0;
 
 	if (memsz < filesz)
 		return -1;
+	if (maplen == 0)
+		return 0;
 
-	/* The file-backed pages: from the segment's page down through the last
-	 * page any file byte touches.  as_map copies from the page-aligned file
-	 * offset, so the byte at p_offset lands exactly at va. */
-	if (filesz > 0) {
-		uint64_t file_end = va + filesz;
-		size_t maplen = (size_t)(ROUND_UP(file_end) - map_start);
-		void *addr = (void *)(uintptr_t)map_start;
-		uint64_t foff = ph->p_offset - delta;
-
-		if (s->as_map(s, &addr, maplen, &file, foff, prot) != 0)
-			return -1;
-		vma_record((uint64_t)(uintptr_t)addr, maplen, prot, SUB_BACKING_FILE, foff, image_name);
-
-		/* Clear the file page's tail where .bss begins mid-page; the
-		 * segment must carry write for there to be a tail to clear. */
-		if (memsz > filesz && (file_end & (PAGE - 1))) {
-			uint64_t page_end = ROUND_UP(file_end);
-			uint64_t fault = 0;
-
-			if (s->user_copy_out(s, file_end, zeros,
-					     (size_t)(page_end - file_end),
-					     &fault) != 0)
-				return -1;
-		}
-	}
-
-	/* Whole .bss pages beyond the file portion, and the pure-.bss case where
-	 * there was no file page at all: anonymous, zero on first touch. */
-	{
-		uint64_t have = filesz > 0 ? ROUND_UP(va + filesz) : map_start;
-		uint64_t want = ROUND_UP(va + memsz);
-
-		if (want > have) {
-			void *addr = (void *)(uintptr_t)have;
-
-			if (s->as_map(s, &addr, (size_t)(want - have), &anon, 0,
-				      prot) != 0)
-				return -1;
-			vma_record((uint64_t)(uintptr_t)addr, (size_t)(want - have), prot, SUB_BACKING_ANON, 0, "");
-		}
-	}
+	/* One range per segment, anonymous and writable while it is filled:
+	 * the file's bytes are copied in through user_copy_out and the rest
+	 * reads zero, which is what .bss wants.  A file-backed map for the
+	 * file part and an anonymous one for the tail would split a granule
+	 * between two as_map calls, which substrate N cannot realise (its
+	 * reservation is the granule), and DR-0061's granule-separable link
+	 * only keeps segments apart, not a segment's own halves. */
+	if (s->as_map(s, &addr, maplen, &anon, 0, prot | SUB_PROT_WRITE) != 0)
+		return -1;
+	if (filesz > 0 &&
+	    s->user_copy_out(s, va, (const unsigned char *)image + ph->p_offset,
+			     (size_t)filesz, &fault) != 0)
+		return -1;
+	if (prot != (prot | SUB_PROT_WRITE) &&
+	    s->as_protect(s, addr, maplen, prot) != 0)
+		return -1;
+	vma_record((uint64_t)(uintptr_t)addr, maplen, prot,
+		   filesz ? SUB_BACKING_FILE : SUB_BACKING_ANON,
+		   filesz ? ph->p_offset - (va - map_start) : 0,
+		   filesz ? image_name : "");
 	return 0;
 }
 
