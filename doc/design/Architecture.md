@@ -193,12 +193,17 @@ through `%gs`; under H it is `%fs`, where Linux has always kept it.
 `%fs` base across a context switch — the spike measured that on 2026-08-29 and
 the answer was no, which took the ordinary Linux carrier off the table before
 any code was written. Four `%gs` carriers were measured; three persist and
-address at about five cycles, and the one in use is the carrier the spike
-called C3. The ABI above it is glibc's own: `%gs:TP` holds the TCB pointer,
-`%gs:TP+8` the stack-protector canary, `%gs:TP+16` the pointer guard, which is
-what `tls.h`, `-fstack-protector` and `PTR_MANGLE` read. The kernel sets it
-through the interface's `tp_set`, and `arch_prctl(ARCH_SET_FS)` returns
-`EINVAL`, because a program built for this substrate never asks.
+address at about five cycles, and the one in use is carrier C1: `TlsSlots[63]`
+in the TEB, `%gs:0x1678`, one load. The slot is reserved from `TlsAlloc` by
+setting bit 63 of the PEB's `TlsBitmap` when the substrate starts (spike
+peb-tls-bitmap: seventy allocations after the set never return it, nor does a
+DLL loaded later), and a substrate that finds the bit already set refuses to
+start rather than share the word. The ABI above it is glibc's own: `%gs:TP`
+holds the TCB pointer, `%gs:TP+8` the stack-protector canary, `%gs:TP+16` the
+pointer guard, with `TP` = `0x1678`, which is what `tls.h`,
+`-fstack-protector` and `PTR_MANGLE` read. The kernel sets it through the
+interface's `tp_set`, and `arch_prctl(ARCH_SET_FS)` returns `EINVAL`, because
+a program built for this substrate never asks.
 
 **Under H**, the guest owns its own segment bases and
 `arch_prctl(ARCH_SET_FS)` writes the vCPU's FS base. The three words sit where
@@ -216,7 +221,7 @@ The static-TLS surplus and the shape of the DTV are fixed so that a vendor
 image's own TLS requirements are satisfied without renegotiation after the
 fact.
 
-Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
+Settled by: DR-0024, DR-0063, DR-0101.
 
 ## The loader
 

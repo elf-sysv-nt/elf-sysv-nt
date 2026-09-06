@@ -591,3 +591,11 @@ prerequisite: tier 8, reserved or promise-changing. Parked as open questions
 D13. Three records rather than one. Tier 5: the `vfork` contract and the
 address-space retirement are the two settlements a later reader will look
 for on their own, and each gets an `Amends:` line that names one section.
+
+## Addendum, 2026-09-06
+
+The operator answered the open questions on 2026-09-05. Open question 1 is
+settled by DR-0101 (carrier C1, `TlsSlots[63]`, reserved through the PEB
+bitmap; spike 48 is the fact it rests on, and substrate N was re-certified
+9/9 against it). Open questions 2, 3, 5 and 6 are settled by DR-0102. Open
+question 4 is deferred until spike 37 runs on the version floor.

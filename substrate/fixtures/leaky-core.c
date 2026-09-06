@@ -32,3 +32,11 @@ int read_user_word(uint64_t *uaddr)
 {
 	return (int)*uaddr;
 }
+
+/* Leak 6: a Win32 named object reached from the core by name, which is the
+ * process seam's N realisation leaking above the seam (0012 § 1). */
+void *signal_port_for(int pid)
+{
+	(void)pid;
+	return OpenEventW(0x1F0003, 0, L"lk-sig-1234");
+}

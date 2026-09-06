@@ -6,8 +6,9 @@
 # it is everything that is Linux rather than Windows, written once; below it are
 # the two ways user code is run, N and H.  The document names the mechanical
 # half of that boundary and calls this check its teeth -- a leak is a red build,
-# not a discovery during the second substrate.  Five things may not appear in a
-# core source:
+# not a discovery during the second substrate.  Six things may not appear in a
+# core source (the sixth, a Win32 named-object or port call, is the process
+# seam's N realisation leaking above the seam, proposal 0012 § 1):
 #
 #   1. an NT call, spelled Nt<Name> (NtSuspendThread, NtMapViewOfSection);
 #   2. a WHP call, spelled WHv<Name> (WHvRunVirtualProcessor);
@@ -66,6 +67,14 @@ RULES = [
     ("user-ptr deref",   re.compile(
         r"\*\s*(?:uaddr|uptr|user_ptr|user_addr)\b"
         r"|\b(?:uaddr|uptr|user_ptr|user_addr)\s*\[")),
+    # 6. A Win32 named object, port or process call: the process seam's N
+    #    realisation (proposal 0012 § 1, DR-0102) lives under seam/, and the
+    #    core reaches it as an interface.  The Nt* rule already catches the
+    #    native spellings; these are the kernel32 ones.
+    ("Win32 object/port", re.compile(
+        r"\b(?:Create|Open)(?:FileMapping|Event|Mutex|Semaphore|WaitableTimer|NamedPipe|Process)[AW]?\b"
+        r"|\bMapViewOfFile(?:Ex|3|Numa2)?\b|\bUnmapViewOfFile(?:2)?\b"
+        r"|\bDuplicateHandle\b|\bConnectNamedPipe\b|\bCallNamedPipe[AW]?\b")),
 ]
 
 

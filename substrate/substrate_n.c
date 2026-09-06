@@ -8,10 +8,11 @@
  * Where the mock stood in for a mechanism, N carries the real one.  Two places
  * matter, and each is a decision the plan already fixed:
  *
- *   - the thread pointer is a runtime-owned word reached through %gs, keyed to
- *     NtTib.StackBase and a build-constant offset, exactly the carrier DR-0003
- *     chose and DR-0021 placed.  The mock kept a per-tid word in a side table;
- *     that measured its own mechanism rather than the contract, so N does not.
+ *   - the thread pointer is a word reached through %gs at a fixed offset:
+ *     TlsSlots[63] in the TEB, carrier C1 of spike 6, reserved from TlsAlloc
+ *     through the PEB bitmap, exactly as DR-0101 settled.  The mock kept a
+ *     per-tid word in a side table; that measured its own mechanism rather
+ *     than the contract, so N does not.
  *
  *   - as_clone forks a child *process* with RtlCloneUserProcess (spike 35), the
  *     ntdll call that returns a second time in the child on a live thread.  The
@@ -248,41 +249,67 @@ static struct tent *thread_alloc(int tid)
 /* ---- the thread pointer: the %gs carrier -------------------------------- */
 
 /*
- * DR-0003 settled that the thread pointer on this platform cannot be the FS
- * base -- a user-written FS base does not survive a deschedule (spike 1) -- so
- * it is a runtime-owned word reached through %gs.  DR-0021 fixed where the word
- * lives: keyed to NtTib.StackBase, a build-constant offset below it.  The read
- * is one chain, load StackBase from %gs then load the word below it, and that
- * is all substrate_thread_pointer does; nothing here consults a side table
- * keyed by thread id, which is the whole point of the carrier over the mock.
+ * The thread pointer on this platform cannot be the FS base -- a user-written
+ * FS base does not survive a deschedule (spike 1) -- so it is a word reached
+ * through %gs.  DR-0101 fixed which word: TlsSlots[63] in the TEB, carrier C1
+ * of spike 6, one load at a fixed offset, which is the shape 0011 § 6 wrote
+ * the ABI in (%gs:TP the TCB, +8 the canary, +16 the pointer guard).  The read
+ * is that one load and nothing else; nothing here consults a side table keyed
+ * by thread id, which is the whole point of the carrier over the mock.
  *
- * A managed N thread runs on a stack the suite mapped and never touches its NT
- * thread stack, so the carrier word sits in that dormant stack a fixed distance
- * below its top -- committed from creation, and reached by the same %gs chain a
- * forked runtime will use against its own _cygtls.  The offset is the one piece
- * DR-0021 leaves to the runtime; N pins it here.
+ * The slot is kept from TlsAlloc by setting its bit in the PEB's TlsBitmap at
+ * substrate_create (spike peb-tls-bitmap: seventy allocations after the set
+ * never return 63, a DLL loaded afterwards neither).  A slot already taken
+ * when the substrate starts is refused, not shared: that is a DLL injected
+ * before us, and a carrier it may write is not a carrier.
  */
-#define CARRIER_OFF 0x100
+#define TLS_SLOT      63
+#define TEB_TLSSLOTS  0x1480
+#define CARRIER_TEB_OFF (TEB_TLSSLOTS + 8 * TLS_SLOT)	/* 0x1678 */
+#define TEB_PEB       0x60
+#define PEB_TLSBITMAP 0x78
+
+typedef struct { ULONG SizeOfBitMap; PULONG Buffer; } NT_RTL_BITMAP;
+typedef VOID (NTAPI *fn_RtlSetBit)(NT_RTL_BITMAP *, ULONG);
+typedef BOOLEAN (NTAPI *fn_RtlAreBitsSet)(NT_RTL_BITMAP *, ULONG, ULONG);
+
+/* Reserve the slot in the PEB bitmap.  Returns 0 when it is ours, -1 when
+ * somebody allocated it first. */
+static int carrier_reserve(void)
+{
+	HMODULE nt = GetModuleHandleW(L"ntdll.dll");
+	fn_RtlSetBit set = nt ? (fn_RtlSetBit)(void *)GetProcAddress(nt, "RtlSetBit") : NULL;
+	fn_RtlAreBitsSet are = nt ? (fn_RtlAreBitsSet)(void *)GetProcAddress(nt, "RtlAreBitsSet") : NULL;
+	uint8_t *teb, *peb;
+	NT_RTL_BITMAP *bm;
+
+	if (!set || !are)
+		return -1;
+	__asm__ __volatile__("movq %%gs:0x30, %0" : "=r"(teb));
+	peb = *(uint8_t **)(teb + TEB_PEB);
+	bm = *(NT_RTL_BITMAP **)(peb + PEB_TLSBITMAP);
+	if (are(bm, TLS_SLOT, 1))
+		return -1;			/* taken before we ran: refuse, do not share */
+	set(bm, TLS_SLOT);
+	return 0;
+}
 
 uint64_t substrate_thread_pointer(void)
 {
-	uint64_t base, tp;
+	uint64_t tp;
 
-	/* %gs:[0x08] is NtTib.StackBase for the running thread. */
-	__asm__ __volatile__("movq %%gs:0x08, %0" : "=r"(base));
-	tp = *(volatile uint64_t *)(base - CARRIER_OFF);
+	__asm__ __volatile__("movq %%gs:%c1, %0" : "=r"(tp) : "i"(CARRIER_TEB_OFF));
 	return tp;
 }
 
 /* Write the carrier for another thread, which the running thread cannot reach
- * through its own %gs.  Its TEB comes from NtQueryInformationThread, its
- * StackBase from NtTib at TEB+8, and the word a fixed offset below that -- the
- * same location that thread will later read through %gs.  Returns 0 on success. */
+ * through its own %gs.  Its TEB comes from NtQueryInformationThread, and the
+ * slot is a fixed offset into it -- the same word that thread will later read
+ * through %gs.  Returns 0 on success. */
 static int carrier_write(struct tent *t, uint64_t value)
 {
 	NT_TBI tbi;
 	ULONG got = 0;
-	uint64_t stackbase;
 
 	if (!t->handle || !p_NtQueryInformationThread)
 		return -1;
@@ -292,8 +319,7 @@ static int carrier_write(struct tent *t, uint64_t value)
 		return -1;
 	if (!tbi.TebBaseAddress)
 		return -1;
-	stackbase = *(uint64_t *)((uint64_t)(uintptr_t)tbi.TebBaseAddress + 0x08);
-	*(volatile uint64_t *)(stackbase - CARRIER_OFF) = value;
+	*(volatile uint64_t *)((uint64_t)(uintptr_t)tbi.TebBaseAddress + CARRIER_TEB_OFF) = value;
 	return 0;
 }
 
@@ -695,11 +721,14 @@ int substrate_gate_exit(struct substrate *s, int tid)
 
 static LONG g_inited;
 
+static volatile LONG g_carrier_state;	/* 0 unknown, 1 ours, -1 taken before us */
+
 static void n_global_init(void)
 {
 	if (InterlockedCompareExchange(&g_inited, 1, 0) == 0) {
 		resolve_ntdll();
 		AddVectoredExceptionHandler(1, fault_veh);
+		g_carrier_state = carrier_reserve() == 0 ? 1 : -1;
 	}
 }
 
@@ -710,6 +739,12 @@ static struct substrate *nsub_new(void)
 	if (!n)
 		return NULL;
 	n_global_init();
+	if (g_carrier_state != 1) {
+		/* the slot was allocated before this substrate ran; a carrier some
+		 * other module may write is no carrier, so there is no substrate */
+		free(n);
+		return NULL;
+	}
 	n->api.self = n;
 	n->api.as_map = n_as_map;
 	n->api.as_unmap = n_as_unmap;

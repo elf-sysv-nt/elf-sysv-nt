@@ -153,7 +153,7 @@ struct substrate {
 	/*
 	 * tp_set -- set the thread pointer for tid.  Under N the FS base does
 	 * not survive a deschedule (spike 1), so the pointer is a runtime-owned
-	 * word reached through %gs (DR-0003) and this writes it; under H it
+	 * word reached through %gs (DR-0101) and this writes it; under H it
 	 * writes the guest FS MSR.  The one call whose two realisations differ
 	 * in capability, not just mechanism.
 	 */

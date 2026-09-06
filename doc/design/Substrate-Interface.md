@@ -121,8 +121,9 @@ and the substrate must not clobber that gap (spikes 38, 41 both check it).
 
 **`tp_set(tid, base)`.** Sets the thread pointer for `tid`. Under N the FS base
 does not survive a deschedule (spike 1, `fs-base-persistence`), so the pointer
-is a runtime-owned word reached through `%gs` per DR-0003, and `tp_set` writes
-that word; the toolchain is built against it (§ 3, § 4.16). Under H the guest
+is a word reached through `%gs` per DR-0101 (`TlsSlots[63]`, reserved through
+the PEB bitmap), and `tp_set` writes that word; the toolchain is built
+against it (§ 3, § 4.16). Under H the guest
 has a real FS base and `tp_set` writes the guest MSR — which is why H runs el8's
 shipped binaries unmodified and N does not. This is the one call whose two
 realisations have different *capability*, not just different mechanism, and the
@@ -191,8 +192,8 @@ The bar, per call, stated so a test can check it:
 7. `thread_context`/`set_context` — a round-trip preserves every register; a
    rewritten `%rip` takes effect on resume.
 8. `tp_set` — a thread reads its own thread pointer back after a deschedule
-   (the property spike 1 measured N failing at the FS base and DR-0003's `%gs`
-   carrier passing).
+   (the property spike 1 measured N failing at the FS base and the `%gs`
+   carriers of spike 6 passing; DR-0101 picks the slot).
 9. `user_copy_*` — a good copy moves the bytes; a copy to an unmapped user
    address fails with the fault address and does not crash the kernel.
 

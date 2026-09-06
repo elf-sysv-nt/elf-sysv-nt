@@ -155,6 +155,27 @@ is the same statement with its second half made explicit. A package importing
 a name the veneer does not claim never reaches the harness at all, because it
 fails at link.
 
+## The kernel's criteria
+
+Proposal 0011's seventeen verification criteria are the criteria of record
+for the kernel at the syscall boundary: each a command that exits zero or a
+state a script can check, registered in `test/suites.tsv` at the tier the
+criterion names. Two are amended. Criterion 3 reads the LX-metadata tree
+back under WSL only; Cygwin 3.6.10 does not read the metadata (spike 39), and
+what it sees is recorded in the VFS design rather than tested. Criterion 4
+is per substrate: a median under 2 ms for the fork under H, and under N the
+fork completing with its median recorded beside Cygwin's and a regression
+band of 1.5 times the value recorded at certification on the same host.
+Criterion 1's minimum is met (`core/run.sh`, `Core-Phase1.md`); its
+remainder and criteria 2 to 17 are unbuilt.
+
+The sections above and below this one describe the veneer arc's classes and
+harness, which the audit proposal 0012 names as owed has not yet read against
+0011; until it does, where they and 0011's criteria disagree, the criteria
+are current.
+
+Settled by: DR-0102.
+
 ## Fuzz and unit obligations
 
 Anything that parses attacker-shaped input from its first line gets unit tests

@@ -1,0 +1,46 @@
+reserving a TlsSlots index through the PEB bitmap
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-06T14:06:00Z
+script      measure 1.0
+probe       bitmap-probe 1.0
+
+reading, question by question
+
+  q1  the bitmap: 64 bits at PEB+0x80 yes; at start 0x0000000000010001, lowest free index 1
+  q2  RtlSetBit(TlsBitmap, 63) sets it: yes
+  q3  seventy TlsAllocs: slot 63 handed out 0 times; 61 primary and 9 expansion slots taken; bit 63 still set yes
+  q4  the slot as a carrier: TlsSetValue(63) yes, the %gs read at 0x1678 agrees yes, a raw %gs write is what TlsGetValue returns yes
+  q5  a DLL loaded after the reservation, ten more allocs: slot 63 handed out 0 times
+  q6  a new thread starts with the slot at 0x0
+
+raw
+
+    q1_bitmap_size=64
+    q1_bitmap_buffer_is_peb_0x80=1
+    q1_bits_at_start=0x0000000000010001
+    q1_lowest_free_at_start=1
+    q1_bit63_at_start=0
+    q2_bit63_after_set=1
+    q2_arebitsset=1
+    q3_allocs=70
+    q3_alloc_failures=0
+    q3_slot63_handed_out=0
+    q3_highest_index=72
+    q3_primary_slots_taken=61
+    q3_expansion_slots_taken=9
+    q3_bits_after_allocs=0xffffffffffffffff
+    q3_bit63_still_set=1
+    q4_tlssetvalue_63_ok=1
+    q4_gs_read_matches=1
+    q4_tlsgetvalue_sees_raw_write=1
+    q5_dll_loaded=1
+    q5_slot63_handed_out_after_dll=0
+    q6_new_thread_slot_at_start=0x0
+
+verdict
+
+    finding=bit-reserved-tlsalloc-never-returns-63

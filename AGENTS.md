@@ -134,9 +134,12 @@ file, built-in default.
 `core/` is the kernel above the substrate line: the gate, the syscall table,
 `binfmt_elf`, the VMA tree, the vDSO, and the one host-glue file that speaks
 to NT directly and says so. `bin/check-substrate-line` walks it on every gate
-run and refuses `Nt*`, `WHv*`, `CONTEXT`, an NT `HANDLE` type, or a raw user
-pointer dereference. `substrate/` is the interface in C, the mock, substrate
-N, and the conformance suite that certifies both. `test/` holds the suites
+run and refuses `Nt*`, `WHv*`, `CONTEXT`, an NT `HANDLE` type, a Win32
+named-object or port call, or a raw user pointer dereference. `substrate/` is
+the interface in C, the mock, substrate N, and the conformance suite that
+certifies both. `seam/` is the process seam: the interface the core calls for
+what crosses Linux processes, with its cross-process realisation for N and its
+in-process one for H, both unbuilt and both outside the checker's walk. `test/` holds the suites
 registry, the spike-regeneration runner and the core's oracle programs;
 `toolchain/` the cross toolchain's patches and the rpm macros for N's rebuilt
 userland; `acceptance/` the package-level framing that rebuild inherits.
@@ -190,7 +193,7 @@ Citation runs both ways across the seam between governed prose and records. A
 governed section that a record settled ends in one line of its own, the last
 in the section:
 
-    Settled by: DR-0003, DR-0021, DR-0024, DR-0063.
+    Settled by: DR-0024, DR-0063, DR-0101.
 
 Every record filed from DR-0075 onward carries an `Amends:` header naming the
 one section it changes most, so that the author names the prose that has to
@@ -221,19 +224,21 @@ DR-0001 with DR-0005 fixing what the `linux` and `gnu` fields claim. Under this
 design `linux` is true everywhere: the `syscall` instruction is never reached
 under N and is the interface itself under H.
 
-The TLS model under N. DR-0003 chose carrier C3, a word below the stack base
-reached through `%gs`; proposal 0011 § 6 states a single-load ABI that is
-carrier C1 or C4. The conflict is proposal 0012's open question 1, with a
-recommendation, and it is the operator's to close.
+The TLS model under N. Settled by the operator twice: DR-0003 chose carrier
+C3 for the veneer arc, and DR-0101 (2026-09-06) chose C1, `TlsSlots[63]`
+reserved through the PEB bitmap, for this design, closing 0012's open
+question 1. The carrier is a constant in `substrate_n.c` and the GCC patch;
+reopening it is a new record, the operator's.
 
-The substrate a deployment gets, and whether the hypervisor feature is a
-prerequisite anyone may be asked to accept (0011 open question 1, D5). Both
-substrates are designed because different clients need different ones; which
-is built next is the operator's steer, recorded in `Core-Phase1.md` D0.
+The substrate a deployment gets. Both are offered and the client's
+environment decides (DR-0102): no hypervisor means N, stock el8 binaries mean
+H, and the hypervisor is a prerequisite of H and never of the platform. Which
+is built next is the operator's steer, recorded in `Core-Phase1.md` D0 and
+confirmed 2026-09-05 as phase 2 on N.
 
-What the project promises to verify. Criteria 3 and 4 of 0011 were shown
-unmeetable as written (spikes 39, 35, 44); narrowing or splitting them is
-0012's open questions 2 and 3, and the operator's.
+What the project promises to verify. 0011's criteria are the criteria of
+record as DR-0102 amends them; changing a criterion is a promise change and
+the operator's, taken through a record.
 
 ## Testing
 

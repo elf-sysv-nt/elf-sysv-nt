@@ -565,7 +565,7 @@ uint64_t substrate_thread_pointer(void)
 
 	/* The %gs carrier under N: a runtime-owned word keyed by the running
 	 * thread, which survives a deschedule where a user-written FS base does
-	 * not (spike 1, DR-0003). */
+	 * not (spike 1, DR-0101). */
 	for (i = 0; i < MOCK_MAX_THREADS; i++)
 		if (g_threads[i].used && g_threads[i].win_tid == self)
 			return g_threads[i].tp;

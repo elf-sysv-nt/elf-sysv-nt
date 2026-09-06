@@ -26,7 +26,7 @@ the pair and says which reading is current.
 |---|---|---|---|
 | [0001](0001-target-triple.md) | The target triple is `x86_64-elfsysvnt-linux-gnu` | accepted 2026-08-29 | 0001 |
 | [0002](0002-el8-source-acquisition.md) | el8 source comes from Rocky 8.10 and lives outside the repository | accepted 2026-08-29 | 0001 |
-| [0003](0003-tls-model.md) | The TLS model is a runtime-owned thread pointer through `%gs`, carrier C3 | accepted 2026-08-29 | 0002 |
+| [0003](0003-tls-model.md) | The TLS model is a runtime-owned thread pointer through `%gs`, carrier C3 | accepted 2026-08-29; superseded by 0101 | 0002 |
 | [0005](0005-bounded-linux-claim.md) | The `linux` field is a bounded claim, not a lie; DR-0001 stands | accepted 2026-08-29 | 0004 |
 | [0006](0006-red-zone-direction.md) | The red zone is repaired at the delivery site; `-mno-red-zone` is scaffolding | accepted 2026-08-29; superseded by 0050 | none |
 | [0007](0007-runtime-base-version.md) | The runtime is based on Cygwin 3.6.10 (`newlib-cygwin` b11613e47), not the pinned 3.0.7 | accepted 2026-08-30; superseded by 0097 | none |
@@ -40,7 +40,7 @@ the pair and says which reading is current.
 | [0016](0016-relocation-certified-against-vendor-objects.md) | relocation types the platform will not emit are certified against vendor objects | accepted 2026-08-30 | none |
 | [0018](0018-compatibility-counter.md) | the compatibility counter is Cygwin's, re-faced, enforced on the combined API and kept from the first release | accepted 2026-08-30; superseded by 0097 | none |
 | [0020](0020-callback-trampoline-no-codegen.md) | callback trampolines are fixed per-shape compiled thunks, one live target per shape, no runtime code generation | accepted 2026-08-30; superseded by 0097 | none |
-| [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30 | none |
+| [0021](0021-thread-pointer-carrier-placement.md) | the C3 carrier word is the floor of a runtime-owned stack, not a blind offset below StackBase | accepted 2026-08-30; superseded by 0101 | none |
 | [0022](0022-the-rendezvous-link-map.md) | the rendezvous link map is the SVr4 five-field prefix, found through DT_DEBUG | accepted 2026-08-30 | none |
 | [0024](0024-static-tls-surplus-and-dtv-shape.md) | the loader's static-TLS surplus and DTV shape, reproduced from the spec | accepted 2026-08-30 | none |
 | [0025](0025-init-order-and-the-abi-boundary.md) | initialization order, the cycle tie-break, and calling into a loaded object | accepted 2026-08-30; superseded by 0097 | none |
@@ -76,6 +76,8 @@ the pair and says which reading is current.
 | [0098](0098-proposal-0012-is-ratified.md) | proposal 0012 is ratified: two seams under the core, one kernel process under H, the interface's object, the I/O rule | accepted 2026-09-05 | 0012 |
 | [0099](0099-vfork-and-clone-vm-per-substrate.md) | `vfork` and `CLONE_VM \| CLONE_VFORK` share the parent's memory under H and are a fork under N | accepted 2026-09-05 | 0012 |
 | [0100](0100-the-veneer-address-space-records-retire.md) | the veneer's address-space records (DR-0008, 0028, 0064, 0077) retire; `AT_PAGESZ` is rehomed | accepted 2026-09-05 | 0012 |
+| [0101](0101-the-thread-pointer-under-n-is-tlsslots-63.md) | under N the thread pointer is `TlsSlots[63]`, reserved through the PEB bitmap (carrier C1); DR-0003 and DR-0021 superseded | accepted 2026-09-06 | 0012 |
+| [0102](0102-criteria-3-and-4-amended-and-both-substrates-offered.md) | criteria 3 (WSL only) and 4 (per substrate) amended; both substrates offered, the client decides; the seam gets its teeth | accepted 2026-09-06 | 0012 |
 
 ## What earns a record
 

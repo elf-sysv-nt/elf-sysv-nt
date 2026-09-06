@@ -1452,3 +1452,13 @@ reservation — is what holds. Open question 8, edge against level triggering,
 is reported from spike (b) as level-triggered and left to criterion 9. None of
 these is a blocker for phase 1; each is a bound on a sentence somebody will
 otherwise read as unconditional.
+
+## Addendum, 2026-09-06
+
+Criteria 3 and 4 above are amended by DR-0102: criterion 3 reads the tree
+back under WSL only, and criterion 4 is per substrate, 2 ms under H and a
+recorded median with a regression band under N. Open question 1's second
+condition is answered by the same record: both substrates are offered and
+the client's environment decides. Open question 6 is settled by DR-0101
+(`TlsSlots[63]`, reserved through the PEB bitmap). Proposal 0012 completes
+§ 3 to § 7 where they spoke for one substrate.
