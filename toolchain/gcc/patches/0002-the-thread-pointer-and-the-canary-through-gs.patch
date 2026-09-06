@@ -1,0 +1,186 @@
+Subject: [PATCH] i386: reach the thread pointer and the canary through %gs
+
+Substrate N keeps the thread pointer in TlsSlots[63] of the TEB, %gs:0x1678,
+because Windows does not preserve a user-written FS base across a context
+switch (spike 1, DR-0101). The layout above that word is glibc's own: the
+TCB pointer there, the stack-protector canary at %gs:0x1670, the pointer
+guard at %gs:0x1668. This patch makes the compiler read the first two where
+they are and never touch %fs; the third is glibc's (PTR_MANGLE) and the
+compiler has no pattern for it.
+
+Four hunks, each a default the target mandates rather than a flag a package
+could forget:
+
+  gcc/config/i386/i386.h     TARGET_TLS_TP_OFFSET, zero by default, and
+                             DEFAULT_TLS_SEG_REG made overridable. Both are
+                             inert for every other target.
+  gcc/config/i386/i386.md    the *load_tp and *add_tp patterns carry the
+                             offset in place of the psABI's literal zero, so
+                             the thread-pointer load is one instruction,
+                             movq %gs:0x1678, %reg, the same shape as before.
+  gcc/config/i386/elfsysvnt.h
+                             DEFAULT_TLS_SEG_REG is GS and the offset is
+                             0x1678; TARGET_THREAD_SSP_OFFSET is 0x1670,
+                             defined unconditionally so a stage-one compiler
+                             built --without-headers emits the same guard as
+                             stage two; -mtls-direct-seg-refs is off by
+                             default and an error when asked for, since a TLS
+                             offset folded onto the TEB base reads the wrong
+                             word without faulting (DR-0063); -fsplit-stack is
+                             withdrawn, its guard word being %fs:0x70.
+  libgcc/config.host         no t-stack for this target, so libgcc.a carries
+                             no __morestack and no %fs. Everything else in the
+                             x86_64-*-linux* arm is kept.
+
+The bar is toolchain/gcc/t/accept.sh: a __thread access at -O2 loads
+%gs:0x1678, a protected frame reads %gs:0x1670, no %fs appears in either,
+both options are refused, and toolchain/glibc/check-no-syscall passes over
+libgcc.a.
+
+Against gcc 13.3.0, pinned in ../gcc.pin, over patch 0001.
+
+--- a/gcc/config/i386/elfsysvnt.h
++++ b/gcc/config/i386/elfsysvnt.h
+@@ -1,4 +1,4 @@
+-/* Target definitions for x86-64 ELF and System V on Windows NT, over Cygwin.
++/* Target definitions for x86-64 ELF and System V on Windows NT.
+    Copyright (C) 2026 Philip Dye.
+ 
+ This file is part of GCC.
+@@ -77,3 +77,55 @@
+       builtin_define ("__ELFSYSVNT__");		\
+     }						\
+   while (0)
++
++/* The thread pointer.  Windows does not preserve a user-written FS base
++   across a context switch (spike 1), so substrate N keeps the thread pointer
++   in a word of the TEB instead: TlsSlots[63], reached as %gs:0x1678, one
++   load (DR-0101).  Above that word the layout is glibc's own -- the TCB
++   pointer there, the stack-protector canary at %gs:0x1670 and the pointer
++   guard at %gs:0x1668, in the two slots below it -- so every place the
++   psABI reads %fs:0 or %fs:0x28 reads these instead.
++
++   DEFAULT_TLS_SEG_REG picks the segment for the thread-pointer load and for
++   the stack-protector guard; TARGET_TLS_TP_OFFSET is the displacement the
++   load carries, which i386.md folds into the *load_tp and *add_tp patterns
++   in place of the psABI's zero.  */
++#undef  DEFAULT_TLS_SEG_REG
++#define DEFAULT_TLS_SEG_REG ADDR_SPACE_SEG_GS
++
++#undef  TARGET_TLS_TP_OFFSET
++#define TARGET_TLS_TP_OFFSET 0x1678
++
++/* The canary.  gnu-user64.h defines this only when configure found a libc
++   that provides SSP, which a --without-headers stage-one build does not; it
++   is defined here unconditionally so that every turn of the bootstrap emits
++   the same guard.  */
++#undef  TARGET_THREAD_SSP_OFFSET
++#define TARGET_THREAD_SSP_OFFSET 0x1670
++
++/* -mtls-direct-seg-refs folds a TLS offset into the segment base
++   (movl %fs:x@tpoff, %eax), which is right when the base is the thread
++   pointer and wrong here, where the base is the TEB.  Off by default, and
++   refused outright below when asked for, since an image that took it would
++   read the wrong word and never fault (DR-0063).  */
++#undef  TARGET_TLS_DIRECT_SEG_REFS_DEFAULT
++#define TARGET_TLS_DIRECT_SEG_REFS_DEFAULT 0
++
++#undef  SUBTARGET_OVERRIDE_OPTIONS
++#define SUBTARGET_OVERRIDE_OPTIONS					\
++  do									\
++    {									\
++      if ((opts_set->x_target_flags & MASK_TLS_DIRECT_SEG_REFS)		\
++	  && (opts->x_target_flags & MASK_TLS_DIRECT_SEG_REFS))		\
++	error ("%<-mtls-direct-seg-refs%> is not supported on this "	\
++	       "target: the segment base is not the thread pointer");	\
++    }									\
++  while (0)
++
++/* -fsplit-stack keeps its guard word at %fs:0x70 in the TCB, in the
++   compiler's prologues and in libgcc's hand-written __morestack alike.  The
++   word has no %gs equivalent in this layout, so the feature is withdrawn
++   rather than mistranslated: the compiler refuses the flag, and
++   libgcc/config.host leaves morestack out of libgcc.a.  */
++#undef  TARGET_THREAD_SPLIT_STACK_OFFSET
++#undef  TARGET_CAN_SPLIT_STACK
+--- a/gcc/config/i386/i386.h
++++ b/gcc/config/i386/i386.h
+@@ -553,8 +553,17 @@
+ #define DEFAULT_ABI SYSV_ABI
+ 
+ /* The default TLS segment register used by target.  */
++#ifndef DEFAULT_TLS_SEG_REG
+ #define DEFAULT_TLS_SEG_REG \
+   (TARGET_64BIT ? ADDR_SPACE_SEG_FS : ADDR_SPACE_SEG_GS)
++#endif
++
++/* The displacement of the thread pointer within that segment.  Zero on
++   every target where the segment base is the thread pointer; a subtarget
++   that keeps the pointer in a word of a larger block sets it.  */
++#ifndef TARGET_TLS_TP_OFFSET
++#define TARGET_TLS_TP_OFFSET 0
++#endif
+ 
+ /* Subtargets may reset this to 1 in order to enable 96-bit long double
+    with the rounding mode forced to 53 bits.  */
+--- a/gcc/config/i386/i386.md
++++ b/gcc/config/i386/i386.md
+@@ -18803,7 +18803,7 @@
+       (clobber (match_dup 5))
+       (clobber (reg:CC FLAGS_REG))])])
+ 
+-;; Load and add the thread base pointer from %<tp_seg>:0.
++;; Load and add the thread base pointer from %<tp_seg>:TARGET_TLS_TP_OFFSET.
+ (define_expand "get_thread_pointer<mode>"
+   [(set (match_operand:PTR 0 "register_operand")
+ 	(unspec:PTR [(const_int 0)] UNSPEC_TP))]
+@@ -18825,7 +18825,7 @@
+ {
+   addr_space_t as = DEFAULT_TLS_SEG_REG;
+ 
+-  operands[1] = gen_const_mem (<MODE>mode, const0_rtx);
++  operands[1] = gen_const_mem (<MODE>mode, GEN_INT (TARGET_TLS_TP_OFFSET));
+   set_mem_addr_space (operands[1], as);
+ })
+ 
+@@ -18841,7 +18841,7 @@
+ {
+   addr_space_t as = DEFAULT_TLS_SEG_REG;
+ 
+-  operands[1] = gen_const_mem (SImode, const0_rtx);
++  operands[1] = gen_const_mem (SImode, GEN_INT (TARGET_TLS_TP_OFFSET));
+   set_mem_addr_space (operands[1], as);
+ })
+ 
+@@ -18861,7 +18861,7 @@
+ {
+   addr_space_t as = DEFAULT_TLS_SEG_REG;
+ 
+-  operands[2] = gen_const_mem (<MODE>mode, const0_rtx);
++  operands[2] = gen_const_mem (<MODE>mode, GEN_INT (TARGET_TLS_TP_OFFSET));
+   set_mem_addr_space (operands[2], as);
+ })
+ 
+@@ -18882,7 +18882,7 @@
+ {
+   addr_space_t as = DEFAULT_TLS_SEG_REG;
+ 
+-  operands[2] = gen_const_mem (SImode, const0_rtx);
++  operands[2] = gen_const_mem (SImode, GEN_INT (TARGET_TLS_TP_OFFSET));
+   set_mem_addr_space (operands[2], as);
+ })
+ 
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -1545,6 +1545,11 @@
+ esac
+ 
+ case ${host} in
++x86_64-elfsysvnt-linux*)
++	# No -fsplit-stack: __morestack keeps its guard at %fs:0x70, and this
++	# target has no FS base to keep it in (gcc/config/i386/elfsysvnt.h).
++	tmake_file="${tmake_file} t-tls i386/t-linux i386/t-msabi t-slibgcc-libgcc"
++	;;
+ i[34567]86-*-linux* | x86_64-*-linux* | \
+   i[34567]86-*-kfreebsd*-gnu | x86_64-*-kfreebsd*-gnu | \
+   i[34567]86-*-gnu* | x86_64-*-gnu*)

@@ -4,9 +4,10 @@ Like binutils, almost no port. The triple's os and abi fields are honestly
 `linux-gnu`, so `config.gcc` already routes it through the ordinary x86_64
 Linux arm and the compiler builds without a patch at all.
 
-What it will not do without a patch is carry the two things the target
-mandates rather than suggests, and both are values a package can forget to
-pass. `patches/0001` adds them.
+What it will not do without a patch is carry the things the target
+mandates rather than suggests, and all of them are values a package can
+forget to pass. `patches/0001` adds the first; `patches/0002` moves the
+thread pointer and the canary to where substrate N keeps them.
 
     build-gcc -P <prefix>
     t/accept.sh -P <prefix>
@@ -41,6 +42,37 @@ Nothing else needed touching. `GLIBC_DYNAMIC_LINKER64` in `i386/linux64.h` is
 already `/lib64/ld-linux-x86-64.so.2`, which is what
 `doc/design/target-definition.md` fixes the loader SONAME at, so the two agree
 without a patch and `t/accept.sh` checks that they keep agreeing.
+
+## The thread pointer and the canary
+
+Windows does not preserve a user-written FS base across a context switch
+(spike 1), so substrate N keeps the thread pointer in `TlsSlots[63]` of the
+TEB, `%gs:0x1678`, with the stack-protector canary in the slot below it at
+`%gs:0x1670` and glibc's pointer guard below that (DR-0101). `patches/0002`
+makes the compiler read the first two there and never touch `%fs`, in four
+hunks.
+
+`i386.h` gains `TARGET_TLS_TP_OFFSET`, zero by default, and lets a subtarget
+override `DEFAULT_TLS_SEG_REG`; `i386.md`'s `*load_tp` and `*add_tp`
+patterns carry the offset where the psABI wrote a literal zero, so the load
+stays one instruction, `movq %gs:0x1678, %reg`, and the linker's TLS
+relaxations (which write the same nine bytes, `toolchain/binutils/patches/
+0002`) agree with it. `elfsysvnt.h` sets the segment, the offset and
+`TARGET_THREAD_SSP_OFFSET`, the last unconditionally, because
+`gnu-user64.h` defines it only when configure found a libc that provides
+SSP and a `--without-headers` stage one has none; without that, stage one
+would emit a global guard and stage two a TLS one. `-mtls-direct-seg-refs`
+folds a TLS offset onto the segment base, which is the TEB here and not the
+thread pointer, so it is off by default and an error when asked for, since
+an image that took it would read the wrong word and never fault (DR-0063).
+`-fsplit-stack` keeps its guard at `%fs:0x70`, in the compiler's prologues
+and in libgcc's hand-written `__morestack` alike, so it is withdrawn: the
+flag is refused, and `libgcc/config.host` leaves `morestack` out of
+`libgcc.a` for this target. `t/accept.sh` checks each of those on the
+assembly, and runs `toolchain/glibc/check-no-syscall` over `libgcc.a`.
+
+Tier 1 on the ladder for every hunk: each replaces an access that reads
+zero silently on this host with the one that reads the word.
 
 ## The mistake worth keeping
 
@@ -78,7 +110,7 @@ That 13.3.0 is the right release. It was chosen over el8's 8.5 for the newer
 x86 support, on the same reasoning as binutils 2.42, and nothing has yet
 needed either.
 
-That the compiler emits anything sane for TLS. It has not been asked to. WP-12
-now refuses the relocations the psABI's TLS models generate, so a program
-using `__thread` will fail to link rather than link wrongly, and what this
-compiler should emit instead is WP-30's to settle.
+That the TLS codegen is complete beyond the initial-exec and local-exec
+models `t/accept.sh` compiles. General dynamic goes through
+`__tls_get_addr`, which is glibc's and reads the DTV from the descriptor;
+the descriptor models (`-mtls-dialect=gnu2`) are not exercised.

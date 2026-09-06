@@ -173,6 +173,50 @@ claim 'and its EI_OSABI matches the record' \
 claim 'the driver names the loader the record fixes' \
     grep -q '/lib64/ld-linux-x86-64.so.2' specs.txt
 
+# Patch 0002: the thread pointer and the canary live in the TEB, reached
+# through %gs (DR-0101), and nothing the compiler emits may touch %fs.  The
+# fixture takes the two paths that used to read %fs: a __thread variable,
+# which is the thread-pointer load, and a protected frame, which is the
+# canary.  Both are checked on the assembly, since a claim on the option
+# table alone would pass a compiler that lists the default and ignores it.
+cat > tls.c <<'EOF'
+__thread int counter;
+int bump (void) { return ++counter; }
+int guarded (const char *s)
+{
+  char buf[64];
+  __builtin_strcpy (buf, s);
+  return buf[0];
+}
+EOF
+"$CC" -O2 -fstack-protector-all -S -o tls.s tls.c || die "the compiler rejected tls.c"
+
+# gcc writes the displacement in decimal: 5752 is 0x1678, 5744 is 0x1670.
+claim 'the thread pointer is loaded from %gs:0x1678' \
+    grep -qE 'movq[[:space:]]+%gs:(5752|0x1678),' tls.s
+claim 'the stack-protector canary is read from %gs:0x1670' \
+    grep -qE '%gs:(5744|0x1670)' tls.s
+claim 'and no %fs reference is emitted for either' \
+    sh -c '! grep -q "%fs" tls.s'
+claim '-mtls-direct-seg-refs is off by default' \
+    grep -qE '^[[:space:]]*-mtls-direct-seg-refs[[:space:]]+\[disabled\]' target-default.txt
+# The option would put a TLS offset through the segment base, which on this
+# target is the TEB and not the thread pointer; refusing it is the honest
+# answer, and quietly ignoring it would be the silent-zero failure DR-0063
+# describes.
+"$CC" -O2 -mtls-direct-seg-refs -S -o direct.s tls.c > direct.err 2>&1
+claim 'asking for it explicitly is an error, not a silent default' \
+    sh -c '[ ! -s direct.s ] && grep -q "not supported" direct.err'
+"$CC" -O2 -fsplit-stack -S -o split.s tls.c > split.err 2>&1
+claim '-fsplit-stack is refused, since its guard word would be %fs:0x70' \
+    sh -c '[ ! -s split.s ] && grep -q "not supported" split.err'
+
+# libgcc carries hand-written assembly the compiler defaults cannot reach;
+# the post-link check reads what was built.
+libgcc_dir=$("$CC" -print-libgcc-file-name | xargs dirname)
+claim 'libgcc.a carries no syscall instruction and no %fs access' \
+    python3 "$here/../../glibc/check-no-syscall" -q "$libgcc_dir/libgcc.a"
+
 if [ "$terse" = 1 ]; then
     printf 'target=%s\npasses=%d\nfailures=%d\n' "$target" "$passes" "$failures"
 else
