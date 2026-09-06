@@ -1,0 +1,21 @@
+# The probes the foreign-host bundle carries: one row per spike directory.
+# sources are relative to spike/<dir>; libs go on the mingw link line; args
+# are what run.cmd passes, chosen for a modest managed desktop rather than
+# this host's defaults; collect says whether that spike's measure.sh renders
+# a transcript from the brought-back output (-i FILE) or the output is read
+# by hand.
+#
+# dir	sources	libs	args	collect
+arena	arena-probe.c arena-fault.c	-	--pages 2048	yes
+peb-tls-bitmap	bitmap-probe.c	-	-	yes
+ntreadfile-uncommitted	readfile-probe.c	-	-	yes
+futex-timeout	futex-probe.c	-	--iterations 200	yes
+redzone-sync-fault	redzone-probe.c redzone.S	-	--iterations 1000	yes
+whp	whp-probe.c	-lwinhvplatform	--iterations 20000	yes
+whp-clone-host	clone-host-probe.c	-lwinhvplatform	--iterations 20	yes
+whp-gpa-map	gpa-probe.c	-lwinhvplatform -lpsapi	--big-gb 16 --commit-gb 2 --pressure-mb 512	yes
+whp-pagetable-fork	fork-probe.c	-lwinhvplatform	--cow-faults 1024	yes
+whp-partition-cost	partition-probe.c	-lwinhvplatform -lpsapi	--partitions 64 --vcpus 64 --exits 5000 --pool-threads 64 --pool-rounds 1000	yes
+whp-vcpu-interrupt	whp-interrupt.c	-lwinhvplatform	--latency 2000 --races 10000	no
+hijack	hijack.c hijack.S	-	--events 2000 --flag 20000 --latency 2000 --apc 2000	no
+lxfs	lxfs-probe.c lxfs-nt.c	-	-n 2000 %SCRATCH%	no

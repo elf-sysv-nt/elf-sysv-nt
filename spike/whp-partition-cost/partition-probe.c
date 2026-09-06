@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RELEASE "partition-probe 1.0"
+#define RELEASE "partition-probe 1.1"
 
 #define PAGE   0x1000ULL
 #define MB     0x100000ULL
@@ -636,13 +636,179 @@ static void q6_concurrent_exits(UINT8 *ctl, int nvcpu, int exits)
 	free(rs); free(ts);
 }
 
+/* ---- q7: a vCPU pool under many threads --------------------------------- */
+
+/* Proposal 0012's H runs every Linux thread on a host thread that borrows a
+ * vCPU from a pool the size of the host, loads the thread's registers,
+ * runs to the next exit, saves them, and gives the vCPU back. Spike 43's q5
+ * showed two threads can share one vCPU; this is the pool as designed, K
+ * vCPUs under T threads, each thread keeping a private counter the guest
+ * increments once per run. A counter that ever advances by anything but one
+ * is a thread that ran on another thread's registers. */
+
+struct pool {
+	WHV_PARTITION_HANDLE p;
+	int k, top;
+	int *free_stack;
+	HANDLE sem;
+	CRITICAL_SECTION cs;
+};
+
+static int pool_get(struct pool *pl)
+{
+	int v;
+	WaitForSingleObject(pl->sem, INFINITE);
+	EnterCriticalSection(&pl->cs);
+	v = pl->free_stack[--pl->top];
+	LeaveCriticalSection(&pl->cs);
+	return v;
+}
+
+static void pool_put(struct pool *pl, int v)
+{
+	EnterCriticalSection(&pl->cs);
+	pl->free_stack[pl->top++] = v;
+	LeaveCriticalSection(&pl->cs);
+	ReleaseSemaphore(pl->sem, 1, NULL);
+}
+
+struct pool_thread {
+	struct pool *pl;
+	int rounds, halts, failures, wrong;
+	UINT64 counter, total_ns;
+	UINT64 *lat;
+	unsigned char used[256];
+	HANDLE go;
+};
+
+static DWORD WINAPI pool_thread_main(LPVOID arg)
+{
+	struct pool_thread *t = arg;
+	WHV_REGISTER_NAME n[2] = { WHvX64RegisterRip, WHvX64RegisterRax };
+	WHV_REGISTER_VALUE v[2];
+	WHV_RUN_VP_EXIT_CONTEXT ex;
+	UINT64 t0, tall;
+	int i;
+
+	WaitForSingleObject(t->go, INFINITE);
+	tall = now_ns();
+	for (i = 0; i < t->rounds; i++) {
+		int vp;
+		t0 = now_ns();
+		vp = pool_get(t->pl);
+		if (vp < 256) t->used[vp] = 1;
+		/* load: this thread's registers onto the borrowed vCPU */
+		memset(v, 0, sizeof v);
+		v[0].Reg64 = GPA_CODE; v[1].Reg64 = t->counter;
+		if (FAILED(WHvSetVirtualProcessorRegisters(t->pl->p, (UINT32) vp, n, 2, v))) { t->failures++; pool_put(t->pl, vp); continue; }
+		memset(&ex, 0, sizeof ex);
+		if (FAILED(WHvRunVirtualProcessor(t->pl->p, (UINT32) vp, &ex, sizeof ex)) || ex.ExitReason != WHvRunVpExitReasonX64Halt) {
+			t->failures++; pool_put(t->pl, vp); continue;
+		}
+		/* save: the registers back, the vCPU returned */
+		memset(v, 0, sizeof v);
+		if (FAILED(WHvGetVirtualProcessorRegisters(t->pl->p, (UINT32) vp, &n[1], 1, &v[1]))) { t->failures++; pool_put(t->pl, vp); continue; }
+		pool_put(t->pl, vp);
+		if (v[1].Reg64 != t->counter + 1) t->wrong++;
+		t->counter = v[1].Reg64;
+		t->halts++;
+		t->lat[i] = now_ns() - t0;
+	}
+	t->total_ns = now_ns() - tall;
+	return 0;
+}
+
+static const char *pk(const char *pfx, const char *k)
+{
+	static char buf[96];
+	snprintf(buf, sizeof buf, "%s_%s", pfx, k);
+	return buf;
+}
+
+static void q7_vcpu_pool(const char *pfx, UINT8 *ctl, int k, int nthreads, int rounds)
+{
+	WHV_PARTITION_HANDLE p = NULL;
+	struct pool pl;
+	struct pool_thread *ts = calloc((size_t) nthreads, sizeof *ts);
+	HANDLE *hs = calloc((size_t) nthreads, sizeof *hs);
+	HANDLE go = CreateEvent(NULL, TRUE, FALSE, NULL);
+	UINT64 *all = malloc((size_t) nthreads * (size_t) rounds * sizeof *all);
+	UINT64 longest = 0, total_halts = 0;
+	int i, j, halts = 0, failures = 0, wrong = 0, vcpus_touched = 0, threads_on_several = 0;
+	unsigned char any_used[256];
+
+	if (!ts || !hs || !all || FAILED(make_partition(&p, (UINT32) k))
+	    || FAILED(WHvMapGpaRange(p, ctl, 0, CONTROL,
+	                             WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagWrite | WHvMapGpaRangeFlagExecute))) {
+		emit(pk(pfx, "setup"), "0"); return;
+	}
+	for (i = 0; i < k; i++)
+		if (FAILED(WHvCreateVirtualProcessor(p, (UINT32) i, 0)) || FAILED(enter(p, (UINT32) i))) { emit(pk(pfx, "setup"), "0"); return; }
+	memset(&pl, 0, sizeof pl);
+	pl.p = p; pl.k = k; pl.free_stack = calloc((size_t) (k > 0 ? k : 1), sizeof(int));
+	for (i = 0; i < k; i++) pl.free_stack[pl.top++] = i;
+	pl.sem = CreateSemaphore(NULL, k, k, NULL);
+	InitializeCriticalSection(&pl.cs);
+	emit(pk(pfx, "setup"), "1");
+	emit(pk(pfx, "pool_vcpus"), "%d", k);
+	emit(pk(pfx, "threads"), "%d", nthreads);
+	emit(pk(pfx, "rounds_per_thread"), "%d", rounds);
+
+	for (i = 0; i < nthreads; i++) {
+		ts[i].pl = &pl; ts[i].rounds = rounds; ts[i].go = go;
+		ts[i].counter = (UINT64) i * 1000000ULL;   /* distinct starting values */
+		ts[i].lat = all + (size_t) i * (size_t) rounds;
+		hs[i] = CreateThread(NULL, 0, pool_thread_main, &ts[i], 0, NULL);
+	}
+	Sleep(50);
+	SetEvent(go);
+	for (i = 0; i < nthreads; i++) {
+		if (WaitForSingleObject(hs[i], 120000) != WAIT_OBJECT_0) { emit(pk(pfx, "pool"), "hung"); return; }
+		CloseHandle(hs[i]);
+	}
+	memset(any_used, 0, sizeof any_used);
+	for (i = 0; i < nthreads; i++) {
+		int mine = 0;
+		halts += ts[i].halts; failures += ts[i].failures; wrong += ts[i].wrong;
+		if (ts[i].total_ns > longest) longest = ts[i].total_ns;
+		if (ts[i].counter != (UINT64) i * 1000000ULL + (UINT64) ts[i].halts) wrong++;
+		for (j = 0; j < 256; j++) { if (ts[i].used[j]) { any_used[j] = 1; mine++; } }
+		if (mine > 1) threads_on_several++;
+	}
+	for (j = 0; j < 256; j++) vcpus_touched += any_used[j];
+	total_halts = (UINT64) halts;
+	emit(pk(pfx, "pool"), "%s", (failures == 0 && wrong == 0 && halts == nthreads * rounds) ? "isolates" : "failed");
+	emit(pk(pfx, "halts"), "%d", halts);
+	emit(pk(pfx, "run_failures"), "%d", failures);
+	emit(pk(pfx, "counters_wrong"), "%d", wrong);
+	emit(pk(pfx, "vcpus_touched"), "%d", vcpus_touched);
+	emit(pk(pfx, "threads_on_several_vcpus"), "%d", threads_on_several);
+	/* the compacted latencies: every completed round, all threads */
+	{
+		size_t n = 0;
+		for (i = 0; i < nthreads; i++)
+			for (j = 0; j < ts[i].halts && j < rounds; j++) all[n++] = ts[i].lat[j];
+		/* lat is dense from 0 to halts-1 only when no round failed; close enough for the stats */
+		stats(pk(pfx, "round"), all, n ? n : 1);
+	}
+	emit(pk(pfx, "aggregate_rounds_per_second"), "%llu",
+	     longest ? (unsigned long long) (total_halts * 1000000000ULL / longest) : 0ULL);
+	emit(pk(pfx, "wall_ns"), "%llu", (unsigned long long) longest);
+	for (i = 0; i < k; i++) WHvDeleteVirtualProcessor(p, (UINT32) i);
+	WHvUnmapGpaRange(p, 0, CONTROL);
+	WHvDeletePartition(p);
+	DeleteCriticalSection(&pl.cs);
+	CloseHandle(pl.sem); CloseHandle(go);
+	free(pl.free_stack); free(ts); free(hs); free(all);
+}
+
 int main(int argc, char **argv)
 {
 	WHV_CAPABILITY cap;
 	SYSTEM_INFO si;
 	UINT32 w = 0;
 	UINT8 *ctl;
-	int i, present, part_cap = 512, vcpu_cap = 256, nvcpu, exits = 5000;
+	int i, present, part_cap = 512, vcpu_cap = 256, nvcpu, exits = 5000, pool_threads = 64, pool_rounds = 2000;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--version")) { puts(RELEASE); return 0; }
@@ -679,6 +845,8 @@ int main(int argc, char **argv)
 		if (!strcmp(argv[i], "--partitions") && i + 1 < argc) { part_cap = atoi(argv[++i]); continue; }
 		if (!strcmp(argv[i], "--vcpus") && i + 1 < argc) { vcpu_cap = atoi(argv[++i]); continue; }
 		if (!strcmp(argv[i], "--exits") && i + 1 < argc) { exits = atoi(argv[++i]); continue; }
+		if (!strcmp(argv[i], "--pool-threads") && i + 1 < argc) { pool_threads = atoi(argv[++i]); continue; }
+		if (!strcmp(argv[i], "--pool-rounds") && i + 1 < argc) { pool_rounds = atoi(argv[++i]); continue; }
 		fprintf(stderr, "partition-probe: unknown argument %s\n", argv[i]);
 		return 2;
 	}
@@ -706,6 +874,8 @@ int main(int argc, char **argv)
 	q4_vcpus_per_partition(ctl, vcpu_cap);
 	q5_thread_handoff(ctl);
 	q6_concurrent_exits(ctl, nvcpu, exits);
+	q7_vcpu_pool("q7", ctl, nvcpu, nvcpu, pool_rounds);          /* one thread per vCPU: the switch cost alone */
+	q7_vcpu_pool("q7b", ctl, nvcpu, pool_threads, pool_rounds);  /* the pool oversubscribed */
 	trace("done");
 	return 0;
 }

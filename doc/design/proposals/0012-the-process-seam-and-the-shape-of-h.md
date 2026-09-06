@@ -515,9 +515,12 @@ a recommendation, and none is settled by this proposal.
 
 That the vCPU pool hands off correctly over many threads. Spike 43 measured
 two threads over one vCPU; the pool is a design from that measurement.
+(Measured 2026-09-06, spike 43 q7: it does, see the addendum.)
 
 That `WHvMapGpaRange` stays lazy at tens of gigabytes and under memory
-pressure. Spike 42 measured one gigabyte on an idle host.
+pressure. Spike 42 measured one gigabyte on an idle host. (Measured
+2026-09-06, spike 42 q8 and q9: lazy at 64 GB, and trimmed pages return;
+a host paging to disk under load was not produced.)
 
 That the shim's exception-exit bitmap covers every vector a signal needs;
 the bitmap this host reports is `0xf7dfb`, which includes vectors 0 through
@@ -525,7 +528,8 @@ the bitmap this host reports is `0xf7dfb`, which includes vectors 0 through
 
 That a ring-3 store through a user page under H faults exactly as spike 44's
 ring-0 store did. The mechanism is the same; the privilege level was not
-varied.
+varied. (Measured 2026-09-06, spike 44 q7: it does, error code `0x7` at
+CPL 3, same cost.)
 
 That the process seam's operation list is complete. It is 0011's supervisor
 inventory restated; phase 3 will find what it missed.
@@ -612,3 +616,17 @@ mapped file succeeds, while truncating below a live view is refused and a
 directory cannot be renamed over an open child; the last two are recorded
 divergences for the VFS. The raw-syscall census (spike 51) is the fourth
 and reports when the run over every el8 package completes.
+
+The three H measurements this proposal listed as not verified ran the same
+day. Spike 44 q7: the copy-on-write fault from ring 3 is the ring-0 fault
+with the user bit, 24 µs a round trip, every frame isolated, and a ring-3
+store to a supervisor page refused. Spike 43 q7: 8 vCPUs under 256 threads
+ran 256,000 rounds with no thread ever seeing another's registers; a
+borrow-load-run-save-return round is 13 µs uncontended and the pool holds
+about 260,000 rounds a second oversubscribed 32 to 1. Spike 42 q8 and q9:
+64 GB maps lazily in about a second at 16 ms per gigabyte, the working set
+unmoved; after the host empties the working set every guest-written page
+reads back correct at first-touch cost, so the host pages guest memory as
+it pages anything and the guest never sees it. One map call failed once
+with `ERROR_NO_SYSTEM_RESOURCES` while the probe was being written and did
+not recur under retry counting; the kernel retries that status.

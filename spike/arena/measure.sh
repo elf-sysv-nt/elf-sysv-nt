@@ -19,6 +19,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -p N, --pages=N         Pages in the fault-cost sweep. [default: 2048]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
@@ -31,10 +32,11 @@
 set -u
 
 prog=measure-arena
-release='measure-arena 1.0'
+release='measure-arena 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 
 output=${MEASURE_ARENA_OUTPUT:--}
+input=${MEASURE_ARENA_INPUT:-}
 pages=${MEASURE_ARENA_PAGES:-2048}
 keep=${MEASURE_ARENA_KEEP:-0}
 quiet=${MEASURE_ARENA_QUIET:-0}
@@ -50,6 +52,8 @@ while [ $# -gt 0 ]; do
 		-V|--version) printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)  output=${2:-}; shift 2 ;;
 		--output=*)   output=${1#*=}; shift ;;
+		-i|--input)   input=${2:-}; shift 2 ;;
+		--input=*)    input=${1#*=}; shift ;;
 		-p|--pages)   pages=${2:-}; shift 2 ;;
 		--pages=*)    pages=${1#*=}; shift ;;
 		-k|--keep)    keep=1; shift ;;
@@ -63,13 +67,14 @@ done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
 
 cc=x86_64-w64-mingw32-gcc
-command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
+[ -n "$input" ] || command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
 trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/arena-probe.exe; else bin=$work/arena-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 "$cc" -std=gnu11 -O1 -Wall -Wextra -o "$bin" \
 	"$here/arena-probe.c" "$here/arena-fault.c" > "$work/build.log" 2>&1 ||
@@ -87,6 +92,9 @@ note 'running the probe'
 # every value read out of it would carry a trailing carriage return. Strip them
 # once, here, rather than at each of the two dozen reads below.
 tr -d '\r' < "$work/probe.raw" > "$work/probe.out"
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 
@@ -143,15 +151,25 @@ fi
 winver=$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')
 [ -n "$winver" ] || winver=$(uname -s | sed 's/^CYGWIN_NT-//')
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$winver"; h_cygwin="$(uname -r)"
+	h_compiler="$("$cc" --version | head -1)"; h_probe="$("$bin" --version)"
+fi
 {
 	printf 'the arena: a placeholder reservation of the user range, replaced piecewise\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$winver"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$("$cc" --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version)"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  a placeholder over the user range: %s, largest span accepted %s, multi-terabyte %s\n' \

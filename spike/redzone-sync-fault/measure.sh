@@ -12,6 +12,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -n N, --iterations=N    Faults per case. [default: 1000]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
@@ -23,11 +24,12 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 cc=${MEASURE_CC:-x86_64-w64-mingw32-gcc}
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 iterations=${MEASURE_ITERATIONS:-1000}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
@@ -42,6 +44,8 @@ while [ $# -gt 0 ]; do
 		-V|--version)    printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)     output=${2:-}; shift 2 ;;
 		--output=*)      output=${1#*=}; shift ;;
+		-i|--input)      input=${2:-}; shift 2 ;;
+		--input=*)       input=${1#*=}; shift ;;
 		-n|--iterations) iterations=${2:-}; shift 2 ;;
 		--iterations=*)  iterations=${1#*=}; shift ;;
 		-k|--keep)       keep=1; shift ;;
@@ -56,13 +60,14 @@ case $iterations in
 	''|*[!0-9]*) printf '%s: --iterations wants a count, got %s\n' "$prog" "$iterations" >&2; exit 2 ;;
 esac
 
-command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
+[ -n "$input" ] || command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
 trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/redzone-probe.exe; else bin=$work/redzone-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 "$cc" -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/redzone-probe.c" "$here/redzone.S" \
 	> "$work/build.log" 2>&1 ||
@@ -72,6 +77,9 @@ note "running the probe, $iterations faults per case"
 "$bin" --iterations "$iterations" > "$work/probe.raw" 2>"$work/probe.err" ||
 	{ cat "$work/probe.err" >&2; die 'the probe did not run'; }
 tr -d '\r' < "$work/probe.raw" > "$work/probe.out"
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 
@@ -97,15 +105,25 @@ elif [ "$q3_loss" != 0 ]; then finding=leaf-corrupts-itself
 elif [ "${q1_loss:-1}" = 0 ] && [ "${q2_loss:-1}" = 0 ]; then finding=redzone-intact-through-fault-dispatch
 else finding="redzone-clobbered-fault-$q1_loss-nearest-$q1_near-int3-$q2_loss-nearest-$q2_near"; fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$("$cc" --version | head -1)"; h_probe="$("$bin" --version | tr -d '\r')"
+fi
 {
 	printf 'the red zone across a synchronous fault dispatched by NT\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$("$cc" --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version | tr -d '\r')"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  a leaf with a painted red zone stores to an uncommitted page; the handler commits it and the store re-executes:\n'

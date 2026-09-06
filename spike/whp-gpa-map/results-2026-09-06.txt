@@ -1,0 +1,274 @@
+what WHvMapGpaRange does to the host memory behind it
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    gcc (GCC) 14.4.0
+date        2026-09-06T14:55:43Z
+script      measure 1.2
+probe       gpa-probe 1.1
+
+reading, question by question
+
+  q1  the API: AdviseGpaRange yes, MapGpaRange2 yes, partition counters yes, populate flags 0x00000003
+  q2  mapping one committed, untouched gigabyte: map-lazy
+      working set moved 0 KB; 0 of 256 sampled pages resident, 0 locked; hypervisor reports 263168 4K pages mapped
+      the map call itself: 13126600 ns for the gigabyte
+  q3  the guest touching those pages: touched-pages-resident-unlocked
+      first touch median 13800 ns, second touch 3900 ns; 256 of 256 resident afterwards, 0 locked
+  q4  reserve-only host memory behind a mapping: reserved-maps-exits-until-committed
+      the exit says gpa-mapped-host-absent; commit on the exit and resume: 256 of 256, median 33800 ns round trip
+  q5  decommit, then release, behind a live mapping: decommit-and-release-exit-cleanly
+  q6  a map call: 4 KB 7400 ns, unmap 8100 ns; 2 MB 31900 ns
+      populate advice over 64 MB: 6033600 ns, 64 of 64 resident after, guest first touch then 4000 ns
+      pin advice: hresult 0x00000000, 0 of 64 reported locked
+  q7  mapping a page on its memory-access exit and resuming: map-on-exit-works
+      1024 exits, 1024 resumed, 0 wrong values, median 26900 ns for fault, map and resume
+
+  q8  reserve-only mappings up to 64 GB, in a child: map-lazy-at-64gb
+       8 GB: map 105893300 ns (13236662 ns/GB, 0 retries), working set 0 KB, 2098176 4 KB pages counted; top page gpa-mapped-host-absent, committed: halt,value-correct:1; unmap 107972300 ns
+      16 GB: map 211859600 ns (13241225 ns/GB, 0 retries), working set 0 KB, 4195328 4 KB pages counted; top page gpa-mapped-host-absent, committed: halt,value-correct:1; unmap 215501100 ns
+      32 GB: map 428916300 ns (13403634 ns/GB, 0 retries), working set 0 KB, 8389632 4 KB pages counted; top page gpa-mapped-host-absent, committed: halt,value-correct:1; unmap 430441600 ns
+      64 GB: map 927274200 ns (14488659 ns/GB, 0 retries), working set 0 KB, 16778240 4 KB pages counted; top page gpa-mapped-host-absent, committed: halt,value-correct:1; unmap 859561100 ns
+  q9  8 GB committed and mapped (hresult 0x00000000, 0 retries, 105144000 ns), 1024 pages sampled: 0 resident after the map;
+      the guest writes each (1024 halted, median 13400 ns), 1024 resident; the working set emptied (yes): 0 resident,
+      the guest reads them back: 1024 correct, 0 other, median 12500 ns, 1024 resident again: trimmed-pages-return-transparently
+      under 2048 MB of host pressure: 1024 resident, guest reads 1024 correct, median 3900 ns
+
+raw
+
+    hypervisor_present=1
+    partition_ready=1
+    q1_advise_gpa_range_present=1
+    q1_map_gpa_range2_present=1
+    q1_partition_counters_present=1
+    q1_populate_flags=0x00000003
+    q1_physical_address_width=48
+    q2_commit_1gb=1
+    q2_before_map_sampled=256
+    q2_before_map_resident=0
+    q2_before_map_locked=0
+    q2_before_map_shared=0
+    q2_map_hresult=0x00000000
+    q2_map_1gb_ns=13126600
+    q2_working_set_before_kb=10568
+    q2_working_set_after_kb=10568
+    q2_working_set_delta_kb=0
+    q2_after_map_sampled=256
+    q2_after_map_resident=0
+    q2_after_map_locked=0
+    q2_after_map_shared=0
+    q2_hv_mapped_4k_pages=263168
+    q2_hv_mapped_2m_pages=0
+    q2_hv_mapped_1g_pages=0
+    q3_first_touch_reads_zero=256
+    q3_first_touch_other=0
+    q3_first_touch_median_ns=13800
+    q3_first_touch_p99_ns=21200
+    q3_first_touch_min_ns=12900
+    q3_first_touch_samples=256
+    q3_second_touch_median_ns=3900
+    q3_second_touch_p99_ns=4700
+    q3_second_touch_min_ns=3800
+    q3_second_touch_samples=256
+    q3_after_touch_sampled=256
+    q3_after_touch_resident=256
+    q3_after_touch_locked=0
+    q3_after_touch_shared=0
+    q3_working_set_kb=11560
+    q3_guest_write_exit=halt
+    q3_host_sees_guest_write=1
+    q4_reserve_1gb=1
+    q4_map_reserved_hresult=0x00000000
+    q4_map_reserved=accepted
+    q4_guest_touch_reserved_exit=memory-access-exit
+    q4_guest_touch_reserved_access=gpa-mapped-host-absent,read,gpa:0x80010000
+    q4_guest_touch_reserved_value=0xffffffffffffffff
+    q4_commit_behind=1
+    q4_guest_touch_after_commit_exit=halt
+    q4_guest_touch_after_commit_value=0x0
+    q4_commit_on_exit_exits=256
+    q4_commit_on_exit_resumed=256
+    q4_commit_on_exit_median_ns=33800
+    q4_commit_on_exit_p99_ns=50400
+    q4_commit_on_exit_min_ns=32900
+    q4_commit_on_exit_samples=256
+    q4_child=exited-clean
+    q5_commit_64mb=1
+    q5_map_hresult=0x00000000
+    q5_guest_reads_host_write=1
+    q5_decommit_behind_map=succeeded
+    q5_decommit_lasterror=0
+    q5_guest_touch_decommitted_exit=memory-access-exit
+    q5_guest_touch_decommitted_access=gpa-mapped-host-absent,read,gpa:0xe0005000
+    q5_guest_touch_decommitted_value=0xffffffffffffffff
+    q5_recommit=1
+    q5_guest_touch_recommitted_exit=halt
+    q5_guest_touch_recommitted_value=0x0
+    q5_release_behind_map=succeeded
+    q5_release_lasterror=0
+    q5_guest_touch_released_exit=memory-access-exit
+    q5_guest_touch_released_access=gpa-mapped-host-absent,read,gpa:0xe0006000
+    q5_guest_touch_released_value=0xffffffffffffffff
+    q5_child=exited-clean
+    q6_pools=1
+    q6_map_4k_failures=0
+    q6_map_4k_median_ns=7400
+    q6_map_4k_p99_ns=12600
+    q6_map_4k_min_ns=7100
+    q6_map_4k_samples=2048
+    q6_unmap_4k_median_ns=8100
+    q6_unmap_4k_p99_ns=14000
+    q6_unmap_4k_min_ns=7900
+    q6_unmap_4k_samples=2048
+    q6_map_2m_failures=0
+    q6_map_2m_median_ns=31900
+    q6_map_2m_p99_ns=143200
+    q6_map_2m_min_ns=30300
+    q6_map_2m_samples=32
+    q6_unmap_2m_median_ns=33800
+    q6_unmap_2m_p99_ns=38700
+    q6_unmap_2m_min_ns=32800
+    q6_unmap_2m_samples=32
+    q6_populate_64mb_hresult=0x00000000
+    q6_populate_64mb_ns=6033600
+    q6_after_populate_sampled=64
+    q6_after_populate_resident=64
+    q6_after_populate_locked=0
+    q6_after_populate_shared=0
+    q6_first_touch_after_populate_median_ns=4000
+    q6_first_touch_after_populate_p99_ns=48300
+    q6_first_touch_after_populate_min_ns=3900
+    q6_first_touch_after_populate_samples=64
+    q6_pin_64mb_hresult=0x00000000
+    q6_pin_64mb_ns=4601300
+    q6_after_pin_sampled=64
+    q6_after_pin_resident=64
+    q6_after_pin_locked=0
+    q6_after_pin_shared=0
+    q6_unpin_64mb_hresult=0x00000000
+    q7_pool=1
+    q7_unmapped_exits=1024
+    q7_resumed_after_map=1024
+    q7_wrong_values=0
+    q7_fault_map_resume_median_ns=26900
+    q7_fault_map_resume_p99_ns=52100
+    q7_fault_map_resume_min_ns=25900
+    q7_fault_map_resume_samples=1024
+    q8_8gb_reserve=1
+    q8_8gb_map_hresult=0x00000000
+    q8_8gb_map_retries=0
+    q8_8gb_map_ns=105893300
+    q8_8gb_map_ns_per_gb=13236662
+    q8_8gb_working_set_delta_kb=0
+    q8_8gb_hv_mapped_4k_pages=2098176
+    q8_8gb_hv_mapped_2m_pages=0
+    q8_8gb_hv_mapped_1g_pages=0
+    q8_8gb_top_touch_reserved=gpa-mapped-host-absent,read,gpa:0x2fffff000
+    q8_8gb_top_touch_committed=halt,value-correct:1
+    q8_8gb_unmap_hresult=0x00000000
+    q8_8gb_unmap_ns=107972300
+    q8_16gb_reserve=1
+    q8_16gb_map_hresult=0x00000000
+    q8_16gb_map_retries=0
+    q8_16gb_map_ns=211859600
+    q8_16gb_map_ns_per_gb=13241225
+    q8_16gb_working_set_delta_kb=0
+    q8_16gb_hv_mapped_4k_pages=4195328
+    q8_16gb_hv_mapped_2m_pages=0
+    q8_16gb_hv_mapped_1g_pages=0
+    q8_16gb_top_touch_reserved=gpa-mapped-host-absent,read,gpa:0x4fffff000
+    q8_16gb_top_touch_committed=halt,value-correct:1
+    q8_16gb_unmap_hresult=0x00000000
+    q8_16gb_unmap_ns=215501100
+    q8_32gb_reserve=1
+    q8_32gb_map_hresult=0x00000000
+    q8_32gb_map_retries=0
+    q8_32gb_map_ns=428916300
+    q8_32gb_map_ns_per_gb=13403634
+    q8_32gb_working_set_delta_kb=0
+    q8_32gb_hv_mapped_4k_pages=8389632
+    q8_32gb_hv_mapped_2m_pages=0
+    q8_32gb_hv_mapped_1g_pages=0
+    q8_32gb_top_touch_reserved=gpa-mapped-host-absent,read,gpa:0x8fffff000
+    q8_32gb_top_touch_committed=halt,value-correct:1
+    q8_32gb_unmap_hresult=0x00000000
+    q8_32gb_unmap_ns=430441600
+    q8_64gb_reserve=1
+    q8_64gb_map_hresult=0x00000000
+    q8_64gb_map_retries=0
+    q8_64gb_map_ns=927274200
+    q8_64gb_map_ns_per_gb=14488659
+    q8_64gb_working_set_delta_kb=0
+    q8_64gb_hv_mapped_4k_pages=16778240
+    q8_64gb_hv_mapped_2m_pages=0
+    q8_64gb_hv_mapped_1g_pages=0
+    q8_64gb_top_touch_reserved=gpa-mapped-host-absent,read,gpa:0x10fffff000
+    q8_64gb_top_touch_committed=halt,value-correct:1
+    q8_64gb_unmap_hresult=0x00000000
+    q8_64gb_unmap_ns=859561100
+    q8_child=exited-clean
+    q9_commit=1
+    q9_commit_gb=8
+    q9_before_map_sampled=1024
+    q9_before_map_resident=0
+    q9_before_map_locked=0
+    q9_before_map_shared=0
+    q9_map_hresult=0x00000000
+    q9_map_retries=0
+    q9_map_ns=105144000
+    q9_map_working_set_delta_kb=0
+    q9_after_map_sampled=1024
+    q9_after_map_resident=0
+    q9_after_map_locked=0
+    q9_after_map_shared=0
+    q9_hv_mapped_4k_pages=2098176
+    q9_hv_mapped_2m_pages=0
+    q9_hv_mapped_1g_pages=0
+    q9_guest_first_touch_halted=1024
+    q9_guest_first_touch_other=0
+    q9_guest_first_touch_median_ns=13400
+    q9_guest_first_touch_p99_ns=18300
+    q9_guest_first_touch_min_ns=12700
+    q9_guest_first_touch_samples=1024
+    q9_after_touch_sampled=1024
+    q9_after_touch_resident=1024
+    q9_after_touch_locked=0
+    q9_after_touch_shared=0
+    q9_after_touch_working_set_delta_kb=4120
+    q9_empty_working_set=1
+    q9_after_trim_sampled=1024
+    q9_after_trim_resident=0
+    q9_after_trim_locked=0
+    q9_after_trim_shared=0
+    q9_after_trim_working_set_kb=492
+    q9_after_trim_guest_reads_correct=1024
+    q9_after_trim_guest_reads_other=0
+    q9_after_trim_guest_reread_median_ns=12500
+    q9_after_trim_guest_reread_p99_ns=16200
+    q9_after_trim_guest_reread_min_ns=11700
+    q9_after_trim_guest_reread_samples=1024
+    q9_after_reread_sampled=1024
+    q9_after_reread_resident=1024
+    q9_after_reread_locked=0
+    q9_after_reread_shared=0
+    q9_pressure_mb=2048
+    q9_pressure_commit=1
+    q9_pressure_touch_ns=157143900
+    q9_under_pressure_sampled=1024
+    q9_under_pressure_resident=1024
+    q9_under_pressure_locked=0
+    q9_under_pressure_shared=0
+    q9_under_pressure_working_set_kb=2102124
+    q9_under_pressure_guest_reads_correct=1024
+    q9_under_pressure_guest_reads_other=0
+    q9_under_pressure_guest_reread_median_ns=3900
+    q9_under_pressure_guest_reread_p99_ns=4600
+    q9_under_pressure_guest_reread_min_ns=3800
+    q9_under_pressure_guest_reread_samples=1024
+    q9_unmap_hresult=0x00000000
+    q9_child=exited-clean
+
+verdict
+
+    finding=map-lazy,touched-pages-resident-unlocked,reserved-maps-exits-until-committed,decommit-and-release-exit-cleanly,map-on-exit-works,map-lazy-at-64gb,trimmed-pages-return-transparently

@@ -16,6 +16,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -n N, --cow-faults=N    Copy-on-write faults to time. [default: 1024]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
@@ -28,10 +29,11 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.2'
 here=$(cd "$(dirname "$0")" && pwd)
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 cow_faults=${MEASURE_COW_FAULTS:-1024}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
@@ -47,6 +49,8 @@ while [ $# -gt 0 ]; do
 		-V|--version)    printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)     output=${2:-}; shift 2 ;;
 		--output=*)      output=${1#*=}; shift ;;
+		-i|--input)      input=${2:-}; shift 2 ;;
+		--input=*)       input=${1#*=}; shift ;;
 		-n|--cow-faults) cow_faults=${2:-}; shift 2 ;;
 		--cow-faults=*)  cow_faults=${1#*=}; shift ;;
 		-k|--keep)       keep=1; shift ;;
@@ -62,7 +66,7 @@ case $cow_faults in
 	''|*[!0-9]*) printf '%s: --cow-faults wants a count, got %s\n' "$prog" "$cow_faults" >&2; exit 2 ;;
 esac
 
-command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
+[ -n "$input" ] || command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
 [ -r /usr/include/w32api/winhvplatform.h ] || die 'no winhvplatform.h under /usr/include/w32api'
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
@@ -70,6 +74,7 @@ trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/fork-probe.exe; else bin=$work/fork-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 gcc -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/fork-probe.c" -lwinhvplatform \
 	> "$work/build.log" 2>&1 ||
@@ -82,6 +87,9 @@ note 'running the probe'
 # shellcheck disable=SC2086
 "$bin" $probe_args > "$work/probe.out" 2>"$work/probe.err" ||
 	{ cat "$work/probe.err" >&2; die 'the probe did not run'; }
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 yn() { [ "$1" = 1 ] && printf 'yes' || printf 'no'; }
@@ -133,6 +141,24 @@ q6_bad=$(val q6_runs_not_halting)
 q6_same=$(val q6_same_root_median_ns)
 q6_alt=$(val q6_alternating_roots_median_ns)
 
+q7_in=$(val q7_ring3_entered)
+q7_done=$(val q7_ring3_writes_completed)
+q7_one=$(val q7_ring3_writes_one_fault_each)
+q7_want=$(val q7_ring3_samples_wanted)
+q7_copied=$(val q7_ring3_frames_copied)
+q7_err=$(val q7_first_fault_error_code)
+q7_user=$(val q7_first_fault_user_bit)
+q7_cpl=$(val q7_first_fault_cpl)
+q7_rip=$(val q7_first_fault_rip_at_store)
+q7_ns=$(val q7_ring3_cow_round_trip_median_ns)
+q7_pi=$(val q7_ring3_parent_frames_intact)
+q7_cp=$(val q7_ring3_child_frames_private)
+q7_gp=$(val q7_ring3_guest_reads_parent_sampled)
+q7_gc=$(val q7_ring3_guest_reads_child_sampled)
+q7_ref=$(val q7_ring3_supervisor_page_write_refused)
+q7_refx=$(val q7_ring3_supervisor_page_exception)
+q7_refe=$(val q7_ring3_supervisor_page_error_code)
+
 if [ "$present" != 1 ]; then finding=hypervisor-absent
 elif [ "$pf" != 1 ]; then finding=no-page-fault-exit
 elif [ "$ready" != 1 ]; then finding=whp-partition-failed
@@ -147,18 +173,32 @@ else
 	if all1 "$q5_a" "$q5_b" "$q5_c" "$q5_d" "$q5_e" "$q5_f" "$q5_g"; then w5=all-cow-paths-correct
 	else w5="cow-paths-${q5_a:-0}${q5_b:-0}${q5_c:-0}${q5_d:-0}${q5_e:-0}${q5_f:-0}${q5_g:-0}"; fi
 	if [ "${q6_bad:-1}" = 0 ]; then w6=root-switch-works; else w6=root-switch-failed; fi
-	finding="page-fault-exits-to-host,$w2,$w3,$w4,$w4b,$w5,$w6"
+	if [ "$q7_in" = 1 ] && [ "$q7_done" = "$q7_want" ] && [ "$q7_one" = "$q7_want" ] && [ "$q7_copied" = "$q7_want" ] \
+	   && all1 "$q7_user" "$q7_rip" "$q7_pi" "$q7_cp" "$q7_ref" && [ "$q7_cpl" = 3 ] \
+	   && [ "$q7_gp" = 16 ] && [ "$q7_gc" = 16 ] && [ "$q7_refx" = 14 ]; then w7=ring3-cow-isolates
+	else w7="ring3-${q7_done:-0}-of-${q7_want:-0}-cpl-${q7_cpl:-x}-user-${q7_user:-x}-refused-${q7_ref:-x}"; fi
+	finding="page-fault-exits-to-host,$w2,$w3,$w4,$w4b,$w5,$w6,$w7"
 fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$(gcc --version | head -1)"; h_probe="$("$bin" --version)"
+fi
 {
 	printf 'fork as a page-table copy inside one WHP partition\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$(gcc --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version)"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  a guest #PF routed to the host as an exception exit: %s (bitmap %s)\n' \
@@ -185,6 +225,15 @@ fi
 	printf '      sees the child'"'"'s value %s and its write leaves the child alone %s\n' "$(yn "$q5_f")" "$(yn "$q5_g")"
 	printf '  q6  one vCPU, same root every run %s ns; alternating between two roots %s ns; runs not halting %s\n\n' \
 		"${q6_same:-?}" "${q6_alt:-?}" "${q6_bad:-?}"
+	printf '  q7  the same copy-on-write from ring 3 (DPL-3 selectors, loops ending in ud2): entered %s;\n' "$(yn "$q7_in")"
+	printf '      %s pages, %s completed with one fault each %s, %s frames copied; the first fault carries error code %s\n' \
+		"${q7_want:-?}" "${q7_done:-?}" "$(yn "$([ "$q7_one" = "$q7_want" ] && echo 1)")" "${q7_copied:-?}" "${q7_err:-?}"
+	printf '      (user bit %s) at CPL %s with %%rip at the store %s; round trip median %s ns\n' \
+		"${q7_user:-?}" "${q7_cpl:-?}" "$(yn "$q7_rip")" "${q7_ns:-?}"
+	printf '      parent frames intact %s, child frames private %s; through the guest, parent %s/16 and child %s/16\n' \
+		"$(yn "$q7_pi")" "$(yn "$q7_cp")" "${q7_gp:-?}" "${q7_gc:-?}"
+	printf '      a ring-3 store to a supervisor page refused %s: exception %s, error code %s\n\n' \
+		"$(yn "$q7_ref")" "${q7_refx:-?}" "${q7_refe:-?}"
 
 	printf 'raw\n\n'
 	sed -e 's/^/    /' "$work/probe.out"

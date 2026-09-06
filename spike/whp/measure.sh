@@ -17,6 +17,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -n N, --iterations=N    Exits to time per mechanism. [default: 20000]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
@@ -29,10 +30,11 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 iterations=${MEASURE_ITERATIONS:-20000}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
@@ -48,6 +50,8 @@ while [ $# -gt 0 ]; do
 		-V|--version)    printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)     output=${2:-}; shift 2 ;;
 		--output=*)      output=${1#*=}; shift ;;
+		-i|--input)      input=${2:-}; shift 2 ;;
+		--input=*)       input=${1#*=}; shift ;;
 		-n|--iterations) iterations=${2:-}; shift 2 ;;
 		--iterations=*)  iterations=${1#*=}; shift ;;
 		-k|--keep)       keep=1; shift ;;
@@ -63,7 +67,7 @@ case $iterations in
 	''|*[!0-9]*) printf '%s: --iterations wants a count, got %s\n' "$prog" "$iterations" >&2; exit 2 ;;
 esac
 
-command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
+[ -n "$input" ] || command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
 [ -r /usr/include/w32api/winhvplatform.h ] || die 'no winhvplatform.h under /usr/include/w32api'
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
@@ -71,6 +75,7 @@ trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/whp-probe.exe; else bin=$work/whp-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 gcc -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/whp-probe.c" -lwinhvplatform \
 	> "$work/build.log" 2>&1 ||
@@ -83,6 +88,9 @@ note "running the probe over $iterations exits per mechanism"
 # shellcheck disable=SC2086
 "$bin" $probe_args > "$work/probe.out" 2>"$work/probe.err" ||
 	{ cat "$work/probe.err" >&2; die 'the probe did not run'; }
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 yn() { [ "$1" = 1 ] && printf 'yes' || printf 'no'; }
@@ -123,15 +131,25 @@ else
 	finding=whp-usable
 fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$(gcc --version | head -1)"; h_probe="$("$bin" --version)"
+fi
 {
 	printf 'windows hypervisor platform as a substrate\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$(gcc --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version)"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  hypervisor present: %s, vendor %s\n' "$(yn "$q1")" "${vendor:-unknown}"

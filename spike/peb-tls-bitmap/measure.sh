@@ -13,6 +13,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
 #   -V, --version           Print the version and exit.
@@ -23,11 +24,12 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 cc=${MEASURE_CC:-x86_64-w64-mingw32-gcc}
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
 
@@ -41,6 +43,8 @@ while [ $# -gt 0 ]; do
 		-V|--version)  printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)   output=${2:-}; shift 2 ;;
 		--output=*)    output=${1#*=}; shift ;;
+		-i|--input)    input=${2:-}; shift 2 ;;
+		--input=*)     input=${1#*=}; shift ;;
 		-k|--keep)     keep=1; shift ;;
 		-q|--quiet)    quiet=1; shift ;;
 		--)            shift; break ;;
@@ -49,19 +53,23 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
-command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
+[ -n "$input" ] || command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
 trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/bitmap-probe.exe; else bin=$work/bitmap-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 "$cc" -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/bitmap-probe.c" > "$work/build.log" 2>&1 ||
 	{ cat "$work/build.log" >&2; die 'the probe did not build'; }
 note 'running the probe'
 "$bin" > "$work/probe.raw" 2>"$work/probe.err" || { cat "$work/probe.err" >&2; die 'the probe did not run'; }
 tr -d '\r' < "$work/probe.raw" > "$work/probe.out"
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 yn() { [ "$1" = 1 ] && printf 'yes' || printf 'no'; }
@@ -80,15 +88,25 @@ else
 	finding="bitmap-${q1_buf:-x}-set-${q2:-x}-handed-${q3_hit:-x}-after-dll-${q5b:-x}-carrier-${q4a:-x}${q4b:-x}${q4c:-x}"
 fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$("$cc" --version | head -1)"; h_probe="$("$bin" --version | tr -d '\r')"
+fi
 {
 	printf 'reserving a TlsSlots index through the PEB bitmap\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$("$cc" --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version | tr -d '\r')"
+	printf 'probe       %s\n\n' "$h_probe"
 	printf 'reading, question by question\n\n'
 	printf '  q1  the bitmap: 64 bits at PEB+0x80 %s; at start %s, lowest free index %s\n' "$(yn "$q1_buf")" "${q1_bits:-?}" "${q1_low:-?}"
 	printf '  q2  RtlSetBit(TlsBitmap, 63) sets it: %s\n' "$(yn "$q2")"

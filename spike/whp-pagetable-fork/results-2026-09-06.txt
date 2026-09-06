@@ -1,0 +1,132 @@
+fork as a page-table copy inside one WHP partition
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    gcc (GCC) 14.4.0
+date        2026-09-06T14:50:21Z
+script      measure 1.1
+probe       fork-probe 1.1
+
+reading, question by question
+
+  q1  a guest #PF routed to the host as an exception exit: yes (bitmap 0x00000000000f7dfb)
+  q2  a process on 4 KB tables, 147456 frames mapped, guest writes and reads back without a fault: yes
+  q3  the fork, a table copy with every leaf made read-only in both trees:
+      64 MB mapped, 37 table pages copied: median 52600 ns
+      576 MB mapped, 294 table pages copied: median 480900 ns
+  q4  copy-on-write from the child, 1024 pages, one fault each: 1024 of 1024 completed, 1024 frames copied
+      the exit carries error code 0x3 with %rip still at the store: yes; parameter 0x40000000, CR2 register 0x0
+      round trip median 24200 ns, of which host work 3500 ns; the same path onto an owned page, no fault: 7800 ns
+      without the CR3 reload after the copy: 256 of 256 still one fault, 0 wrong, median 21400 ns
+      parent frames intact yes, child frames private yes; through the guest, parent 16/16 and child 16/16
+  q5  parent writes a shared page (copies) yes, child keeps the original yes; parent writes a page the child
+      already copied (takes it, no copy) yes, child unaffected yes, parent reads its own yes; a grandchild
+      sees the child's value yes and its write leaves the child alone yes
+  q6  one vCPU, same root every run 3900 ns; alternating between two roots 7700 ns; runs not halting 0
+
+  q7  the same copy-on-write from ring 3 (DPL-3 selectors, loops ending in ud2): entered yes;
+      256 pages, 256 completed with one fault each yes, 256 frames copied; the first fault carries error code 0x7
+      (user bit 1) at CPL 3 with %rip at the store yes; round trip median 25000 ns
+      parent frames intact yes, child frames private yes; through the guest, parent 16/16 and child 16/16
+      a ring-3 store to a supervisor page refused yes: exception 14, error code 0x7
+
+raw
+
+    hypervisor_present=1
+    q1_exception_exit_capability=1
+    q1_exception_exit_bitmap=0x00000000000f7dfb
+    q1_page_fault_exit_available=1
+    q1_partition_with_pf_exit_hresult=0x00000000
+    partition_ready=1
+    q2_parent_frames_mapped=147456
+    q2_guest_write_no_fault=1
+    q2_guest_read_back=1
+    q2_guest_runs=1
+    q3_fork_64mb_tables_copied=37
+    q3_fork_64mb_median_ns=52600
+    q3_fork_64mb_p99_ns=90400
+    q3_fork_64mb_min_ns=46700
+    q3_fork_64mb_samples=5
+    q3_fork_576mb_tables_copied=294
+    q3_fork_576mb_median_ns=480900
+    q3_fork_576mb_p99_ns=672500
+    q3_fork_576mb_min_ns=423400
+    q3_fork_576mb_samples=5
+    q4_first_fault_parameter=0x40000000
+    q4_first_fault_cr2_register=0x0
+    q4_first_fault_error_code=0x3
+    q4_first_fault_rip_at_store=1
+    q4_child_writes_completed=1024
+    q4_child_writes_one_fault_each=1024
+    q4_frames_copied=1024
+    q4_cow_fault_round_trip_median_ns=24200
+    q4_cow_fault_round_trip_p99_ns=35300
+    q4_cow_fault_round_trip_min_ns=23500
+    q4_cow_fault_round_trip_samples=1024
+    q4_cow_host_work_median_ns=3500
+    q4_cow_host_work_p99_ns=7900
+    q4_cow_host_work_min_ns=3200
+    q4_cow_host_work_samples=1024
+    q4_parent_frames_intact=1
+    q4_child_frames_private=1
+    q4_guest_reads_parent_sampled=16
+    q4_guest_reads_child_sampled=16
+    q4_guest_reads_samples=16
+    q4b_no_flush_writes_completed=256
+    q4b_no_flush_one_fault_each=256
+    q4b_no_flush_wrong_values=0
+    q4b_no_flush_samples_wanted=256
+    q4b_no_flush_round_trip_median_ns=21400
+    q4b_no_flush_round_trip_p99_ns=29500
+    q4b_no_flush_round_trip_min_ns=20900
+    q4b_no_flush_round_trip_samples=256
+    q4c_private_write_faults=0
+    q4c_private_write_round_trip_median_ns=7800
+    q4c_private_write_round_trip_p99_ns=11500
+    q4c_private_write_round_trip_min_ns=7700
+    q4c_private_write_round_trip_samples=256
+    q5_parent_write_shared_faults=1
+    q5_parent_write_shared_copied=1
+    q5_child_still_sees_original=1
+    q5_parent_write_taken_faults=1
+    q5_parent_write_taken_no_copy=1
+    q5_child_unaffected_by_taken=1
+    q5_parent_reads_own_write=1
+    q5_grandchild_sees_child_value=1
+    q5_child_unaffected_by_grandchild=1
+    q6_runs_not_halting=0
+    q6_same_root_median_ns=3900
+    q6_same_root_p99_ns=7500
+    q6_same_root_min_ns=3700
+    q6_same_root_samples=2000
+    q6_alternating_roots_median_ns=7700
+    q6_alternating_roots_p99_ns=11000
+    q6_alternating_roots_min_ns=7400
+    q6_alternating_roots_samples=2000
+    q7_ring3_entered=1
+    q7_first_fault_error_code=0x7
+    q7_first_fault_user_bit=1
+    q7_first_fault_rip_at_store=1
+    q7_first_fault_cpl=3
+    q7_ring3_writes_completed=256
+    q7_ring3_writes_one_fault_each=256
+    q7_ring3_frames_copied=256
+    q7_ring3_samples_wanted=256
+    q7_ring3_cow_round_trip_median_ns=25000
+    q7_ring3_cow_round_trip_p99_ns=36700
+    q7_ring3_cow_round_trip_min_ns=24600
+    q7_ring3_cow_round_trip_samples=256
+    q7_ring3_parent_frames_intact=1
+    q7_ring3_child_frames_private=1
+    q7_ring3_guest_reads_parent_sampled=16
+    q7_ring3_guest_reads_child_sampled=16
+    q7_ring3_guest_reads_samples=16
+    q7_ring3_supervisor_page_write_refused=1
+    q7_ring3_supervisor_page_exception=14
+    q7_ring3_supervisor_page_error_code=0x7
+    frames_used_mb=660
+
+verdict
+
+    finding=page-fault-exits-to-host,guest-runs-on-4k-tables,fork-copies-tables,cow-isolates,no-tlb-reload-needed,all-cow-paths-correct,root-switch-works,ring3-cow-isolates

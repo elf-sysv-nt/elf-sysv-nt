@@ -48,4 +48,7 @@ The power cost of holding the resolution at 0.5 ms, which is the other half
 of 0012 § 9's sentence; Windows 10 2004 and later scope a raised resolution
 to the requesting process's foreground state in ways this probe does not
 exercise. Contention (a waker and a waiter) is not measured; criterion 12 is
-where that is. One Windows build.
+where that is. The finding is load-sensitive: run while a census kept eight
+cores busy, q3 read a tick late with no early wakes, so a transcript from
+this probe is only as good as the idleness of the host it ran on. One
+Windows build.

@@ -11,6 +11,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -n N, --iterations=N    Waits per case. [default: 200]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
@@ -21,10 +22,11 @@
 
 set -u
 prog=measure
-release='measure 1.0'
+release='measure 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 cc=${MEASURE_CC:-x86_64-w64-mingw32-gcc}
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 iterations=${MEASURE_ITERATIONS:-200}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
@@ -37,6 +39,8 @@ while [ $# -gt 0 ]; do
 		-V|--version) printf '%s\n' "$release"; exit 0 ;;
 		-o|--output) output=${2:-}; shift 2 ;;
 		--output=*) output=${1#*=}; shift ;;
+		-i|--input) input=${2:-}; shift 2 ;;
+		--input=*)  input=${1#*=}; shift ;;
 		-n|--iterations) iterations=${2:-}; shift 2 ;;
 		--iterations=*) iterations=${1#*=}; shift ;;
 		-k|--keep) keep=1; shift ;;
@@ -48,17 +52,21 @@ while [ $# -gt 0 ]; do
 done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
 case $iterations in ''|*[!0-9]*) printf '%s: --iterations wants a count\n' "$prog" >&2; exit 2 ;; esac
-command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
+[ -n "$input" ] || command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
 trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/futex-probe.exe; else bin=$work/futex-probe.exe; fi
+if [ -z "$input" ]; then
 note 'building the probe'
 "$cc" -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/futex-probe.c" > "$work/build.log" 2>&1 ||
 	{ cat "$work/build.log" >&2; die 'the probe did not build'; }
 note "running the probe, $iterations waits per case"
 "$bin" --iterations "$iterations" > "$work/probe.raw" 2>"$work/probe.err" || { cat "$work/probe.err" >&2; die 'the probe did not run'; }
 tr -d '\r' < "$work/probe.raw" > "$work/probe.out"
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 
 cur=$(val q1_resolution_current_100ns); minr=$(val q1_resolution_min_100ns)
@@ -80,15 +88,25 @@ if [ "${r100:-99999999}" -lt 1000000 ] && [ "${r1:-99999999}" -lt 1000000 ]; the
 if [ "$early" -gt 0 ]; then w3=early-wakes-observed; else w3=no-early-wakes; fi
 finding="$w1,$w2,$w3"
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$("$cc" --version | head -1)"; h_probe="$("$bin" --version | tr -d '\r')"
+fi
 {
 	printf 'a timed futex wait against the NT clock\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$("$cc" --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version | tr -d '\r')"
+	printf 'probe       %s\n\n' "$h_probe"
 	printf 'reading, question by question\n\n'
 	printf '  q1  the clock as found: current %s x 100 ns, finest offered %s x 100 ns\n' "${cur:-?}" "${minr:-?}"
 	printf '  q2  RtlWaitOnAddress lateness at that resolution, medians: 100 us wait %s ns late, 1 ms %s, 10 ms %s\n' "${d100:-?}" "${d1:-?}" "${d10:-?}"

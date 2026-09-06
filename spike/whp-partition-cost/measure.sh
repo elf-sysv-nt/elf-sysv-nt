@@ -16,9 +16,12 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -p N, --partitions=N    Cap on partitions to try holding at once. [default: 512]
 #   -c N, --vcpus=N         Cap on vCPUs to create in one partition. [default: 256]
 #   -n N, --exits=N         Exits to time per vCPU in q6. [default: 5000]
+#   -t N, --pool-threads=N  Threads sharing the vCPU pool in q7b. [default: 256]
+#   -r N, --pool-rounds=N   Rounds each pool thread runs in q7. [default: 1000]
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
 #   -v, --verbose           Pass --verbose to the probe.
@@ -30,13 +33,16 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.2'
 here=$(cd "$(dirname "$0")" && pwd)
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 partitions=${MEASURE_PARTITIONS:-512}
 vcpus=${MEASURE_VCPUS:-256}
 exits=${MEASURE_EXITS:-5000}
+pool_threads=${MEASURE_POOL_THREADS:-256}
+pool_rounds=${MEASURE_POOL_ROUNDS:-1000}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
 verbose=${MEASURE_VERBOSE:-0}
@@ -51,12 +57,18 @@ while [ $# -gt 0 ]; do
 		-V|--version)    printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)     output=${2:-}; shift 2 ;;
 		--output=*)      output=${1#*=}; shift ;;
+		-i|--input)      input=${2:-}; shift 2 ;;
+		--input=*)       input=${1#*=}; shift ;;
 		-p|--partitions) partitions=${2:-}; shift 2 ;;
 		--partitions=*)  partitions=${1#*=}; shift ;;
 		-c|--vcpus)      vcpus=${2:-}; shift 2 ;;
 		--vcpus=*)       vcpus=${1#*=}; shift ;;
 		-n|--exits)      exits=${2:-}; shift 2 ;;
 		--exits=*)       exits=${1#*=}; shift ;;
+		-t|--pool-threads) pool_threads=${2:-}; shift 2 ;;
+		--pool-threads=*) pool_threads=${1#*=}; shift ;;
+		-r|--pool-rounds) pool_rounds=${2:-}; shift 2 ;;
+		--pool-rounds=*) pool_rounds=${1#*=}; shift ;;
 		-k|--keep)       keep=1; shift ;;
 		-q|--quiet)      quiet=1; shift ;;
 		-v|--verbose)    verbose=1; shift ;;
@@ -66,11 +78,11 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
-for v in partitions vcpus exits; do
+for v in partitions vcpus exits pool_threads pool_rounds; do
 	case ${!v} in ''|*[!0-9]*) printf '%s: --%s wants a count, got %s\n' "$prog" "$v" "${!v}" >&2; exit 2 ;; esac
 done
 
-command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
+[ -n "$input" ] || command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
 [ -r /usr/include/w32api/winhvplatform.h ] || die 'no winhvplatform.h under /usr/include/w32api'
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
@@ -78,18 +90,22 @@ trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/partition-probe.exe; else bin=$work/partition-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 gcc -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/partition-probe.c" -lwinhvplatform -lpsapi \
 	> "$work/build.log" 2>&1 ||
 	{ cat "$work/build.log" >&2; die 'the probe did not build'; }
 
-probe_args="--partitions $partitions --vcpus $vcpus --exits $exits"
+probe_args="--partitions $partitions --vcpus $vcpus --exits $exits --pool-threads $pool_threads --pool-rounds $pool_rounds"
 [ "$verbose" = 1 ] && probe_args="$probe_args --verbose"
 
 note 'running the probe'
 # shellcheck disable=SC2086
 "$bin" $probe_args > "$work/probe.out" 2>"$work/probe.err" ||
 	{ cat "$work/probe.err" >&2; die 'the probe did not run'; }
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 
@@ -121,6 +137,20 @@ q6_hi=$(val q6_concurrent_median_ns_max)
 q6_agg=$(val q6_aggregate_exits_per_second)
 q6_one=$(val q6_single_exits_per_second)
 
+q7=$(val q7_pool)
+q7_k=$(val q7_pool_vcpus)
+q7_t=$(val q7_threads)
+q7_ns=$(val q7_round_median_ns)
+q7_agg=$(val q7_aggregate_rounds_per_second)
+q7b=$(val q7b_pool)
+q7b_t=$(val q7b_threads)
+q7b_ns=$(val q7b_round_median_ns)
+q7b_p99=$(val q7b_round_p99_ns)
+q7b_agg=$(val q7b_aggregate_rounds_per_second)
+q7b_wrong=$(val q7b_counters_wrong)
+q7b_halts=$(val q7b_halts)
+q7b_several=$(val q7b_threads_on_several_vcpus)
+
 # q3's word. The ceiling this host imposes is on mapped partitions per
 # process: several may be set up, one at a time may hold guest memory, and a
 # second process is unaffected.
@@ -139,21 +169,33 @@ else vcpu_word="vcpus-${q4_made:-0}-ran-${q4_ran:-0}"; fi
 
 if [ "$q5" = alternates ]; then handoff_word=vcpu-hands-off-between-threads; else handoff_word="handoff-${q5:-none}"; fi
 if [ "$q6" = ran ]; then concurrent_word=concurrent-exits-run; else concurrent_word="concurrent-${q6:-none}"; fi
+if [ "$q7" = isolates ] && [ "$q7b" = isolates ]; then pool_word=vcpu-pool-isolates
+else pool_word="vcpu-pool-${q7:-none}-oversubscribed-${q7b:-none}"; fi
 
 if [ "$present" != 1 ]; then finding=hypervisor-absent
 elif [ "${q2_ok:-0}" = 0 ]; then finding=whp-partition-failed
-else finding="$partitions_word,$shared_word,$vcpu_word,$handoff_word,$concurrent_word"; fi
+else finding="$partitions_word,$shared_word,$vcpu_word,$handoff_word,$concurrent_word,$pool_word"; fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$(gcc --version | head -1)"; h_probe="$("$bin" --version)"
+fi
 {
 	printf 'what a partition and a vCPU cost, and how many one process may hold\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$(gcc --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'processors  %s\n' "$(val host_processors)"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version)"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  create, size to one processor, set up: %s of 40; median %s ns, delete %s ns\n' \
@@ -171,7 +213,13 @@ else finding="$partitions_word,$shared_word,$vcpu_word,$handoff_word,$concurrent
 	printf '  q5  one vCPU run alternately from two threads: %s\n' "$handoff_word"
 	printf '  q6  %s vCPUs exiting at once: %s; single-vCPU exit %s ns, concurrent per-vCPU medians %s to %s ns\n' \
 		"${q6_n:-?}" "$concurrent_word" "${q6_single:-?}" "${q6_lo:-?}" "${q6_hi:-?}"
-	printf '      aggregate %s exits/s against %s for one vCPU\n\n' "${q6_agg:-?}" "${q6_one:-?}"
+	printf '      aggregate %s exits/s against %s for one vCPU\n' "${q6_agg:-?}" "${q6_one:-?}"
+	printf '  q7  a pool of %s vCPUs borrowed per run (load registers, run to halt, save, return):\n' "${q7_k:-?}"
+	printf '      %s threads, one per vCPU: %s; round median %s ns, aggregate %s rounds/s\n' \
+		"${q7_t:-?}" "${q7:-?}" "${q7_ns:-?}" "${q7_agg:-?}"
+	printf '      %s threads over the same pool: %s; %s halts, %s counters wrong, %s threads ran on more than one vCPU;\n' \
+		"${q7b_t:-?}" "${q7b:-?}" "${q7b_halts:-?}" "${q7b_wrong:-?}" "${q7b_several:-?}"
+	printf '      round median %s ns (p99 %s), aggregate %s rounds/s\n\n' "${q7b_ns:-?}" "${q7b_p99:-?}" "${q7b_agg:-?}"
 
 	printf 'raw\n\n'
 	sed -e 's/^/    /' "$work/probe.out"

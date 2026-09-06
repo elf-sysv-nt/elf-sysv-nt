@@ -11,6 +11,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -k, --keep              Keep the built binary beside the sources.
 #   -q, --quiet             Errors only.
 #   -V, --version           Print the version and exit.
@@ -20,10 +21,11 @@
 
 set -u
 prog=measure
-release='measure 1.0'
+release='measure 1.1'
 here=$(cd "$(dirname "$0")" && pwd)
 cc=${MEASURE_CC:-x86_64-w64-mingw32-gcc}
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 keep=${MEASURE_KEEP:-0}
 quiet=${MEASURE_QUIET:-0}
 usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
@@ -35,6 +37,8 @@ while [ $# -gt 0 ]; do
 		-V|--version) printf '%s\n' "$release"; exit 0 ;;
 		-o|--output) output=${2:-}; shift 2 ;;
 		--output=*) output=${1#*=}; shift ;;
+		-i|--input) input=${2:-}; shift 2 ;;
+		--input=*)  input=${1#*=}; shift ;;
 		-k|--keep) keep=1; shift ;;
 		-q|--quiet) quiet=1; shift ;;
 		--) shift; break ;;
@@ -43,17 +47,21 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
-command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
+[ -n "$input" ] || command -v "$cc" >/dev/null 2>&1 || die "no $cc on PATH"
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
 trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/readfile-probe.exe; else bin=$work/readfile-probe.exe; fi
+if [ -z "$input" ]; then
 note 'building the probe'
 "$cc" -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/readfile-probe.c" > "$work/build.log" 2>&1 ||
 	{ cat "$work/build.log" >&2; die 'the probe did not build'; }
 note 'running the probe'
 "$bin" > "$work/probe.raw" 2>"$work/probe.err" || { cat "$work/probe.err" >&2; die 'the probe did not run'; }
 tr -d '\r' < "$work/probe.raw" > "$work/probe.out"
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 
 q1=$(val q1_user_touch_handler_hits)
@@ -71,15 +79,25 @@ elif [ "$q2ok" = 0 ] && [ "$q2h" = 0 ] && [ "$q3ok" = 0 ] && [ "$q3h" = 0 ] && [
 elif [ "$q2ok" = 1 ] || [ "$q2h" != 0 ]; then finding=io-reaches-handler-or-commits
 else finding="io-mixed-r${q2ok}h${q2h}-a${q3ok}h${q3h}-w${q5ok}h${q5h}-d${q7ok}h${q7h}"; fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$("$cc" --version | head -1)"; h_probe="$("$bin" --version | tr -d '\r')"
+fi
 {
 	printf 'an I/O call against a user buffer the handler has not committed yet\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$("$cc" --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version | tr -d '\r')"
+	printf 'probe       %s\n\n' "$h_probe"
 	printf 'reading, question by question\n\n'
 	printf '  q1  a user-mode touch of the reserved buffer takes the handler: %s hit\n' "${q1:-?}"
 	printf '  q2  ReadFile into reserved memory, synchronous handle: ok %s, error %s, handler hits %s\n' "${q2ok:-?}" "${q2e:-?}" "${q2h:-?}"

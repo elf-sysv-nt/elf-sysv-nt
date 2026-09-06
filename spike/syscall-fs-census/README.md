@@ -26,10 +26,10 @@ A byte pair is not an instruction, so `measure.sh` runs `census.py
 report`, which confirms every byte hit by disassembling the file with
 the cross objdump and counting lines that end in `syscall`.
 
-The census writes one fragment per package under
-`$ELFSYSVNT_ROOT/a/census-work/syscall-fs` and skips packages that have
-a done marker, so a second run resumes. It takes hours; the fragments
-are not tracked.
+The census writes one fragment per package under a work root in the
+untracked annex (`run-census.sh` chooses it; `measure.sh --root` reads
+it) and skips packages that have a done marker, so a second run resumes.
+It takes hours; the fragments are not tracked.
 
 ## Reading
 

@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RELEASE "gpa-probe 1.0"
+#define RELEASE "gpa-probe 1.1"
 
 #define PAGE   0x1000ULL
 #define MB     0x100000ULL
@@ -51,8 +51,12 @@
 #define GPA_R3     (3 * GB)          /* unmapped at start; mapped on exit */
 #define GPA_R4     (3 * GB + 512 * MB)  /* decommit and release test */
 #define GPA_R5     (3 * GB + 768 * MB)  /* map-cost scratch */
+#define GPA_BIG    (4 * GB)          /* q8, q9: the large mappings start here */
 
 static int verbose;
+static int big_gb = 64;            /* q8: the largest reserve-only mapping tried */
+static int commit_gb = 8;          /* q9: the committed mapping the guest samples */
+static int pressure_mb;            /* q9: host memory touched to make pressure; 0 skips */
 static WHV_PARTITION_HANDLE part;
 static UINT8 *ctl;
 
@@ -101,6 +105,9 @@ static void build_tables(void)
 		for (i = 0; i < 512; i++)
 			put64(pdbase + 8 * i, (((UINT64) pd << 30) | ((UINT64) i << 21)) | 0x87);
 	}
+	/* gigabytes 4 to 511 as 1 GB pages (PDPTE.PS), for q8 and q9 */
+	for (i = 4; i < 512; i++)
+		put64(GPA_PDPT + 8 * i, ((UINT64) i << 30) | 0x87);
 }
 
 static void build_gdt(void)
@@ -302,6 +309,18 @@ static int bring_up(void)
  * through the loop's jmp. */
 static WHV_RUN_VP_EXIT_CONTEXT last_ex;
 
+static const char *reason_word(UINT32 r)
+{
+	switch (r) {
+	case WHvRunVpExitReasonX64Halt: return "halt";
+	case WHvRunVpExitReasonMemoryAccess: return "memory-access-exit";
+	case WHvRunVpExitReasonUnrecoverableException: return "unrecoverable-exception";
+	case WHvRunVpExitReasonInvalidVpRegisterValue: return "invalid-register";
+	case 0xffffffffu: return "run-call-failed";
+	default: return "other-exit";
+	}
+}
+
 static UINT32 guest_read(UINT64 gpa, UINT64 *val, int first)
 {
 	UINT32 r;
@@ -316,11 +335,24 @@ static UINT32 guest_read(UINT64 gpa, UINT64 *val, int first)
  * absent). The kernel under H has to tell these apart, so the transcript does. */
 static void emit_access(const char *key)
 {
-	if (last_ex.ExitReason != WHvRunVpExitReasonMemoryAccess) { emit(key, "n/a"); return; }
+	if (last_ex.ExitReason != WHvRunVpExitReasonMemoryAccess) { emit(key, "%s", reason_word(last_ex.ExitReason)); return; }
 	emit(key, "%s,%s,gpa:0x%llx",
 	     last_ex.MemoryAccess.AccessInfo.GpaUnmapped ? "gpa-unmapped" : "gpa-mapped-host-absent",
 	     last_ex.MemoryAccess.AccessInfo.AccessType == WHvMemoryAccessWrite ? "write" : "read",
 	     (unsigned long long) last_ex.MemoryAccess.Gpa);
+}
+
+static void hv_counters(const char *prefix)
+{
+	WHV_PARTITION_MEMORY_COUNTERS mc;
+	UINT32 got = 0;
+	char key[80];
+	if (!IsWHvGetPartitionCountersPresent()) return;
+	memset(&mc, 0, sizeof mc);
+	if (FAILED(WHvGetPartitionCounters(part, WHvPartitionCounterSetMemory, &mc, sizeof mc, &got))) return;
+	sprintf(key, "%s_hv_mapped_4k_pages", prefix); emit(key, "%llu", (unsigned long long) mc.Mapped4KPageCount);
+	sprintf(key, "%s_hv_mapped_2m_pages", prefix); emit(key, "%llu", (unsigned long long) mc.Mapped2MPageCount);
+	sprintf(key, "%s_hv_mapped_1g_pages", prefix); emit(key, "%llu", (unsigned long long) mc.Mapped1GPageCount);
 }
 
 static UINT32 guest_write(UINT64 gpa, UINT64 val, int first)
@@ -328,18 +360,6 @@ static UINT32 guest_write(UINT64 gpa, UINT64 val, int first)
 	WHV_RUN_VP_EXIT_CONTEXT ex;
 	if (first) enter(EP_WRITE, gpa, val); else set_rbx_rax(gpa, val);
 	return run(&ex);
-}
-
-static const char *reason_word(UINT32 r)
-{
-	switch (r) {
-	case WHvRunVpExitReasonX64Halt: return "halt";
-	case WHvRunVpExitReasonMemoryAccess: return "memory-access-exit";
-	case WHvRunVpExitReasonUnrecoverableException: return "unrecoverable-exception";
-	case WHvRunVpExitReasonInvalidVpRegisterValue: return "invalid-register";
-	case 0xffffffffu: return "run-call-failed";
-	default: return "other-exit";
-	}
 }
 
 /* ---- q1: what the API admits to -------------------------------------- */
@@ -664,6 +684,185 @@ static void q7_lazy_map_on_exit(void)
 	VirtualFree(pool, 0, MEM_RELEASE);
 }
 
+/* ---- q8 (child): reserve-only mappings at tens of gigabytes ---------- */
+
+/* Spike 42's q2 and q4 at one gigabyte, scaled: a reserve-only host range
+ * of 8, 16, 32 and 64 GB mapped in one call. What the call costs, whether
+ * the working set moves, what the hypervisor counts, and whether the top
+ * page of each mapping is reachable from the guest once committed. */
+/* A map call at this size has been seen to fail once with
+ * ERROR_NO_SYSTEM_RESOURCES (0x800705aa) and succeed on a retry moments
+ * later; the transcript counts the retries so the kernel knows to make them. */
+static HRESULT map_retrying(void *host, UINT64 gpa, UINT64 len, int *retries)
+{
+	HRESULT hr;
+	int i;
+	*retries = 0;
+	for (i = 0; i < 6; i++) {
+		hr = WHvMapGpaRange(part, host, gpa, len, WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagWrite);
+		if (hr != (HRESULT) 0x800705aa) return hr;
+		(*retries)++;
+		Sleep(250);
+	}
+	return hr;
+}
+
+static void q8_reserve_at_scale(void)
+{
+	static const int sizes[] = { 8, 16, 32, 64 };
+	unsigned k;
+	int first = 1;
+
+	for (k = 0; k < sizeof sizes / sizeof sizes[0]; k++) {
+		int gb = sizes[k];
+		UINT64 len = (UINT64) gb * GB, ws0, ws1, t0, t1, val;
+		UINT8 *p;
+		char key[64], pfx[32];
+		HRESULT hr;
+		UINT32 r;
+		int retries;
+
+		if (gb > big_gb) break;
+		sprintf(pfx, "q8_%dgb", gb);
+		p = VirtualAlloc(NULL, len, MEM_RESERVE, PAGE_READWRITE);
+		sprintf(key, "%s_reserve", pfx);
+		emit(key, "%d", p ? 1 : 0);
+		if (!p) { sprintf(key, "%s_reserve_lasterror", pfx); emit(key, "%lu", (unsigned long) GetLastError()); continue; }
+		ws0 = working_set();
+		t0 = now_ns();
+		hr = map_retrying(p, GPA_BIG, len, &retries);
+		t1 = now_ns();
+		ws1 = working_set();
+		sprintf(key, "%s_map_hresult", pfx); emit(key, "0x%08lx", (unsigned long) hr);
+		sprintf(key, "%s_map_retries", pfx); emit(key, "%d", retries);
+		sprintf(key, "%s_map_ns", pfx); emit(key, "%llu", (unsigned long long) (t1 - t0));
+		sprintf(key, "%s_map_ns_per_gb", pfx); emit(key, "%llu", (unsigned long long) ((t1 - t0) / (UINT64) gb));
+		sprintf(key, "%s_working_set_delta_kb", pfx); emit(key, "%lld", (long long) ((INT64) ws1 - (INT64) ws0) / 1024);
+		if (SUCCEEDED(hr)) {
+			UINT64 top = GPA_BIG + len - PAGE;
+			hv_counters(pfx);
+			/* the guest touches the top page: reserve-only, so an exit */
+			r = guest_read(top, &val, first);
+			first = 0;
+			sprintf(key, "%s_top_touch_reserved", pfx); emit_access(key);
+			/* commit that one page and the touch completes */
+			if (VirtualAlloc(p + len - PAGE, PAGE, MEM_COMMIT, PAGE_READWRITE)) {
+				*(UINT64 *) (p + len - PAGE) = 0x746f70ULL ^ top;
+				r = guest_read(top, &val, 0);
+				sprintf(key, "%s_top_touch_committed", pfx);
+				emit(key, "%s,value-correct:%d", reason_word(r), r == WHvRunVpExitReasonX64Halt && val == (0x746f70ULL ^ top));
+			}
+			t0 = now_ns();
+			hr = WHvUnmapGpaRange(part, GPA_BIG, len);
+			t1 = now_ns();
+			sprintf(key, "%s_unmap_hresult", pfx); emit(key, "0x%08lx", (unsigned long) hr);
+			sprintf(key, "%s_unmap_ns", pfx); emit(key, "%llu", (unsigned long long) (t1 - t0));
+		}
+		VirtualFree(p, 0, MEM_RELEASE);
+	}
+}
+
+/* ---- q9 (child): a committed mapping at scale, touched, then trimmed -- */
+
+/* Spike 42's q2 and q3 at eight gigabytes, then the question they left:
+ * what happens to guest-touched pages when the host takes the working set
+ * away. EmptyWorkingSet is the trim a memory-pressured host performs,
+ * applied on demand; --pressure-mb adds real pressure from a host
+ * allocation touched page by page. After each, the guest reads its pages
+ * back and the transcript says whether the values survived and what the
+ * re-touch cost. */
+static void q9_committed_at_scale(void)
+{
+	enum { n = 1024 };
+	UINT64 len = (UINT64) commit_gb * GB, ws0, ws1, t0, t1, val;
+	UINT64 *lat = malloc(n * sizeof *lat);
+	UINT8 *p;
+	HRESULT hr;
+	UINT32 r;
+	int i, ok = 0, bad = 0, retries;
+
+	p = VirtualAlloc(NULL, len, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	emit("q9_commit", "%d", p ? 1 : 0);
+	emit("q9_commit_gb", "%d", commit_gb);
+	if (!p || !lat) { emit("q9_commit_lasterror", "%lu", (unsigned long) GetLastError()); return; }
+	residency("q9_before_map", p, len, n);
+	ws0 = working_set();
+	t0 = now_ns();
+	hr = map_retrying(p, GPA_BIG, len, &retries);
+	t1 = now_ns();
+	ws1 = working_set();
+	emit("q9_map_hresult", "0x%08lx", (unsigned long) hr);
+	emit("q9_map_retries", "%d", retries);
+	emit("q9_map_ns", "%llu", (unsigned long long) (t1 - t0));
+	emit("q9_map_working_set_delta_kb", "%lld", (long long) ((INT64) ws1 - (INT64) ws0) / 1024);
+	residency("q9_after_map", p, len, n);
+	hv_counters("q9");
+	if (FAILED(hr)) return;
+
+	/* the guest writes a tag into n pages spread over the range */
+	for (i = 0; i < n; i++) {
+		UINT64 gpa = GPA_BIG + (len / n) * (UINT64) i;
+		t0 = now_ns();
+		r = guest_write(gpa, 0x746167ULL ^ gpa, i == 0);
+		lat[i] = now_ns() - t0;
+		if (r == WHvRunVpExitReasonX64Halt) ok++; else bad++;
+	}
+	emit("q9_guest_first_touch_halted", "%d", ok);
+	emit("q9_guest_first_touch_other", "%d", bad);
+	stats("q9_guest_first_touch", lat, n);
+	residency("q9_after_touch", p, len, n);
+	emit("q9_after_touch_working_set_delta_kb", "%lld", (long long) ((INT64) working_set() - (INT64) ws0) / 1024);
+
+	/* the trim: the host takes the working set away */
+	emit("q9_empty_working_set", "%d", EmptyWorkingSet(GetCurrentProcess()) ? 1 : 0);
+	residency("q9_after_trim", p, len, n);
+	emit("q9_after_trim_working_set_kb", "%llu", (unsigned long long) (working_set() / 1024));
+	ok = bad = 0;
+	for (i = 0; i < n; i++) {
+		UINT64 gpa = GPA_BIG + (len / n) * (UINT64) i;
+		t0 = now_ns();
+		r = guest_read(gpa, &val, i == 0);
+		lat[i] = now_ns() - t0;
+		if (r == WHvRunVpExitReasonX64Halt && val == (0x746167ULL ^ gpa)) ok++; else bad++;
+	}
+	emit("q9_after_trim_guest_reads_correct", "%d", ok);
+	emit("q9_after_trim_guest_reads_other", "%d", bad);
+	if (bad) emit_access("q9_after_trim_last_exit");
+	stats("q9_after_trim_guest_reread", lat, n);
+	residency("q9_after_reread", p, len, n);
+
+	/* real pressure, when asked for: a host allocation touched page by page */
+	emit("q9_pressure_mb", "%d", pressure_mb);
+	if (pressure_mb > 0) {
+		UINT64 plen = (UINT64) pressure_mb * MB, off;
+		UINT8 *q = VirtualAlloc(NULL, plen, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		emit("q9_pressure_commit", "%d", q ? 1 : 0);
+		if (q) {
+			t0 = now_ns();
+			for (off = 0; off < plen; off += PAGE) q[off] = (UINT8) off;
+			emit("q9_pressure_touch_ns", "%llu", (unsigned long long) (now_ns() - t0));
+			residency("q9_under_pressure", p, len, n);
+			emit("q9_under_pressure_working_set_kb", "%llu", (unsigned long long) (working_set() / 1024));
+			ok = bad = 0;
+			for (i = 0; i < n; i++) {
+				UINT64 gpa = GPA_BIG + (len / n) * (UINT64) i;
+				t0 = now_ns();
+				r = guest_read(gpa, &val, 0);
+				lat[i] = now_ns() - t0;
+				if (r == WHvRunVpExitReasonX64Halt && val == (0x746167ULL ^ gpa)) ok++; else bad++;
+			}
+			emit("q9_under_pressure_guest_reads_correct", "%d", ok);
+			emit("q9_under_pressure_guest_reads_other", "%d", bad);
+			stats("q9_under_pressure_guest_reread", lat, n);
+			VirtualFree(q, 0, MEM_RELEASE);
+		}
+	}
+	hr = WHvUnmapGpaRange(part, GPA_BIG, len);
+	emit("q9_unmap_hresult", "0x%08lx", (unsigned long) hr);
+	VirtualFree(p, 0, MEM_RELEASE);
+	free(lat);
+}
+
 /* ---- running a question in a child ----------------------------------- */
 
 /* The child is this binary with --child <q>; its stdout is a pipe the parent
@@ -680,7 +879,8 @@ static void run_child(const char *q)
 	DWORD got, code = 0, w;
 
 	GetModuleFileNameA(NULL, exe, sizeof exe);
-	snprintf(cmd, sizeof cmd, "\"%s\" --child %s", exe, q);
+	snprintf(cmd, sizeof cmd, "\"%s\" --child %s --big-gb %d --commit-gb %d --pressure-mb %d",
+	         exe, q, big_gb, commit_gb, pressure_mb);
 	if (!CreatePipe(&rd, &wr, &sa, 0)) { emit("child_pipe", "0"); return; }
 	SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
 	memset(&si, 0, sizeof si);
@@ -703,7 +903,7 @@ static void run_child(const char *q)
 		fflush(stdout);
 	}
 	CloseHandle(rd);
-	w = WaitForSingleObject(pi.hProcess, 60000);
+	w = WaitForSingleObject(pi.hProcess, 600000);
 	if (w == WAIT_OBJECT_0)
 		GetExitCodeProcess(pi.hProcess, &code);
 	sprintf(key, "%s_child", q);
@@ -728,6 +928,9 @@ int main(int argc, char **argv)
 		if (!strcmp(argv[i], "--version")) { puts(RELEASE); return 0; }
 		if (!strcmp(argv[i], "--verbose")) { verbose = 1; continue; }
 		if (!strcmp(argv[i], "--child") && i + 1 < argc) { child = argv[++i]; continue; }
+		if (!strcmp(argv[i], "--big-gb") && i + 1 < argc) { big_gb = atoi(argv[++i]); continue; }
+		if (!strcmp(argv[i], "--commit-gb") && i + 1 < argc) { commit_gb = atoi(argv[++i]); continue; }
+		if (!strcmp(argv[i], "--pressure-mb") && i + 1 < argc) { pressure_mb = atoi(argv[++i]); continue; }
 		fprintf(stderr, "gpa-probe: unknown argument %s\n", argv[i]);
 		return 2;
 	}
@@ -751,6 +954,8 @@ int main(int argc, char **argv)
 	if (child) {
 		if (!strcmp(child, "q4")) q4_reserve_only();
 		else if (!strcmp(child, "q5")) q5_decommit_release();
+		else if (!strcmp(child, "q8")) q8_reserve_at_scale();
+		else if (!strcmp(child, "q9")) q9_committed_at_scale();
 		return 0;
 	}
 
@@ -761,6 +966,8 @@ int main(int argc, char **argv)
 	run_child("q5");
 	q6_map_cost();
 	q7_lazy_map_on_exit();
+	run_child("q8");
+	run_child("q9");
 
 	WHvDeleteVirtualProcessor(part, 0);
 	WHvDeletePartition(part);

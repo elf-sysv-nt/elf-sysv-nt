@@ -372,10 +372,12 @@ thread, or a signal.
 Substrate H is unbuilt. Its nine calls are each backed by a spike, including
 the interrupt call that the two-substrate bet depends on, and its shape (one
 kernel process, one partition, a root per Linux process) is backed by spikes
-42 to 45, but no core has sat on it. The vCPU pool was measured at two
-threads over one vCPU, not a pool over many; the lazy mapping at one
-gigabyte on an idle host, not at tens under pressure; the copy-on-write fault
-from ring 0, not ring 3.
+42 to 45, but no core has sat on it. The pool of vCPUs under many threads,
+the lazy mapping at 64 GB and under a working-set trim, and the
+copy-on-write fault from ring 3 were each measured on 2026-09-06 (spikes 43,
+42 and 44 extended) and hold; a host short enough of memory to page guest
+pages to disk under load was not produced, and a full register-file switch
+was not timed.
 
 The process seam is an inventory restated from 0011's supervisor, not a
 built interface; phase 3 will find what it misses. The keyed-event protocol

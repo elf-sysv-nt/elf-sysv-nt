@@ -61,6 +61,15 @@ counter back. q6 runs eight vCPUs on eight threads from one starting gun, each
 timing its own exits, and reports the spread of their medians beside a
 single-vCPU baseline in the same partition.
 
+q7 (added 2026-09-06) is the vCPU pool as 0012 describes it. A partition
+with one vCPU per host processor; T host threads, each with a private
+counter, each round borrowing a vCPU from a semaphore-guarded free stack,
+writing `%rip` and its counter into it, running to the halt, reading the
+counter back and returning the vCPU. The guest increments once per run, so
+a counter that ever moves by other than one is a thread that ran on another
+thread's registers. It runs once with T equal to the pool (the switch cost
+alone) and once oversubscribed, 256 threads by default.
+
 ## What the transcript says, read for the design
 
 A partition costs about 0.4 ms to create and set up and about 0.7 ms to the
@@ -80,11 +89,24 @@ second on twelve host processors.
 Shape A's `MAP_SHARED` works the way N's does: a section viewed in two
 processes, each view mapped into that process's partition, is one memory.
 
+The pool isolates. 256 threads over 8 vCPUs ran 256,000 rounds with every
+counter exactly where its own runs put it, and each thread used more than
+one vCPU, so the isolation is the register load and save, not luck. A
+round (borrow, load two registers, run to the halt, save one, return) costs
+about 13 µs when no one waits and the pool sustains about 500,000 rounds a
+second; oversubscribed 32 to 1 the aggregate holds near 260,000 a second
+and the wait is what a queue 32 deep costs, about a millisecond at the
+median. The kernel's context switch under H is therefore two register calls
+around the run, and a thread that blocks gives its vCPU back rather than
+holding it.
+
 ## What this does not reach
 
 Whether the one-mapped-partition rule is WHP policy or this build's; it was
 not looked for in documentation and is reported as measured. vCPU creation was
 capped at 256 by the probe; the 240 ceiling is Hyper-V's, not the cap. Exit
 cost under concurrency was measured with eight vCPUs on twelve processors, not
-oversubscribed. Handoff was measured between two threads over one vCPU, not a
-pool of vCPUs over many threads. One host, one Windows build, one AMD part.
+oversubscribed. The pool loads two registers and saves one; a real switch
+carries the full register file and the FPU state, which `WHvGetVirtualProcessorState`
+and its twin move in one call each and which is not timed here. One host,
+one Windows build, one AMD part.

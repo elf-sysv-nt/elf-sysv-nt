@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RELEASE "fork-probe 1.0"
+#define RELEASE "fork-probe 1.1"
 
 #define PAGE   0x1000ULL
 #define MB     0x100000ULL
@@ -38,6 +38,8 @@
 
 #define EP_WRITE   (GPA_CODE + 0x000)
 #define EP_READ    (GPA_CODE + 0x100)
+#define EP_WRITE3  (GPA_CODE + 0x200)   /* ring-3 twins, ending in ud2 */
+#define EP_READ3   (GPA_CODE + 0x300)
 
 /* Two regions a process maps, chosen so the copy is measured at two sizes. */
 #define VA_SMALL   0x10000000ULL
@@ -250,17 +252,26 @@ static void put64(UINT64 gpa, UINT64 v) { memcpy(phys + gpa, &v, 8); }
  * so a store to a read-only page faults exactly as a user store would. */
 static const UINT8 code_write[] = { 0x48, 0x89, 0x03, 0xf4, 0xeb, 0xfa };
 static const UINT8 code_read[]  = { 0x48, 0x8b, 0x03, 0xf4, 0xeb, 0xfa };
+/* The ring-3 twins: hlt is privileged, so the loop ends in ud2, which the
+ * partition routes to the host as an exception exit like the #PF. */
+static const UINT8 code_write3[] = { 0x48, 0x89, 0x03, 0x0f, 0x0b };
+static const UINT8 code_read3[]  = { 0x48, 0x8b, 0x03, 0x0f, 0x0b };
+static int ring3;                  /* q7: run the guest at CPL 3 */
 
 static void build_control(void)
 {
 	memset(phys, 0, CONTROL);
 	put64(GPA_GDT + 0x08, 0x00af9b000000ffffULL);
 	put64(GPA_GDT + 0x10, 0x00cf93000000ffffULL);
+	put64(GPA_GDT + 0x18, 0x00affb000000ffffULL);   /* user code, DPL 3 */
+	put64(GPA_GDT + 0x20, 0x00cff3000000ffffULL);   /* user data, DPL 3 */
 	put64(GPA_GDT + 0x30, 0x0000890000000067ULL | ((UINT64)(GPA_TSS & 0xffffff) << 16)
 	                      | ((UINT64)((GPA_TSS >> 24) & 0xff) << 56));
 	put64(GPA_TSS + 0x04, GPA_STACK);
 	memcpy(phys + EP_WRITE, code_write, sizeof code_write);
 	memcpy(phys + EP_READ, code_read, sizeof code_read);
+	memcpy(phys + EP_WRITE3, code_write3, sizeof code_write3);
+	memcpy(phys + EP_READ3, code_read3, sizeof code_read3);
 }
 
 static WHV_X64_SEGMENT_REGISTER seg(UINT16 sel, UINT8 type, int lng, int def32)
@@ -268,6 +279,7 @@ static WHV_X64_SEGMENT_REGISTER seg(UINT16 sel, UINT8 type, int lng, int def32)
 	WHV_X64_SEGMENT_REGISTER s;
 	memset(&s, 0, sizeof s);
 	s.Limit = 0xffffffff; s.Selector = sel; s.SegmentType = type;
+	s.DescriptorPrivilegeLevel = sel & 3;
 	s.NonSystemSegment = 1; s.Present = 1; s.Long = (UINT16) lng;
 	s.Default = (UINT16) def32; s.Granularity = 1;
 	return s;
@@ -277,8 +289,8 @@ static HRESULT enter(UINT64 root, UINT64 rip, UINT64 rbx, UINT64 rax)
 {
 	WHV_REGISTER_NAME n[24];
 	WHV_REGISTER_VALUE v[24];
-	WHV_X64_SEGMENT_REGISTER data = seg(0x10, 3, 0, 1);
-	WHV_X64_SEGMENT_REGISTER code = seg(0x08, 0xb, 1, 0);
+	WHV_X64_SEGMENT_REGISTER data = seg(ring3 ? 0x23 : 0x10, 3, 0, 1);
+	WHV_X64_SEGMENT_REGISTER code = seg(ring3 ? 0x1b : 0x08, 0xb, 1, 0);
 	int i = 0;
 
 	memset(v, 0, sizeof v);
@@ -353,10 +365,22 @@ static int run_resolving(UINT64 root, int *faults, UINT64 *host_ns)
 	UINT64 hn = 0;
 	for (;;) {
 		UINT32 r = run();
-		if (r == WHvRunVpExitReasonX64Halt) { if (faults) *faults = n; if (host_ns) *host_ns = hn; return 1; }
+		if (r == WHvRunVpExitReasonX64Halt
+		    || (r == WHvRunVpExitReasonException && ex.VpException.ExceptionType == 6)) {
+			if (faults) *faults = n;
+			if (host_ns) *host_ns = hn;
+			return 1;
+		}
 		if (r == WHvRunVpExitReasonException && ex.VpException.ExceptionType == 14) {
 			UINT64 t0 = now_ns();
-			static int first = 1;
+			static int first = 1, first3 = 1;
+			if (ring3 && first3) {
+				first3 = 0;
+				emit("q7_first_fault_error_code", "0x%x", (unsigned) ex.VpException.ErrorCode);
+				emit("q7_first_fault_user_bit", "%d", (ex.VpException.ErrorCode >> 2) & 1);
+				emit("q7_first_fault_rip_at_store", "%d", ex.VpContext.Rip == EP_WRITE3);
+				emit("q7_first_fault_cpl", "%u", (unsigned) (ex.VpContext.Cs.Selector & 3));
+			}
 			if (first) {
 				/* what the exit carries, once: the fault address against CR2,
 				 * the error code, and whether %rip still points at the store */
@@ -377,7 +401,11 @@ static int run_resolving(UINT64 root, int *faults, UINT64 *host_ns)
 			if (n > 4) { trace("fault loop"); return 0; }
 			continue;
 		}
-		trace("exit %u", (unsigned) r);
+		if (r == WHvRunVpExitReasonException)
+			trace("exception %u error 0x%x at rip 0x%llx", (unsigned) ex.VpException.ExceptionType,
+			      (unsigned) ex.VpException.ErrorCode, (unsigned long long) ex.VpContext.Rip);
+		else
+			trace("exit %u", (unsigned) r);
 		if (faults) *faults = n;
 		return 0;
 	}
@@ -385,14 +413,14 @@ static int run_resolving(UINT64 root, int *faults, UINT64 *host_ns)
 
 static int guest_write(UINT64 root, UINT64 va, UINT64 val, int *faults, UINT64 *host_ns)
 {
-	set_regs(root, EP_WRITE, va, val, 1);
+	set_regs(root, ring3 ? EP_WRITE3 : EP_WRITE, va, val, 1);
 	return run_resolving(root, faults, host_ns);
 }
 
 static int guest_read(UINT64 root, UINT64 va, UINT64 *val)
 {
 	int ok;
-	set_regs(root, EP_READ, va, 0, 1);
+	set_regs(root, ring3 ? EP_READ3 : EP_READ, va, 0, 1);
 	ok = run_resolving(root, NULL, NULL);
 	*val = ok ? get_reg(WHvX64RegisterRax) : ~0ULL;
 	return ok;
@@ -432,7 +460,7 @@ static int bring_up(void)
 	}
 	if (SUCCEEDED(hr)) {
 		memset(&prop, 0, sizeof prop);
-		prop.ExceptionExitBitmap = 1ULL << 14;
+		prop.ExceptionExitBitmap = (1ULL << 14) | (1ULL << 6) | (1ULL << 13);   /* #PF, #UD, #GP */
 		hr = WHvSetPartitionProperty(part, WHvPartitionPropertyCodeExceptionExitBitmap, &prop, sizeof prop);
 	}
 	if (SUCCEEDED(hr)) hr = WHvSetupPartition(part);
@@ -665,6 +693,65 @@ int main(int argc, char **argv)
 		stats("q6_same_root", same, n);
 		stats("q6_alternating_roots", alt, n);
 		free(same); free(alt);
+	}
+
+	/* q7. The same copy-on-write path from ring 3. A fresh fork of the
+	 * parent; the code page made user-accessible; the guest entered with
+	 * DPL-3 selectors, storing to pages it shares with the parent, ending
+	 * each run in ud2 rather than hlt. The fault must carry the user bit and
+	 * the copy must isolate exactly as it did from ring 0. */
+	{
+		UINT64 child3 = as_clone(parent), hn;
+		int n3 = cow_faults / 4, ok3 = 0, one3 = 0, wrong3 = 0, wrong_p3 = 0, gp = 0, gc = 0, entered;
+		UINT64 *tot = malloc((size_t) n3 * sizeof *tot);
+		UINT64 before = frames_copied_for_cow;
+		*pte_for(parent, GPA_CODE, 0) |= PTE_US;
+		*pte_for(child3, GPA_CODE, 0) |= PTE_US;
+		ring3 = 1;
+		entered = SUCCEEDED(enter(child3, EP_WRITE3, VA_LARGE + (UINT64) (2 * cow_faults) * PAGE, 0));
+		emit("q7_ring3_entered", "%d", entered);
+		for (i = 0; i < n3 && entered; i++) {
+			UINT64 va = VA_LARGE + (UINT64) (2 * cow_faults + i) * PAGE;
+			t0 = now_ns();
+			if (guest_write(child3, va, tag_c ^ va, &faults, &hn)) {
+				ok3++;
+				if (faults == 1) one3++;
+			}
+			tot[i] = now_ns() - t0;
+		}
+		emit("q7_ring3_writes_completed", "%d", ok3);
+		emit("q7_ring3_writes_one_fault_each", "%d", one3);
+		emit("q7_ring3_frames_copied", "%llu", (unsigned long long) (frames_copied_for_cow - before));
+		emit("q7_ring3_samples_wanted", "%d", n3);
+		stats("q7_ring3_cow_round_trip", tot, (size_t) (ok3 ? n3 : 1));
+		for (i = 0; i < n3; i++) {
+			UINT64 va = VA_LARGE + (UINT64) (2 * cow_faults + i) * PAGE;
+			UINT64 pf = *pte_for(parent, va, 0) & PTE_ADDR, cf = *pte_for(child3, va, 0) & PTE_ADDR;
+			if (*(UINT64 *) (phys + pf) != (tag_p ^ va)) wrong_p3++;
+			if (*(UINT64 *) (phys + cf) != (tag_c ^ va) || pf == cf) wrong3++;
+		}
+		emit("q7_ring3_parent_frames_intact", "%d", wrong_p3 == 0);
+		emit("q7_ring3_child_frames_private", "%d", wrong3 == 0);
+		for (i = 0; i < n3; i += n3 / 16) {
+			UINT64 va = VA_LARGE + (UINT64) (2 * cow_faults + i) * PAGE;
+			if (guest_read(parent, va, &val) && val == (tag_p ^ va)) gp++;
+			if (guest_read(child3, va, &val) && val == (tag_c ^ va)) gc++;
+		}
+		emit("q7_ring3_guest_reads_parent_sampled", "%d", gp);
+		emit("q7_ring3_guest_reads_child_sampled", "%d", gc);
+		emit("q7_ring3_guest_reads_samples", "%d", 16);
+		/* and the control: a ring-3 store to a page without the user bit
+		 * must fault with the user bit and never resolve */
+		{
+			UINT64 va = GPA_STACK;   /* identity-mapped control, no PTE_US */
+			int f = -1;
+			set_regs(child3, EP_WRITE3, va, 0x99ULL, 1);
+			emit("q7_ring3_supervisor_page_write_refused", "%d", !run_resolving(child3, &f, NULL));
+			emit("q7_ring3_supervisor_page_exception", "%u", (unsigned) ex.VpException.ExceptionType);
+			emit("q7_ring3_supervisor_page_error_code", "0x%x", (unsigned) ex.VpException.ErrorCode);
+		}
+		ring3 = 0;
+		free(tot);
 	}
 
 	emit("frames_used_mb", "%llu", (unsigned long long) (next_frame / MB));

@@ -71,6 +71,17 @@ never touched (copies), to one the child already copied (takes it), and a
 clone of the child. q6 runs a faultless load 2000 times on one root and 2000
 times alternating roots.
 
+q7 (added 2026-09-06) repeats q4 from ring 3. The GDT gains DPL-3 code and
+data descriptors, the two loops get twins that end in `ud2` instead of the
+privileged `hlt`, the exception-exit bitmap takes `#UD` and `#GP` alongside
+`#PF`, and the code page is given the user bit. A fresh clone of the parent
+is entered with the DPL-3 selectors and stores to 256 pages it shares with
+the parent; the transcript records the first fault's error code, its user
+bit, the CPL at the exit and whether `%rip` is still at the store, then the
+same isolation checks as q4. A ring-3 store to a supervisor page (the
+identity-mapped control area, no user bit) is the control: it must fault and
+never resolve.
+
 ## What the transcript says, read for the design
 
 The exception exit is the mechanism the design needs. `ExceptionParameter`
@@ -101,10 +112,19 @@ root, the CR3 write and whatever the hypervisor does about it. Under shape B
 with a vCPU per running thread that switch happens at thread migration, not
 at every syscall.
 
+From ring 3 the fault is the same fault with the user bit set: error code
+`0x7` (present, write, user) at CPL 3 with `%rip` at the store, one fault
+per page, every frame copied and isolated, and a round trip of about 24 µs,
+the same as ring 0's. A ring-3 store to a page without the user bit is a
+`#PF` with the same code that the resolver refuses, which is the privilege
+check the kernel relies on to keep its own pages from the process.
+
 ## What this does not reach
 
-The guest runs at ring 0; a ring-3 store through a user page faults the same
-way but was not run here. One vCPU, one thread. The pattern check reads one
+The guest runs at ring 0 for q2 to q6 and at ring 3 for q7 only; a
+signal frame, a `syscall` instruction and an IDT are not exercised, so
+nothing here says how a ring-3 fault is delivered back into the guest, only
+how it reaches the host. One vCPU, one thread. The pattern check reads one
 word per page, not the page. Frames are never freed, since the probe has no
 need. Table copy was measured for anonymous memory only; file-backed frames
 would share without copy-on-write and cost less. One host, one Windows build,

@@ -16,7 +16,11 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
+#   -i FILE, --input=FILE   Render from a probe output brought back from another host: no build, no run.
 #   -k, --keep              Keep the built binary beside the sources.
+#   -b N, --big-gb=N        Largest reserve-only mapping q8 tries, in GB. [default: 64]
+#   -c N, --commit-gb=N     Committed mapping q9 samples, in GB. [default: 8]
+#   -p N, --pressure-mb=N   Host memory q9 touches for pressure; 0 skips. [default: 2048]
 #   -q, --quiet             Errors only.
 #   -v, --verbose           Pass --verbose to the probe.
 #   -V, --version           Print the version and exit.
@@ -27,11 +31,15 @@
 set -u
 
 prog=measure
-release='measure 1.0'
+release='measure 1.2'
 here=$(cd "$(dirname "$0")" && pwd)
 
 output=${MEASURE_OUTPUT:--}
+input=${MEASURE_INPUT:-}
 keep=${MEASURE_KEEP:-0}
+big_gb=${MEASURE_BIG_GB:-64}
+commit_gb=${MEASURE_COMMIT_GB:-8}
+pressure_mb=${MEASURE_PRESSURE_MB:-2048}
 quiet=${MEASURE_QUIET:-0}
 verbose=${MEASURE_VERBOSE:-0}
 
@@ -45,7 +53,15 @@ while [ $# -gt 0 ]; do
 		-V|--version)    printf '%s\n' "$release"; exit 0 ;;
 		-o|--output)     output=${2:-}; shift 2 ;;
 		--output=*)      output=${1#*=}; shift ;;
+		-i|--input)      input=${2:-}; shift 2 ;;
+		--input=*)       input=${1#*=}; shift ;;
 		-k|--keep)       keep=1; shift ;;
+		-b|--big-gb)     big_gb=${2:-}; shift 2 ;;
+		--big-gb=*)      big_gb=${1#*=}; shift ;;
+		-c|--commit-gb)  commit_gb=${2:-}; shift 2 ;;
+		--commit-gb=*)   commit_gb=${1#*=}; shift ;;
+		-p|--pressure-mb) pressure_mb=${2:-}; shift 2 ;;
+		--pressure-mb=*) pressure_mb=${1#*=}; shift ;;
 		-q|--quiet)      quiet=1; shift ;;
 		-v|--verbose)    verbose=1; shift ;;
 		--)              shift; break ;;
@@ -55,7 +71,7 @@ while [ $# -gt 0 ]; do
 done
 [ $# -eq 0 ] || { printf '%s: takes no arguments, got %s\n' "$prog" "$1" >&2; exit 2; }
 
-command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
+[ -n "$input" ] || command -v gcc >/dev/null 2>&1 || die 'no gcc on PATH'
 [ -r /usr/include/w32api/winhvplatform.h ] || die 'no winhvplatform.h under /usr/include/w32api'
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
@@ -63,18 +79,22 @@ trap 'rm -rf "$work"' EXIT
 trap 'rm -rf "$work"; exit 130' INT TERM
 if [ "$keep" = 1 ]; then bin=$here/gpa-probe.exe; else bin=$work/gpa-probe.exe; fi
 
+if [ -z "$input" ]; then
 note 'building the probe'
 gcc -std=gnu11 -O1 -Wall -Wextra -o "$bin" "$here/gpa-probe.c" -lwinhvplatform -lpsapi \
 	> "$work/build.log" 2>&1 ||
 	{ cat "$work/build.log" >&2; die 'the probe did not build'; }
 
-probe_args=
-[ "$verbose" = 1 ] && probe_args="--verbose"
+probe_args="--big-gb $big_gb --commit-gb $commit_gb --pressure-mb $pressure_mb"
+[ "$verbose" = 1 ] && probe_args="$probe_args --verbose"
 
 note 'running the probe'
 # shellcheck disable=SC2086
 "$bin" $probe_args > "$work/probe.out" 2>"$work/probe.err" ||
 	{ cat "$work/probe.err" >&2; die 'the probe did not run'; }
+else
+	tr -d '\r' < "$input" > "$work/probe.out" || die "cannot read $input"
+fi
 
 val() { sed -n "s/^$1=//p" "$work/probe.out"; }
 yn() { [ "$1" = 1 ] && printf 'yes' || printf 'no'; }
@@ -146,19 +166,68 @@ q7_ns=$(val q7_fault_map_resume_median_ns)
 if [ "${q7_exits:-0}" = 1024 ] && [ "${q7_res:-0}" = 1024 ] && [ "${q7_wrong:-1}" = 0 ]; then lazy_word=map-on-exit-works
 else lazy_word="map-on-exit-${q7_exits:-0}-${q7_res:-0}-${q7_wrong:-x}"; fi
 
+q8_top=$(val q8_${big_gb}gb_map_hresult)
+q8_top_ns=$(val q8_${big_gb}gb_map_ns)
+q8_top_per_gb=$(val q8_${big_gb}gb_map_ns_per_gb)
+q8_top_ws=$(val q8_${big_gb}gb_working_set_delta_kb)
+q8_top_4k=$(val q8_${big_gb}gb_hv_mapped_4k_pages)
+q8_top_touch=$(val q8_${big_gb}gb_top_touch_reserved | cut -d, -f1)
+q8_top_commit=$(val q8_${big_gb}gb_top_touch_committed)
+q8_top_unmap_ns=$(val q8_${big_gb}gb_unmap_ns)
+q8_retries=$(grep -E '^q8_[0-9]+gb_map_retries=' "$work/probe.out" | cut -d= -f2 | paste -sd+ | bc 2>/dev/null || echo 0)
+q8_child=$(val q8_child)
+if [ "$q8_child" = exited-clean ] && [ "$q8_top" = 0x00000000 ] && [ "${q8_top_ws:-99999}" -le 4096 ] \
+   && [ "$q8_top_touch" = gpa-mapped-host-absent ] && [ "$q8_top_commit" = "halt,value-correct:1" ]; then scale_word="map-lazy-at-${big_gb}gb"
+else scale_word="map-at-${big_gb}gb-${q8_top:-none}-ws-${q8_top_ws:-x}-top-${q8_top_touch:-x}"; fi
+
+q9_hr=$(val q9_map_hresult)
+q9_retries=$(val q9_map_retries)
+q9_ns=$(val q9_map_ns)
+q9_after_map=$(val q9_after_map_resident)
+q9_touch_ok=$(val q9_guest_first_touch_halted)
+q9_touch_ns=$(val q9_guest_first_touch_median_ns)
+q9_after_touch=$(val q9_after_touch_resident)
+q9_trim=$(val q9_empty_working_set)
+q9_after_trim=$(val q9_after_trim_resident)
+q9_trim_ok=$(val q9_after_trim_guest_reads_correct)
+q9_trim_bad=$(val q9_after_trim_guest_reads_other)
+q9_trim_ns=$(val q9_after_trim_guest_reread_median_ns)
+q9_after_reread=$(val q9_after_reread_resident)
+q9_pmb=$(val q9_pressure_mb)
+q9_pres=$(val q9_under_pressure_resident)
+q9_pres_ok=$(val q9_under_pressure_guest_reads_correct)
+q9_pres_ns=$(val q9_under_pressure_guest_reread_median_ns)
+q9_child=$(val q9_child)
+if [ "$q9_child" = exited-clean ] && [ "$q9_hr" = 0x00000000 ] && [ "${q9_after_map:-1}" = 0 ] \
+   && [ "${q9_touch_ok:-0}" = 1024 ] && [ "${q9_after_touch:-0}" = 1024 ] && [ "$q9_trim" = 1 ] \
+   && [ "${q9_after_trim:-1}" = 0 ] && [ "${q9_trim_ok:-0}" = 1024 ]; then trim_word=trimmed-pages-return-transparently
+else trim_word="trim-${q9_hr:-none}-touched-${q9_after_touch:-x}-trimmed-${q9_after_trim:-x}-reread-${q9_trim_ok:-x}"; fi
+if [ "${q9_pmb:-0}" -gt 0 ] && [ "${q9_pres_ok:-0}" != 1024 ]; then trim_word="$trim_word,under-pressure-${q9_pres_ok:-x}-of-1024"; fi
+if [ "${q8_retries:-0}" != 0 ] || [ "${q9_retries:-0}" != 0 ]; then trim_word="$trim_word,map-needed-retry"; fi
+
 if [ "$present" != 1 ]; then finding=hypervisor-absent
 elif [ "$ready" != 1 ]; then finding=whp-partition-failed
-else finding="$map_word,$touch_word,$reserve_word,$decommit_word,$lazy_word"; fi
+else finding="$map_word,$touch_word,$reserve_word,$decommit_word,$lazy_word,$scale_word,$trim_word"; fi
 
+# The header facts: from this host, or from the lines run.cmd wrote at the
+# top of a probe output collected on another.
+if [ -n "$input" ]; then
+	hdr() { sed -n "s/^# $1: //p" "$work/probe.out" | head -1; }
+	h_host=$(hdr host); h_windows=$(hdr windows); h_cygwin="none, collected by $(hdr runner)"
+	h_compiler=$(hdr compiler); h_probe=$(hdr probe)
+else
+	h_host="$(hostname 2>/dev/null)"; h_windows="$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"; h_cygwin="$(uname -r)"
+	h_compiler="$(gcc --version | head -1)"; h_probe="$("$bin" --version)"
+fi
 {
 	printf 'what WHvMapGpaRange does to the host memory behind it\n\n'
-	printf 'host        %s\n' "$(hostname 2>/dev/null)"
-	printf 'windows     %s\n' "$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1/p')"
-	printf 'cygwin      %s\n' "$(uname -r)"
-	printf 'compiler    %s\n' "$(gcc --version | head -1)"
+	printf 'host        %s\n' "$h_host"
+	printf 'windows     %s\n' "$h_windows"
+	printf 'cygwin      %s\n' "$h_cygwin"
+	printf 'compiler    %s\n' "$h_compiler"
 	printf 'date        %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	printf 'script      %s\n' "$release"
-	printf 'probe       %s\n\n' "$("$bin" --version)"
+	printf 'probe       %s\n\n' "$h_probe"
 
 	printf 'reading, question by question\n\n'
 	printf '  q1  the API: AdviseGpaRange %s, MapGpaRange2 %s, partition counters %s, populate flags %s\n' \
@@ -182,6 +251,25 @@ else finding="$map_word,$touch_word,$reserve_word,$decommit_word,$lazy_word"; fi
 	printf '  q7  mapping a page on its memory-access exit and resuming: %s\n' "$lazy_word"
 	printf '      %s exits, %s resumed, %s wrong values, median %s ns for fault, map and resume\n\n' \
 		"${q7_exits:-?}" "${q7_res:-?}" "${q7_wrong:-?}" "${q7_ns:-?}"
+	printf '  q8  reserve-only mappings up to %s GB, in a child: %s\n' "$big_gb" "$scale_word"
+	for gb in 8 16 32 64; do
+		[ "$gb" -le "$big_gb" ] || continue
+		printf '      %2s GB: map %s ns (%s ns/GB, %s retries), working set %s KB, %s 4 KB pages counted; top page %s, committed: %s; unmap %s ns\n' \
+			"$gb" "$(val q8_${gb}gb_map_ns)" "$(val q8_${gb}gb_map_ns_per_gb)" "$(val q8_${gb}gb_map_retries)" \
+			"$(val q8_${gb}gb_working_set_delta_kb)" "$(val q8_${gb}gb_hv_mapped_4k_pages)" \
+			"$(val q8_${gb}gb_top_touch_reserved | cut -d, -f1)" "$(val q8_${gb}gb_top_touch_committed)" "$(val q8_${gb}gb_unmap_ns)"
+	done
+	printf '  q9  %s GB committed and mapped (hresult %s, %s retries, %s ns), 1024 pages sampled: %s resident after the map;\n' \
+		"$commit_gb" "${q9_hr:-?}" "${q9_retries:-?}" "${q9_ns:-?}" "${q9_after_map:-?}"
+	printf '      the guest writes each (%s halted, median %s ns), %s resident; the working set emptied (%s): %s resident,\n' \
+		"${q9_touch_ok:-?}" "${q9_touch_ns:-?}" "${q9_after_touch:-?}" "$(yn "$q9_trim")" "${q9_after_trim:-?}"
+	printf '      the guest reads them back: %s correct, %s other, median %s ns, %s resident again: %s\n' \
+		"${q9_trim_ok:-?}" "${q9_trim_bad:-?}" "${q9_trim_ns:-?}" "${q9_after_reread:-?}" "$trim_word"
+	if [ "${q9_pmb:-0}" -gt 0 ]; then
+		printf '      under %s MB of host pressure: %s resident, guest reads %s correct, median %s ns\n' \
+			"$q9_pmb" "${q9_pres:-?}" "${q9_pres_ok:-?}" "${q9_pres_ns:-?}"
+	fi
+	printf '\n'
 
 	printf 'raw\n\n'
 	sed -e 's/^/    /' "$work/probe.out"

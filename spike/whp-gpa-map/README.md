@@ -66,6 +66,21 @@ The `Is*Present` helpers the header declares live in an API-set stub the
 import library does not carry; the probe asks `WinHvPlatform.dll` for the
 export by name instead, which answers the same question.
 
+q8 and q9 (added 2026-09-06) take the question to tens of gigabytes, each
+in a child so a failure cannot take the run with it. q8 reserves 8, 16, 32
+and 64 GB of host address space with no commit, maps each in one call at
+GPA 4 GB, and records the call's cost, the working-set delta, the
+hypervisor's page counts, the guest's exit on the top page, and the same
+touch after the top page is committed; the guest's tables gain 1 GB entries
+for gigabytes 4 to 511 so it can reach that far. q9 commits 8 GB, maps it,
+has the guest write a tag into 1024 pages spread across it, then empties
+the process working set (`EmptyWorkingSet`, the trim a memory-pressured host
+performs, on demand) and has the guest read every page back; with
+`--pressure-mb` it also allocates and touches that much host memory and
+reads again. A map call that fails with `ERROR_NO_SYSTEM_RESOURCES` is
+retried after a pause and the retries counted, because one such failure was
+seen while the probe was being written and did not recur.
+
 ## What the transcript says, read for the design
 
 Mapping is a SLAT edit, not a population. The hypervisor records the
@@ -90,11 +105,26 @@ reserved memory then committing on the exit (q4, about 32 µs) is no faster;
 the fast way is to map and populate in large ranges and let the guest touch
 resident pages at 4 µs.
 
+At scale the mapping stays lazy and the cost is linear. 64 GB of reserved
+host space maps in about a second and unmaps in about the same, 16 ms per
+gigabyte either way, with the working set unmoved and the hypervisor
+counting one 4 KB entry per page (16.8 million for 64 GB); the top page
+exits as "mapped, host absent" and reads correctly once committed. That is
+the price of the kernel's guest physical space: paid once per gigabyte at
+start-up or growth, not per process, since under B2 processes are page
+tables over one partition. Trimmed pages come back on their own. After the
+working set was emptied not one of the 1024 guest-written pages was
+resident, every one read back correct from the guest at 13 µs, the cost of a
+first touch, and all were resident again after; 2 GB of host pressure
+displaced none of them. The host's memory manager pages guest memory like
+any other, and the guest never sees it.
+
 ## What this does not reach
 
-One partition, one vCPU, one gigabyte. Whether the lazy behaviour holds at
-tens of gigabytes mapped, or under memory pressure that pages a mapped page
-out and back, is not measured. The `Locked` bit `QueryWorkingSetEx` reports
+One partition, one vCPU. The pressure applied was a working-set trim and
+2 GB of host allocation on a 32 GB host; a host that is actually short of
+memory, paging guest pages to disk and back under load, was not produced.
+The `Locked` bit `QueryWorkingSetEx` reports
 is the memory manager's notion of a lock (`VirtualLock`), and the pin advice
 did not set it; whether the hypervisor pins by some other accounting is not
 something this probe can see. The numbers are one host, one Windows build,
