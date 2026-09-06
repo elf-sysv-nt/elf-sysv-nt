@@ -444,8 +444,8 @@ static uint32_t kind_of(ULONG attrs, ULONG tag)
 		case TAG_AF_UNIX: return HFS_KIND_SOCK;
 		default: break;
 		}
-		if (tag == TAG_SYMLINK || tag == TAG_MOUNT_POINT)
-			return (attrs & FILE_ATTRIBUTE_DIRECTORY) ? HFS_KIND_DIR : HFS_KIND_FILE;
+		if (tag == TAG_SYMLINK) return HFS_KIND_WINLINK;
+		if (tag == TAG_MOUNT_POINT) return HFS_KIND_DIR;	/* a junction is followed */
 		return HFS_KIND_OTHER;
 	}
 	return (attrs & FILE_ATTRIBUTE_DIRECTORY) ? HFS_KIND_DIR : HFS_KIND_FILE;
@@ -565,8 +565,10 @@ int hfs_openat(hfs_h dir, const char *name, unsigned flags, uint32_t mode,
 	if (flags & HFS_O_CREATE) {
 		disposition = (flags & HFS_O_EXCL) ? FILE_CREATE
 			    : (flags & HFS_O_TRUNC) ? FILE_OVERWRITE_IF : FILE_OPEN_IF;
+		/* $LXMOD carries the whole st_mode, type bits included: WSL
+		 * reads a bare permission set as no metadata at all */
 		ealen = build_lx_eas(ea, sizeof ea, HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE,
-				     uid, gid, mode, 0, 0);
+				     uid, gid, 0100000 | (mode & 07777), 0, 0);
 	} else {
 		disposition = (flags & HFS_O_TRUNC) ? FILE_OVERWRITE : FILE_OPEN;
 	}
@@ -721,7 +723,7 @@ int hfs_mkdir(hfs_h dir, const char *name, uint32_t mode, uint32_t uid, uint32_t
 	if (r) return r;
 	n = name_to_wide(name, w, 255);
 	if (n <= 0) return n ? -ENAMETOOLONG : -ENOENT;
-	ealen = build_lx_eas(ea, sizeof ea, HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE, uid, gid, mode, 0, 0);
+	ealen = build_lx_eas(ea, sizeof ea, HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE, uid, gid, 0040000 | (mode & 07777), 0, 0);
 	s = create((HANDLE)(uintptr_t)dir, w, n, FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES, FILE_CREATE,
 		   FILE_DIRECTORY_FILE, FILE_ATTRIBUTE_DIRECTORY, ea, ealen, &h, NULL);
 	if (!NT_SUCCESS(s)) return -errno_of(s);
@@ -878,15 +880,16 @@ int hfs_mknod(hfs_h dir, const char *name, uint32_t kind, uint32_t mode,
 	REPARSE_LX_ *rp = (REPARSE_LX_ *)buf;
 	int r = bind_nt();
 	if (r) return r;
+	uint32_t type;
 	memset(buf, 0, sizeof buf);
 	switch (kind) {
-	case HFS_KIND_FIFO: rp->ReparseTag = TAG_LX_FIFO; break;
-	case HFS_KIND_CHR: rp->ReparseTag = TAG_LX_CHR; break;
-	case HFS_KIND_BLK: rp->ReparseTag = TAG_LX_BLK; break;
-	case HFS_KIND_SOCK: rp->ReparseTag = TAG_AF_UNIX; break;
+	case HFS_KIND_FIFO: rp->ReparseTag = TAG_LX_FIFO; type = 0010000; break;
+	case HFS_KIND_CHR: rp->ReparseTag = TAG_LX_CHR; type = 0020000; break;
+	case HFS_KIND_BLK: rp->ReparseTag = TAG_LX_BLK; type = 0060000; break;
+	case HFS_KIND_SOCK: rp->ReparseTag = TAG_AF_UNIX; type = 0140000; break;
 	default: return -EINVAL;
 	}
-	return make_reparse(dir, name, mode, uid, gid, major, minor, buf, 8);
+	return make_reparse(dir, name, type | (mode & 07777), uid, gid, major, minor, buf, 8);
 }
 
 int64_t hfs_readlink(hfs_h h, char *buf, size_t cap)
@@ -902,6 +905,40 @@ int64_t hfs_readlink(hfs_h h, char *buf, size_t cap)
 	s = nt.FsControlFile((HANDLE)(uintptr_t)h, NULL, NULL, NULL, &iosb, FSCTL_GET_REPARSE_POINT,
 			     NULL, 0, rb, sizeof rb);
 	if (!NT_SUCCESS(s)) return -errno_of(s);
+	if (rp->ReparseTag == TAG_SYMLINK) {
+		/* SymbolicLinkReparseBuffer: substitute and print names, flags */
+		const struct {
+			USHORT SubstituteNameOffset, SubstituteNameLength;
+			USHORT PrintNameOffset, PrintNameLength;
+			ULONG Flags;
+			WCHAR PathBuffer[1];
+		} *sl = (const void *)rb + 8;
+		const WCHAR *w = sl->PathBuffer + sl->PrintNameOffset / sizeof(WCHAR);
+		size_t wl = sl->PrintNameLength / sizeof(WCHAR), i, o = 0;
+		char tmp[4200];
+		if (wl == 0) {	/* no print name: the substitute name without \??\ */
+			w = sl->PathBuffer + sl->SubstituteNameOffset / sizeof(WCHAR);
+			wl = sl->SubstituteNameLength / sizeof(WCHAR);
+			if (wl >= 4 && w[0] == L'\\' && w[1] == L'?' && w[2] == L'?' && w[3] == L'\\') { w += 4; wl -= 4; }
+		}
+		if (!(sl->Flags & 1) && wl >= 2 && w[1] == L':') {
+			/* absolute on a drive: WSL's spelling */
+			tmp[o++] = '/'; tmp[o++] = 'm'; tmp[o++] = 'n'; tmp[o++] = 't'; tmp[o++] = '/';
+			tmp[o++] = (char)((w[0] >= L'A' && w[0] <= L'Z') ? w[0] - L'A' + 'a' : w[0]);
+			w += 2; wl -= 2;
+			if (wl && (w[0] == L'\\' || w[0] == L'/')) { w++; wl--; }
+			tmp[o++] = '/';
+		}
+		for (i = 0; i < wl && o + 4 < sizeof tmp; i++) {
+			uint32_t cp = w[i];
+			if (cp == L'\\') cp = '/';
+			if (cp < 0x80) tmp[o++] = (char)cp;
+			else if (cp < 0x800) { tmp[o++] = (char)(0xc0 | (cp >> 6)); tmp[o++] = (char)(0x80 | (cp & 0x3f)); }
+			else { tmp[o++] = (char)(0xe0 | (cp >> 12)); tmp[o++] = (char)(0x80 | ((cp >> 6) & 0x3f)); tmp[o++] = (char)(0x80 | (cp & 0x3f)); }
+		}
+		memcpy(buf, tmp, o < cap ? o : cap);
+		return (int64_t)o;
+	}
 	if (rp->ReparseTag != TAG_LX_SYMLINK || rp->ReparseDataLength < 4) return -EINVAL;
 	tlen = rp->ReparseDataLength - 4;
 	memcpy(buf, rp->u.lx.PathBuffer, tlen < cap ? tlen : cap);

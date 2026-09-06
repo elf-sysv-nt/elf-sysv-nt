@@ -21,7 +21,7 @@
 #include "vma.h"
 #include "vdso.h"
 
-#define STK_SIZE	0x4000u		/* the 16 KB user stack */
+#define STK_SIZE	0x800000u	/* the 8 MB user stack, RLIMIT_STACK's default */
 
 /* Auxiliary vector types, from the target elf.h. */
 #define AT_NULL		0

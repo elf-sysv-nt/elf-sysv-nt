@@ -134,12 +134,20 @@ Phase 1 of the core is built and runs: a static ELF written to that ABI is
 mapped through the substrate, entered on the psABI initial stack with its
 auxiliary vector, calls `write` and `exit_group`, and prints `hello` before
 exiting 0 — checked against the same logical program on a Rocky 8 oracle.
-`doc/design/Core-Phase1.md` records it. Every other syscall number returns
-`-ENOSYS`, which is what a 4.18 kernel does for what it lacks.
+`doc/design/Core-Phase1.md` records it.
 
-Nothing else of the core exists yet. The VFS, the descriptor layer, fork,
-signals and the rest are designed in 0011 and unbuilt, and this document says
-so rather than describing them as though they were here.
+Phase 2 is built and runs: the VFS over a host directory with `/proc` and
+`/dev` beside it, the descriptor layer, the pipe, and the file syscalls
+with their `*at` forms. A scripted sequence of 291 file operations traces
+identically under the core and on the Rocky 8 oracle (criterion 2), and a
+tree the kernel writes reads back from WSL with identical metadata and the
+reverse (criterion 3). `doc/design/Core-Phase2.md` records it, with the
+divergences it chose. Every other syscall number returns `-ENOSYS`, which
+is what a 4.18 kernel does for what it lacks.
+
+Nothing else of the core exists yet. Fork, `exec`, signals, threads and the
+rest are designed in 0011 and unbuilt, and this document says so rather than
+describing them as though they were here.
 
 ## Target and claim: x86_64-elfsysvnt-linux-gnu
 

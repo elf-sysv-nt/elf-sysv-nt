@@ -40,6 +40,7 @@ that carries the detail:
     doc/design/Substrate-Interface.md   the nine calls between the core and a substrate
     doc/design/Substrate-N.md           the native substrate, built and certified
     doc/design/Core-Phase1.md           the first program through the core
+    doc/design/Core-Phase2.md           files: the VFS, checked against Rocky 8 and WSL
 
 Around them, `doc/design/Requirements.md` says what the platform must do and
 how anyone will know, `doc/design/Verification-Plan.md` says what counts as

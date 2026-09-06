@@ -63,6 +63,7 @@ struct hfs_stat {
 #define HFS_KIND_BLK	6
 #define HFS_KIND_SOCK	7		/* AF_UNIX reparse point */
 #define HFS_KIND_OTHER	8		/* a Windows reparse point of another tag */
+#define HFS_KIND_WINLINK 9		/* a Windows symbolic link: a symlink to Linux too */
 
 /* Open flags.  READ and WRITE are the access asked for; DIR insists on a
  * directory and NODIR refuses one; CREATE, EXCL and TRUNC are open(2)'s.
@@ -91,9 +92,10 @@ struct hfs_stat {
 int hfs_open_root(const char *path, hfs_h *out);
 
 /*
- * Open one component under dir.  On create, mode is the Linux mode to record
- * in the LX attributes at creation (uid and gid as given), so a new file is
- * born with its metadata rather than acquiring it in a second call.  Returns
+ * Open one component under dir.  On create, mode is the Linux permission
+ * set to record in the LX attributes at creation (uid and gid as given; the
+ * type bits are the store's to add), so a new file is born with its
+ * metadata rather than acquiring it in a second call.  Returns
  * 0 with *out set, HFS_REPARSE as above, or -errno.  st, if not NULL, receives
  * the object's stat as opened, which saves the caller a second query.
  */
@@ -159,8 +161,12 @@ int hfs_link(hfs_h h, hfs_h dir, const char *name);
 int hfs_symlink(hfs_h dir, const char *name, const char *target,
 		uint32_t uid, uint32_t gid);
 
-/* Read an LX symlink's target into buf (no terminator); return its length,
- * which may exceed cap, in which case cap bytes were copied. */
+/* Read a symlink's target into buf (no terminator); return its length,
+ * which may exceed cap, in which case cap bytes were copied.  An LX symlink
+ * yields its UTF-8 target as written.  A Windows symbolic link yields its
+ * name with backslashes turned to slashes: as it is when relative, and as
+ * /mnt/<drive>/... when it names a drive, which is the spelling WSL gives
+ * the same link. */
 int64_t hfs_readlink(hfs_h h, char *buf, size_t cap);
 
 /* Create a special file: kind is HFS_KIND_FIFO, CHR, BLK or SOCK. */

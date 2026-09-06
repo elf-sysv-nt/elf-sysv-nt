@@ -140,13 +140,14 @@ static uint32_t mode_of(const struct mount *m, const struct hfs_stat *hs, const 
 	uint32_t type, perm;
 	switch (hs->kind) {
 	case HFS_KIND_DIR: type = S_IFDIR; break;
-	case HFS_KIND_LXLINK: type = S_IFLNK; break;
+	case HFS_KIND_LXLINK: case HFS_KIND_WINLINK: type = S_IFLNK; break;
 	case HFS_KIND_FIFO: type = S_IFIFO; break;
 	case HFS_KIND_CHR: type = S_IFCHR; break;
 	case HFS_KIND_BLK: type = S_IFBLK; break;
 	case HFS_KIND_SOCK: type = S_IFSOCK; break;
 	default: type = S_IFREG; break;
 	}
+	if (type == S_IFLNK) return S_IFLNK | 0777;
 	if (hs->lxflags & HFS_LX_MODE) {
 		perm = hs->mode & 07777;
 		/* the type is NTFS's to say: an EA left behind by a mknod over a
@@ -183,7 +184,7 @@ static void kstat_of(const struct mount *m, const struct hfs_stat *hs, const cha
 	st->mtime = hs->mtime;
 	st->ctime = hs->ctime;
 	st->btime = hs->btime;
-	if (hs->kind == HFS_KIND_LXLINK) {
+	if (hs->kind == HFS_KIND_LXLINK || hs->kind == HFS_KIND_WINLINK) {
 		/* a symlink's size is its target's length; the reparse object's
 		 * bytes are zero, so read it when asked */
 		st->size = 0;
@@ -514,7 +515,7 @@ static uint8_t dtype_of(uint32_t kind)
 {
 	switch (kind) {
 	case HFS_KIND_DIR: return DT_DIR;
-	case HFS_KIND_LXLINK: return DT_LNK;
+	case HFS_KIND_LXLINK: case HFS_KIND_WINLINK: return DT_LNK;
 	case HFS_KIND_FIFO: return DT_FIFO;
 	case HFS_KIND_CHR: return DT_CHR;
 	case HFS_KIND_BLK: return DT_BLK;
@@ -753,7 +754,7 @@ open_existing:
 		}
 	}
 	f = file_new(hs.kind == HFS_KIND_DIR ? &hostdir_ops : &hostfile_ops,
-		     hs.kind == HFS_KIND_DIR ? FILE_KIND_HOSTDIR : (hs.kind == HFS_KIND_LXLINK ? FILE_KIND_SYMLINK : FILE_KIND_HOST),
+		     hs.kind == HFS_KIND_DIR ? FILE_KIND_HOSTDIR : ((hs.kind == HFS_KIND_LXLINK || hs.kind == HFS_KIND_WINLINK) ? FILE_KIND_SYMLINK : FILE_KIND_HOST),
 		     flags & ~(unsigned)(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_CLOEXEC));
 	if (!f) { hfs_close(h); return -ENOMEM; }
 	f->h = h;
@@ -1013,7 +1014,7 @@ static int chmod_h(struct fs_ctx *fs, hfs_h h, uint32_t mode)
 	if (fs->euid != 0 && (hs.lxflags & HFS_LX_UID) && hs.uid != fs->euid) return -EPERM;
 	switch (hs.kind) {
 	case HFS_KIND_DIR: type = S_IFDIR; break;
-	case HFS_KIND_LXLINK: type = S_IFLNK; break;
+	case HFS_KIND_LXLINK: case HFS_KIND_WINLINK: type = S_IFLNK; break;
 	case HFS_KIND_FIFO: type = S_IFIFO; break;
 	case HFS_KIND_CHR: type = S_IFCHR; break;
 	case HFS_KIND_BLK: type = S_IFBLK; break;

@@ -166,8 +166,10 @@ what it sees is recorded in the VFS design rather than tested. Criterion 4
 is per substrate: a median under 2 ms for the fork under H, and under N the
 fork completing with its median recorded beside Cygwin's and a regression
 band of 1.5 times the value recorded at certification on the same host.
-Criterion 1's minimum is met (`core/run.sh`, `Core-Phase1.md`); its
-remainder and criteria 2 to 17 are unbuilt.
+Criterion 1 is met (`core/run.sh`, `Core-Phase1.md`, its remainder with
+Phase 2), criterion 2 is met (`test/t/vfs-diff.sh`) and criterion 3 as
+amended is met (`test/t/lxfs-interop.sh`), both recorded in
+`Core-Phase2.md`; criteria 4 to 17 are unbuilt.
 
 The sections above and below this one describe the veneer arc's classes and
 harness, which the audit proposal 0012 names as owed has not yet read against

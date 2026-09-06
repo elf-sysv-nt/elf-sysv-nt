@@ -13,8 +13,8 @@ on-disk formats, listed in proposal 0011 § 17.
 Read `doc/design/Architecture.md` first: it is the map over the design of
 record, current at every commit, and points into proposals 0011 and 0012 for
 detail. `doc/design/Substrate-Interface.md` is the contract between the core
-and a substrate; `doc/design/Substrate-N.md` and `doc/design/Core-Phase1.md`
-record what is built. `doc/milestones.md` holds the spikes and their verdicts.
+and a substrate; `doc/design/Substrate-N.md`, `doc/design/Core-Phase1.md`
+and `doc/design/Core-Phase2.md` record what is built. `doc/milestones.md` holds the spikes and their verdicts.
 `doc/design/proposals/0011-a-kernel-at-the-syscall-boundary.md` is the design
 itself, long and accepted, and 0012 completes it where it spoke for one
 substrate only.
@@ -132,10 +132,15 @@ file, built-in default.
 ## Layout
 
 `core/` is the kernel above the substrate line: the gate, the syscall table,
-`binfmt_elf`, the VMA tree, the vDSO, and the one host-glue file that speaks
-to NT directly and says so. `bin/check-substrate-line` walks it on every gate
-run and refuses `Nt*`, `WHv*`, `CONTEXT`, an NT `HANDLE` type, a Win32
-named-object or port call, or a raw user pointer dereference. `substrate/` is
+`binfmt_elf`, the VMA tree, the vDSO, the VFS with its descriptor layer and
+in-kernel file systems, and the host-glue files that speak to NT directly
+and say so (`host.c` line by line, `hostfs_nt.c` with `substrate-line:
+below` in its head). `bin/check-substrate-line` walks it on every gate run
+and refuses `Nt*`, `WHv*`, `CONTEXT`, an NT `HANDLE` type, a Win32
+named-object or port call, or a raw user pointer dereference. `test/core/`
+holds the freestanding programs the criteria run and the shim that builds
+each once against the gate and once against `syscall` for the oracle;
+`test/t/` holds the criterion harnesses. `substrate/` is
 the interface in C, the mock, substrate N, and the conformance suite that
 certifies both. `seam/` is the process seam: the interface the core calls for
 what crosses Linux processes, with its cross-process realisation for N and its

@@ -63,7 +63,7 @@ static void group_create_stat(void)
 	ok(r == 0 && h, "create O_EXCL a new file");
 	ok(st.kind == HFS_KIND_FILE, "created object is a file");
 	ok((st.lxflags & (HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE)) == (HFS_LX_UID | HFS_LX_GID | HFS_LX_MODE), "creation wrote the three LX attributes");
-	ok(st.mode == 0640 && st.uid == 1000 && st.gid == 1001, "mode, uid and gid read back as created");
+	ok(st.mode == 0100640 && st.uid == 1000 && st.gid == 1001, "mode (type bits included), uid and gid read back as created");
 	ok(st.nlink == 1 && st.size == 0 && st.ino != 0, "nlink 1, size 0, an inode number");
 	ok(st.btime > 0 && st.mtime > 0 && st.ctime > 0, "times are set");
 	hfs_close(h);
@@ -72,7 +72,7 @@ static void group_create_stat(void)
 	r = hfs_openat(root, "absent.txt", HFS_O_READ, 0, 0, 0, &h, NULL);
 	ok(r == -ENOENT, "open of an absent name is ENOENT");
 	r = hfs_statat(root, "plain.txt", &st);
-	ok(r == 0 && st.mode == 0640, "statat reads the LX mode without keeping a handle");
+	ok(r == 0 && st.mode == 0100640, "statat reads the LX mode without keeping a handle");
 	r = hfs_openat(root, "plain.txt", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &h, NULL);
 	ok(r == -ENOTDIR, "O_DIRECTORY on a file is ENOTDIR");
 	r = hfs_mkdir(root, "d", 0750, 1000, 1000, 0);
@@ -80,7 +80,7 @@ static void group_create_stat(void)
 	r = hfs_openat(root, "d", HFS_O_READ | HFS_O_NODIR, 0, 0, 0, &h, NULL);
 	ok(r == -EISDIR, "a non-directory open of a directory is EISDIR");
 	r = hfs_openat(root, "d", HFS_O_READ | HFS_O_DIR, 0, 0, 0, &h, &st);
-	ok(r == 0 && st.kind == HFS_KIND_DIR && st.mode == 0750, "the directory opens and carries its mode");
+	ok(r == 0 && st.kind == HFS_KIND_DIR && st.mode == 040750, "the directory opens and carries its mode");
 	hfs_close(h);
 	r = hfs_mkdir(root, "d", 0750, 1000, 1000, 0);
 	ok(r == -EEXIST, "mkdir over an existing name is EEXIST");
