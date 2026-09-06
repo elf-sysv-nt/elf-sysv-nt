@@ -203,14 +203,20 @@ through `%gs`; under H it is `%fs`, where Linux has always kept it.
 the answer was no, which took the ordinary Linux carrier off the table before
 any code was written. Four `%gs` carriers were measured; three persist and
 address at about five cycles, and the one in use is carrier C1: `TlsSlots[63]`
-in the TEB, `%gs:0x1678`, one load. The slot is reserved from `TlsAlloc` by
-setting bit 63 of the PEB's `TlsBitmap` when the substrate starts (spike
-peb-tls-bitmap: seventy allocations after the set never return it, nor does a
-DLL loaded later), and a substrate that finds the bit already set refuses to
-start rather than share the word. The ABI above it is glibc's own: `%gs:TP`
-holds the TCB pointer, `%gs:TP+8` the stack-protector canary, `%gs:TP+16` the
-pointer guard, with `TP` = `0x1678`, which is what `tls.h`,
-`-fstack-protector` and `PTR_MANGLE` read. The kernel sets it through the
+in the TEB, `%gs:0x1678`, one load. The ABI around it is glibc's own three
+single-load words, and they run downwards: `%gs:TP` holds the TCB pointer,
+`%gs:TP-8` the stack-protector canary and `%gs:TP-16` the pointer guard, with
+`TP` = `0x1678`, so the three are `TlsSlots[63]`, `[62]` and `[61]` and the
+canary is at `%gs:0x1670`, which is what `tls.h`, `-fstack-protector` and
+`PTR_MANGLE` read. Downwards because `TlsSlots[63]` is the array's last
+element: the spike locates the array at `0x1480` and measures its span at 512
+bytes, so `TP+8` is the first byte past it and no TLS index lands there
+(DR-0106). All three slots are reserved from `TlsAlloc` by setting bits 61, 62
+and 63 of the PEB's `TlsBitmap` when the substrate starts (spike
+peb-tls-bitmap: seventy allocations after the set return none of them, nor
+does a DLL loaded later), and a substrate that finds any of the bits already
+set refuses to start rather than share the words. The kernel sets the thread
+pointer through the
 interface's `tp_set`, and `arch_prctl(ARCH_SET_FS)` returns `EINVAL`, because
 a program built for this substrate never asks.
 
@@ -230,7 +236,7 @@ The static-TLS surplus and the shape of the DTV are fixed so that a vendor
 image's own TLS requirements are satisfied without renegotiation after the
 fact.
 
-Settled by: DR-0024, DR-0063, DR-0101.
+Settled by: DR-0024, DR-0063, DR-0101, DR-0106.
 
 ## The loader
 
