@@ -1,0 +1,294 @@
+Subject: [PATCH] x86-64: relax TLS to the %gs carrier instead of refusing
+
+Patch 0001 refused TLSGD, TLSLD, GOTTPOFF and the TLSDESC relocations,
+because ld relaxes those sequences in place and writes mov %fs:0x0,%rax
+itself (spike/ld-tls-relaxation/), and the carrier DR-0003 had chosen
+needed three instructions where the psABI leaves room for two.
+
+DR-0101 moved the thread pointer to TlsSlots[63] of the TEB, %gs:0x1678, one
+load. mov %gs:0x1678,%rax is 65 48 8b 04 25 78 16 00 00, the same nine bytes
+as mov %fs:0x0,%rax (64 48 8b 04 25 00 00 00 00): a segment prefix, REX.W,
+the opcode, a SIB-absolute ModRM and a disp32. So the room the psABI reserved
+for the local-exec form holds the carrier's fetch too, and the relaxations
+can write it. This patch removes the refusal and changes every fetch the
+relaxations write, in the eleven byte strings and the comments that describe
+them; nothing else about the rewrites changes.
+
+The refusal was also broader than its reason. GOTTPOFF's relaxation writes an
+immediate and no segment prefix at all, and the %fs:(%rax) in the spike's
+initial-exec input was the assembler's, not ld's; refusing it was what stopped
+glibc's own initial-exec code, and every static link against libc.a, from
+linking. The compiler no longer emits that form (toolchain/gcc/patches/0002)
+and toolchain/glibc/check-no-syscall refuses it in a finished object, which
+is where an assembler-written %fs is caught.
+
+The x32 form (movl %fs:0,%eax, four bytes plus disp32) changes the same way.
+x32 is not built for this target; the change keeps the two forms saying the
+same thing.
+
+Against binutils 2.42, pinned in ../binutils.pin, over patch 0001.
+
+--- a/bfd/elf64-x86-64.c
++++ b/bfd/elf64-x86-64.c
+@@ -2151,61 +2151,6 @@
+ 				       symtab_hdr, &no_dynreloc))
+ 	return false;
+ 
+-      /* This target has no thread pointer in the FS segment base.  Spike 1
+-	 measured a user-written base failing to survive a context switch on
+-	 this Windows, and spike/ld-tls-relaxation/ caught ld writing the
+-	 fetch itself while relaxing these sequences -- out of bfd, rather
+-	 than out of anything the compiler emitted.
+-
+-	 So they are refused rather than rewritten.  The psABI sizes the
+-	 general-dynamic sequence at sixteen bytes so that a two-instruction
+-	 local-exec form fits in place, and the %gs carrier DR-0003 settled
+-	 on needs three, which leaves no substitution to make.  A link error
+-	 is the honest answer for an input this target cannot translate, and
+-	 it is what makes hand-written assembly and stray vendor objects
+-	 visible instead of silently wrong.
+-
+-	 This runs before elf_x86_64_tls_transition rather than after it.
+-	 The transition rewrites r_type in place, so a check downstream of
+-	 it sees the relaxation's output: general dynamic arrives as
+-	 GOTTPOFF, which is refused anyway but reported under the wrong
+-	 name, and local dynamic arrives as a form on the accepted list and
+-	 goes on to emit the %fs fetch this exists to stop.
+-
+-	 TPOFF32, TPOFF64, DTPMOD64 and DTPOFF64 are deliberately absent
+-	 from the list.  Those are values rather than sequences, the linker
+-	 writes no instruction bytes for them, and the compiler wants TPOFF
+-	 for sequences of its own.  */
+-      switch (r_type)
+-	{
+-	case R_X86_64_TLSGD:
+-	case R_X86_64_TLSLD:
+-	case R_X86_64_GOTTPOFF:
+-	case R_X86_64_CODE_4_GOTTPOFF:
+-	case R_X86_64_GOTPC32_TLSDESC:
+-	case R_X86_64_CODE_4_GOTPC32_TLSDESC:
+-	case R_X86_64_TLSDESC_CALL:
+-	  {
+-	    reloc_howto_type *howto = elf_x86_64_rtype_to_howto (abfd, r_type);
+-	    const char *tls_name = (h != NULL
+-				    ? h->root.root.string
+-				    : bfd_elf_sym_name (abfd, symtab_hdr, isym,
+-							NULL));
+-
+-	    /* xgettext:c-format */
+-	    _bfd_error_handler
+-	      (_("%pB: relocation %s against `%s' is not supported by this"
+-		 " target: it presumes a thread pointer in the FS segment"
+-		 " base"),
+-	       abfd, howto ? howto->name : "<unknown>", tls_name);
+-	    bfd_set_error (bfd_error_bad_value);
+-	    return false;
+-	  }
+-
+-	default:
+-	  break;
+-	}
+-
+       if (! elf_x86_64_tls_transition (info, abfd, sec, contents,
+ 				       symtab_hdr, sym_hashes,
+ 				       &r_type, GOT_UNKNOWN,
+@@ -3650,6 +3595,14 @@
+ 
+ 	      if (r_type == R_X86_64_TLSGD)
+ 		{
++		  /* Every thread-pointer fetch written below is movq %gs:0x1678,
++		     %rax where the psABI's is movq %fs:0, %rax.  This target keeps
++		     the thread pointer in TlsSlots[63] of the TEB (DR-0101), because
++		     a user-written FS base does not survive a context switch on the
++		     host (spike 1).  The two encodings are the same nine bytes, a
++		     segment prefix, the opcode and a disp32, so the sequences the
++		     psABI sized for the local-exec form still fit in place.  The
++		     x32 form changes the same way for the same reason.  */
+ 		  /* GD->LE transition.  For 64bit, change
+ 			.byte 0x66; leaq foo@tlsgd(%rip), %rdi
+ 			.word 0x6666; rex64; call __tls_get_addr@PLT
+@@ -3660,7 +3613,7 @@
+ 			which may be converted to
+ 			addr32 call __tls_get_addr
+ 		     into:
+-			movq %fs:0, %rax
++			movq %gs:0x1678, %rax
+ 			leaq foo@tpoff(%rax), %rax
+ 		     For 32bit, change
+ 			leaq foo@tlsgd(%rip), %rdi
+@@ -3672,7 +3625,7 @@
+ 			which may be converted to
+ 			addr32 call __tls_get_addr
+ 		     into:
+-			movl %fs:0, %eax
++			movl %gs:0x1678, %eax
+ 			leaq foo@tpoff(%rax), %rax
+ 		     For largepic, change:
+ 			leaq foo@tlsgd(%rip), %rdi
+@@ -3680,7 +3633,7 @@
+ 			addq %r15, %rax
+ 			call *%rax
+ 		     into:
+-			movq %fs:0, %rax
++			movq %gs:0x1678, %rax
+ 			leaq foo@tpoff(%rax), %rax
+ 			nopw 0x0(%rax,%rax,1)  */
+ 		  int largepic = 0;
+@@ -3700,7 +3653,7 @@
+ 			      return false;
+ 			    }
+ 			  memcpy (contents + roff - 3,
+-				  "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x8d\x80"
++				  "\x65\x48\x8b\x04\x25\x78\x16\0\0\x48\x8d\x80"
+ 				  "\0\0\0\0\x66\x0f\x1f\x44\0", 22);
+ 			  largepic = 1;
+ 			}
+@@ -3710,7 +3663,7 @@
+ 			      || (roff - 4 + 16) > input_section->size)
+ 			    goto corrupt_input;
+ 			  memcpy (contents + roff - 4,
+-				  "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x8d\x80\0\0\0",
++				  "\x65\x48\x8b\x04\x25\x78\x16\0\0\x48\x8d\x80\0\0\0",
+ 				  16);
+ 			}
+ 		    }
+@@ -3720,7 +3673,7 @@
+ 			  || (roff - 3 + 15) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + roff - 3,
+-			      "\x64\x8b\x04\x25\0\0\0\0\x48\x8d\x80\0\0\0",
++			      "\x65\x8b\x04\x25\x78\x16\0\0\x48\x8d\x80\0\0\0",
+ 			      15);
+ 		    }
+ 
+@@ -4107,7 +4060,7 @@
+ 			which may be converted to
+ 			addr32 call __tls_get_addr
+ 		     into:
+-			movq %fs:0, %rax
++			movq %gs:0x1678, %rax
+ 			addq foo@gottpoff(%rip), %rax
+ 		     For 32bit, change
+ 			leaq foo@tlsgd(%rip), %rdi
+@@ -4119,7 +4072,7 @@
+ 			which may be converted to
+ 			addr32 call __tls_get_addr
+ 		     into:
+-			movl %fs:0, %eax
++			movl %gs:0x1678, %eax
+ 			addq foo@gottpoff(%rip), %rax
+ 		     For largepic, change:
+ 			leaq foo@tlsgd(%rip), %rdi
+@@ -4127,7 +4080,7 @@
+ 			addq %r15, %rax
+ 			call *%rax
+ 		     into:
+-			movq %fs:0, %rax
++			movq %gs:0x1678, %rax
+ 			addq foo@gottpoff(%rax), %rax
+ 			nopw 0x0(%rax,%rax,1)  */
+ 		  int largepic = 0;
+@@ -4139,7 +4092,7 @@
+ 			      || (roff - 3 + 22) > input_section->size)
+ 			    goto corrupt_input;
+ 			  memcpy (contents + roff - 3,
+-				  "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x03\x05"
++				  "\x65\x48\x8b\x04\x25\x78\x16\0\0\x48\x03\x05"
+ 				  "\0\0\0\0\x66\x0f\x1f\x44\0", 22);
+ 			  largepic = 1;
+ 			}
+@@ -4149,7 +4102,7 @@
+ 			      || (roff - 4 + 16) > input_section->size)
+ 			    goto corrupt_input;
+ 			  memcpy (contents + roff - 4,
+-				  "\x64\x48\x8b\x04\x25\0\0\0\0\x48\x03\x05\0\0\0",
++				  "\x65\x48\x8b\x04\x25\x78\x16\0\0\x48\x03\x05\0\0\0",
+ 				  16);
+ 			}
+ 		    }
+@@ -4159,7 +4112,7 @@
+ 			  || (roff - 3 + 15) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + roff - 3,
+-			      "\x64\x8b\x04\x25\0\0\0\0\x48\x03\x05\0\0\0",
++			      "\x65\x8b\x04\x25\x78\x16\0\0\x48\x03\x05\0\0\0",
+ 			      15);
+ 		    }
+ 
+@@ -4261,18 +4214,18 @@
+ 			leaq foo@tlsld(%rip), %rdi
+ 			call __tls_get_addr@PLT
+ 		 For 64bit, we change it into:
+-			.word 0x6666; .byte 0x66; movq %fs:0, %rax
++			.word 0x6666; .byte 0x66; movq %gs:0x1678, %rax
+ 		 For 32bit, we change it into:
+-			nopl 0x0(%rax); movl %fs:0, %eax
++			nopl 0x0(%rax); movl %gs:0x1678, %eax
+ 		 Or
+ 			leaq foo@tlsld(%rip), %rdi;
+ 			call *__tls_get_addr@GOTPCREL(%rip)
+ 			which may be converted to
+ 			addr32 call __tls_get_addr
+ 		 For 64bit, we change it into:
+-			.word 0x6666; .word 0x6666; movq %fs:0, %rax
++			.word 0x6666; .word 0x6666; movq %gs:0x1678, %rax
+ 		 For 32bit, we change it into:
+-			nopw 0x0(%rax); movl %fs:0, %eax
++			nopw 0x0(%rax); movl %gs:0x1678, %eax
+ 		 For largepic, change:
+ 			leaq foo@tlsgd(%rip), %rdi
+ 			movabsq $__tls_get_addr@pltoff, %rax
+@@ -4280,7 +4233,7 @@
+ 			call *%rax
+ 		 into
+ 			data16 data16 data16 nopw %cs:0x0(%rax,%rax,1)
+-			movq %fs:0, %eax  */
++			movq %gs:0x1678, %eax  */
+ 
+ 	      BFD_ASSERT (r_type == R_X86_64_TPOFF32);
+ 	      if (ABI_64_P (output_bfd))
+@@ -4294,7 +4247,7 @@
+ 			goto corrupt_input;
+ 		      memcpy (contents + rel->r_offset - 3,
+ 			      "\x66\x66\x66\x66\x2e\x0f\x1f\x84\0\0\0\0\0"
+-			      "\x64\x48\x8b\x04\x25\0\0\0", 22);
++			      "\x65\x48\x8b\x04\x25\x78\x16\0", 22);
+ 		    }
+ 		  else if (contents[rel->r_offset + 4] == 0xff
+ 			   || contents[rel->r_offset + 4] == 0x67)
+@@ -4303,7 +4256,7 @@
+ 			  || (rel->r_offset - 3 + 13) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + rel->r_offset - 3,
+-			      "\x66\x66\x66\x66\x64\x48\x8b\x04\x25\0\0\0",
++			      "\x66\x66\x66\x66\x65\x48\x8b\x04\x25\x78\x16\0",
+ 			      13);
+ 
+ 		    }
+@@ -4313,7 +4266,7 @@
+ 			  || (rel->r_offset - 3 + 12) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + rel->r_offset - 3,
+-			      "\x66\x66\x66\x64\x48\x8b\x04\x25\0\0\0", 12);
++			      "\x66\x66\x66\x65\x48\x8b\x04\x25\x78\x16\0", 12);
+ 		    }
+ 		}
+ 	      else
+@@ -4326,7 +4279,7 @@
+ 			  || (rel->r_offset - 3 + 13) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + rel->r_offset - 3,
+-			      "\x66\x0f\x1f\x40\x00\x64\x8b\x04\x25\0\0\0",
++			      "\x66\x0f\x1f\x40\x00\x65\x8b\x04\x25\x78\x16\0",
+ 			      13);
+ 		    }
+ 		  else
+@@ -4335,7 +4288,7 @@
+ 			  || (rel->r_offset - 3 + 12) > input_section->size)
+ 			goto corrupt_input;
+ 		      memcpy (contents + rel->r_offset - 3,
+-			      "\x0f\x1f\x40\x00\x64\x8b\x04\x25\0\0\0", 12);
++			      "\x0f\x1f\x40\x00\x65\x8b\x04\x25\x78\x16\0", 12);
+ 		    }
+ 		}
+ 	      /* Skip R_X86_64_PC32, R_X86_64_PLT32, R_X86_64_GOTPCRELX

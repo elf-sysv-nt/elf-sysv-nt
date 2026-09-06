@@ -187,30 +187,55 @@ claim 'an ifunc promotes the object to ELFOSABI_GNU' \
     grep -q 'OS/ABI: *UNIX - GNU' ihdr.txt
 
 # The fourth criterion, added after the first three were already met. ld
-# relaxes the psABI's TLS sequences in place and writes its own %fs-relative
+# relaxes the psABI's TLS sequences in place and writes its own thread-pointer
 # fetch, which none of the claims above would have caught; spike/ld-tls-relaxation/
-# measured it and the bfd patch under ../patches/ refuses the relocations that
-# license the rewrite.
+# measured it writing mov %fs:0x0,%rax. patches/0001 refused the relocations
+# that license the rewrite, for the carrier DR-0003 chose; patches/0002 makes
+# the rewrite emit the carrier DR-0101 chose, mov %gs:0x1678,%rax, which is
+# the same nine bytes and fits where the psABI left room.
 #
 # One object per model, not one object carrying three. A combined object
-# proves only that the first model met was refused, and a draft of that patch
-# passed exactly that way while local dynamic still linked and leaked.
-refused() {
+# proves only that the first model met was rewritten, and a draft of the
+# refusal patch passed exactly that way while local dynamic still leaked.
+tp='%gs:0x1678'
+relaxed() {
     model=$1
     run "$AS" --defsym "MODEL_$model=1" -o "tls$model.o" "$here/tls-models.s" ||
         { note "the assembler rejected model $model"; return 1; }
-    # Assembling has to keep working. gas is not the layer at fault here, and
-    # a target that could not express the sequences could not diagnose them.
-    "$LD" -o "tls$model.exe" "tls$model.o" -e _start > "tls$model.err" 2>&1
-    [ $? -ne 0 ] || return 1
-    grep -q 'thread pointer in the FS segment' "tls$model.err"
+    run "$LD" -o "tls$model.exe" "tls$model.o" -e _start ||
+        { note "the linker rejected model $model"; return 1; }
+    "$OBJDUMP" -d "tls$model.exe" > "tls$model.dis" 2>&1
+    # The fetch ld wrote is the carrier's, and nothing in the output is %fs.
+    grep -q "mov *$tp,%[er]ax" "tls$model.dis" && ! grep -q '%fs' "tls$model.dis"
 }
 
-claim 'general dynamic is refused'         refused GD
-claim 'local dynamic is refused'           refused LD
-claim 'initial exec is refused'            refused IE
+claim 'general dynamic relaxes to a %gs:0x1678 fetch'  relaxed GD
+claim 'local dynamic relaxes to a %gs:0x1678 fetch'    relaxed LD
 
-# And the other half: refusing everything would also pass the three above.
+# Initial exec carries the fetch in the input (the compiler writes it), and
+# ld's relaxation rewrites only the GOT load into an immediate, so the claim
+# is that the link succeeds and writes no %fs of its own.
+ie() {
+    run "$AS" --defsym MODEL_IE=1 -o tlsIE.o "$here/tls-models.s" || return 1
+    run "$LD" -o tlsIE.exe tlsIE.o -e _start || return 1
+    "$OBJDUMP" -d tlsIE.exe > tlsIE.dis 2>&1
+    # The GOT load is gone (no %rip-relative operand survives); ld writes
+    # the offset as an add of an immediate or, as 2.42 does, an lea.
+    grep -q "mov *$tp,%rax" tlsIE.dis && ! grep -q '(%rip)' tlsIE.dis &&
+        ! grep -q '%fs' tlsIE.dis
+}
+claim 'initial exec links, relaxed to an immediate, with no %fs' ie
+
+# A shared object keeps general dynamic as it is: no relaxation, a call to
+# __tls_get_addr, no fetch written at all. Relaxing everything would also pass
+# the claims above.
+shared_gd() {
+    run "$LD" -shared -o tlsGD.so tlsGD.o || return 1
+    "$OBJDUMP" -d tlsGD.so > tlsGD.so.dis 2>&1
+    grep -q '__tls_get_addr' tlsGD.so.dis && ! grep -q '%fs' tlsGD.so.dis
+}
+claim 'general dynamic in a shared object stays a __tls_get_addr call' shared_gd
+
 leaks() {
     run "$AS" --defsym MODEL_LE=1 -o tlsLE.o "$here/tls-models.s" || return 1
     run "$LD" -o tlsLE.exe tlsLE.o -e _start || return 1

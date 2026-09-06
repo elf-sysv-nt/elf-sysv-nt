@@ -5,12 +5,13 @@ There is almost no port. Every target pattern binutils matches on is written
 target with nothing added to `config.bfd`, `configure.tgt`, or the ELF backend.
 Configure, build, install, and 2.42 came up first time on 2026-08-29.
 
-One patch is needed, and it is a refusal rather than a port. `patches/` has it.
+Two patches, both to the one place `bfd` writes a thread-pointer fetch of its
+own. `patches/` has them.
 
     build-binutils -P <prefix>
     t/accept.sh -B <prefix>/bin
 
-Fourteen claims, all green, covering four criteria.
+Fifteen claims, all green, covering four criteria.
 
 ## What accept.sh checks
 
@@ -39,7 +40,7 @@ not match the vendor's. Passing `-soname libc.so.6` makes the linker write
 `libc.so.6` into the base node by itself, which discharges half of spike 4's
 condition on WP-53 at WP-12 prices.
 
-## The TLS refusal
+## The TLS relaxations
 
 `ld` writes `%fs`-relative thread pointer fetches of its own, out of `bfd`
 rather than out of anything the compiler produced. Handed the psABI's general
@@ -49,40 +50,59 @@ survive a context switch. `spike/ld-tls-relaxation/` has the measurement, and
 DR-0003's list of places the carrier appears has no linker in it, which is why
 this went unnoticed until the acceptance run was already green.
 
-So `patches/0001` refuses the relocations that license an instruction rewrite
-rather than rewriting them differently. The `%gs` chain needs three
-instructions where the psABI reserves sixteen bytes for two, so no in-place
-substitution exists even if one were wanted, and a link error is the right
-answer for an input this toolchain cannot honestly translate. `TPOFF32`,
-`TPOFF64`, `DTPMOD64` and `DTPOFF64` stay accepted: values rather than
-sequences, no instruction bytes written for them, and WP-13's codegen will
-want `TPOFF` for sequences of its own.
+`patches/0001` answered with a refusal. The carrier DR-0003 chose needed
+three instructions where the psABI reserves sixteen bytes for two, so no
+in-place substitution existed, and a link error was the honest answer for an
+input the toolchain could not translate. Where that check sat turned out to
+matter more than what it checked: a first version placed it after
+`elf_x86_64_tls_transition`, which rewrites the relocation type in place, and
+local dynamic arrived as a form on the accepted list and went on to emit the
+fetch. The test that caught it assembles one model per object.
 
-Where the check sits turned out to matter more than what it checks. A first
-version placed it after `elf_x86_64_tls_transition` and passed the general
-dynamic and initial exec tests, because both arrive there already rewritten
-into `GOTTPOFF`. Local dynamic arrives rewritten into a form on the accepted
-list, so it linked, and the output carried `mov %fs:0x0,%rax`. The test that
-caught it assembles one model per object; a single object carrying all three
-would have stopped at the first refusal and reported success.
+`patches/0002` replaces the refusal with the rewrite, because DR-0101 moved
+the carrier. `TlsSlots[63]` is one load, `mov %gs:0x1678,%rax`, and that
+instruction is the same nine bytes as `mov %fs:0x0,%rax`: a segment prefix,
+REX.W, the opcode, a SIB-absolute ModRM and a disp32. The room the psABI
+reserved for the local-exec form holds it, so every relaxation now writes the
+carrier's fetch where it wrote the psABI's, eleven byte strings in all, and
+nothing else about the rewrites changes. General dynamic and local dynamic in
+an executable relax to the `%gs` fetch; initial exec relaxes its GOT load to
+an immediate as before; general dynamic in a shared object is left alone, a
+call to `__tls_get_addr`. `t/accept.sh` reads each of those back out of the
+disassembly, and separately checks that no `%fs` survives in any of them.
+
+The refusal had also been wider than its reason. `GOTTPOFF`'s relaxation
+writes an immediate and no segment prefix, and the `%fs:(%rax)` the spike saw
+beside it was in the assembler's input, not the linker's output. Refusing it
+was what stopped every static link against a glibc `libc.a` (whose own TLS is
+initial exec) from linking at all. The fetch the compiler writes for that
+model is the compiler's to get right (`toolchain/gcc/patches/0002`), and an
+assembler-written `%fs` in a finished object is caught by
+`toolchain/glibc/check-no-syscall`, which disassembles the product.
+
+Tier 1 on the ladder: with the carrier one load, the refusal's only remaining
+argument was a size constraint that no longer held, and a linker that refuses
+the sequences glibc's own objects carry is not correct for this target.
+DR-0063's "linker half" paragraph and DR-0024's descriptor note describe the
+refusal and want amending; the toolchain README is not the place, and the
+amendment is reported rather than made here.
 
 ## Not verified
 
-That refusing these five is sufficient for the toolchain as a whole. The
-initial exec sequence carries `movq %fs:(%rax), %rax` written by the
-assembler, so a linker that rewrites nothing still passes that instruction
-through untouched. The compiler side needs work regardless, and that is
-WP-13's.
+That the eleven rewritten strings are all of them. They were found by
+searching the source for the two byte patterns of the `%fs:0` fetch, and a
+relaxation that spelled the fetch another way would have been missed;
+`check-no-syscall` over a linked glibc is the check that would catch it.
 
-That the refusal is right for a vendor object rather than merely honest. A `.o`
-from an el8 archive carries these relocations legitimately and will now fail to
-link, which is the intended diagnosis and not a repair.
-`doc/design/proposals/0003-vendor-binary-tls-rewriting.md` is where the repair
-lives.
+That a vendor `.o` from an el8 archive now links into something that runs. It
+carries these relocations legitimately and links, with the carrier's fetch
+written where the psABI's would have been; what the rest of its text does with
+`%fs` is the post-link check's to refuse.
 
 That 2.42 is the right release. It was chosen over el8's 2.30 for RELR and a
 decade of x86 fixes, and nothing has yet needed either.
 
-That the patch is right for anything but this target. It is unconditional in
-`elf64-x86-64.c` rather than gated on a target vector, which is fine for a
-cross binutils built for one triple and would not be acceptable upstream.
+That either patch is right for anything but this target. Both are
+unconditional in `elf64-x86-64.c` rather than gated on a target vector, which
+is fine for a cross binutils built for one triple and would not be acceptable
+upstream.

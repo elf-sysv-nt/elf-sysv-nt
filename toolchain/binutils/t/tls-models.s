@@ -1,8 +1,8 @@
 /* The three TLS access models a linker is allowed to rewrite, one per
    section so that accept.sh can assemble and link each on its own.  A single
    object carrying all three would prove only that the first one it met was
-   refused, which is the weaker claim and the one a first draft of the bfd
-   patch passed while local dynamic still leaked.
+   rewritten, which is the weaker claim and the one a first draft of the bfd
+   refusal patch passed while local dynamic still leaked.
 
    Byte-for-byte from the AMD64 psABI's TLS chapter, prefixes included.  The
    prefixes are not decoration: ld identifies a sequence by them and needs the
@@ -37,8 +37,13 @@ _start:
 .endif
 
 .ifdef MODEL_IE
-	movq		tlsvar@gottpoff(%rip), %rax
-	movq		%fs:(%rax), %rax
+	/* The form this target's compiler emits with -mno-tls-direct-seg-refs:
+	   the thread pointer fetched through the carrier, then the GOT word
+	   added.  The psABI's movq %fs:(%rax) form is the compiler's to
+	   avoid; ld rewrites only the GOT load, to an immediate, either
+	   way.  */
+	movq		%gs:0x1678, %rax
+	addq		tlsvar@gottpoff(%rip), %rax
 .endif
 
 .ifdef MODEL_LE
