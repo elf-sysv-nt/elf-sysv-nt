@@ -599,3 +599,16 @@ settled by DR-0101 (carrier C1, `TlsSlots[63]`, reserved through the PEB
 bitmap; spike 48 is the fact it rests on, and substrate N was re-certified
 9/9 against it). Open questions 2, 3, 5 and 6 are settled by DR-0102. Open
 question 4 is deferred until spike 37 runs on the version floor.
+
+Three of the cheap measurements the decisions asked for ran on 2026-09-06.
+Spike 49 confirms § 4's N-side premise: `ReadFile` into a reserved or
+half-decommitted buffer fails with `ERROR_NOACCESS` and the vectored handler
+never runs. Spike 50 measures § 9's timeouts: `RtlWaitOnAddress` returns a
+tick late at the default clock, under half a millisecond once the kernel
+sets the 0.5 ms resolution, and early in about one wait in eight, so the
+futex loop re-reads the clock before `ETIMEDOUT`. Spike 39's q9 extension
+finds that a POSIX rename replaces an open target and a POSIX delete of a
+mapped file succeeds, while truncating below a live view is refused and a
+directory cannot be renamed over an open child; the last two are recorded
+divergences for the VFS. The raw-syscall census (spike 51) is the fourth
+and reports when the run over every el8 package completes.

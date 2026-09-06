@@ -220,6 +220,15 @@ q6=$(val q6_posix_delete)
 q6g=$(val q6_name_gone)
 q6r=$(val q6_name_reusable)
 q6h=$(val q6_handle_usable)
+q9r=$(val q9_posix_rename_over_open)
+q9rw=$(val q9_win32_replace_over_open)
+q9rh=$(val q9_old_target_handle_usable)
+q9d=$(val q9_posix_delete_mapped)
+q9dv=$(val q9_view_still_reads)
+q9t=$(val q9_truncate_mapped)
+q9tu=$(val q9_truncate_after_unmap)
+q9dir=$(val q9_dir_rename_with_open_child)
+q9dirc=$(val q9_dir_rename_after_close)
 
 # The verdict, as a ladder from the load-bearing end of proposal 0011's
 # on-disk decision down. Each rung names the first thing the volume would not
@@ -249,6 +258,15 @@ elif [ "$q7_cygwin_agrees" != 1 ]; then
 else
 	finding=lxfs-complete
 fi
+
+# q9's words ride beside the ladder rather than on it: each is a divergence
+# the VFS records or a semantics it gets for free, and neither changes what
+# the on-disk format can do.
+w_ren=$([ "$q9r" = 1 ] && [ "$q9rh" = 1 ] && printf 'posix-rename-replaces-open-target' || printf 'rename-over-open-refused')
+w_del=$([ "$q9d" = 1 ] && [ "$q9dv" = 1 ] && printf 'posix-delete-of-mapped-file-works' || printf 'delete-of-mapped-file-refused')
+w_tr=$([ "$q9t" = 1 ] && printf 'truncate-of-mapped-file-works' || { [ "$q9tu" = 1 ] && printf 'truncate-of-mapped-file-refused-until-unmapped' || printf 'truncate-refused'; })
+w_dir=$([ "$q9dir" = 1 ] && printf 'directory-rename-over-open-child-works' || { [ "$q9dirc" = 1 ] && printf 'directory-rename-refused-while-child-open' || printf 'directory-rename-refused'; })
+finding="$finding,$w_ren,$w_del,$w_tr,$w_dir"
 
 yesno() { [ "$1" = 1 ] && printf '%s' "$2" || printf '%s' "$3"; }
 
@@ -293,6 +311,16 @@ winver=$(cmd /c ver 2>/dev/null | tr -d '\r' | sed -n 's/.*\[Version \(.*\)\]/\1
 	fi
 	printf '  q8  stat rate, context only: %s ns per NtQueryInformationByName, %s ns per Cygwin stat()\n\n' \
 		"$(val q8_byname_ns_per_stat)" "$(val q8_cygwin_ns_per_stat)"
+	printf '  q9  rename over an open target: Win32 replace %s, POSIX rename %s, the old handle still reads %s
+' \
+		"$(yesno "$q9rw" 'works' 'refused')" "$(yesno "$q9r" 'works' 'REFUSED')" "$(yesno "$q9rh" 'yes' 'NO')"
+	printf '      a file with a live section view: POSIX delete %s (the view still reads %s); truncate %s, after unmapping %s
+' \
+		"$(yesno "$q9d" 'works' 'REFUSED')" "$(yesno "$q9dv" 'yes' 'no')" "$(yesno "$q9t" 'works' 'refused')" "$(yesno "$q9tu" 'works' 'refused')"
+	printf '      a directory renamed with a child handle open: %s; after the child closes %s
+
+' \
+		"$(yesno "$q9dir" 'works' 'refused')" "$(yesno "$q9dirc" 'works' 'refused')"
 
 	printf 'raw\n\n'
 	sed -e 's/^/    /' "$work/probe.out"

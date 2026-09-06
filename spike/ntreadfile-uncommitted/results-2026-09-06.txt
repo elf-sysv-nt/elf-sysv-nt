@@ -1,0 +1,58 @@
+an I/O call against a user buffer the handler has not committed yet
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-06T14:27:17Z
+script      measure 1.0
+probe       readfile-probe 1.0
+
+reading, question by question
+
+  q1  a user-mode touch of the reserved buffer takes the handler: 1 hit
+  q2  ReadFile into reserved memory, synchronous handle: ok 0, error 998, handler hits 0
+  q3  the same on an overlapped handle: ok 0, error 998, handler hits 0
+  q4  ReadFile into committed PAGE_NOACCESS memory: ok 0, error 998
+  q5  WriteFile from reserved memory: ok 0, error 1784, handler hits 0
+  q6  the control, committed memory: sync ok 1, async ok 1
+  q7  a committed buffer with its middle decommitted: ok 0, error 998, handler hits 0
+
+raw
+
+    handler_installed=1
+    handles=1
+    buffers=1
+    q1_user_touch_handler_hits=1
+    q2_read_sync_reserved_ok=0
+    q2_read_sync_reserved_error=998
+    q2_read_sync_reserved_bytes=0
+    q2_read_sync_reserved_handler_hits=0
+    q3_read_async_reserved_ok=0
+    q3_read_async_reserved_error=998
+    q3_read_async_reserved_bytes=0
+    q3_read_async_reserved_handler_hits=0
+    q4_read_sync_noaccess_ok=0
+    q4_read_sync_noaccess_error=998
+    q4_read_sync_noaccess_bytes=0
+    q4_read_sync_noaccess_handler_hits=0
+    q5_write_sync_reserved_ok=0
+    q5_write_sync_reserved_error=1784
+    q5_write_sync_reserved_bytes=0
+    q5_write_sync_reserved_handler_hits=0
+    q6_read_sync_committed_ok=1
+    q6_read_sync_committed_error=0
+    q6_read_sync_committed_bytes=65536
+    q6_read_sync_committed_handler_hits=0
+    q6_read_async_committed_ok=1
+    q6_read_async_committed_error=0
+    q6_read_async_committed_bytes=65536
+    q6_read_async_committed_handler_hits=0
+    q7_read_sync_half_decommitted_ok=0
+    q7_read_sync_half_decommitted_error=998
+    q7_read_sync_half_decommitted_bytes=0
+    q7_read_sync_half_decommitted_handler_hits=0
+
+verdict
+
+    finding=io-probe-fails-uncommitted-buffer-handler-never-runs

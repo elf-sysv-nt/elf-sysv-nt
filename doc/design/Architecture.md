@@ -67,8 +67,9 @@ between user memory and a host object goes through `user_copy_in` or
 `user_copy_out` and a kernel buffer, in chunks; Phase 1's `write` is the
 pattern. Under N a user buffer in a lazily committed range fails inside the
 host call, since the I/O manager probes it in kernel mode where no vectored
-handler runs; under H a user address is a guest virtual address no host call
-can take. The rule holds for both substrates and is the reason the host glue
+handler runs (spike 49: `ERROR_NOACCESS` on read, `ERROR_INVALID_USER_BUFFER`
+on write, handler entered zero times); under H a user address is a guest
+virtual address no host call can take. The rule holds for both substrates and is the reason the host glue
 takes kernel pointers and lengths and never a user address.
 
 A **substrate** is the nine calls the core needs from whatever is underneath:
@@ -379,7 +380,11 @@ from ring 0, not ring 3.
 The process seam is an inventory restated from 0011's supervisor, not a
 built interface; phase 3 will find what it misses. The keyed-event protocol
 for process-shared futexes under N is a design; criterion 12 under contention
-is its measurement.
+is its measurement. Timed futex waits under N wake on the clock interrupt:
+a tick late at the 15.6 ms default, under half a millisecond at the 0.5 ms
+resolution the kernel sets at start, and sometimes early, so the wait loop
+re-reads the clock before reporting `ETIMEDOUT` (spike 50). The power cost
+of the raised resolution is not measured.
 
 Everything in "The loader" and "Process shape" above is designed and recorded,
 and none of it is built. The restart stub under "The gate" is a design too;

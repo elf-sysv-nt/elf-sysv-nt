@@ -1,0 +1,72 @@
+a timed futex wait against the NT clock
+
+host        ins-15
+windows     10.0.26200.9168
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
+date        2026-09-06T14:26:59Z
+script      measure 1.0
+probe       futex-probe 1.0
+
+reading, question by question
+
+  q1  the clock as found: current 156250 x 100 ns, finest offered 5000 x 100 ns
+  q2  RtlWaitOnAddress lateness at that resolution, medians: 100 us wait 15783000 ns late, 1 ms 14842800, 10 ms 5961900
+  q3  after NtSetTimerResolution (granted 5000 x 100 ns): 100 us wait 440500 ns late (p99 1180800), 1 ms 137800 (p99 993000), 10 ms 344300
+      waits that returned before their deadline: 33 (100 us: 0, 1 ms: 25, 10 ms: 8)
+  q4  NtDelayExecution at the raised resolution, medians: 100 us 428200 ns late, 1 ms 505600
+  q5  resolution after the request is released: 156250 x 100 ns
+
+raw
+
+    entrypoints=1
+    q1_resolution_max_100ns=156250
+    q1_resolution_min_100ns=5000
+    q1_resolution_current_100ns=156250
+    q2_default_100us_wanted_us=100
+    q2_default_100us_late_median_ns=15783000
+    q2_default_100us_late_p99_ns=16991600
+    q2_default_100us_late_max_ns=18303800
+    q2_default_100us_early=0
+    q2_default_1ms_wanted_us=1000
+    q2_default_1ms_late_median_ns=14842800
+    q2_default_1ms_late_p99_ns=15697800
+    q2_default_1ms_late_max_ns=15765200
+    q2_default_1ms_early=0
+    q2_default_10ms_wanted_us=10000
+    q2_default_10ms_late_median_ns=5961900
+    q2_default_10ms_late_p99_ns=14872600
+    q2_default_10ms_late_max_ns=14989000
+    q2_default_10ms_early=0
+    q3_set_status=0x00000000
+    q3_resolution_granted_100ns=5000
+    q3_raised_100us_wanted_us=100
+    q3_raised_100us_late_median_ns=440500
+    q3_raised_100us_late_p99_ns=1180800
+    q3_raised_100us_late_max_ns=1374200
+    q3_raised_100us_early=0
+    q3_raised_1ms_wanted_us=1000
+    q3_raised_1ms_late_median_ns=137800
+    q3_raised_1ms_late_p99_ns=993000
+    q3_raised_1ms_late_max_ns=1096600
+    q3_raised_1ms_early=25
+    q3_raised_10ms_wanted_us=10000
+    q3_raised_10ms_late_median_ns=344300
+    q3_raised_10ms_late_p99_ns=1249500
+    q3_raised_10ms_late_max_ns=4764300
+    q3_raised_10ms_early=8
+    q4_delay_raised_100us_wanted_us=100
+    q4_delay_raised_100us_late_median_ns=428200
+    q4_delay_raised_100us_late_p99_ns=1181800
+    q4_delay_raised_100us_late_max_ns=1250400
+    q4_delay_raised_100us_early=0
+    q4_delay_raised_1ms_wanted_us=1000
+    q4_delay_raised_1ms_late_median_ns=505600
+    q4_delay_raised_1ms_late_p99_ns=1067800
+    q4_delay_raised_1ms_late_max_ns=1147800
+    q4_delay_raised_1ms_early=0
+    q5_resolution_after_release_100ns=156250
+
+verdict
+
+    finding=default-tick-lands-100us-wait-a-tick-late,raised-tick-sub-millisecond,early-wakes-observed

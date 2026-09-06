@@ -168,3 +168,12 @@ redzone-sync-fault	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 # peb-tls-bitmap: the fact DR-0101 rests on, that a TlsSlots index can be
 # reserved from TlsAlloc through the PEB bitmap. Native, mingw, no input.
 peb-tls-bitmap	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+# Three of the operator's 2026-09-05 decisions, measured 2026-09-06.
+# ntreadfile-uncommitted and futex-timeout are native mingw probes with no
+# input. syscall-fs-census regenerates by re-running the detached census
+# over every el8 package (run-census.sh, hours, into a/census-work), and its
+# measure.sh renders the transcript from that; skipped here as the demand
+# census is.
+ntreadfile-uncommitted	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+futex-timeout	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+syscall-fs-census	SKIP	-	true

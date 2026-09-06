@@ -755,6 +755,169 @@ static void case_posix_delete(void)
 	CloseHandle(keep);
 }
 
+/* q9. Three NTFS behaviours that bit WSL1's DrvFs and that the VFS design has
+ * not met: a rename over a target somebody holds open, a POSIX delete and a
+ * truncate of a file with a live section view (git gc over a mapped pack,
+ * BerkeleyDB under rpm), and a directory rename while a handle is open
+ * beneath it. Each is asked with the call the VFS would use, and the Win32
+ * shape beside it where the two differ. */
+#define LXFS_FileRenameInformationEx 65
+#define FILE_RENAME_REPLACE_IF_EXISTS 0x1
+#define FILE_RENAME_POSIX_SEMANTICS   0x2
+
+typedef struct {
+	ULONG Flags;
+	HANDLE RootDirectory;
+	ULONG FileNameLength;
+	WCHAR FileName[1];
+} LXFS_FILE_RENAME_INFORMATION_EX;
+
+static NTSTATUS posix_rename(HANDLE h, const wchar_t *target_win32)
+{
+	wchar_t ntpath[4300];
+	IO_STATUS_BLOCK iosb;
+	LXFS_FILE_RENAME_INFORMATION_EX *ri;
+	size_t len, bytes;
+	NTSTATUS s;
+
+	wcscpy(ntpath, L"\\??\\");
+	wcscat(ntpath, target_win32);
+	len = wcslen(ntpath);
+	bytes = sizeof *ri + len * sizeof(wchar_t);
+	ri = calloc(1, bytes);
+	if (!ri)
+		return (NTSTATUS) 0xC0000017;
+	ri->Flags = FILE_RENAME_REPLACE_IF_EXISTS | FILE_RENAME_POSIX_SEMANTICS;
+	ri->RootDirectory = NULL;
+	ri->FileNameLength = (ULONG) (len * sizeof(wchar_t));
+	memcpy(ri->FileName, ntpath, len * sizeof(wchar_t));
+	memset(&iosb, 0, sizeof iosb);
+	s = nt.SetInformationFile(h, &iosb, ri, (ULONG) bytes, LXFS_FileRenameInformationEx);
+	free(ri);
+	return s;
+}
+
+static void case_mapped_and_rename(void)
+{
+	wchar_t src[4200], dst[4200], f[4200], d1[4200], d2[4200], child[4200];
+	HANDLE tgt, mover, mapped, view_h, sec, chandle;
+	void *view;
+	LXFS_FILE_DISPOSITION_INFORMATION_EX di;
+	IO_STATUS_BLOCK iosb;
+	NTSTATUS s;
+	DWORD attrs;
+
+	/* rename over an open target: Win32 replace first, then the POSIX class */
+	joinp(src, sizeof src / sizeof src[0], L"ren-src");
+	joinp(dst, sizeof dst / sizeof dst[0], L"ren-dst");
+	tgt = open_rw(dst, CREATE_ALWAYS);
+	mover = open_rw(src, CREATE_ALWAYS);
+	num("q9_rename_specimens", (tgt != INVALID_HANDLE_VALUE && mover != INVALID_HANDLE_VALUE) ? 1 : 0);
+	if (tgt != INVALID_HANDLE_VALUE && mover != INVALID_HANDLE_VALUE) {
+		CloseHandle(mover);
+		num("q9_win32_replace_over_open", MoveFileExW(src, dst, MOVEFILE_REPLACE_EXISTING) ? 1 : 0);
+		num("q9_win32_replace_error", MoveFileExW(src, dst, MOVEFILE_REPLACE_EXISTING) ? 0 : GetLastError());
+		mover = CreateFileW(src, DELETE | GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE |
+				    FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (mover != INVALID_HANDLE_VALUE) {
+			s = posix_rename(mover, dst);
+			st("q9_posix_rename_over_open_status", s);
+			num("q9_posix_rename_over_open", NT_SUCCESS(s) ? 1 : 0);
+			CloseHandle(mover);
+			attrs = GetFileAttributesW(src);
+			num("q9_posix_rename_source_gone", attrs == INVALID_FILE_ATTRIBUTES ? 1 : 0);
+			/* the old target's handle still reads its own file, as an
+			 * unlinked inode would on Linux */
+			{
+				char buf[8];
+				DWORD got = 0;
+				SetFilePointer(tgt, 0, NULL, FILE_BEGIN);
+				num("q9_old_target_handle_usable",
+				    ReadFile(tgt, buf, sizeof buf, &got, NULL) ? 1 : 0);
+			}
+		} else {
+			num("q9_posix_rename_over_open", 0);
+		}
+	}
+	if (tgt != INVALID_HANDLE_VALUE) CloseHandle(tgt);
+	DeleteFileW(dst);
+	DeleteFileW(src);
+
+	/* a file with a live section view: POSIX delete, then truncate */
+	joinp(f, sizeof f / sizeof f[0], L"mapped");
+	mapped = open_rw(f, CREATE_ALWAYS);
+	view = NULL;
+	sec = NULL;
+	if (mapped != INVALID_HANDLE_VALUE) {
+		DWORD wrote = 0;
+		char zero[8192];
+		memset(zero, 0x41, sizeof zero);
+		WriteFile(mapped, zero, sizeof zero, &wrote, NULL);
+		sec = CreateFileMappingW(mapped, NULL, PAGE_READWRITE, 0, 0, NULL);
+		view = sec ? MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, 0) : NULL;
+	}
+	num("q9_mapped_specimen", view ? 1 : 0);
+	if (view) {
+		/* delete while mapped: a second handle for DELETE, POSIX semantics */
+		view_h = CreateFileW(f, DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+				     NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (view_h != INVALID_HANDLE_VALUE) {
+			di.Flags = FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS;
+			memset(&iosb, 0, sizeof iosb);
+			s = nt.SetInformationFile(view_h, &iosb, &di, sizeof di, LXFS_FileDispositionInformationEx);
+			st("q9_posix_delete_mapped_status", s);
+			num("q9_posix_delete_mapped", NT_SUCCESS(s) ? 1 : 0);
+			CloseHandle(view_h);
+			attrs = GetFileAttributesW(f);
+			num("q9_mapped_name_gone", attrs == INVALID_FILE_ATTRIBUTES ? 1 : 0);
+			num("q9_view_still_reads", *(volatile char *) view == 0x41 ? 1 : 0);
+		} else {
+			num("q9_posix_delete_mapped", 0);
+		}
+		/* truncate while mapped: SetEndOfFile below the view */
+		{
+			LARGE_INTEGER z;
+			z.QuadPart = 4096;
+			num("q9_truncate_mapped",
+			    (SetFilePointerEx(mapped, z, NULL, FILE_BEGIN) && SetEndOfFile(mapped)) ? 1 : 0);
+			num("q9_truncate_mapped_error", GetLastError());
+		}
+		UnmapViewOfFile(view);
+		CloseHandle(sec);
+		/* and after the view is gone: does the truncate go through now */
+		{
+			LARGE_INTEGER z;
+			z.QuadPart = 4096;
+			num("q9_truncate_after_unmap",
+			    (SetFilePointerEx(mapped, z, NULL, FILE_BEGIN) && SetEndOfFile(mapped)) ? 1 : 0);
+		}
+	}
+	if (mapped != INVALID_HANDLE_VALUE) CloseHandle(mapped);
+	DeleteFileW(f);
+
+	/* a directory renamed while a handle is open beneath it */
+	joinp(d1, sizeof d1 / sizeof d1[0], L"dir-before");
+	joinp(d2, sizeof d2 / sizeof d2[0], L"dir-after");
+	joinp(child, sizeof child / sizeof child[0], L"dir-before\\child");
+	RemoveDirectoryW(d2);
+	num("q9_dir_specimen", CreateDirectoryW(d1, NULL) ? 1 : 0);
+	chandle = open_rw(child, CREATE_ALWAYS);
+	if (chandle != INVALID_HANDLE_VALUE) {
+		num("q9_dir_rename_with_open_child", MoveFileExW(d1, d2, 0) ? 1 : 0);
+		num("q9_dir_rename_error", GetLastError());
+		CloseHandle(chandle);
+		num("q9_dir_rename_after_close", MoveFileExW(d1, d2, 0) ? 1 : 0);
+		DeleteFileW(child);
+		{
+			wchar_t child2[4200];
+			joinp(child2, sizeof child2 / sizeof child2[0], L"dir-after\\child");
+			DeleteFileW(child2);
+		}
+	}
+	RemoveDirectoryW(d1);
+	RemoveDirectoryW(d2);
+}
+
 /* The tree q7 reads back from WSL and from Cygwin. Nothing here is checked by
  * the probe; the harness compares what the two readers say against these
  * constants, which are also printed so the transcript carries the intent
@@ -995,6 +1158,7 @@ int main(int argc, char **argv)
 	case_symlink();
 	case_case_sensitive();
 	case_posix_delete();
+	case_mapped_and_rename();
 	build_interop_tree();
 	case_stat_rate();
 	return 0;

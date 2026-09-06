@@ -152,3 +152,27 @@ whose contribution nobody separated out.
 Whether the case-sensitivity flag can be set by someone other than the file's
 creator. It was set here by the account that made the directory, which is the
 easy case, and the installer § 8 describes may not be running as that account.
+
+## q9, added 2026-09-06: what the VFS meets beyond delete
+
+Three NTFS behaviours that bit WSL1's DrvFs, asked with the calls the VFS
+would use (`results-2026-09-06.txt`):
+
+- A rename over a target somebody holds open: the Win32 replace is refused
+  (`ERROR_ACCESS_DENIED`), and `FileRenameInformationEx` with
+  `FILE_RENAME_POSIX_SEMANTICS | FILE_RENAME_REPLACE_IF_EXISTS` succeeds,
+  the source name gone and the old target's handle still reading its own
+  file. That is Linux's `rename(2)`, and the VFS uses the POSIX class.
+- A file with a live section view: a POSIX delete succeeds, the name leaves
+  the directory, and the view still reads; `git gc` over a mapped pack and
+  BerkeleyDB's `__db.*` under `rpm` are served. A truncate below the view is
+  refused with `ERROR_USER_MAPPED_FILE` and succeeds once the view is
+  unmapped. Linux allows the truncate and delivers `SIGBUS` on a later touch;
+  here `ftruncate` of a mapped file returns an error, a recorded divergence
+  the VFS names (`EBUSY` is the closest errno; Linux has no case for it).
+- A directory renamed while a handle is open beneath it: refused
+  (`ERROR_ACCESS_DENIED`), and succeeds once the child closes. Linux allows
+  it. A recorded divergence Cygwin shares; the VFS's own directory-handle
+  cache must drop handles on rename so it is not the one holding the door.
+
+The finding line carries the four words beside the on-disk ladder.
