@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Refuse any object that still reaches the kernel or the thread pointer the
+Linux way.
+
+Substrate N cannot trap the `syscall` instruction and does not preserve a
+user-written FS base (spike 1), so an image it loads must carry neither: every
+kernel entry is a call through the gate, and every thread-pointer access goes
+through %gs (DR-0063, DR-0101).  Neither violation is caught at run time.  A
+stray `syscall` is an undefined-instruction fault, and a stray `%fs:` read
+returns zero, silently, some time after the thread was descheduled.  So the
+check is made on the finished object, by disassembly, before anything runs it.
+
+Usage:
+  check-no-syscall [options] PATH...
+  check-no-syscall -h | --help
+  check-no-syscall -V | --version
+
+Every PATH is a file or a directory walked recursively.  Files that are ELF
+objects (relocatable, shared, executable) or ar archives of them are
+disassembled; everything else is skipped.  A line is printed on stdout for
+each object that carries a refused instruction, with the first few offenders
+indented beneath it.
+
+Options:
+  -O TOOL, --objdump=TOOL  The disassembler.
+                           [default: $ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu-objdump]
+  -j N, --jobs=N           Objects disassembled in parallel. [default: nproc]
+  -n N, --samples=N        Offending instructions shown per object. [default: 3]
+  -q, --quiet              Errors and violations only.
+  -v, --verbose            Name every object as it is checked.
+  -V, --version            Print the version and exit.
+  -h, --help               Print this message and exit.
+
+Every option also reads from CHECK_NO_SYSCALL_<OPTION>, and the option wins.
+
+Exit: 0 every object is clean, 1 at least one is not, 2 usage error,
+      77 the disassembler is absent so nothing was checked.
+"""
+import argparse
+import os
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+PROG = "check-no-syscall"
+VERSION = "check-no-syscall 1.0"
+
+ELF_MAGIC = b"\x7fELF"
+AR_MAGIC = b"!<arch>\n"
+
+# What is refused, on the mnemonic and operand text objdump prints in AT&T
+# syntax.  `syscall` is the whole point; `sysenter` and `int $0x80` are the
+# other two ways into a Linux kernel and are just as dead here.  `%fs`
+# matches a segment override (`%fs:0x28`), a segment-register move
+# (`mov %ax,%fs`) and a push or pop of it.  The fsbase instructions name no
+# register the text would otherwise carry.
+REFUSED = re.compile(r"^(syscall|sysenter)\b|^int\s+\$0x80\b|%fs\b|\b(rd|wr)fsbase\b")
+
+
+def default_objdump():
+    prefix = os.environ.get("ELFSYSVNT_PREFIX", "/c/-/x-elfsysvnt")
+    return os.path.join(prefix, "bin", "x86_64-elfsysvnt-linux-gnu-objdump")
+
+
+def is_object(path):
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(8)
+    except OSError:
+        return False
+    return head[:4] == ELF_MAGIC or head == AR_MAGIC
+
+
+def collect(paths):
+    """Every object under the given paths, in a stable order."""
+    found = []
+    for p in paths:
+        if os.path.isdir(p):
+            for root, dirs, files in os.walk(p):
+                dirs.sort()
+                for f in sorted(files):
+                    full = os.path.join(root, f)
+                    if not os.path.islink(full) and is_object(full):
+                        found.append(full)
+        elif is_object(p):
+            found.append(p)
+    return found
+
+
+def scan(objdump, path):
+    """(count, samples) of refused instructions in one file, archives included.
+
+    A sample is `member addr insn` inside an archive and `addr insn`
+    otherwise.  A disassembler failure counts as one violation, so a file the
+    tool cannot read is reported rather than passed over.
+    """
+    try:
+        r = subprocess.run([objdump, "-d", "--no-show-raw-insn", path],
+                           capture_output=True, text=True, errors="replace")
+    except OSError as e:
+        return 1, ["objdump: %s" % e]
+    if r.returncode != 0:
+        tail = r.stderr.strip().splitlines()
+        return 1, ["objdump exit %d: %s" % (r.returncode, tail[-1] if tail else "")]
+    count = 0
+    samples = []
+    member = ""
+    for line in r.stdout.splitlines():
+        if line.endswith(":     file format elf64-x86-64"):
+            member = line.split(":", 1)[0]
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        insn = parts[1].strip()
+        if not insn or not REFUSED.search(insn):
+            continue
+        count += 1
+        if len(samples) < 8:
+            where = parts[0].strip()
+            if member and member != path:
+                samples.append("%s %s %s" % (member, where, insn))
+            else:
+                samples.append("%s %s" % (where, insn))
+    return count, samples
+
+
+def main(argv):
+    env = lambda k, d: os.environ.get("CHECK_NO_SYSCALL_" + k, d)
+    truthy = lambda v: v not in ("", "0", "no", "false")
+    ap = argparse.ArgumentParser(prog=PROG, add_help=False, usage=argparse.SUPPRESS)
+    ap.add_argument("paths", nargs="*")
+    ap.add_argument("-O", "--objdump", default=env("OBJDUMP", default_objdump()))
+    ap.add_argument("-j", "--jobs", type=int, default=int(env("JOBS", os.cpu_count() or 4)))
+    ap.add_argument("-n", "--samples", type=int, default=int(env("SAMPLES", "3")))
+    ap.add_argument("-q", "--quiet", action="store_true", default=truthy(env("QUIET", "")))
+    ap.add_argument("--no-quiet", dest="quiet", action="store_false")
+    ap.add_argument("-v", "--verbose", action="store_true", default=truthy(env("VERBOSE", "")))
+    ap.add_argument("--no-verbose", dest="verbose", action="store_false")
+    ap.add_argument("-V", "--version", action="store_true")
+    ap.add_argument("-h", "--help", action="store_true")
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit:
+        return 2
+    if a.help:
+        sys.stdout.write(__doc__)
+        return 0
+    if a.version:
+        print(VERSION)
+        return 0
+    if not a.paths:
+        sys.stderr.write("%s: at least one PATH is required\n" % PROG)
+        sys.stderr.write(__doc__)
+        return 2
+
+    def note(msg):
+        if not a.quiet:
+            sys.stderr.write("%s: %s\n" % (PROG, msg))
+
+    tool = a.objdump
+    if not (os.path.isfile(tool) or os.path.isfile(tool + ".exe")):
+        sys.stderr.write("%s: no disassembler at %s; nothing checked\n" % (PROG, tool))
+        return 77
+
+    objects = collect(a.paths)
+    if not objects:
+        note("no ELF objects under %s" % " ".join(a.paths))
+        return 0
+
+    bad = 0
+    with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
+        for path, (count, samples) in zip(objects, ex.map(lambda p: scan(tool, p), objects)):
+            if count == 0:
+                if a.verbose:
+                    note("clean: %s" % path)
+                continue
+            bad += 1
+            print("%s: %d refused" % (path, count))
+            for s in samples[:a.samples]:
+                print("    " + s)
+    note("%d objects checked, %d refused" % (len(objects), bad))
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
