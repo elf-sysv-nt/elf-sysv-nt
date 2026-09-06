@@ -124,4 +124,18 @@ run install-libgcc     install-target-libgcc
 run libstdc++          all-target-libstdc++-v3
 run install-libstdc++  install-target-libstdc++-v3
 
+# DR-0061 again. `install-gcc` rewrites $prefix/lib/gcc/$target/$version and
+# does not put the link spec back, so a stage-two build over a stage-one
+# install silently drops the granule-separable default: gcc then links at the
+# 4 KB default, three PT_LOADs land inside one 64 KB granule, and the loader
+# refuses the image (which is how this was found -- criterion 1 went red with
+# nothing in the kernel changed). Reinstall it here for the same reason
+# ../build-gcc installs it there, and keep the two in step.
+version=$("$prefix/bin/$target-gcc" -dumpversion 2>/dev/null) ||
+    die "cannot ask the installed gcc its version"
+specsdir=$prefix/lib/gcc/$target/$version
+[ -d "$specsdir" ] || die "no gcc install dir at $specsdir for the link spec"
+install -m 644 "$here/../default.specs" "$specsdir/specs" ||
+    die "cannot install default.specs into $specsdir"
+
 echo "stage2: done"

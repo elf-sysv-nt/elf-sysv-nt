@@ -103,6 +103,16 @@ claim 'the C++ driver names the triple' grep -qx "$target" machine.txt
 "$CXX" -v 2> version.txt
 claim 'the thread model is posix' grep -q '^Thread model: posix$' version.txt
 
+# DR-0061 survives the stage-two install. `install-gcc` rewrites the directory
+# the link spec lives in, so a stage two built over a stage one drops the
+# granule-separable default unless build-gcc2 puts it back; t/granule-default.sh
+# asks the same question of stage one. It is checked here rather than left to
+# that script because the failure is invisible until an image with three
+# PT_LOADs inside one granule reaches the loader, which is a whole layer away.
+"$CXX" -### -o probe-granule -x c++ - < /dev/null > granule-link.txt 2>&1 || true
+claim 'the stage-two driver still carries the max-page-size link default' \
+    grep -q 'max-page-size=0x10000' granule-link.txt
+
 # The first done-when claim, measured as far as it runs today: the stage-2
 # compiler compiled its own runtime from its own source tree, and the
 # installed libstdc++ names the compiler that built it.
