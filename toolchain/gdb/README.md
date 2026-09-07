@@ -1,6 +1,7 @@
 # gdb for the triple
 
-WP-60. A debugger configured for `x86_64-elfsysvnt-linux-gnu`, consuming the
+WP-60. A debugger configured for `x86_64-elfsysvnt-linux-gnu`
+(`doc/design/target-definition.md`'s triple), consuming the
 `r_debug` rendezvous WP-39 laid down, through the same `solib-svr4` code every
 SVr4 system feeds.
 

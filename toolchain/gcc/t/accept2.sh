@@ -28,6 +28,8 @@
 #   -P DIR, --prefix=DIR  Where the toolchain is installed.
 #                         [default: $HOME/x-elfsysvnt]
 #   -T TRIPLE, --target=TRIPLE
+#                         The triple is doc/design/target-definition.md's;
+#                         change it there rather than here.
 #                         [default: x86_64-elfsysvnt-linux-gnu]
 #   -w DIR, --work=DIR    Scratch, cleared on entry. [default: $TMPDIR/wp15]
 #   -k, --keep            Leave the scratch behind.

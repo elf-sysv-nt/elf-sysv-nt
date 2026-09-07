@@ -20,6 +20,9 @@
  *   interp=<path or ->
  *   needed=<comma-separated sonames, or ->
  *
+ * The loader SONAME below is doc/design/target-definition.md's; it is el8's
+ * and there was never a choice to make about it.
+ *
  * bzip2's shape -- an ET_EXEC that names /lib64/ld-linux-x86-64.so.2 in a
  * PT_INTERP and lists libc.so.6 in its DT_NEEDED -- reads kind=dynamic, which
  * is exactly the image the dynamic crossing driver is written to run. A static

@@ -13,7 +13,8 @@ the way the spec file's `%prep` does, applies `patches/`, configures a cross
 build against the kernel headers already in the sysroot, builds, stages the
 install, runs `check-no-syscall` over every staged object, and only then
 copies the result into the sysroot at
-`$ELFSYSVNT_PREFIX/x86_64-elfsysvnt-linux-gnu/sys-root`. `t/accept.sh` is
+`$ELFSYSVNT_PREFIX/x86_64-elfsysvnt-linux-gnu/sys-root`, the sysroot spelling
+`doc/design/target-definition.md` fixes. `t/accept.sh` is
 the bar. `check-no-syscall` is the post-link check 0011 § 16 asks for, and
 it is what the rpm macros will run over every package.
 

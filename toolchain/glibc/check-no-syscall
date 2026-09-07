@@ -23,6 +23,7 @@ indented beneath it.
 
 Options:
   -O TOOL, --objdump=TOOL  The disassembler.
+                           The tool prefix is doc/design/target-definition.md's.
                            [default: $ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu-objdump]
   -j N, --jobs=N           Objects disassembled in parallel. [default: nproc]
   -n N, --samples=N        Offending instructions shown per object. [default: 3]

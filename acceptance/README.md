@@ -67,7 +67,8 @@ bzip2 is the first pin: pure C, no external library dependency, a hand-written
 Makefile, its own `make test`, and a libc surface of forty symbols in the
 earliest-demand slices. It is the cleanest leaf — a failure points at the
 runtime, not at the package. It cross-builds to a proper el8 ELF — `EXEC`,
-System V OS/ABI, `NEEDED libc.so.6`, `INTERP /lib64/ld-linux-x86-64.so.2`.
+System V OS/ABI, `NEEDED libc.so.6`, `INTERP /lib64/ld-linux-x86-64.so.2`
+(the loader SONAME is `doc/design/target-definition.md`'s).
 
 On 2026-08-31 its verdict was `needs-wiring`. Of its forty libc symbols,
 thirty-four forwarded, five wanted shims (`__errno_location`, `__lxstat64`,

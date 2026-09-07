@@ -106,10 +106,16 @@ ld-linux-x86-64.so.2
 
 cd "$root" || die "cannot enter $root"
 
+# A transcript is exempt for the reason bin/check-roots gives about the same
+# class of file: it is evidence of a run that happened, at real paths against a
+# real target, and editing one to add a citation falsifies it. The rule is the
+# same either way -- attribution belongs on what gets built or run, not on the
+# record of what a run saw.
 skip() {
     case $1 in
         ./doc/*|./spike/*|./.git/*|./bin/check-target-definition) return 0 ;;
         ./AGENTS.md|./CLAUDE.md|./README.md) return 0 ;;
+        *results-*.txt|*trace-*.txt) return 0 ;;
     esac
     for pat in $extra; do
         case $1 in *$pat*) return 0 ;; esac

@@ -37,6 +37,7 @@ say()  { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
 fail() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
 
 export PATH="$HOME/x-elfsysvnt/bin:$PATH"
+# The tool prefix is doc/design/target-definition.md's.
 xg=x86_64-elfsysvnt-linux-gnu-gcc
 xre=x86_64-elfsysvnt-linux-gnu-readelf
 command -v "$xg" >/dev/null 2>&1 || fail "cross gcc $xg not on PATH (add $ELFSYSVNT_PREFIX/bin)"

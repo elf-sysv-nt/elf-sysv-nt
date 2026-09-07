@@ -14,6 +14,7 @@ what a reader comparing a program against the kernel's table wants.
 
 Options:
   -O TOOL, --objdump=TOOL  The disassembler.
+                           The tool prefix is doc/design/target-definition.md's.
                            [default: $ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu-objdump]
   -u FILE, --unistd=FILE   The header the names come from.
                            [default: the sysroot's asm/unistd_64.h]

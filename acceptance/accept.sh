@@ -66,6 +66,9 @@ mirror=${ACCEPT_MIRROR:-https://dl.rockylinux.org/pub/rocky/8.10}
 out=-
 terse=0
 run_stage=1
+# The tool prefix is doc/design/target-definition.md's, spelled out in full
+# rather than shortened, because a second spelling for one target is how a
+# build ends up half cross-compiled.
 cross=x86_64-elfsysvnt-linux-gnu-gcc
 host=${CC:-gcc}
 classification=$root/veneer/classification/classification.tsv

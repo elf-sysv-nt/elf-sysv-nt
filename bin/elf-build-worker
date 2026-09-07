@@ -144,6 +144,7 @@ if [ "$check" = 1 ]; then
 	if c=$(claude_bin); then ok "claude: $c ($("$c" --version 2>/dev/null | head -1))"; else bad "claude binary (set ELF_WORKER_CLAUDE)"; fi
 	[ -x "$CLAUDE_CODE_GIT_BASH_PATH" ] && ok "bash: $CLAUDE_CODE_GIT_BASH_PATH" || bad "bash at $CLAUDE_CODE_GIT_BASH_PATH"
 	[ -f "$skill" ] && ok "prompt: $skill" || bad "prompt: $skill"
+	# The tool prefix is doc/design/target-definition.md's.
 	command -v x86_64-elfsysvnt-linux-gnu-gcc >/dev/null 2>&1 && ok "cross toolchain on PATH" || bad "cross toolchain ($ELFSYSVNT_PREFIX/bin)"
 	for s in verify-first reproducible-spike leaf-to-trunk-tdd human-writing; do
 		found=

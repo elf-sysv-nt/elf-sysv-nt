@@ -23,7 +23,10 @@
 # Options:
 #   -P DIR, --prefix=DIR  The toolchain prefix. [default: $HOME/x-elfsysvnt]
 #   -T TRIPLE, --target=TRIPLE
-#                         Tool prefix. [default: x86_64-elfsysvnt-linux-gnu]
+#                         Tool prefix; the triple is
+#                         doc/design/target-definition.md's, changed there
+#                         rather than here.
+#                         [default: x86_64-elfsysvnt-linux-gnu]
 #   -w DIR, --work=DIR    Scratch. Cleared on entry. [default: $TMPDIR/wp60]
 #   -k, --keep            Leave the scratch behind for inspection.
 #   -q, --quiet           Errors only.
