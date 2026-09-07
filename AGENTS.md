@@ -164,8 +164,10 @@ Working notes (session handoffs, reviews of one commit, anything true only of
 this checkout) live under `a/`, untracked, are authoritative for nobody else,
 and are never cited from a tracked file, since a reader who clones this cannot
 open them; `bin/check-worknote-refs` enforces that. A working note worth
-keeping lands in `doc/history/`, made to stand alone. Session worktrees live
-under `a/wt/`.
+keeping lands in `doc/history/`, made to stand alone. Session worktrees are
+not notes and do not live in `a/`; `bin/session-start` puts them beside the
+repository, under `../.worktrees/elf-sysv-nt/`, and `bin/roots.sh` names
+the shared checkout as `ELFSYSVNT_MAIN` for any script that needs it.
 
 `spike/<question>/` is tracked and holds the evidence behind a decision: the
 script that measured it, its sources, and the transcript the script produced,
@@ -173,7 +175,7 @@ named by the date it was run. A spike reproduces its findings, not its
 measurements: verdicts and case words come back identical, numbers move.
 `test/spike-regen.tsv` registers every spike and `test/t3-regen.sh` reruns
 them; a spike whose script no longer regenerates its transcript is a defect
-the way a failing test is. `doc/milestones.md` records all 47 with their
+the way a failing test is. `doc/milestones.md` records all 54 with their
 verdicts.
 
 `doc/design/decisions/` holds one settlement per file with an index beside

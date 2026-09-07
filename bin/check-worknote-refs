@@ -45,7 +45,7 @@ import subprocess
 import sys
 
 # The annex subtrees that hold documents rather than machinery. A path under
-# one of these is prose; a path under a/wt, a/build or a/.lock-ish names is not.
+# one of these is prose; a path under a/build or an a/.lock-ish name is not.
 NOTE_DIRS = ("issue", "proposal", "handoff", "census-work")
 NOTE_FILES = ("build-blockers.log", "worker-runs.log", "worker-live.log",
               "worker-cron.log", "worker-skill-staging.md")

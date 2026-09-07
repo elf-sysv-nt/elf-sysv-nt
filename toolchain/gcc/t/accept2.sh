@@ -103,6 +103,16 @@ claim 'the C++ driver names the triple' grep -qx "$target" machine.txt
 "$CXX" -v 2> version.txt
 claim 'the thread model is posix' grep -q '^Thread model: posix$' version.txt
 
+# DR-0061 survives the stage-two install. `install-gcc` rewrites the directory
+# the link spec lives in, so a stage two built over a stage one drops the
+# granule-separable default unless build-gcc2 puts it back; t/granule-default.sh
+# asks the same question of stage one. It is checked here rather than left to
+# that script because the failure is invisible until an image with three
+# PT_LOADs inside one granule reaches the loader, which is a whole layer away.
+"$CXX" -### -o probe-granule -x c++ - < /dev/null > granule-link.txt 2>&1 || true
+claim 'the stage-two driver still carries the max-page-size link default' \
+    grep -q 'max-page-size=0x10000' granule-link.txt
+
 # The first done-when claim, measured as far as it runs today: the stage-2
 # compiler compiled its own runtime from its own source tree, and the
 # installed libstdc++ names the compiler that built it.
@@ -110,6 +120,15 @@ libstdcxx=$("$CXX" -print-file-name=libstdc++.so.6)
 libgccs=$("$CXX" -print-file-name=libgcc_s.so.1)
 claim 'shared libstdc++ is installed' test -f "$libstdcxx"
 claim 'shared libgcc is installed' test -f "$libgccs"
+
+# Installed where the compiler finds it is half the claim. libgcc_s.so.1 is a
+# target runtime: libstdc++ records it as NEEDED, so the sysroot -- which is
+# the target's root file system -- has to carry it, or the program links here
+# and has nothing to load there. install-target-libgcc puts it under
+# $prefix/$target/lib64, which is the compiler's own directory and not the
+# target's, and nothing carried it across.
+claim 'and the sysroot carries the libgcc runtime' \
+    test -f "$sysroot/usr/lib64/libgcc_s.so.1"
 "$READELF" -p .comment "$libstdcxx" > cxx-comment.txt 2>&1
 claim 'and libstdc++ records our compiler as its builder' \
     grep -q 'GCC: (GNU) 13\.3\.0' cxx-comment.txt

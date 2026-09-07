@@ -149,13 +149,38 @@ def run(worklist, root, jobs, filt):
 
 
 def confirm(objdump, path):
-    """The exact count of syscall instructions objdump finds in a file."""
+    """The exact count of syscall instructions objdump finds in a file.
+
+    Counted as objdump writes, a line at a time. Holding the disassembly in a
+    string and splitting it costs twice the text, and the text of a large Go
+    binary runs to gigabytes -- the run of 2026-09-06 was killed here, with
+    3737 packages already scanned and nothing to show for them.
+    """
+    n = 0
+    deadline = time.time() + 600
     try:
-        out = subprocess.run([objdump, "-d", "--no-show-raw-insn", path],
-                             capture_output=True, text=True, errors="replace", timeout=600).stdout
+        p = subprocess.Popen([objdump, "-d", "--no-show-raw-insn", path],
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             text=True, errors="replace", bufsize=1 << 20)
     except Exception:
         return -1
-    return sum(1 for l in out.split("\n") if l.rstrip().endswith("\tsyscall") or l.rstrip().endswith(" syscall"))
+    try:
+        seen = 0
+        for l in p.stdout:
+            l = l.rstrip()
+            if l.endswith("\tsyscall") or l.endswith(" syscall"):
+                n += 1
+            seen += 1
+            if not seen & 0xfffff and time.time() > deadline:
+                raise TimeoutError(path)
+    except Exception:
+        p.kill()
+        p.stdout.close()
+        p.wait()
+        return -1
+    p.stdout.close()
+    p.wait()
+    return n
 
 
 def report(root, objdump):

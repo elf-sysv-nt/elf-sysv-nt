@@ -253,17 +253,25 @@ static struct tent *thread_alloc(int tid)
  * FS base does not survive a deschedule (spike 1) -- so it is a word reached
  * through %gs.  DR-0101 fixed which word: TlsSlots[63] in the TEB, carrier C1
  * of spike 6, one load at a fixed offset, which is the shape 0011 § 6 wrote
- * the ABI in (%gs:TP the TCB, +8 the canary, +16 the pointer guard).  The read
- * is that one load and nothing else; nothing here consults a side table keyed
- * by thread id, which is the whole point of the carrier over the mock.
+ * the ABI in -- three single-load words, the TCB, the stack-protector canary
+ * and the pointer guard.  They run downwards from the thread pointer, because
+ * TlsSlots[63] is the array's last element and TP+8 is the first byte past it
+ * (DR-0106, spike peb-tls-bitmap q7): the canary is TlsSlots[62] at 0x1670 and
+ * the pointer guard TlsSlots[61] at 0x1668.  The read is that one load and
+ * nothing else; nothing here consults a side table keyed by thread id, which
+ * is the whole point of the carrier over the mock.
  *
- * The slot is kept from TlsAlloc by setting its bit in the PEB's TlsBitmap at
- * substrate_create (spike peb-tls-bitmap: seventy allocations after the set
- * never return 63, a DLL loaded afterwards neither).  A slot already taken
- * when the substrate starts is refused, not shared: that is a DLL injected
- * before us, and a carrier it may write is not a carrier.
+ * All three slots are kept from TlsAlloc by setting their bits in the PEB's
+ * TlsBitmap at substrate_create (spike peb-tls-bitmap: seventy allocations
+ * after the set return none of them, a DLL loaded afterwards neither).  A slot
+ * already taken when the substrate starts is refused, not shared: that is a
+ * DLL injected before us, and a carrier it may write is not a carrier.  Only
+ * the thread pointer is the substrate's to write; the other two are glibc's,
+ * and the substrate reserves them so that nothing else can take them.
  */
 #define TLS_SLOT      63
+#define TLS_SLOT_LOW  61			/* the guard, the canary, the TCB */
+#define TLS_SLOT_N    3
 #define TEB_TLSSLOTS  0x1480
 #define CARRIER_TEB_OFF (TEB_TLSSLOTS + 8 * TLS_SLOT)	/* 0x1678 */
 #define TEB_PEB       0x60
@@ -273,10 +281,11 @@ typedef struct { ULONG SizeOfBitMap; PULONG Buffer; } NT_RTL_BITMAP;
 typedef VOID (NTAPI *fn_RtlSetBit)(NT_RTL_BITMAP *, ULONG);
 typedef BOOLEAN (NTAPI *fn_RtlAreBitsSet)(NT_RTL_BITMAP *, ULONG, ULONG);
 
-/* Reserve the slot in the PEB bitmap.  Returns 0 when it is ours, -1 when
- * somebody allocated it first. */
+/* Reserve the three slots in the PEB bitmap.  Returns 0 when they are ours,
+ * -1 when somebody allocated any of them first. */
 static int carrier_reserve(void)
 {
+	int i;
 	HMODULE nt = GetModuleHandleW(L"ntdll.dll");
 	fn_RtlSetBit set = nt ? (fn_RtlSetBit)(void *)GetProcAddress(nt, "RtlSetBit") : NULL;
 	fn_RtlAreBitsSet are = nt ? (fn_RtlAreBitsSet)(void *)GetProcAddress(nt, "RtlAreBitsSet") : NULL;
@@ -288,9 +297,11 @@ static int carrier_reserve(void)
 	__asm__ __volatile__("movq %%gs:0x30, %0" : "=r"(teb));
 	peb = *(uint8_t **)(teb + TEB_PEB);
 	bm = *(NT_RTL_BITMAP **)(peb + PEB_TLSBITMAP);
-	if (are(bm, TLS_SLOT, 1))
-		return -1;			/* taken before we ran: refuse, do not share */
-	set(bm, TLS_SLOT);
+	for (i = 0; i < TLS_SLOT_N; i++)
+		if (are(bm, TLS_SLOT_LOW + i, 1))
+			return -1;		/* taken before we ran: refuse, do not share */
+	for (i = 0; i < TLS_SLOT_N; i++)
+		set(bm, TLS_SLOT_LOW + i);
 	return 0;
 }
 

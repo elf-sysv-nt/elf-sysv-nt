@@ -23,7 +23,7 @@ was retired before this construction began.
 | `thread_start` | an NT thread entered at the register state through the gate | 36 (`native-host`) |
 | `thread_interrupt` | `SuspendThread` + context rewrite, deferring while in `ntdll`, latching across the gate window | 38 (`hijack`) |
 | `thread_context` / `set_context` | `GetThreadContext` / `SetThreadContext`, honouring the 128-byte red zone | 38 |
-| `tp_set` / `substrate_thread_pointer` | a word reached through `%gs`, because the FS base does not survive a deschedule: carrier C3 at certification, `TlsSlots[63]` reserved through the PEB bitmap since DR-0101 (2026-09-06), re-certified 9/9 | 1 (`fs-base-persistence`), 6 (`gs-thread-pointer`), peb-tls-bitmap |
+| `tp_set` / `substrate_thread_pointer` | a word reached through `%gs`, because the FS base does not survive a deschedule: carrier C3 at certification, `TlsSlots[63]` reserved through the PEB bitmap since DR-0101 (2026-09-06), re-certified 9/9; the canary and the pointer guard take `TlsSlots[62]` and `[61]` and the reservation is three bits (DR-0106) | 1 (`fs-base-persistence`), 6 (`gs-thread-pointer`), peb-tls-bitmap |
 | `user_copy_in` / `user_copy_out` | fault-guarded copy returning the fault address, never crashing on a bad user pointer | — (in-process for N) |
 
 ## Construction plan (leaf-to-trunk, riskiest first)

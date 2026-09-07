@@ -122,7 +122,46 @@ run all-gcc            all-gcc
 run install-gcc        install-gcc
 run libgcc             all-target-libgcc
 run install-libgcc     install-target-libgcc
+
+# install-target-libgcc puts the shared runtime under $prefix/$target/lib64,
+# which is where the compiler looks for it and is not where the target keeps
+# it. The sysroot is the target's root file system: libstdc++ records
+# libgcc_s.so.1 as NEEDED, so without a copy here `ld` cannot resolve that
+# dependency (it searches the sysroot, not the toolchain's private lib64) and
+# a C++ program would not load under the kernel even if the link were forced
+# through with -rpath-link. Copied before libstdc++ builds, so its own link
+# sees it. Idempotent: cp -f over whatever is there.
+copy_libgcc_to_sysroot() {
+    dest=$sysroot/usr/lib64
+    [ -d "$dest" ] || die "no $dest to install the libgcc runtime into"
+    found=0
+    for f in "$prefix/$target/lib64"/libgcc_s.so*; do
+        [ -e "$f" ] || continue
+        cp -f "$f" "$dest/" || die "cannot copy $f into the sysroot"
+        found=1
+    done
+    [ "$found" = 1 ] || die "install-target-libgcc left no libgcc_s.so* to copy"
+    echo "stage2: libgcc runtime into $dest"
+}
+copy_libgcc_to_sysroot
+
 run libstdc++          all-target-libstdc++-v3
 run install-libstdc++  install-target-libstdc++-v3
+
+# DR-0061 again. `install-gcc` rewrites $prefix/lib/gcc/$target/$version and
+# does not put the link spec back, so a stage-two build over a stage-one
+# install silently drops the granule-separable default: gcc then links at the
+# 4 KB default, three PT_LOADs land inside one 64 KB granule, and the loader
+# refuses the image (which is how this was found -- criterion 1 went red with
+# nothing in the kernel changed). Regenerate it here for the same reason
+# ../build-gcc generates it there.
+#
+# It has to be regenerated rather than copied from stage one, and generated
+# last rather than before libstdc++: this driver has C++ and a shared libgcc
+# that stage one's did not, so its own specs differ, and install-specs takes
+# the dump from the compiler that is now installed (DR-0108).
+echo "stage2: specs file"
+"$here/../install-specs" -P "$prefix" -T "$target" ||
+    die "cannot install the generated specs file"
 
 echo "stage2: done"

@@ -4,9 +4,9 @@ host        ins-15
 windows     10.0.26200.9168
 cygwin      3.6.10-1.x86_64
 compiler    x86_64-w64-mingw32-gcc (GCC) 14.4.0
-date        2026-09-06T14:06:00Z
-script      measure 1.0
-probe       bitmap-probe 1.0
+date        2026-09-06T20:53:11Z
+script      measure 1.2
+probe       bitmap-probe 1.1
 
 reading, question by question
 
@@ -16,6 +16,9 @@ reading, question by question
   q4  the slot as a carrier: TlsSetValue(63) yes, the %gs read at 0x1678 agrees yes, a raw %gs write is what TlsGetValue returns yes
   q5  a DLL loaded after the reservation, ten more allocs: slot 63 handed out 0 times
   q6  a new thread starts with the slot at 0x0
+  q7  the array: slot 63 lands at 0x1678 yes, the array spans 512 bytes, the first byte past it is 0x1680; of 80 held indices, one lands on TP+8 no and on TP+16 no
+  q8  bits 62 and 61 set yes and yes; after freeing what q3 and q5 took, seventy allocs (59 primary) hand out a reserved slot 0 times, ten more after a DLL load 0 times; all three bits still set yes
+  q9  the three words: %gs at TP yes, at TP-8 yes, at TP-16 yes; a raw write to TP-8 is what TlsGetValue(62) returns yes; a new thread starts them at 0x0, 0x0, 0x0
 
 raw
 
@@ -24,6 +27,8 @@ raw
     q1_bits_at_start=0x0000000000010001
     q1_lowest_free_at_start=1
     q1_bit63_at_start=0
+    q1_bit62_at_start=0
+    q1_bit61_at_start=0
     q2_bit63_after_set=1
     q2_arebitsset=1
     q3_allocs=70
@@ -40,7 +45,35 @@ raw
     q5_dll_loaded=1
     q5_slot63_handed_out_after_dll=0
     q6_new_thread_slot_at_start=0x0
+    q7_slot63_offset=0x1678
+    q7_slot63_offset_is_0x1678=1
+    q7_slot0_offset=0x1480
+    q7_array_span_bytes=512
+    q7_first_byte_past_array=0x1680
+    q7_indices_written=80
+    q7_a_slot_lands_on_tp_plus_8=0
+    q7_a_slot_lands_on_tp_plus_16=0
+    q8_bit62_after_set=1
+    q8_bit61_after_set=1
+    q8_arebitsset_61_3=1
+    q8_allocs=70
+    q8_alloc_failures=0
+    q8_reserved_slots_handed_out=0
+    q8_primary_slots_taken=59
+    q8_expansion_slots_taken=11
+    q8_dll_loaded=1
+    q8_reserved_slots_handed_out_after_dll=0
+    q8_bits61_63_still_set=1
+    q9_gs_tp_matches=1
+    q9_gs_canary_matches=1
+    q9_gs_guard_matches=1
+    q9_canary_is_tp_minus_8=1
+    q9_guard_is_tp_minus_16=1
+    q9_tlsgetvalue_62_sees_raw_write=1
+    q9_new_thread_tp=0x0
+    q9_new_thread_canary=0x0
+    q9_new_thread_guard=0x0
 
 verdict
 
-    finding=bit-reserved-tlsalloc-never-returns-63
+    finding=three-bits-reserved-array-ends-at-the-thread-pointer

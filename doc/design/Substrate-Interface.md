@@ -122,8 +122,9 @@ and the substrate must not clobber that gap (spikes 38, 41 both check it).
 **`tp_set(tid, base)`.** Sets the thread pointer for `tid`. Under N the FS base
 does not survive a deschedule (spike 1, `fs-base-persistence`), so the pointer
 is a word reached through `%gs` per DR-0101 (`TlsSlots[63]`, reserved through
-the PEB bitmap), and `tp_set` writes that word; the toolchain is built
-against it (§ 3, § 4.16). Under H the guest
+the PEB bitmap along with the two slots below it, which carry the canary and
+the pointer guard — DR-0106), and `tp_set` writes that word; the toolchain is
+built against it (§ 3, § 4.16). Under H the guest
 has a real FS base and `tp_set` writes the guest MSR — which is why H runs el8's
 shipped binaries unmodified and N does not. This is the one call whose two
 realisations have different *capability*, not just different mechanism, and the

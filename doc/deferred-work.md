@@ -297,6 +297,35 @@ paths, and `bin/check-doc-refs` does not police them because it checks only
 than it was written to do, and it is a question for whoever next edits that
 checker.
 
+## Found repairing the specs file, 2026-09-07
+
+**WP-15's exit criterion is checked at link time and has never run.**
+`toolchain/gcc/t/accept2.sh` says so itself -- "the catch itself runs when the
+loader can run" -- so every claim it makes is about a section or a segment in a
+linked object. DR-0108 restored `PT_GNU_EH_FRAME` and the shared libgcc, which
+is what those claims read, and what they assert is that the unwind tables will
+be findable. A throw crossing a DSO has never executed on this platform, and
+cannot until the core runs a dynamic program. Nothing owns the run-time half,
+and the green suite is the thing most likely to be mistaken for it.
+
+**The report tier has no moment at which it runs.** `bin/nightly-full` exists
+for exactly this, runs `bin/run-suites --tier report`, and is not scheduled on
+any machine. `accept2.sh` was red from the 2026-09-06 gcc remake until
+2026-09-07 and nobody learned anything from it, which is what an unscheduled
+backstop costs. The scheduling is machine state rather than repository state,
+so it is not a file anybody can land; it is an act somebody has to take on the
+build host, and this entry exists so the omission is findable when it recurs.
+
+**`bin/check-target-definition` is red on the trunk and has been.** It reports
+seventeen files carrying a target value without naming
+`doc/design/target-definition.md`, at `ce566cb` and at every commit this
+session added; `toolchain/gdb/`, `toolchain/rpm/surface/`,
+`toolchain/sysroot/` and `bin/elf-build-worker` are among them. The checker is
+doing its job -- the exemption it grants is attribution, and these files have
+none -- so the work is to attribute each site or to decide the literal is
+incidental there, seventeen small judgments rather than one. It is not in
+`ci/suites.txt`, which is why nothing has said so. Nobody owns it.
+
 ## Not verified
 
 That this list is complete. It was compiled by searching for deferral language

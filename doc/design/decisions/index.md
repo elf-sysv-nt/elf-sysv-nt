@@ -78,6 +78,7 @@ the pair and says which reading is current.
 | [0100](0100-the-veneer-address-space-records-retire.md) | the veneer's address-space records (DR-0008, 0028, 0064, 0077) retire; `AT_PAGESZ` is rehomed | accepted 2026-09-05 | 0012 |
 | [0101](0101-the-thread-pointer-under-n-is-tlsslots-63.md) | under N the thread pointer is `TlsSlots[63]`, reserved through the PEB bitmap (carrier C1); DR-0003 and DR-0021 superseded | accepted 2026-09-06 | 0012 |
 | [0102](0102-criteria-3-and-4-amended-and-both-substrates-offered.md) | criteria 3 (WSL only) and 4 (per substrate) amended; both substrates offered, the client decides; the seam gets its teeth | accepted 2026-09-06 | 0012 |
+| [0103](0103-proposal-0013-is-ratified-and-the-loader-records-retire.md) | proposal 0013 is ratified: the governed set states the kernel, glibc's `ld.so` is the loader under both substrates, the loader records retire, `.note.elfsysvnt.abi` carries the gate ABI version | accepted 2026-09-06 | 0013 |
 
 ## What earns a record
 
@@ -87,6 +88,9 @@ deliberately lower than the bar for a proposal: a change can be cheap to undo
 and still leave a question behind it worth answering once.
 
 The three reservations in `AGENTS.md` each end in a record by construction.
-| [0103](0103-proposal-0013-is-ratified-and-the-loader-records-retire.md) | proposal 0013 is ratified: the governed set states the kernel, glibc's `ld.so` is the loader under both substrates, the loader records retire, `.note.elfsysvnt.abi` carries the gate ABI version | accepted 2026-09-06 | 0013 |
 | [0104](0104-acceptance-is-a-count-per-substrate.md) | acceptance is a count per substrate, rebuilt under N and shipped under H, reported side by side | accepted 2026-09-06 | 0013 |
 | [0105](0105-the-conformance-classes-are-defined-at-the-syscall-boundary.md) | the conformance classes are defined at the syscall boundary | accepted 2026-09-06 | 0013 |
+| [0106](0106-the-canary-and-the-pointer-guard-take-the-two-slots-below-the-thread-pointer.md) | the canary is `TlsSlots[62]` and the pointer guard `TlsSlots[61]`, below the thread pointer; the PEB reservation is three bits; DR-0101 amended | accepted 2026-09-06 | 0013 |
+| [0107](0107-the-documentation-gate-reads-the-whole-tree.md) | check-doc-refs resolves citations under every tracked top-level directory, names the two it cannot, gates the criteria the plan calls met, and carries its own bar | accepted 2026-09-06 | none |
+| [0108](0108-the-specs-file-is-generated-from-dumpspecs.md) | the installed specs file is generated from `-dumpspecs` and never hand-written, because gcc's read of it replaces `init_spec ()`; DR-0061's mechanism amended | provisional 2026-09-07 | none |
+| [0109](0109-session-worktrees-live-beside-the-repository.md) | session worktrees live beside the repository, and the shared checkout is asked of git | accepted 2026-09-07 | none |

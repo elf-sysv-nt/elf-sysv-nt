@@ -630,3 +630,12 @@ reads back correct at first-touch cost, so the host pages guest memory as
 it pages anything and the guest never sees it. One map call failed once
 with `ERROR_NO_SYSTEM_RESOURCES` while the probe was being written and did
 not recur under retry counting; the kernel retries that status.
+
+Spike 51, the raw-syscall census, measures § 8's claim that the userland N
+cannot take as shipped is a list rather than a fraction. Over 3780 of the
+4855 packages in the worklist it is a list: 71 packages carry a `syscall`
+instruction the disassembler confirms, 69 of them outside glibc, 19 with a
+Go runtime, and they are runtimes and toolchains rather than anything in
+the base userland. The byte scan alone reports 1419, twenty times as many,
+so the disassembly step is what makes the claim measurable at all. The
+count is a floor at 78% coverage; the shape is the finding.

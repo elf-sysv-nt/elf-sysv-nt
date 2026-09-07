@@ -21,10 +21,13 @@ Usage:
 """
 import os, re, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import roots
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Written into the main checkout, not the worktree a session happens to run
 # from: these are the files the operator opens, and the operator opens one tree.
-REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
+REPO = roots.MAIN
 
 GOVERNED = ('doc/design/Requirements.md', 'doc/design/Architecture.md',
             'doc/design/Verification-Plan.md', 'doc/design/target-definition.md',

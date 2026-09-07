@@ -67,4 +67,9 @@ The two registries hold the variable, not the value, so `test/t3-regen.sh` and
 those three names and nothing more, because a manifest field is data: a typo
 should be a path that does not exist, not a command that runs.
 
-Settled by: DR-0096.
+The same two files name where checkouts sit, for the session tools rather
+than the harness: the shared checkout, asked of git from whichever worktree
+a script runs in, and the directory beside the repository where session
+worktrees are made. Neither is expanded in a registry.
+
+Settled by: DR-0096, DR-0109.

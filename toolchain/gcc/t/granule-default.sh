@@ -12,6 +12,12 @@
 # at least the granule, which is what the belief is worth. A specs default that
 # some later change drops would pass the first check and fail the second.
 #
+# Then what the default must not cost. The mechanism that carries it is a file
+# gcc reads instead of building its own specs, so an installed one can take
+# --eh-frame-hdr and the shared libgcc away silently; DR-0108 has the reasoning
+# and spike 53 the measurement. Those two are checked here because this is the
+# suite that guards the mechanism.
+#
 # Usage:
 #   granule-default.sh [options]
 #
@@ -34,7 +40,7 @@
 set -u
 
 prog=granule-default
-release='granule-default 1.0'
+release='granule-default 1.1'
 
 here=$(cd "$(dirname "$0")" && pwd)
 
@@ -138,6 +144,38 @@ claim 'the specimen has more than one PT_LOAD, so the shape is real' \
     sh -c "[ $nload -gt 1 ]"
 claim 'every PT_LOAD is aligned to at least the granule' \
     sh -c "[ $small -eq 0 ]"
+
+# What the default must not cost. gcc's read of an installed specs file runs
+# instead of its own init_spec(), so a file put there by hand takes
+# --eh-frame-hdr and the shared libgcc with it and says nothing (spike 53,
+# DR-0108). The three claims above all held while that was true, which is the
+# reason these exist: a test that confirms an option is present cannot notice
+# two others going missing.
+claim 'the driver still passes --eh-frame-hdr' \
+    grep -q -- '--eh-frame-hdr' link.txt
+
+# And what --eh-frame-hdr is for. The linker writes PT_GNU_EH_FRAME from it,
+# and that segment is how _Unwind_Find_FDE reaches a frame's tables through
+# dl_iterate_phdr; without it a throw across a shared object terminates on a
+# system where every build artifact looked right.
+claim 'the specimen carries a PT_GNU_EH_FRAME segment' \
+    grep -q 'GNU_EH_FRAME' phdrs.txt
+
+# -lgcc_s is the C++ driver's default and the loss is invisible to a C link
+# that never wanted it, so this half needs g++. Stage one has none, and an
+# absent input is reported rather than failed.
+CXX=$target-g++
+if command -v "$CXX" >/dev/null 2>&1; then
+    cat > u.cc <<'EOF'
+#include <stdexcept>
+void poke (int v) { if (v > 0) throw std::runtime_error ("crossed"); }
+EOF
+    "$CXX" -O2 -fPIC -shared -o u.so u.cc -### > cxxlink.txt 2>&1 || true
+    claim 'a C++ shared link still reaches the shared libgcc' \
+        grep -qw -- '-lgcc_s' cxxlink.txt
+else
+    note "no $CXX; the shared-libgcc claim is not checked here"
+fi
 
 if [ "$terse" = 1 ]; then
     printf 'target=%s\nloads=%d\nsub_granule=%d\npasses=%d\nfailures=%d\n' \
