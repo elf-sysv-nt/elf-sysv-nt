@@ -1,0 +1,29 @@
+which layer can carry a target-mandated link default
+
+host        ins-15
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
+linker      GNU ld (GNU Binutils) 2.42
+target      x86_64-elfsysvnt-linux-gnu
+date        2026-09-07T11:37:29Z
+script      measure 1.0
+
+reading
+
+  a candidate carries the default when it survives with no specs
+  file and still lets one link override it. Whether it also reaches
+  a direct ld invocation is what separates the linker from the
+  compiler, and it is the whole of DR-0061 bzip2 argument.
+
+per prefix
+
+    prefix        driver    direct-ld        no-specs       override   unwinder
+    baseline      carries   sub-granule      default-lost   honored    lost-both
+
+raw
+
+    baseline	driver=carries	direct-ld=sub-granule	no-specs=default-lost	override=honored	unwinder=lost-both
+
+verdict
+
+    finding=baseline=does-not-carry

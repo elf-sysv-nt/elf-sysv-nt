@@ -53,13 +53,26 @@ A candidate carries the default when `no-specs` holds and `override` is honored.
 Whether `direct-ld` is also granule-aligned is what separates the two layers,
 and it is the whole of the bzip2 argument.
 
-## Registering it
+## What the baseline said
 
-This directory has no row in `test/spike-regen.tsv` yet, on purpose: the runner
-diffs a rerun against a committed transcript, and there is none until the first
-run. The row lands in the same commit as that transcript.
+`results-2026-09-07.txt` is the first run, on the toolchain as it stood at
+`b6f1fb4`, with neither candidate built. Four of the five probes came back as
+the argument for D predicted, and the fifth was not about the layer question at
+all.
 
-    link-default-layer	-	results-2026-[0-9]*.txt	bash measure.sh -o -
+`direct-ld=sub-granule`. A link the gcc driver never ran is not
+granule-separable, which is DR-0061's bzip2 case reproduced on demand rather
+than recalled: the specs file cannot reach a Makefile that calls `ld` itself.
+`no-specs=default-lost` says the same thing from the other side — the default
+lives entirely in that file — and `override=honored` says a per-link
+`-z max-page-size=0x1000` still wins, so whatever carries the default must
+leave DR-0008's own sub-granule fixture buildable.
+
+`unwinder=lost-both`. The installed toolchain was still passing neither
+`--eh-frame-hdr` nor `-lgcc_s` when this ran, because DR-0108 landed in the
+tree and `install-specs` had not been run against the prefix. That is not a
+finding about A or D; it is spike 53 reproduced by a second instrument, and it
+is the reason this line is worth keeping in the transcript.
 
 ## What this does not reach
 
