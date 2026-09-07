@@ -264,6 +264,26 @@ if ! case_sensitive "$builddir"; then
     fi
 fi
 
+# One build at a time, the way ../gcc/stage2/build-gcc2 does it and for the
+# same reason: this script is meant to be rerun, and two runs over one objdir
+# are two makes writing the same objects.  That is not theoretical -- a second
+# run started while the first was in iconvdata, and both were making the same
+# subdirectory before either noticed.  A pid ps no longer lists is a finished
+# or killed slice and the build resumes over it; ps rather than kill -0,
+# because under Cygwin a dead pid can be recycled by an unrelated Windows
+# process that kill -0 still answers for.
+#
+# The marker goes in after the case-sensitivity check and not before it: that
+# check refuses a populated tree it cannot mark, and a lock file written first
+# is exactly enough to make an empty tree look populated.
+alive() { ps -p "$1" 2>/dev/null | awk 'NR>1{ok=1} END{exit !ok}'; }
+pidfile=$builddir/.building
+if [ -f "$pidfile" ] && alive "$(cat "$pidfile" 2>/dev/null)"; then
+    die "a build is already running here (pid $(cat "$pidfile")); wait for it or kill it"
+fi
+echo $$ > "$pidfile"
+trap 'rm -f "$pidfile"' EXIT
+
 stage() {
     what=$1; shift
     log=$work/build/glibc-$what.log
