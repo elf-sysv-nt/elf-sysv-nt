@@ -1,0 +1,12 @@
+# The glibc this project builds for substrate N, pinned by checksum.
+#
+# el8's own source package, at the build Rocky 8.10 shipped in September
+# 2026, so that the library above the kernel is the one el8's packages were
+# built against: 2.28 with Red Hat's 1110 patches, then this project's
+# sysdeps port on top (patches/). The manifest spike/triple-fidelity wrote
+# from the same mirror carries the same checksum.
+
+name	glibc-2.28-251.el8_10.40
+url	https://dl.rockylinux.org/pub/rocky/8.10/BaseOS/source/tree/Packages/g/glibc-2.28-251.el8_10.40.src.rpm
+sha256	b2566311d82f4378deeaf154f17a99ed7ddd6677da7a12be39a628a59d5e8c4a
+srcdir	glibc-2.28

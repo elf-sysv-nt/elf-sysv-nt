@@ -43,6 +43,14 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
+# The prefix is not spelled out here. bin/roots.py owns the three roots and is
+# the only place their literals live (DR-0096), so this reaches it the way the
+# checkers under bin/ do, by putting that directory on the path first.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "bin"))
+import roots
+
 PROG = "check-no-syscall"
 VERSION = "check-no-syscall 1.0"
 
@@ -59,8 +67,8 @@ REFUSED = re.compile(r"^(syscall|sysenter)\b|^int\s+\$0x80\b|%fs\b|\b(rd|wr)fsba
 
 
 def default_objdump():
-    prefix = os.environ.get("ELFSYSVNT_PREFIX", "/c/-/x-elfsysvnt")
-    return os.path.join(prefix, "bin", "x86_64-elfsysvnt-linux-gnu-objdump")
+    return os.path.join(roots.PREFIX, "bin",
+                        "x86_64-elfsysvnt-linux-gnu-objdump")
 
 
 def is_object(path):

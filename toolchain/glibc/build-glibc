@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+#
+# Build el8's glibc for substrate N and install it into the sysroot.
+#
+# The source is el8's source package, unpacked and patched the way the spec
+# file's %autosetup would, then the sysdeps port under patches/ on top.  The
+# result is configured as a cross build against the kernel headers already in
+# the sysroot, built, staged, checked by check-no-syscall (an object with a
+# syscall instruction or an %fs access fails the build), and only then copied
+# into the sysroot.  README.md states the design and the bar.
+#
+# Resumable, because a full build runs for the better part of an hour: the
+# source tree is prepared once and kept, configure runs only when the build
+# tree has no config.status, and make continues where it stopped.  The
+# install is reseeded: every file the previous run installed is removed
+# before the new set is copied in, from the manifest the previous run wrote,
+# and on the first run the veneer-era libraries and headers are swept (the
+# veneer is retired, DR-0097).  --fresh clears the build tree first.
+#
+# Usage:
+#   build-glibc [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   The toolchain prefix. [default: $ELFSYSVNT_PREFIX]
+#   -w DIR, --work=DIR     Source, build and staging trees.
+#                          [default: $ELFSYSVNT_EL8/glibc]
+#   -p FILE, --pin=FILE    The source package pin. [default: beside this one]
+#   -T TRIPLE, --target=TRIPLE
+#                          The triple is doc/design/target-definition.md's;
+#                          change it there rather than here.
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -j N, --jobs=N         Parallel make. [default: nproc, or 4]
+#   -f, --fresh            Clear the build tree before configuring.
+#       --no-fresh         Keep it (the default).
+#   -c, --check            Run check-no-syscall over the staged install.
+#       --no-check         Skip it, for a build being debugged; the install
+#                          then carries no certification.
+#   -n, --dry-run          Print the configure line and stop.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Stream the build rather than logging it.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as BUILD_GLIBC_<OPTION>, and the option wins.
+#
+# Exit codes: 0 success, 1 failure, 2 usage error.
+
+set -u
+
+prog=build-glibc
+release='build-glibc 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+. "$root/bin/roots.sh"
+
+prefix=${BUILD_GLIBC_PREFIX:-$ELFSYSVNT_PREFIX}
+work=${BUILD_GLIBC_WORK:-$ELFSYSVNT_EL8/glibc}
+pin=${BUILD_GLIBC_PIN:-$here/glibc.pin}
+target=${BUILD_GLIBC_TARGET:-x86_64-elfsysvnt-linux-gnu}
+jobs=${BUILD_GLIBC_JOBS:-}
+fresh=${BUILD_GLIBC_FRESH:-0}
+check=${BUILD_GLIBC_CHECK:-1}
+dryrun=${BUILD_GLIBC_DRY_RUN:-0}
+terse=${BUILD_GLIBC_TERSE:-0}
+quiet=${BUILD_GLIBC_QUIET:-0}
+verbose=${BUILD_GLIBC_VERBOSE:-0}
+debug=${BUILD_GLIBC_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-w|--work|-p|--pin|-T|--target|-j|--jobs) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -w|--work) work=$val ;;
+        -p|--pin) pin=$val ;;
+        -T|--target) target=$val ;;
+        -j|--jobs) jobs=$val ;;
+        -f|--fresh) fresh=1 ;;
+        --no-fresh) fresh=0 ;;
+        -c|--check) check=1 ;;
+        --no-check) check=0 ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        --no-terse) terse=0 ;;
+        -q|--quiet) quiet=1 ;;
+        --no-quiet) quiet=0 ;;
+        -v|--verbose) verbose=1 ;;
+        --no-verbose) verbose=0 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+[ -r "$pin" ] || die "cannot read the pin: $pin"
+[ -n "$jobs" ] || jobs=$(nproc 2>/dev/null || echo 4)
+
+pinfield() { awk -v k="$1" '$1 == k { print $2; exit }' "$pin"; }
+name=$(pinfield name)
+url=$(pinfield url)
+want=$(pinfield sha256)
+srcname=$(pinfield srcdir)
+[ -n "$name" ] && [ -n "$url" ] && [ -n "$want" ] && [ -n "$srcname" ] ||
+    die "the pin is missing name, url, sha256 or srcdir"
+
+sysroot=$prefix/$target/sys-root
+rpm=$work/src/$name.src.rpm
+srpm=$work/srpm
+srcdir=$work/src/$srcname
+builddir=$work/build/glibc
+dest=$work/dest
+manifest=$sysroot/.glibc-manifest
+unpack=$root/spike/versioned-libc/rpmx.py
+
+# el8's own configure line (glibc.spec, build()), less what does not apply:
+# --enable-cet, since the toolchain opts out of CET (DR-0062); --enable-
+# systemtap, which wants sdt.h; --enable-static-pie, which needs the gate
+# before the auxiliary vector has been read (README.md, decision log);
+# and --with-nonshared-cflags, whose only content was annobin's.
+configure_args="--host=$target
+--build=$(gcc -dumpmachine 2>/dev/null || echo x86_64-pc-cygwin)
+--prefix=/usr
+--with-headers=$sysroot/usr/include
+--enable-kernel=3.2
+--enable-bind-now
+--enable-stack-protector=strong
+--enable-tunables
+--disable-static-pie
+--disable-werror
+--disable-profile
+--disable-crypt
+--without-selinux"
+build_cflags="-O2 -g -fasynchronous-unwind-tables -fstack-clash-protection -funwind-tables -march=x86-64 -mtune=generic -mfpmath=sse -msse2 -m64"
+
+if [ "$dryrun" = 1 ]; then
+    printf '%s/configure' "$srcdir"; printf ' %s' $configure_args
+    printf ' CC=%s-gcc CFLAGS="%s"\n' "$target" "$build_cflags"
+    exit 0
+fi
+
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+command -v python3 >/dev/null 2>&1 || die "python3 is not on PATH"
+[ -f "$unpack" ] || die "the rpm unpacker is missing: $unpack"
+PATH=$prefix/bin:$PATH
+command -v "$target-gcc" >/dev/null 2>&1 || die "$target-gcc is not on PATH; build-gcc first"
+[ -d "$sysroot/usr/include/linux" ] || die "no kernel headers in $sysroot; toolchain/sysroot/kernel-headers first"
+
+mkdir -p "$work/src" "$work/build" || die "cannot create $work"
+
+# The source package, by checksum.
+if [ -f "$rpm" ] && [ "$(sha256sum "$rpm" | cut -d' ' -f1)" = "$want" ]; then
+    chat "have $(basename "$rpm")"
+else
+    rm -f "$rpm"
+    chat "fetching $name"
+    curl -fsSL --retry 3 --retry-delay 2 -o "$rpm" "$url" || die "cannot fetch $url"
+    got=$(sha256sum "$rpm" | cut -d' ' -f1)
+    [ "$got" = "$want" ] || die "checksum: got $got, pin says $want"
+fi
+
+if [ ! -f "$srpm/glibc.spec" ]; then
+    chat "unpacking the source package"
+    rm -rf "$srpm"; mkdir -p "$srpm"
+    python3 "$unpack" "$rpm" "$srpm" > /dev/null || die "cannot unpack $rpm"
+    [ -f "$srpm/glibc.spec" ] || die "no glibc.spec in $rpm"
+fi
+
+# The source tree: the tarball, then el8's patches in the spec's order, which
+# is what %autosetup -p1 does, then the spec's own tidy-up.  Prepared once;
+# the marker says so, and removing the tree is how to start over.
+if [ ! -f "$srcdir/.elfsysvnt-el8-prepared" ]; then
+    chat "unpacking $srcname"
+    rm -rf "$srcdir"
+    ( cd "$work/src" && tar xf "$srpm/$srcname.tar.xz" ) || die "cannot unpack $srcname.tar.xz"
+    n=0
+    for p in $(sed -n 's/^Patch[0-9]*: *//p' "$srpm/glibc.spec"); do
+        ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$srpm/$p" ) ||
+            die "el8's $p did not apply"
+        n=$((n + 1))
+    done
+    chat "applied $n el8 patches"
+    ( cd "$srcdir" &&
+      find . -type f -size 0 -o -name '*.orig' -exec rm -f {} \; &&
+      touch $(find . -name configure) &&
+      touch locale/programs/*-kw.h ) || die "the spec's %prep tidy-up failed"
+    printf '%s\n' "$n" > "$srcdir/.elfsysvnt-el8-prepared"
+fi
+
+# Then this project's patches, each once, recorded with its checksum: a
+# patch edited after it went in cannot be re-applied over the old text, so
+# the tree is declared stale and prepared again.
+applied=$srcdir/.elfsysvnt-patches
+touch "$applied"
+for p in "$here"/patches/*.patch; do
+    [ -e "$p" ] || break
+    pname=$(basename "$p")
+    sum=$(sha256sum "$p" | cut -d' ' -f1)
+    if grep -qxF "$pname	$sum" "$applied"; then chat "already applied: $pname"; continue; fi
+    if grep -q "^$pname" "$applied"; then
+        die "$pname changed after it was applied to $srcdir; remove that tree and rerun"
+    fi
+    chat "applying $pname"
+    ( cd "$srcdir" && patch -p1 --no-backup-if-mismatch --silent < "$p" ) ||
+        die "$pname did not apply to $srcname"
+    printf '%s\t%s\n' "$pname" "$sum" >> "$applied"
+done
+
+[ "$fresh" = 1 ] && { chat "clearing $builddir"; rm -rf "$builddir"; }
+mkdir -p "$builddir" || die "cannot create $builddir"
+
+# glibc builds foo.os (for the shared library) and foo.oS (for the static
+# PIC archive) from the same source, side by side, and keeps its stamps as
+# stamp.os and stamp.oS.  On a case-insensitive directory those are one file
+# each: the objects overwrite each other and the stamps' temporaries collide
+# under -j, which is how this surfaced (mv: cannot stat stamp.oST).  Windows
+# gives a directory case sensitivity of its own, inherited by what is
+# created beneath it, so an empty build tree is marked before anything is
+# put in it; a populated one that is not marked is refused rather than built
+# wrong.
+case_sensitive() {
+    : > "$1/.case-probe-a" && : > "$1/.case-probe-A"
+    n=$(ls -a "$1" | grep -c '^\.case-probe-[aA]$')
+    rm -f "$1/.case-probe-a" "$1/.case-probe-A"
+    [ "$n" = 2 ]
+}
+if ! case_sensitive "$builddir"; then
+    if [ -n "$(ls -A "$builddir")" ]; then
+        die "$builddir is case-insensitive and not empty; remove it (or rerun with --fresh)"
+    fi
+    if command -v cygpath >/dev/null 2>&1 && command -v fsutil.exe >/dev/null 2>&1; then
+        chat "marking $builddir case-sensitive"
+        fsutil.exe file setCaseSensitiveInfo "$(cygpath -w "$builddir")" enable > /dev/null ||
+            die "fsutil could not mark $builddir case-sensitive"
+        case_sensitive "$builddir" || die "$builddir is still case-insensitive after fsutil"
+    else
+        die "$builddir is case-insensitive; glibc needs a case-sensitive build tree"
+    fi
+fi
+
+stage() {
+    what=$1; shift
+    log=$work/build/glibc-$what.log
+    chat "$what"
+    if [ "$verbose" = 1 ]; then
+        "$@" 2>&1 | tee "$log"; rc=${PIPESTATUS[0]}
+    else
+        "$@" > "$log" 2>&1; rc=$?
+    fi
+    [ "$rc" = 0 ] || die "$what failed, see $log"
+}
+
+cd "$builddir" || die "cannot enter $builddir"
+if [ ! -f config.status ]; then
+    stage configure "$srcdir/configure" $configure_args CC="$target-gcc" CFLAGS="$build_cflags"
+fi
+stage make make -j"$jobs" -O -r
+rm -rf "$dest"
+stage stage make -j"$jobs" -O -r install install_root="$dest"
+
+if [ "$check" = 1 ]; then
+    chat "check-no-syscall over the staged install"
+    python3 "$here/check-no-syscall" -q "$dest" ||
+        die "the staged install carries a syscall instruction or an %fs access; nothing installed"
+else
+    note "check skipped by request; this install is not certified"
+fi
+
+# Reseed the sysroot.  A previous run's files go by its manifest; on the
+# first run the veneer-era face goes instead: the libraries and startup
+# files under usr/lib64, and every header that is not the kernel's uapi set
+# (toolchain/sysroot/kernel-headers lays those and is not this script's).
+if [ -f "$manifest" ]; then
+    chat "removing the previous install"
+    while IFS= read -r f; do rm -f "$sysroot/$f"; done < "$manifest"
+    find "$sysroot/usr/include" "$sysroot/usr/lib64" -depth -type d -empty -delete 2>/dev/null
+else
+    chat "sweeping the veneer-era sysroot"
+    rm -rf "$sysroot/usr/lib64"/* "$sysroot/usr/lib64"/.[!.]* 2>/dev/null
+    for e in "$sysroot/usr/include"/* "$sysroot/usr/include"/.[!.]*; do
+        [ -e "$e" ] || continue
+        case $(basename "$e") in
+            asm|asm-generic|drm|linux|misc|mtd|rdma|scsi|sound|video|xen) ;;
+            *) rm -rf "$e" ;;
+        esac
+    done
+fi
+mkdir -p "$sysroot"
+chat "installing into $sysroot"
+( cd "$dest" && find . \( -type f -o -type l \) | sed 's|^\./||' ) > "$dest/.manifest" ||
+    die "cannot list the staged install"
+cp -a "$dest"/. "$sysroot"/ || die "cannot copy the staged install into $sysroot"
+rm -f "$sysroot/.manifest"
+install -m 644 "$dest/.manifest" "$manifest" || die "cannot write $manifest"
+
+[ -f "$sysroot/usr/lib64/libc.so.6" ] || die "install left no libc.so.6 in $sysroot"
+
+if [ "$terse" = 1 ]; then
+    printf 'name=%s\ntarget=%s\nsysroot=%s\nchecked=%s\n' "$name" "$target" "$sysroot" "$check"
+else
+    note "$name for $target installed under $sysroot"
+    note "now run t/accept.sh -P $prefix"
+fi
+exit 0

@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""List the system calls an object can make through the gate.
+
+Usage:
+  list-syscalls [options] FILE...
+  list-syscalls -h | --help
+
+Disassembles each FILE and reports every syscall number that is loaded
+into %eax within a few instructions of a call through the gate (a `call
+*...` whose target is not a plain symbol), one line per number: the
+number, its name from the sysroot's unistd_64.h, and how many sites load
+it.  It is a static over-approximation of what a run would make, which is
+what a reader comparing a program against the kernel's table wants.
+
+Options:
+  -O TOOL, --objdump=TOOL  The disassembler.
+                           [default: $ELFSYSVNT_PREFIX/bin/x86_64-elfsysvnt-linux-gnu-objdump]
+  -u FILE, --unistd=FILE   The header the names come from.
+                           [default: the sysroot's asm/unistd_64.h]
+  -h, --help               Print this message and exit.
+
+Exit: 0, 2 usage error, 77 the disassembler is absent.
+"""
+import argparse
+import os
+import re
+import subprocess
+import sys
+from collections import Counter
+
+# bin/roots.py owns the three roots and is the only place their literals live
+# (DR-0096), so this reaches it the way the checkers under bin/ do.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))),
+    "bin"))
+import roots
+
+PROG = "list-syscalls"
+
+
+def default_prefix():
+    return roots.PREFIX
+
+
+def names(unistd):
+    table = {}
+    try:
+        for line in open(unistd, encoding="utf-8", errors="replace"):
+            m = re.match(r"#define __NR_(\w+)\s+(\d+)", line)
+            if m:
+                table[int(m.group(2))] = m.group(1)
+    except OSError:
+        pass
+    return table
+
+
+def sites(objdump, path):
+    """Counter of syscall numbers, from the mov $imm,%eax nearest before a
+    gate call, no more than six instructions back."""
+    out = subprocess.run([objdump, "-d", "--no-show-raw-insn", path],
+                         capture_output=True, text=True, errors="replace").stdout
+    insns = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2 and parts[0].strip().endswith(":"):
+            insns.append(parts[1].strip())
+        else:
+            insns.append(None)      # a label or blank: a window boundary
+    found = Counter()
+    for i, insn in enumerate(insns):
+        if not insn or not insn.startswith("call") or "*" not in insn:
+            continue
+        for back in range(i - 1, max(i - 7, -1), -1):
+            prev = insns[back]
+            if prev is None:
+                break
+            m = re.match(r"mov[lq]?\s+\$(0x[0-9a-f]+|\d+),%[er]ax$", prev)
+            if m:
+                found[int(m.group(1), 0)] += 1
+                break
+    return found
+
+
+def main(argv):
+    ap = argparse.ArgumentParser(prog=PROG, add_help=False, usage=argparse.SUPPRESS)
+    ap.add_argument("files", nargs="*")
+    ap.add_argument("-O", "--objdump",
+                    default=os.path.join(default_prefix(), "bin", "x86_64-elfsysvnt-linux-gnu-objdump"))
+    ap.add_argument("-u", "--unistd",
+                    default=os.path.join(default_prefix(), "x86_64-elfsysvnt-linux-gnu", "sys-root",
+                                         "usr", "include", "asm", "unistd_64.h"))
+    ap.add_argument("-h", "--help", action="store_true")
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit:
+        return 2
+    if a.help:
+        sys.stdout.write(__doc__)
+        return 0
+    if not a.files:
+        sys.stderr.write(__doc__)
+        return 2
+    if not (os.path.isfile(a.objdump) or os.path.isfile(a.objdump + ".exe")):
+        sys.stderr.write("%s: no disassembler at %s\n" % (PROG, a.objdump))
+        return 77
+    table = names(a.unistd)
+    total = Counter()
+    for f in a.files:
+        total.update(sites(a.objdump, f))
+    for nr in sorted(total):
+        print("%d\t%s\t%d" % (nr, table.get(nr, "?"), total[nr]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

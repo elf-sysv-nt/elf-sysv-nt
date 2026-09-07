@@ -1,0 +1,44 @@
+From 540881b8783142c911ccb6037d9410678acf39b7 Mon Sep 17 00:00:00 2001
+From: Philip Dye <phdye@acm.org>
+Date: Sun, 6 Sep 2026 15:45:49 -0400
+Subject: [PATCH 2/2] Makerules: give the stdio_lim dependency file a rule of
+ its own
+
+Under GNU make 4.4.1 the build never leaves stdio-common: make re-executes
+itself in that subdirectory without end. bits/stdio_lim.h and
+bits/stdio_lim.d shared one pattern rule whose recipe is a no-op, both
+depending on the stamp that is touched after they are written. Make 4.3
+and later treat the targets of a multi-target pattern rule as a group, so
+remaking the header, which happens on every pass since the stamp is
+newer, marks the .d file remade too. The .d file is an included makefile,
+so make reads everything again, and the next pass does the same. el8 built
+this tree with make 4.2, which did not group them.
+
+Two rules instead of one. The .d file's own rule leaves its timestamp the
+only thing make consults, and it has not changed. Reproduced and confirmed
+with make -d on the stdio-common subdirectory: twenty-five re-executions in
+twenty seconds before, one after.
+---
+ Makerules | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/Makerules b/Makerules
+index 05a549eb..4774c3e3 100644
+--- a/Makerules
++++ b/Makerules
+@@ -1541,7 +1541,14 @@ L_cuserid ?= 1
+ 
+ stdio_lim = $(common-objpfx)bits/stdio_lim.h
+ 
+-$(stdio_lim:lim.h=%.h) $(stdio_lim:lim.h=%.d): $(stdio_lim:lim.h=%.st); @:
++# Two rules rather than one pattern rule naming both.  The .d file is an
++# included makefile, and GNU make 4.3 and later treat the targets of a
++# multi-target pattern rule as a group: remaking the header's no-op recipe
++# marks the .d file remade as well, make re-executes to read it again, and
++# the next pass does the same, forever.  A rule of its own leaves the .d
++# file's timestamp the only thing make consults, and it has not changed.
++$(stdio_lim): $(stdio_lim:h=st); @:
++$(stdio_lim:h=d): $(stdio_lim:h=st); @:
+ $(stdio_lim:h=st): $(..)stdio-common/stdio_lim.h.in $(..)Rules \
+ 		   $(common-objpfx)config.make
+ 	$(make-target-directory)
