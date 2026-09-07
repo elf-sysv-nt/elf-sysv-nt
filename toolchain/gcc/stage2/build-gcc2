@@ -121,6 +121,29 @@ run all-gcc            all-gcc
 run install-gcc        install-gcc
 run libgcc             all-target-libgcc
 run install-libgcc     install-target-libgcc
+
+# install-target-libgcc puts the shared runtime under $prefix/$target/lib64,
+# which is where the compiler looks for it and is not where the target keeps
+# it. The sysroot is the target's root file system: libstdc++ records
+# libgcc_s.so.1 as NEEDED, so without a copy here `ld` cannot resolve that
+# dependency (it searches the sysroot, not the toolchain's private lib64) and
+# a C++ program would not load under the kernel even if the link were forced
+# through with -rpath-link. Copied before libstdc++ builds, so its own link
+# sees it. Idempotent: cp -f over whatever is there.
+copy_libgcc_to_sysroot() {
+    dest=$sysroot/usr/lib64
+    [ -d "$dest" ] || die "no $dest to install the libgcc runtime into"
+    found=0
+    for f in "$prefix/$target/lib64"/libgcc_s.so*; do
+        [ -e "$f" ] || continue
+        cp -f "$f" "$dest/" || die "cannot copy $f into the sysroot"
+        found=1
+    done
+    [ "$found" = 1 ] || die "install-target-libgcc left no libgcc_s.so* to copy"
+    echo "stage2: libgcc runtime into $dest"
+}
+copy_libgcc_to_sysroot
+
 run libstdc++          all-target-libstdc++-v3
 run install-libstdc++  install-target-libstdc++-v3
 

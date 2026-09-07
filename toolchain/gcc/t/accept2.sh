@@ -120,6 +120,15 @@ libstdcxx=$("$CXX" -print-file-name=libstdc++.so.6)
 libgccs=$("$CXX" -print-file-name=libgcc_s.so.1)
 claim 'shared libstdc++ is installed' test -f "$libstdcxx"
 claim 'shared libgcc is installed' test -f "$libgccs"
+
+# Installed where the compiler finds it is half the claim. libgcc_s.so.1 is a
+# target runtime: libstdc++ records it as NEEDED, so the sysroot -- which is
+# the target's root file system -- has to carry it, or the program links here
+# and has nothing to load there. install-target-libgcc puts it under
+# $prefix/$target/lib64, which is the compiler's own directory and not the
+# target's, and nothing carried it across.
+claim 'and the sysroot carries the libgcc runtime' \
+    test -f "$sysroot/usr/lib64/libgcc_s.so.1"
 "$READELF" -p .comment "$libstdcxx" > cxx-comment.txt 2>&1
 claim 'and libstdc++ records our compiler as its builder' \
     grep -q 'GCC: (GNU) 13\.3\.0' cxx-comment.txt
