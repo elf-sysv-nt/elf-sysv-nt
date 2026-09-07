@@ -18,7 +18,7 @@
 #
 # Options:
 #   -o FILE, --output=FILE  Transcript destination; - is stdout. [default: -]
-#   -P DIR, --prefix=DIR    Toolchain prefix. [default: $ELFSYSVNT_PREFIX or /c/-/x-elfsysvnt]
+#   -P DIR, --prefix=DIR    Toolchain prefix. [default: the prefix bin/roots.sh resolves]
 #   -T TRIPLE, --target=TRIPLE  [default: x86_64-elfsysvnt-linux-gnu]
 #   -q, --quiet             Errors only.
 #   -V, --version           Print the version and exit.
@@ -31,8 +31,9 @@ set -u
 prog=measure
 release='measure 1.0'
 here=$(cd "$(dirname "$0")" && pwd)
+. "$here/../../bin/roots.sh"
 
-prefix=${MEASURE_PREFIX:-${ELFSYSVNT_PREFIX:-/c/-/x-elfsysvnt}}
+prefix=${MEASURE_PREFIX:-$ELFSYSVNT_PREFIX}
 target=${MEASURE_TARGET:-x86_64-elfsysvnt-linux-gnu}
 output=${MEASURE_OUTPUT:--}
 quiet=${MEASURE_QUIET:-0}
