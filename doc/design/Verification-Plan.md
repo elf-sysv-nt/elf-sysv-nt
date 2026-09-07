@@ -97,7 +97,17 @@ are absent does not join the gate, because a gate that passes because it
 could not run reports green for the one condition under which it knows
 nothing; it joins when a missing input makes it fail rather than skip.
 
-Settled by: DR-0035, DR-0038.
+The document checks read the whole tree, not a corner of it. A path cited
+from `doc/` resolves when its first segment is a directory `HEAD` tracks,
+which is every directory the repository carries and none of the retired arc's;
+the two citations that are correct and still unresolvable are named in
+`bin/check-doc-refs` with the reason each cannot be. The same gate holds this
+section's own claims: a criterion called met above must name a harness that
+exists and has a row in `test/suites.tsv`. And the checker carries its own
+bar, `bin/t/check-doc-refs-test.sh`, because a check nobody has tried to break
+is a check whose green means only that it ran.
+
+Settled by: DR-0035, DR-0038, DR-0107.
 
 ## Substitution
 

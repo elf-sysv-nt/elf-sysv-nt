@@ -91,3 +91,4 @@ The three reservations in `AGENTS.md` each end in a record by construction.
 | [0104](0104-acceptance-is-a-count-per-substrate.md) | acceptance is a count per substrate, rebuilt under N and shipped under H, reported side by side | accepted 2026-09-06 | 0013 |
 | [0105](0105-the-conformance-classes-are-defined-at-the-syscall-boundary.md) | the conformance classes are defined at the syscall boundary | accepted 2026-09-06 | 0013 |
 | [0106](0106-the-canary-and-the-pointer-guard-take-the-two-slots-below-the-thread-pointer.md) | the canary is `TlsSlots[62]` and the pointer guard `TlsSlots[61]`, below the thread pointer; the PEB reservation is three bits; DR-0101 amended | accepted 2026-09-06 | 0013 |
+| [0107](0107-the-documentation-gate-reads-the-whole-tree.md) | check-doc-refs resolves citations under every tracked top-level directory, names the two it cannot, gates the criteria the plan calls met, and carries its own bar | accepted 2026-09-06 | none |
