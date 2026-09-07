@@ -152,13 +152,15 @@ run install-libstdc++  install-target-libstdc++-v3
 # install silently drops the granule-separable default: gcc then links at the
 # 4 KB default, three PT_LOADs land inside one 64 KB granule, and the loader
 # refuses the image (which is how this was found -- criterion 1 went red with
-# nothing in the kernel changed). Reinstall it here for the same reason
-# ../build-gcc installs it there, and keep the two in step.
-version=$("$prefix/bin/$target-gcc" -dumpversion 2>/dev/null) ||
-    die "cannot ask the installed gcc its version"
-specsdir=$prefix/lib/gcc/$target/$version
-[ -d "$specsdir" ] || die "no gcc install dir at $specsdir for the link spec"
-install -m 644 "$here/../default.specs" "$specsdir/specs" ||
-    die "cannot install default.specs into $specsdir"
+# nothing in the kernel changed). Regenerate it here for the same reason
+# ../build-gcc generates it there.
+#
+# It has to be regenerated rather than copied from stage one, and generated
+# last rather than before libstdc++: this driver has C++ and a shared libgcc
+# that stage one's did not, so its own specs differ, and install-specs takes
+# the dump from the compiler that is now installed (DR-0108).
+echo "stage2: specs file"
+"$here/../install-specs" -P "$prefix" -T "$target" ||
+    die "cannot install the generated specs file"
 
 echo "stage2: done"

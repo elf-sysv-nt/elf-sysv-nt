@@ -39,7 +39,8 @@ for how a target default is carried. Both are why this is a spike and not a
 bug report: the fix is a design question about which layer holds a
 target-mandated link default, and it wants a measurement under it.
 
-**Gates.** DR-0061; DR-0062; `toolchain/gcc/default.specs` and its install in
+**Gates.** DR-0061; DR-0062; DR-0108, which this finding produced;
+`toolchain/gcc/default.specs` and its install in
 `toolchain/gcc/build-gcc` and `toolchain/gcc/stage2/build-gcc2`;
 `toolchain/gcc/t/accept2.sh`'s unwinder claims;
 `toolchain/gcc/t/granule-default.sh`.
@@ -75,8 +76,12 @@ puts it back.
 
 ## What this does not reach
 
-One gcc, 13.3.0, built for one target. The mechanism behind the loss is not
-identified here — this measures what the driver does, not why — so a
-different gcc release may cost a different set. The count is of what the
+One gcc, 13.3.0, built for one target. This measures what the driver does, not
+why, so a different gcc release may cost a different set. The why was read
+afterwards, out of `gcc/gcc.cc`, and is DR-0108's: `main` reads an installed
+specs file *instead of* calling `init_spec ()`, and `init_spec ()` is where
+`--eh-frame-hdr` joins `*link` and the built-in `-lgcc` becomes the `-lgcc_s`
+selection. That reading is source, not measurement, and this spike does not
+carry it. The count is of what the
 driver *passes*; that `--eh-frame-hdr` is what produces `PT_GNU_EH_FRAME` is
 read from the linked output in `toolchain/gcc/t/accept2.sh`, not here.

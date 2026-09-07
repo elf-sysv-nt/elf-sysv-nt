@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+#
+# install-specs -- put the target's link defaults where gcc reads them.
+#
+# gcc reads $prefix/lib/gcc/$target/$version/specs at startup, and the read is
+# exclusive: it runs instead of the driver's own init_spec(), not alongside it.
+# init_spec() is where --eh-frame-hdr joins *link and where the built-in -lgcc
+# becomes the -lgcc_s/-lgcc_eh selection a shared link needs, so a hand-written
+# fragment installed at that path costs both, whatever the fragment says. That
+# is spike 53's finding and DR-0108's reason for this script.
+#
+# So the file is generated rather than copied. -dumpspecs prints the specs the
+# driver would have built for itself, both of those included; the fragment's
+# additions are merged into the stanzas it names, and the result is verified
+# against the link the same driver runs with no file at all. A token that was
+# there before and is missing after is a failure and the old state goes back.
+#
+# Idempotent: the installed file is moved aside before the dump is taken, so a
+# second run reads the same driver defaults as the first and writes the same
+# bytes.
+#
+# Usage:
+#   install-specs [options]
+#
+# Options:
+#   -P DIR, --prefix=DIR   Where the toolchain is installed.
+#                          [default: $HOME/x-elfsysvnt]
+#   -T TRIPLE, --target=TRIPLE
+#                          The triple is doc/design/target-definition.md's;
+#                          change it there rather than here.
+#                          [default: x86_64-elfsysvnt-linux-gnu]
+#   -f FILE, --fragment=FILE
+#                          The additions to merge. [default: default.specs
+#                          beside this script]
+#   -n, --dry-run          Write the generated specs to stdout and stop.
+#   -t, --terse            One key=value per line.
+#   -q, --quiet            Errors only.
+#   -v, --verbose          Name each check as it passes.
+#   -d, --debug            Trace execution; implies --verbose.
+#   -V, --version          Print the version and exit.
+#   -h, --help             Print this message and exit.
+#
+# Each option is also settable as INSTALL_SPECS_<OPTION>, and the option wins.
+#
+# Exit codes: 0 installed, 1 failure, 2 usage error.
+
+set -u
+
+prog=install-specs
+release='install-specs 1.0'
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+prefix=${INSTALL_SPECS_PREFIX:-$HOME/x-elfsysvnt}
+target=${INSTALL_SPECS_TARGET:-x86_64-elfsysvnt-linux-gnu}
+fragment=${INSTALL_SPECS_FRAGMENT:-$here/default.specs}
+dryrun=${INSTALL_SPECS_DRY_RUN:-0}
+terse=${INSTALL_SPECS_TERSE:-0}
+quiet=${INSTALL_SPECS_QUIET:-0}
+verbose=${INSTALL_SPECS_VERBOSE:-0}
+debug=${INSTALL_SPECS_DEBUG:-0}
+
+usage() { awk '/^# Usage:/,/^[^#]/ { if ($0 ~ /^#/) print substr($0, 3) }' "$0"; }
+
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+usage_error() { printf '%s: %s\n' "$prog" "$*" >&2; usage >&2; exit 2; }
+note() { [ "$quiet" = 1 ] || printf '%s: %s\n' "$prog" "$*" >&2; }
+chat() { [ "$verbose" = 1 ] && note "$@"; return 0; }
+
+while [ $# -gt 0 ]; do
+    opt=$1; shift
+    val=
+    case $opt in
+        --*=*) val=${opt#*=}; opt=${opt%%=*} ;;
+    esac
+    takes=0
+    case $opt in
+        -P|--prefix|-T|--target|-f|--fragment) takes=1 ;;
+    esac
+    if [ "$takes" = 1 ] && [ -z "$val" ]; then
+        [ $# -gt 0 ] || usage_error "$opt wants a value"
+        val=$1; shift
+    fi
+    case $opt in
+        -P|--prefix) prefix=$val ;;
+        -T|--target) target=$val ;;
+        -f|--fragment) fragment=$val ;;
+        -n|--dry-run) dryrun=1 ;;
+        -t|--terse) terse=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -d|--debug) debug=1; verbose=1 ;;
+        -V|--version) printf '%s\n' "$release"; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
+        --) break ;;
+        *) usage_error "unknown option $opt" ;;
+    esac
+done
+
+[ "$debug" = 1 ] && set -x
+
+cc=$prefix/bin/$target-gcc
+cxx=$prefix/bin/$target-g++
+have() { [ -x "$1" ] || [ -x "$1.exe" ]; }
+have "$cc" || die "no $target-gcc under $prefix"
+[ -r "$fragment" ] || die "cannot read the fragment: $fragment"
+
+version=$("$cc" -dumpversion 2>/dev/null) || die 'cannot ask the compiler its version'
+[ -n "$version" ] || die 'the compiler named no version'
+specsdir=$prefix/lib/gcc/$target/$version
+[ -d "$specsdir" ] || die "no gcc install directory at $specsdir"
+specs=$specsdir/specs
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
+
+# The installed file has to be out of the way for the whole run: the dump is
+# only the driver's own specs while it is missing, and the before/after link
+# comparison below needs the same. -B does not help, since a -B prefix is
+# searched in addition to this path rather than instead of it.
+had=0
+if [ -f "$specs" ]; then cp -p "$specs" "$work/specs.saved" && had=1; fi
+restore() {
+    if [ "$had" = 1 ]; then cp -p "$work/specs.saved" "$specs" 2>/dev/null
+    else rm -f "$specs" 2>/dev/null; fi
+}
+trap 'restore; rm -rf "$work"' EXIT
+trap 'restore; rm -rf "$work"; exit 130' INT TERM
+rm -f "$specs"
+
+# What the driver builds for itself, --eh-frame-hdr and the shared-libgcc
+# selection included.
+"$cc" -dumpspecs > "$work/dumped" 2>"$work/dump.err" ||
+    die "-dumpspecs failed: $(head -1 "$work/dump.err")"
+[ -s "$work/dumped" ] || die '-dumpspecs printed nothing'
+
+# Merge by stanza name. The fragment is gcc's own syntax -- a *name: line, then
+# a body starting with + meaning "append to that spec" -- and appending is the
+# only thing this understands, because it is the only thing the target needs
+# and a fragment that meant to replace a stanza should say so out loud.
+#
+# The dump is reproduced line for line and only one line in it changes. That
+# is deliberate: a stanza whose value is empty prints as a header, an empty
+# line and a separator, and anything that rebuilds the file from a parse of it
+# eats the empty line, after which gcc reads the next header as that stanza's
+# value and refuses to run. So lines are buffered, the addition lands on the
+# last non-blank line of the named stanza, and everything else is passed
+# through untouched.
+awk -v frag="$fragment" '
+    function emit(   i) {
+        for (i = 1; i <= nbuf; i++) print buf[i]
+        nbuf = 0; last = 0
+    }
+    function close_stanza() {
+        if (name != "" && (name in add)) {
+            if (last == 0) { printf "no-body %s\n", name > "/dev/stderr"; bad = 1 }
+            else { buf[last] = buf[last] " " add[name]; seen[name] = 1 }
+        }
+        emit()
+        name = ""
+    }
+    BEGIN {
+        cur = ""
+        while ((getline line < frag) > 0) {
+            if (line ~ /^\*[A-Za-z_0-9]+:/) { sub(/:.*/, "", line); cur = substr(line, 2); continue }
+            if (cur != "" && line ~ /^\+/) {
+                text = line; sub(/^\+[ \t]*/, "", text)
+                if (text != "") add[cur] = (cur in add) ? add[cur] " " text : text
+            }
+        }
+        close(frag)
+        nbuf = 0; last = 0; name = ""
+    }
+    /^\*[A-Za-z_0-9]+:/ {
+        close_stanza()
+        h = $0; sub(/:.*/, "", h); name = substr(h, 2)
+        buf[++nbuf] = $0
+        next
+    }
+    {
+        buf[++nbuf] = $0
+        if (name != "" && $0 !~ /^[ \t]*$/) last = nbuf
+        if (name == "") emit()
+    }
+    END {
+        close_stanza()
+        for (k in add) if (!(k in seen)) { printf "missing-stanza %s\n", k > "/dev/stderr"; bad = 1 }
+        exit bad ? 3 : 0
+    }
+' "$work/dumped" > "$work/generated" 2>"$work/merge.err"
+case $? in
+    0) ;;
+    3) die "the fragment does not fit the dumped specs: $(tr '\n' ' ' < "$work/merge.err")" ;;
+    *) die "merging $fragment into the dumped specs failed" ;;
+esac
+[ -s "$work/generated" ] || die 'the merge produced an empty specs file'
+
+if [ "$dryrun" = 1 ]; then
+    restore; trap - EXIT INT TERM
+    cat "$work/generated"
+    rm -rf "$work"
+    exit 0
+fi
+
+# What the driver would hand the linker, as one sorted token list. gcc writes
+# the collect2 line with each argument quoted, and the temporary object and
+# response-file names change from run to run, so those are dropped: what is
+# being compared is the set of options, not the scratch files.
+#
+# A C++ shared link is the probe where there is a C++ driver, because -lgcc_s
+# is that driver's default and the loss is invisible to a C link that never
+# wanted it. Stage one has no g++, and a C link still shows --eh-frame-hdr.
+if have "$cxx"; then
+    drv=$cxx
+    probe=$work/probe.cc
+    probe_args="-fPIC -shared -o $work/probe.so"
+    cat > "$probe" <<'EOF'
+#include <stdexcept>
+void poke (int v) { if (v > 0) throw std::runtime_error ("crossed"); }
+EOF
+else
+    drv=$cc
+    probe=$work/probe.c
+    probe_args="-o $work/probe.out"
+    printf 'int main(void) { return 0; }\n' > "$probe"
+fi
+
+tokens() { # destination
+    # shellcheck disable=SC2086
+    "$drv" -O2 $probe_args "$probe" -### > "$work/dash3" 2>&1
+    grep collect2 "$work/dash3" | tr ' ' '\n' | tr -d '"' |
+        grep -v '^$' | grep -v '/cc[A-Za-z0-9]\{6\}\.' | grep -v "$work" |
+        sort > "$1"
+}
+
+tokens "$work/tokens.before"
+[ -s "$work/tokens.before" ] || die 'the driver named no collect2 line to compare against'
+
+install -m 644 "$work/generated" "$specs" || die "cannot install $specs"
+tokens "$work/tokens.after"
+
+lost=$(comm -23 "$work/tokens.before" "$work/tokens.after" | tr '\n' ' ')
+if [ -n "$lost" ]; then
+    restore
+    die "the generated specs file costs the link: $lost"
+fi
+chat 'no token the driver passed without the file went missing'
+
+# The additions have to be on the line, which is not the same as being new to
+# it: `-z` is already there ahead of `relro`, so what is checked is presence
+# after, not the difference. The gained set is reported rather than tested.
+gained=$(comm -13 "$work/tokens.before" "$work/tokens.after" | tr '\n' ' ')
+for want in $(awk '/^\+/ { sub(/^\+[ \t]*/, ""); print }' "$fragment"); do
+    grep -qxF -- "$want" "$work/tokens.after" ||
+        { restore; die "the generated specs file does not put $want on the link line"; }
+done
+chat "the fragment's additions reached the link line"
+
+# The file stands. Drop the trap rather than letting it put the old one back.
+trap - EXIT INT TERM
+rm -rf "$work"
+
+if [ "$terse" = 1 ]; then
+    printf 'specs=%s\nversion=%s\ntarget=%s\nadded=%s\n' \
+        "$specs" "$version" "$target" "$(echo "$gained" | sed 's/ *$//')"
+else
+    note "specs installed at $specs (added:$(echo " $gained" | sed 's/ *$//'))"
+fi

@@ -198,6 +198,15 @@ ELF mapper is the consumer that depends on the answer: a non-PIE image has
 one fixed load address and a PIE one is placed by the mapper, so it must
 know which shape it was handed, and it reads `e_type` to learn it.
 
+Any default this toolchain carries in a specs file is carried in a generated
+one. gcc's read of `$prefix/lib/gcc/$target/$version/specs` replaces the
+driver's own `init_spec ()` rather than adding to it, so a hand-written file
+installed at that path silently costs `--eh-frame-hdr` and the shared libgcc,
+whatever the file says; `toolchain/gcc/install-specs` merges the target's
+additions into the driver's dumped specs and verifies the result.
+
+Settled by: DR-0108.
+
 ## Where the name actually lives
 
 Not in `EI_OSABI`, not in the ABI-tag note, not in the loader SONAME, and not
