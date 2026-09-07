@@ -3,10 +3,11 @@
 # Turn the same-change documentation convention into something that either
 # passes or does not, so it cannot rot silently again (design-gaps F6).
 #
-# It checks three things and exits non-zero on the first violation:
-#   1. Every doc/, bin/, spike/ or ci/ path cited from within doc/ and AGENTS.md
-#      resolves to a file or directory that exists. A generated, git-ignored
-#      target (doc/Next-Steps.md) is skipped, since it is not in a fresh clone.
+# It checks four things and exits non-zero on the first violation:
+#   1. Every path cited from within doc/ and AGENTS.md, under any top-level
+#      directory the tree actually tracks, resolves to a file or directory that
+#      exists. A generated, git-ignored target (doc/Next-Steps.md) is skipped,
+#      since it is not in a fresh clone, and so is anything in EXEMPT below.
 #   2. Every directory under spike/ has a row in doc/milestones.md, and every
 #      spike path that milestones.md cites is a directory that exists. Planned
 #      spikes with neither a directory nor a row are intentionally out of scope
@@ -14,6 +15,9 @@
 #   3. The decision records keep proposal 0001's index bijection: every
 #      doc/design/decisions/NNNN-*.md has exactly one index row, and every index row
 #      points to a file that exists.
+#   4. Every criterion doc/design/Verification-Plan.md calls met names a file
+#      that exists and carries a row in test/suites.tsv. A criterion is met by
+#      a harness a reader can run, or it is not met.
 #
 # Prose is not exempt here the way it is for check-target-definition: a broken
 # path in a design document is a broken path wherever it sits.
@@ -32,9 +36,23 @@
 
 import os, re, sys, subprocess
 
-VERSION = 'check-doc-refs 1.0'
-TOPDIRS = ('doc/', 'bin/', 'spike/', 'ci/')
+VERSION = 'check-doc-refs 1.1'
 PATH_OK = re.compile(r'^[A-Za-z0-9_./-]+$')       # no spaces, globs, or <>
+
+# Citations this check does not resolve, each with the reason it cannot be.
+# The bar for a row is that the citation is correct and the path is still not
+# in the tree -- not that a document is inconvenient to fix. Anything else is
+# a defect, and finding those is why the check was widened.
+EXEMPT = {
+    'toolchain/sysroot/include':
+        'DR-0010 is superseded in framing by DR-0000 and describes, in the past'
+        ' tense, a WP-14 draft that WP-15 deleted when the vendored el8 set'
+        ' replaced it. The record is append-only; the path is meant to be gone.',
+    'etc/elfsysvnt/manifest':
+        "DR-0034's manifest is relative to the root elf-install installed into,"
+        ' not to this repository. It is an install-time artifact, and a fresh'
+        ' clone is right not to have one.',
+}
 
 
 def repo_root(start):
@@ -44,6 +62,28 @@ def repo_root(start):
             return d
         d = os.path.dirname(d)
     return os.path.abspath(start)
+
+
+def topdirs(root):
+    """The tracked top-level directories, as a tuple of 'name/' prefixes.
+
+    From git rather than from the filesystem, and the difference matters. `a/`
+    is the untracked session annex: it exists in a working checkout and not in
+    a fresh clone, so a filesystem listing would make this gate's verdict
+    depend on whether anyone had run a session here -- passing in CI and
+    failing under bin/session-land, which is the one place it runs for real.
+    Taking the set from HEAD also retires the veneer arc for free: veneer/,
+    loader/ and runtime/ are not directories of this tree, so the records that
+    describe them are never asked for a path this repository does not carry
+    (doc/history/the-veneer-arc.md).
+    """
+    try:
+        out = subprocess.run(['git', '-C', root, 'ls-tree', '--name-only', 'HEAD'],
+                             capture_output=True, text=True).stdout.split()
+    except Exception:
+        out = []
+    names = [n for n in out if os.path.isdir(os.path.join(root, n))]
+    return tuple(sorted(n + '/' for n in names))
 
 
 def is_ignored(root, rel):
@@ -73,7 +113,7 @@ def citing_files(root):
     return out
 
 
-def refs_in(path, root):
+def refs_in(path, root, tops):
     """Yield (rel_path_cited) for repo-path citations in one file."""
     text = open(path, encoding='utf-8', errors='replace').read()
     cands = set(re.findall(r'`([^`]+)`', text))
@@ -89,15 +129,18 @@ def refs_in(path, root):
         c = c.split('#')[0].strip().rstrip('/')
         if not c or not PATH_OK.match(c):
             continue
-        if c.startswith(TOPDIRS):
+        if c.startswith(tops):
             yield c
 
 
 def check_paths(root, verbose):
     n, bad = 0, []
+    tops = topdirs(root)
     for f in citing_files(root):
-        for rel in refs_in(f, root):
+        for rel in refs_in(f, root, tops):
             n += 1
+            if rel in EXEMPT:
+                continue
             if verbose:
                 print('  ref %s -> %s' % (os.path.relpath(f, root), rel))
             if os.path.exists(os.path.join(root, rel)):
@@ -163,6 +206,41 @@ def check_decisions(root):
     return len(files), bad
 
 
+def check_met_criteria(root):
+    """Every harness the plan calls met exists and is registered.
+
+    The proposals are skipped by citing_files() for a good reason: a proposal
+    names artifacts it proposes to create, and 0011's criteria 4 to 17 are
+    promises rather than claims. But "criterion N is met" is a claim about
+    today, and it went wrong for three weeks -- 0011 § 7 named
+    test/t/hello-static.sh, which has never existed, while core/run.sh quietly
+    did the work. Checking the claim where it is made costs nothing and cannot
+    false-positive on a criterion the plan has not yet claimed.
+    """
+    vp = os.path.join(root, 'doc', 'design', 'Verification-Plan.md')
+    if not os.path.isfile(vp):
+        return 0, []
+    text = open(vp, encoding='utf-8', errors='replace').read()
+    suites = ''
+    sp = os.path.join(root, 'test', 'suites.tsv')
+    if os.path.isfile(sp):
+        suites = open(sp, encoding='utf-8', errors='replace').read()
+
+    n, bad = 0, []
+    for m in re.finditer(r'riterion \d+(?: as amended)? is met \(([^)]*)\)', text):
+        for rel in re.findall(r'`([A-Za-z0-9_./-]+/[A-Za-z0-9_./-]+)`', m.group(1)):
+            if not rel.endswith(('.sh', '.py')):
+                continue                              # a design document, not a harness
+            n += 1
+            if not os.path.exists(os.path.join(root, rel)):
+                bad.append('Verification-Plan.md calls a criterion met by %s, '
+                           'which does not exist' % rel)
+            elif rel not in suites:
+                bad.append('Verification-Plan.md calls a criterion met by %s, '
+                           'which has no row in test/suites.tsv' % rel)
+    return n, bad
+
+
 def main(argv):
     directory, quiet, verbose = None, False, False
     i = 0
@@ -194,7 +272,8 @@ def main(argv):
     root = repo_root(directory or '.')
     total = 0
     problems = []
-    for label, fn in (('paths', check_paths), ('spikes', check_spikes), ('decisions', check_decisions)):
+    for label, fn in (('paths', check_paths), ('spikes', check_spikes),
+                      ('decisions', check_decisions), ('criteria', check_met_criteria)):
         if label == 'paths':
             n, bad = fn(root, verbose)
         else:

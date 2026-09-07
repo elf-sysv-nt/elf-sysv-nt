@@ -65,7 +65,7 @@ each back with one `%gs` load, confirms a raw write to `TP-8` is what
 `TlsGetValue(62)` returns, and finds all three at zero on a new thread —
 which is why `clone.S` copies the two guards out of the TCB before the first
 protected frame runs, as the glibc port's README describes (on branch
-`toolchain/glibc-port`; it is not in this tree yet). The transcript is
+toolchain/glibc-port; it is not in this tree yet). The transcript is
 `spike/peb-tls-bitmap/results-2026-09-06.txt`,
 `finding=three-bits-reserved-array-ends-at-the-thread-pointer`.
 
@@ -101,7 +101,7 @@ refuses on any; the conformance suite's `tp_set` group is unchanged, since the
 thread pointer's own offset did not move. `spike/peb-tls-bitmap/` q7 to q9 are
 the measurement; `doc/milestones.md` row 48 carries them.
 
-Two consequences land outside this tree, on branch `toolchain/glibc-port`,
+Two consequences land outside this tree, on branch toolchain/glibc-port,
 and are named here so that whoever lands it knows what this record already
 expects of it: the GCC patch for the N target reads the canary at
 `%gs:0x1670`, and the port's `sysdeps/x86_64/nptl/tls.h` is the one place the
