@@ -173,7 +173,7 @@ named by the date it was run. A spike reproduces its findings, not its
 measurements: verdicts and case words come back identical, numbers move.
 `test/spike-regen.tsv` registers every spike and `test/t3-regen.sh` reruns
 them; a spike whose script no longer regenerates its transcript is a defect
-the way a failing test is. `doc/milestones.md` records all 47 with their
+the way a failing test is. `doc/milestones.md` records all 54 with their
 verdicts.
 
 `doc/design/decisions/` holds one settlement per file with an index beside
