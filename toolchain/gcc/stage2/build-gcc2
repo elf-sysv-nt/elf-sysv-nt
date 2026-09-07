@@ -4,9 +4,10 @@
 #
 # Stage one was --without-headers, C only, no threads, no shared: a compiler
 # that trusts nothing because there was nothing to trust.  The sysroot now
-# carries the vendored el8 headers, the kernel uapi set, WP-14's startup
-# files and WP-53/54's libraries, so this configure reads a libc and builds
-# what stage one could not: shared libgcc, posix threads, C++, libstdc++.
+# carries the glibc toolchain/glibc/build-glibc installed, its headers and
+# startup files, and the kernel uapi set beside them, so this configure
+# reads a libc and builds what stage one could not: shared libgcc, posix
+# threads, C++, libstdc++.
 #
 # The source tree is stage one's, patches included; only the build tree is
 # new.  The script is resumable on purpose -- an unattended runner gets a
@@ -65,9 +66,9 @@ build=$work/build/gcc2
 sysroot=$prefix/$target/sys-root
 
 [ -d "$src" ]     || die "no gcc source at $src; run ../build-gcc (stage one) first"
-[ -d "$sysroot/usr/include/gnu" ] || die "sysroot headers missing; run build-csu"
-[ -f "$sysroot/usr/lib64/libc.so.6" ] || die "no libc.so.6 in the sysroot; run install-veneer"
-[ -f "$sysroot/usr/lib64/crt1.o" ]    || die "no crt1.o in the sysroot; run build-csu"
+[ -d "$sysroot/usr/include/gnu" ] || die "sysroot headers missing; run toolchain/glibc/build-glibc"
+[ -f "$sysroot/usr/lib64/libc.so.6" ] || die "no libc.so.6 in the sysroot; run toolchain/glibc/build-glibc"
+[ -f "$sysroot/usr/lib64/crt1.o" ]    || die "no crt1.o in the sysroot; run toolchain/glibc/build-glibc"
 
 configure_args="--target=$target --prefix=$prefix --with-sysroot=$sysroot \
   --enable-languages=c,c++ --enable-shared --enable-threads=posix \

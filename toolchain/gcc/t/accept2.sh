@@ -17,7 +17,7 @@
 # links against it, and every artifact the runtime unwinder needs is present
 # and wired -- PT_GNU_EH_FRAME in both, .eh_frame_hdr and .eh_frame sections,
 # __cxa_throw imported by the DSO and exported by libstdc++, and
-# dl_iterate_phdr exported by the veneer libc, since that is how the unwinder
+# dl_iterate_phdr exported by libc, since that is how the unwinder
 # finds the tables at run time. When the loader can run a pair, the catch
 # itself becomes the test and this file gains that check.
 #
@@ -165,10 +165,10 @@ claim 'the thrower imports __cxa_throw' \
 claim 'and libstdc++ exports it' \
     grep -qE '[0-9]+[[:space:]]+__cxa_throw(@|$)' cxx-syms.txt
 
-# The unwinder finds the tables through dl_iterate_phdr; the veneer libc
-# must export it or the catch dies inside _Unwind_Find_FDE.
+# The unwinder finds the tables through dl_iterate_phdr; libc must export
+# it or the catch dies inside _Unwind_Find_FDE.
 "$READELF" --dyn-syms -W "$sysroot/usr/lib64/libc.so.6" > libc-syms.txt 2>&1
-claim 'the veneer libc exports dl_iterate_phdr' \
+claim 'libc exports dl_iterate_phdr' \
     grep -q ' dl_iterate_phdr' libc-syms.txt
 
 note 'measured: build-of-own-runtime and every link-time artifact of the'
