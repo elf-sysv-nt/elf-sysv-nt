@@ -305,8 +305,24 @@ loader can run" -- so every claim it makes is about a section or a segment in a
 linked object. DR-0108 restored `PT_GNU_EH_FRAME` and the shared libgcc, which
 is what those claims read, and what they assert is that the unwind tables will
 be findable. A throw crossing a DSO has never executed on this platform, and
-cannot until the core runs a dynamic program. Nothing owns the run-time half,
-and the green suite is the thing most likely to be mistaken for it.
+cannot until the core runs a dynamic program, so the green suite is the thing
+most likely to be mistaken for the criterion.
+
+Homed 2026-09-07, on the operator's instruction to find the package that runs
+a dynamic program. It is phase 3 (0011 § 18), whose text is the only place the
+capability appears -- none of the seventeen verification criteria names a
+dynamic program, and criterion 1 is explicitly a static hello. The missing
+piece is in the core rather than the toolchain: `core/binfmt_elf.c` parses a
+static `ET_EXEC` or `ET_DYN` and no file under `core/` mentions `PT_INTERP` at
+all, so the mapper has no interpreter path to jump to. Two suites already
+report the capability and neither implements it.
+`toolchain/glibc/t/accept.sh`'s fourth claim is the dynamic hello through the
+rebuilt `ld.so`, deliberately a stretch that does not gate; it cannot hold
+whatever glibc does, because it hands the image to `lk-host` and the core
+cannot map an interpreter. `toolchain/gcc/t/accept2.sh` says in its own header
+that it "gains that check" when the loader can run a pair, and WP-15's throw
+and catch is that check. So the work is one addition to the core's mapper, and
+the day it lands, two report-tier suites become the test.
 
 **The report tier has no moment at which it runs.** `bin/nightly-full` exists
 for exactly this, runs `bin/run-suites --tier report`, and is not scheduled on
