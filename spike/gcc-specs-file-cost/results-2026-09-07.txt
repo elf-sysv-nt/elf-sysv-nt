@@ -1,0 +1,35 @@
+what a specs file costs the link
+
+host        ins-15
+cygwin      3.6.10-1.x86_64
+compiler    x86_64-elfsysvnt-linux-gnu-g++ (GCC) 13.3.0
+target      x86_64-elfsysvnt-linux-gnu
+date        2026-09-07T03:44:57Z
+script      measure 1.0
+
+reading
+
+  with no specs file the driver passes --eh-frame-hdr and -lgcc_s;
+  an empty one at the same path costs both, so the loss follows the
+  file's presence rather than its contents.
+
+per state, tokens on the collect2 line
+
+    state                          --eh-frame-hdr -lgcc_s   max-page-size
+    absent                         1              2         0
+    empty                          0              0         0
+    link-append-nothing            0              0         0
+    self-spec-append-nothing       0              0         0
+    committed-default-specs        0              0         1
+
+raw
+
+    absent	eh_frame_hdr=1	lgcc_s=2	max_page_size=0
+    empty	eh_frame_hdr=0	lgcc_s=0	max_page_size=0
+    link-append-nothing	eh_frame_hdr=0	lgcc_s=0	max_page_size=0
+    self-spec-append-nothing	eh_frame_hdr=0	lgcc_s=0	max_page_size=0
+    committed-default-specs	eh_frame_hdr=0	lgcc_s=0	max_page_size=1
+
+verdict
+
+    finding=any-specs-file-drops-eh-frame-hdr-and-shared-libgcc

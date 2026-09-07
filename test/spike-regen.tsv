@@ -177,3 +177,4 @@ peb-tls-bitmap	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 ntreadfile-uncommitted	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 futex-timeout	-	results-2026-[0-9]*.txt	bash measure.sh -o -
 syscall-fs-census	SKIP	-	true
+gcc-specs-file-cost	-	results-2026-[0-9]*.txt	bash measure.sh -o -
