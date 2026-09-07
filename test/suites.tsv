@@ -50,6 +50,7 @@ toolchain/csu/t/run-tests.sh	report	$ELFSYSVNT_PREFIX/bin	the startup files
 toolchain/binutils/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-12's exit criteria
 toolchain/gcc/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-13's exit criteria
 toolchain/gcc/t/accept2.sh	report	$ELFSYSVNT_PREFIX/bin	WP-15's exit criteria
+toolchain/gcc/t/granule-default.sh	report	$ELFSYSVNT_PREFIX/bin	DR-0061's granule default and what DR-0108 says it must not cost; a runner, not accept2.sh's helper
 toolchain/gdb/t/accept.sh	report	$ELFSYSVNT_PREFIX/bin	WP-60's exit criteria
 toolchain/rpm/surface/t/run-tests.sh	report	-	the rpm macro surface
 spike/demand-census/t/run-tests.sh	report	-	as above
