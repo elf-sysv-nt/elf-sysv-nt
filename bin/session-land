@@ -11,10 +11,13 @@
 set -u
 prog=session-land
 here=$(cd "$(dirname "$0")/.." && pwd)
-repo=${here%%/a/wt/*}
-[ -d "$repo/.git" ] || repo=$here
-integ="$repo/a/wt/integration"
+. "$here/bin/roots.sh"
+repo=$ELFSYSVNT_MAIN
+integ="$ELFSYSVNT_WT_ROOT/integration"
 lock="$repo/a/.integration.lock"
+if [ "$repo" = "$here" ]; then
+    echo "$prog: run from a session worktree, not the shared checkout" >&2; exit 2
+fi
 
 branch=$(git -C "$here" symbolic-ref --short HEAD 2>/dev/null)
 case "$branch" in
@@ -64,6 +67,7 @@ cleanup() { rm -rf "$lock"; }
 trap cleanup EXIT
 
 # The integration worktree is march's checkout, made on first use.
+mkdir -p "$ELFSYSVNT_WT_ROOT"
 [ -d "$integ" ] || git -C "$repo" worktree add "$integ" march >&2 || {
     echo "$prog: cannot create the integration worktree at $integ" >&2; exit 1; }
 git -C "$integ" merge --no-edit "$branch" || {

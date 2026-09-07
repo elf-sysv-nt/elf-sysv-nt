@@ -67,7 +67,7 @@ def _clip(s, width):
     return s if len(s) <= width else s[:max(0, width - 1)] + '…'
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]
+REPO = roots.MAIN
 
 SLICE_ORDER = os.path.join(REPO, 'spike', 'demand-census', 'results', 'slice-order.tsv')
 SYMBOL_SLICE = os.path.join(REPO, 'veneer', 'wiring', 'symbol-slice.tsv')
@@ -800,8 +800,11 @@ def render_dynexec_step(model, step):
     print('  commands run (exit code):')
     for _id, state, rc, cmd in cmds:
         mark = 'ok' if state == 'ok' else ('FAIL rc=%s' % rc)
-        # keep the command readable: drop the long worktree prefix
-        short = re.sub(re.escape(roots.ROOT) + r'/a/wt/[^/]+/', '', cmd)
+        # keep the command readable: drop the long worktree prefix. Logs
+        # written before 2026-09-07 carry the annex prefix instead; both go.
+        old_root = os.path.join(roots.MAIN, 'a', 'wt')
+        short = re.sub(r'(?:' + re.escape(roots.WT_ROOT) + r'|'
+                       + re.escape(old_root) + r')/[^/]+/', '', cmd)
         print('    [%-9s] %s' % (mark, short))
     return 0
 

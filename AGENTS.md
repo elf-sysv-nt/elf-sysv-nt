@@ -164,8 +164,10 @@ Working notes (session handoffs, reviews of one commit, anything true only of
 this checkout) live under `a/`, untracked, are authoritative for nobody else,
 and are never cited from a tracked file, since a reader who clones this cannot
 open them; `bin/check-worknote-refs` enforces that. A working note worth
-keeping lands in `doc/history/`, made to stand alone. Session worktrees live
-under `a/wt/`.
+keeping lands in `doc/history/`, made to stand alone. Session worktrees are
+not notes and do not live in `a/`; `bin/session-start` puts them beside the
+repository, under `../.worktrees/elf-sysv-nt/`, and `bin/roots.sh` names
+the shared checkout as `ELFSYSVNT_MAIN` for any script that needs it.
 
 `spike/<question>/` is tracked and holds the evidence behind a decision: the
 script that measured it, its sources, and the transcript the script produced,

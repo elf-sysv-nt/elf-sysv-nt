@@ -12,10 +12,13 @@ Two consumers share this one definition:
 Read-only: it never writes or commits. Locate it by its own path, so it works
 from any working directory.
 """
-import glob, os, re, time, subprocess
+import glob, os, re, sys, time, subprocess
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import roots
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # the worktree root
-REPO = re.split(r'/a/wt/', ROOT.replace('\\', '/'))[0]              # the main checkout (holds the lock)
+REPO = roots.MAIN                                                    # the main checkout (holds the lock)
 PLAN   = os.path.join(ROOT, 'doc', 'IMPLEMENTATION-PLAN.md')
 LOCK   = os.path.join(REPO, 'a', '.build-worker.lock')
 LEDGER = os.path.join(ROOT, 'doc', 'status', 'delivered.txt')  # tracked status, never the plan
