@@ -84,6 +84,8 @@ that nobody has measured.
 
 ## Licence
 
+Copyright (c) 2026 Philip Hardy Dye
+
 LGPL-2.1-or-later, chosen rather than inherited: the kernel takes no code from
 Cygwin, and the licence is glibc's, which every program this kernel runs
 already links against. `COPYING.LESSER` is the text,
