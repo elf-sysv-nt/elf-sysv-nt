@@ -45,6 +45,24 @@ The raw section lists every package with a confirmed instruction outside
 glibc, with the count and whether it is Go, so the list can be read as
 a rebuild worklist.
 
+Run 2026-09-06, `results-2026-09-06.txt`,
+`finding=raw-syscall-confined-to-runtimes,glibc-carries-its-own`: 3780
+packages of the worklist's 4855, 17846 ELF files, nothing errored. The
+confirmation step earns its cost here — 1419 packages carry an `0f 05`
+byte pair and 71 carry an instruction, so the byte scan over-reports
+twentyfold, and a census that stopped at the bytes would have put the
+rebuild list at more than a third of the tree instead of under two
+percent. 69 of the 71 sit outside glibc and 19 carry a Go runtime. They
+are runtimes and toolchains, as 0012 § 8 expected: the container and Go
+stack, the sanitizer and instrumentation libraries, valgrind, dyninst,
+the dotnet runtimes, and three instructions in `kernel-core` that no
+userland links against. The base userland is clean — bash and coreutils
+carry byte pairs that disassembly does not confirm.
+
+The bound is the coverage: 78% of the worklist, so 71 is a floor. A
+resumed run raises the count and the finding is the shape rather than
+the number.
+
 ## Files
 
 - `census.py`: `run` (fetch, scan, fragment per package) and `report`

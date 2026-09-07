@@ -1,0 +1,105 @@
+raw syscall instructions and Go runtimes in the shipped el8 text
+
+host        ins-15
+objdump     GNU objdump (GNU Binutils) 2.42
+date        2026-09-07T00:06:36Z
+script      measure 1.0
+
+reading
+
+  3780 packages scanned of 4855 in the worklist (0 errored), 17846 ELF files; 1419 packages carry an 0f 05 byte pair in text,
+  71 a syscall instruction objdump confirms, 69 of those outside glibc; 19 carry a Go runtime;
+  69 packages substrate N cannot take as shipped and the post-link check would refuse after a rebuild.
+
+raw
+
+    packages_scanned=3780
+    packages_with_elf=2959
+    elf_files_scanned=17846
+    packages_errored=0
+    packages_with_0f05_bytes=1419
+    packages_confirmed_syscall=71
+    packages_confirmed_syscall_outside_glibc=69
+    packages_go_runtime=19
+    packages_n_cannot_rebuild_as_shipped=69
+    
+    confirmed syscall instructions outside glibc, by package (count, go?):
+        buildah	42	go
+        cargo	26	
+        compiler-rt	488	
+        containernetworking-plugins	755	go
+        delve	39	go
+        dotnet-apphost-pack-10.0	2	
+        dotnet-apphost-pack-5.0	1	
+        dotnet-apphost-pack-6.0	1	
+        dotnet-apphost-pack-7.0	1	
+        dotnet-apphost-pack-8.0	2	
+        dotnet-apphost-pack-9.0	2	
+        dotnet-runtime-10.0	4	
+        dotnet-runtime-2.1	6	
+        dotnet-runtime-3.0	6	
+        dotnet-runtime-3.1	6	
+        dotnet-runtime-5.0	6	
+        dotnet-runtime-6.0	7	
+        dotnet-runtime-7.0	5	
+        dotnet-runtime-8.0	5	
+        dotnet-runtime-9.0	5	
+        dotnet-sdk-aot-10.0	5	
+        dotnet-sdk-aot-9.0	5	
+        dyninst-testsuite	8732	
+        firefox	1	
+        gcc-toolset-10-valgrind	142	
+        gcc-toolset-11-valgrind	142	
+        gcc-toolset-14-binutils-gprofng	2	
+        gcc-toolset-15-binutils-gprofng	1	
+        gcc-toolset-9-dyninst-testsuite	8760	
+        gcc-toolset-9-valgrind	156	
+        git-lfs	39	go
+        golang-bin	393	go
+        grafana	80	go
+        grafana-pcp	40	go
+        kernel-core	3	
+        kernel-debug-core	3	
+        libasan	52	
+        libasan6	55	
+        libasan8	63	
+        libgomp	38	
+        libhugetlbfs	1	
+        libitm	4	
+        liblsan	52	
+        libtsan	52	
+        libtsan2	63	
+        libubsan	52	
+        netavark	4	
+        nmstate	2	
+        nscd	1	
+        oci-seccomp-bpf-hook	39	go
+        openssl-libs	2	
+        osbuild-composer-core	41	go
+        osbuild-composer-worker	119	go
+        podman	120	go
+        podman-catatonit	97	
+        podman-gvproxy	41	go
+        podman-plugins	39	go
+        podman-remote	41	go
+        redhat-lsb-core	3	
+        rpaste	39	go
+        rpm-ostree	102	
+        runc	40	go
+        rust	17	
+        skopeo	41	go
+        stress-ng	5	
+        thunderbird	1	
+        toolbox	39	go
+        valgrind	142	
+        weldr-client	39	go
+    
+    go runtime without a confirmed syscall (static section marker only):
+    
+    glibc's own:
+        glibc	745
+        glibc-all-langpacks	85
+
+verdict
+
+    finding=raw-syscall-confined-to-runtimes,glibc-carries-its-own
