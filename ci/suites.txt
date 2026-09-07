@@ -30,3 +30,8 @@ bin/check-suites
 # Host tools only; the cross assembler, when present, also assembles it.
 bin/check-roots
 bin/check-substrate-line
+# What check-doc-refs is worth, which its own green says nothing about: nine
+# injected defects it must refuse, two of them a disabled exemption. Runs
+# against a throwaway --shared clone, so a case that edits a tracked file
+# cannot touch the checkout it was started from.
+bin/t/check-doc-refs-test.sh

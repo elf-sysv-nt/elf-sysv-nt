@@ -37,7 +37,8 @@
 # too.
 #
 # suite	tier	needs	note
-bin/check-doc-refs	gate	-	every doc, bin, spike and ci path cited from doc/ resolves
+bin/check-doc-refs	gate	-	every path cited from doc/ under a tracked top-level directory resolves; every criterion the Verification-Plan calls met names a harness that exists and is registered here
+bin/t/check-doc-refs-test.sh	gate	-	nine defects check-doc-refs must refuse, two of them a disabled exemption. A checker whose own green is the only evidence for it is a checker nobody has tested; this runs against a throwaway clone so it can gate safely
 bin/check-design-links	gate	-	every in-force record is cited, every citation resolves, every Amends lands on a heading
 bin/check-worknote-refs	gate	-	no tracked file cites a working note a cloner cannot open
 bin/check-conflict-markers	gate	-	no tracked file carries an unresolved merge conflict marker; a degraded land committed one that check-doc-refs read straight past
