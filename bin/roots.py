@@ -23,8 +23,8 @@ EL8 = os.environ.get("ELFSYSVNT_EL8", "/c/-/el8")
 def _main_checkout():
     """The checkout that owns .git: ROOT itself, or the one a session
     worktree was cut from. Asked of git, never read off the path; the old
-    split on /a/wt/ handed back the worktree's own path whenever the
-    separator was missing, silently."""
+    split on the annex path handed back the worktree's own path whenever
+    the separator was missing, silently."""
     try:
         common = subprocess.check_output(
             ["git", "-C", ROOT, "rev-parse", "--git-common-dir"],
