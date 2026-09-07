@@ -316,6 +316,16 @@ backstop costs. The scheduling is machine state rather than repository state,
 so it is not a file anybody can land; it is an act somebody has to take on the
 build host, and this entry exists so the omission is findable when it recurs.
 
+**`bin/check-target-definition` is red on the trunk and has been.** It reports
+seventeen files carrying a target value without naming
+`doc/design/target-definition.md`, at `ce566cb` and at every commit this
+session added; `toolchain/gdb/`, `toolchain/rpm/surface/`,
+`toolchain/sysroot/` and `bin/elf-build-worker` are among them. The checker is
+doing its job -- the exemption it grants is attribution, and these files have
+none -- so the work is to attribute each site or to decide the literal is
+incidental there, seventeen small judgments rather than one. It is not in
+`ci/suites.txt`, which is why nothing has said so. Nobody owns it.
+
 ## Not verified
 
 That this list is complete. It was compiled by searching for deferral language
