@@ -489,15 +489,21 @@ def scrub_value(key, value):
 
 # A canary carrying one instance of each shape above. If any of it survives
 # the scrubber, redaction is broken and the run stops.
+#
+# The Azure DevOps entry is built rather than written out: 84 characters with
+# AZDO at offset 76, the shape of a new-format PAT and plainly not one. It
+# keeps upper, lower and digit because the high-entropy rule demands all
+# three; an all-capitals filler passes the scrubber and fails the self-test.
+# Its marker is sliced from it, so the two cannot drift apart.
+_SYNTHETIC_PAT = ("Synthetic0Fixture1" * 5)[:76] + "AZDOFAKE"
 _CANARY = (
-    "AZURE_DEVOPS_PAT=AzGXD5D6TPSZwiRLInn18046lalQt2LDfDVgTEYLqRB5"
-    "l56W9Z4QJQQJ99CHACAAAAAAAAAAAAASAZDO4UoN "
+    "AZURE_DEVOPS_PAT=" + _SYNTHETIC_PAT + " "
     "ghp_0123456789abcdefghijklmnopqrstuvwxyz "
     "AKIAIOSFODNN7EXAMPLE "
     'LODESTAR_DSN="Data Source=x;User ID=y;Password=hunter2;" '
     "-----BEGIN RSA PRIVATE KEY-----"
 )
-_CANARY_MARKERS = ("AzGXD5D6TPSZ", "ghp_0123456789", "AKIAIOSFODNN7EXAMPLE",
+_CANARY_MARKERS = (_SYNTHETIC_PAT[:12], "ghp_0123456789", "AKIAIOSFODNN7EXAMPLE",
                    "hunter2", "BEGIN RSA PRIVATE KEY")
 
 
