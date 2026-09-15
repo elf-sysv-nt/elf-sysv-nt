@@ -202,10 +202,12 @@ Any default this toolchain carries in a specs file is carried in a generated
 one. gcc's read of `$prefix/lib/gcc/$target/$version/specs` replaces the
 driver's own `init_spec ()` rather than adding to it, so a hand-written file
 installed at that path silently costs `--eh-frame-hdr` and the shared libgcc,
-whatever the file says; `toolchain/gcc/install-specs` merges the target's
-additions into the driver's dumped specs and verifies the result.
+whatever the file says. `toolchain/gcc/install-specs` builds that file: the
+target's additions are merged into the driver's dumped specs, the one stanza
+the dump does not carry correctly is measured from the driver arm by arm, and
+the result is held to linking exactly as the driver links with no file at all.
 
-Settled by: DR-0108.
+Settled by: DR-0108, DR-0110.
 
 ## Where the name actually lives
 

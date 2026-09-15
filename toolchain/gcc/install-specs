@@ -9,11 +9,20 @@
 # fragment installed at that path costs both, whatever the fragment says. That
 # is spike 53's finding and DR-0108's reason for this script.
 #
-# So the file is generated rather than copied. -dumpspecs prints the specs the
-# driver would have built for itself, both of those included; the fragment's
-# additions are merged into the stanzas it names, and the result is verified
-# against the link the same driver runs with no file at all. A token that was
-# there before and is missing after is a failure and the old state goes back.
+# So the file is generated rather than copied, from two sources rather than
+# one. -dumpspecs gives the body of it, --eh-frame-hdr included, and the
+# fragment's additions are merged into the stanzas it names. But the dump is
+# not the whole of what the driver does: it prints *libgcc as the bare -lgcc
+# it was before init_spec() rewrote it, so a file built from the dump alone
+# reintroduces the second half of what spike 53 measured. That stanza is
+# therefore derived by asking the driver, arm by arm, what it actually passes
+# (DR-0110).
+#
+# Everything is then verified against the link the same driver runs with no
+# file at all, over every kind of link the selection distinguishes and through
+# both drivers. The bar is equality and not merely absence of loss; the two
+# exceptions are named where they are allowed. Anything else and the old state
+# goes back.
 #
 # Idempotent: the installed file is moved aside before the dump is taken, so a
 # second run reads the same driver defaults as the first and writes the same
@@ -47,7 +56,7 @@
 set -u
 
 prog=install-specs
-release='install-specs 1.0'
+release='install-specs 1.1'
 
 here=$(cd "$(dirname "$0")" && pwd)
 
@@ -201,56 +210,169 @@ if [ "$dryrun" = 1 ]; then
     exit 0
 fi
 
+# *libgcc has to be put back by hand, because the dump does not carry it.
+#
+# -dumpspecs prints `-lgcc` for it on this toolchain, which is the compile-time
+# table before init_spec() rewrote it; the rewrite that turns that `-lgcc` into
+# the shared-or-static selection does not reach the dump. So a file built from
+# the dump alone silently moves every link onto the static libgcc -- the second
+# half of what spike 53 measured, reintroduced by the repair for it.
+#
+# The replacement text is derived from this driver rather than copied out of
+# gcc's source. gcc's init_gcc_specs writes one of three shapes depending on
+# how the compiler was configured, and on this toolchain none of the three is
+# what the driver does: it passes no -lgcc_eh to a C program at all. Rather
+# than work out which configure switch explains that, the arms are measured.
+# The selection turns on four switches, so each of its five reachable arms is
+# asked for directly, with the file out of the way, and what the driver puts on
+# the link line for that arm becomes that arm's text.
+#
+# What counts as the libgcc part of a link line: the runtime's own libraries
+# and the linker modes that bracket them. `%G` expands twice, once either side
+# of -lc, so only the first run of them is taken.
+libgcc_family='^(-lgcc|-lgcc_s|-lgcc_eh|-lunwind|--as-needed|--no-as-needed|-Bstatic|-Bdynamic)$'
+
+# Each arm is asked of the driver that can actually reach it, which is not the
+# same driver for every arm. The C driver never selects a shared-libgcc arm,
+# whatever switch it is handed; g++ always selects one unless -static-libgcc or
+# -static is given. So the shared arms come from g++ and the plain C arm from
+# gcc, and neither can be substituted for the other.
+libgcc_arm() { # driver, switches...
+    d=$1; shift
+    case $d in *g++) src=$work/probe.cc ;; *) src=$work/probe.c ;; esac
+    "$d" -O2 "$@" -o "$work/arm.out" "$src" -### > "$work/arm" 2>&1
+    grep collect2 "$work/arm" | tr ' ' '\n' | tr -d '"' |
+        awk -v fam="$libgcc_family" '
+            $0 ~ fam && !done { seen = 1; out = (out == "") ? $0 : out " " $0; next }
+            seen { done = 1 }
+            END { print out }'
+}
+
+# Rewrite one stanza's body wholesale, which is the one edit the merge above
+# deliberately cannot make.
+set_stanza() { # file, name, body
+    awk -v n="$2" -v body="$3" '
+        $0 == "*" n ":" { print; print body; skip = 1; next }
+        skip && /^[ \t]*$/ { skip = 0; print; next }
+        skip { next }
+        { print }
+    ' "$1"
+}
+
 # What the driver would hand the linker, as one sorted token list. gcc writes
 # the collect2 line with each argument quoted, and the temporary object and
 # response-file names change from run to run, so those are dropped: what is
 # being compared is the set of options, not the scratch files.
 #
-# A C++ shared link is the probe where there is a C++ driver, because -lgcc_s
-# is that driver's default and the loss is invisible to a C link that never
-# wanted it. Stage one has no g++, and a C link still shows --eh-frame-hdr.
-if have "$cxx"; then
-    drv=$cxx
-    probe=$work/probe.cc
-    probe_args="-fPIC -shared -o $work/probe.so"
-    cat > "$probe" <<'EOF'
+# The probes are the four the libgcc selection distinguishes, because a check
+# that links one way cannot see a selection that is wrong the other three. A
+# C++ driver is used where there is one: -lgcc_s is that driver's default and
+# the loss is invisible to a C link that never wanted it. Stage one has no g++,
+# and a C link still shows --eh-frame-hdr.
+printf 'int main(void) { return 0; }\n' > "$work/probe.c"
+cat > "$work/probe.cc" <<'EOF'
 #include <stdexcept>
 void poke (int v) { if (v > 0) throw std::runtime_error ("crossed"); }
 EOF
-else
-    drv=$cc
-    probe=$work/probe.c
-    probe_args="-o $work/probe.out"
-    printf 'int main(void) { return 0; }\n' > "$probe"
-fi
+have_cxx=0
+have "$cxx" && have_cxx=1
 
-tokens() { # destination
-    # shellcheck disable=SC2086
-    "$drv" -O2 $probe_args "$probe" -### > "$work/dash3" 2>&1
-    grep collect2 "$work/dash3" | tr ' ' '\n' | tr -d '"' |
-        grep -v '^$' | grep -v '/cc[A-Za-z0-9]\{6\}\.' | grep -v "$work" |
-        sort > "$1"
+# The C driver is a probe in its own right and not a lesser one. g++ asks for
+# the shared libgcc on its own, so every C++ link lands in the same arm of the
+# selection; the arm where the three candidate shapes actually disagree is a
+# plain C link, which asks for neither -shared-libgcc nor -static-libgcc. A
+# matrix without it picks whichever shape is tried first.
+probe_kinds='c-program c-static-libgcc c-static'
+[ "$have_cxx" = 1 ] && probe_kinds="$probe_kinds shared program static-libgcc static"
+
+probe_args() {
+    case $1 in
+        shared)          printf -- '-fPIC -shared -o %s/out.so' "$work" ;;
+        program)         printf -- '-o %s/out.exe' "$work" ;;
+        static-libgcc)   printf -- '-static-libgcc -o %s/out2.exe' "$work" ;;
+        static)          printf -- '-static -o %s/out3.exe' "$work" ;;
+        c-program)       printf -- '-o %s/c1.exe' "$work" ;;
+        c-static-libgcc) printf -- '-static-libgcc -o %s/c2.exe' "$work" ;;
+        c-static)        printf -- '-static -o %s/c3.exe' "$work" ;;
+    esac
 }
 
-tokens "$work/tokens.before"
-[ -s "$work/tokens.before" ] || die 'the driver named no collect2 line to compare against'
+tokens() { # kind, destination
+    case $1 in
+        c-*) drv=$cc;  probe=$work/probe.c ;;
+        *)   drv=$cxx; probe=$work/probe.cc ;;
+    esac
+    # shellcheck disable=SC2086
+    "$drv" -O2 $(probe_args "$1") "$probe" -### > "$work/dash3" 2>&1
+    grep collect2 "$work/dash3" | tr ' ' '\n' | tr -d '"' |
+        grep -v '^$' | grep -v '/cc[A-Za-z0-9]\{6\}\.' | grep -v "$work" |
+        sort > "$2"
+}
 
-install -m 644 "$work/generated" "$specs" || die "cannot install $specs"
-tokens "$work/tokens.after"
+for kind in $probe_kinds; do
+    tokens "$kind" "$work/before.$kind"
+done
+[ -s "$work/before.shared" ] || die 'the driver named no collect2 line to compare against'
 
-lost=$(comm -23 "$work/tokens.before" "$work/tokens.after" | tr '\n' ' ')
-if [ -n "$lost" ]; then
+# Each candidate in turn: install it, ask every probe, keep the first whose
+# link lines are the ones the driver already produces. The bar is equality and
+# not absence of loss, in both directions: a shape that adds a shared libgcc to
+# every C program has lost nothing and is still the wrong shape, and that is
+# precisely how two of these three differ. The only difference allowed is what
+# the fragment asks for.
+sel=$cc
+[ "$have_cxx" = 1 ] && sel=$cxx
+arm_static=$(libgcc_arm "$sel" -static-libgcc)
+arm_plain=$(libgcc_arm "$cc")
+arm_shared_libgcc=$(libgcc_arm "$sel")
+arm_shared=$(libgcc_arm "$cc" -fPIC -shared)
+arm_shared_both=$(libgcc_arm "$sel" -fPIC -shared)
+[ -n "$arm_plain" ] || die 'the driver names no libgcc on a plain link; nothing to derive'
+[ -n "$arm_static" ] || die 'the driver names no libgcc on a static-libgcc link'
+
+libgcc_body="%{static|static-libgcc:$arm_static}%{!static:%{!static-libgcc:\
+%{!shared:%{!shared-libgcc:$arm_plain}%{shared-libgcc:$arm_shared_libgcc}}\
+%{shared:%{!shared-libgcc:$arm_shared}%{shared-libgcc:$arm_shared_both}}}}"
+chat "libgcc derived: plain [$arm_plain], shared-libgcc [$arm_shared_libgcc], static [$arm_static]"
+
+set_stanza "$work/generated" libgcc "$libgcc_body" > "$work/final"
+install -m 644 "$work/final" "$specs" || die "cannot install $specs"
+
+# The bar is equality, in both directions, on every probe. A shape that loses
+# nothing can still be wrong -- adding a shared libgcc to every C program loses
+# nothing -- so the only difference allowed is what the fragment asks for.
+#
+# One gain is allowed beyond the fragment's own, and it is named rather than
+# waved through. The C driver's selection hands a -static-libgcc C link just
+# -lgcc, where the C++ driver's hands it -lgcc -lgcc_eh; a single stanza cannot
+# say both, so the C link gains -lgcc_eh. That library is an archive of the
+# unwinder's own routines: a C program that raises nothing references none of
+# them and the linker pulls in no member, so the gain costs a name on the
+# command line and nothing in the image. Any other gain is a failure.
+additions=$(awk '/^\+/ { sub(/^\+[ \t]*/, ""); for (i = 1; i <= NF; i++) print $i }' "$fragment" | sort -u)
+{ printf '%s\n' "$additions"
+  printf -- '-lgcc_eh\n-plugin-opt=-pass-through=-lgcc_eh\n'; } | sort -u > "$work/additions"
+differs=
+for kind in $probe_kinds; do
+    tokens "$kind" "$work/after.$kind"
+    miss=$(comm -23 "$work/before.$kind" "$work/after.$kind" | tr '\n' ' ')
+    [ -n "$miss" ] && differs="$differs $kind lost:$miss"
+    extra=$(comm -13 "$work/before.$kind" "$work/after.$kind" |
+            grep -vxF -f "$work/additions" | tr '\n' ' ')
+    [ -n "$extra" ] && differs="$differs $kind gained:$extra"
+done
+if [ -n "$differs" ]; then
     restore
-    die "the generated specs file costs the link: $lost"
+    die "the generated specs file changes the link:$differs"
 fi
-chat 'no token the driver passed without the file went missing'
+chat 'every probe links exactly as it did without the file'
 
 # The additions have to be on the line, which is not the same as being new to
 # it: `-z` is already there ahead of `relro`, so what is checked is presence
 # after, not the difference. The gained set is reported rather than tested.
-gained=$(comm -13 "$work/tokens.before" "$work/tokens.after" | tr '\n' ' ')
+gained=$(comm -13 "$work/before.shared" "$work/after.shared" | tr '\n' ' ')
 for want in $(awk '/^\+/ { sub(/^\+[ \t]*/, ""); print }' "$fragment"); do
-    grep -qxF -- "$want" "$work/tokens.after" ||
+    grep -qxF -- "$want" "$work/after.shared" ||
         { restore; die "the generated specs file does not put $want on the link line"; }
 done
 chat "the fragment's additions reached the link line"
@@ -260,8 +382,8 @@ trap - EXIT INT TERM
 rm -rf "$work"
 
 if [ "$terse" = 1 ]; then
-    printf 'specs=%s\nversion=%s\ntarget=%s\nadded=%s\n' \
-        "$specs" "$version" "$target" "$(echo "$gained" | sed 's/ *$//')"
+    printf 'specs=%s\nversion=%s\ntarget=%s\nlibgcc=%s\nadded=%s\n' \
+        "$specs" "$version" "$target" "$arm_shared_libgcc" "$(echo "$gained" | sed 's/ *$//')"
 else
-    note "specs installed at $specs (added:$(echo " $gained" | sed 's/ *$//'))"
+    note "specs installed at $specs (libgcc shared arm [$arm_shared_libgcc], added:$(echo " $gained" | sed 's/ *$//'))"
 fi
