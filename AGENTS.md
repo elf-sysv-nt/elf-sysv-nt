@@ -116,7 +116,10 @@ stops managing something it once managed, it removes the orphan.
 Commits are conventional: `type(scope): summary`, imperative, scoped to one
 logical phase, no `Co-Authored-By` trailer. Most carry a subject line and
 nothing else; a body appears when the reasoning is not recoverable from the
-diff. Documents and source land at mode 644.
+diff. A file is executable exactly when it begins with a shebang: documents
+and source land at 644, scripts at 755, and `bin/check-file-modes` holds the
+tree to it. Both errors are invisible in a diff and `core.fileMode false`
+hides the report rather than the drift, so it is never the fix and never set.
 
 Sessions work in a worktree cut from the trunk (`bin/session-start`), never
 in the shared checkout, and land through `bin/session-land`, which merges to

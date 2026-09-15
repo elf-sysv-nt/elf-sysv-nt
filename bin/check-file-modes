@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+#
+# A file is executable because it can be run, and for no other reason.
+#
+# Two errors, opposite and equally quiet. A document recorded executable is
+# noise that nobody reads; a script recorded non-executable is a file that
+# answers "Permission denied" to the one thing it exists for, which is how
+# spike/link-default-layer/measure.sh sat in test/spike-regen.tsv for a week
+# running only because its row happened to say `bash measure.sh`. Neither shows
+# in a diff anybody reads, and the reflex that hides both is core.fileMode
+# false, which stops git reporting the drift rather than stopping the drift.
+#
+# So the rule is mechanical and reads the content rather than the name: a
+# tracked file whose first two bytes are `#!` is 755, and every other tracked
+# file is 644. Extensions are not consulted, because a script without a
+# suffix is the common case here (bin/check-*, toolchain/glibc/build-glibc)
+# and a .sh that is sourced rather than run is the exception that proves it.
+#
+# What is deliberately exempt, and why:
+#
+#   spike/**/lit-noise/**   fixtures whose whole job is to look like build
+#                           output; their modes are part of what is being
+#                           characterised, not a mistake to correct.
+#   bin/roots.sh            sourced by its callers rather than run, and the
+#                           companion roots.py is imported. Neither carries a
+#                           shebang, so both land at 644 without an entry
+#                           here; they are named because somebody will
+#                           eventually add one and wonder.
+#
+# Usage:
+#   check-file-modes [options]
+#
+# Options:
+#   -C DIR, --directory=DIR  Run as if started in DIR. [default: the repo root]
+#   -n N, --count=N          Ignored; accepted so ci/suites.txt can run every
+#                            suite the same way.
+#   -q, --quiet              Errors only; the exit code carries the verdict.
+#   -v, --verbose            Name every file examined.
+#   -V, --version            Print version and exit.
+#   -h, --help               This help.
+#
+# Exit: 0 every mode is the one its content asks for, 1 at least one is not,
+#       2 a usage error.
+
+import os, re, subprocess, sys
+
+VERSION = 'check-file-modes 1.0'
+
+EXEMPT = (
+    re.compile(r'/lit-noise/'),
+)
+
+# git records exactly three blob modes. A symlink has no permission of its own
+# and a gitlink is another repository's business.
+REGULAR = '100644'
+EXECUTABLE = '100755'
+
+
+def tracked(root):
+    """Every tracked path with the mode git records for it."""
+    out = subprocess.run(['git', '-C', root, 'ls-files', '-s', '-z'],
+                         capture_output=True, text=True)
+    for entry in out.stdout.split('\0'):
+        if not entry:
+            continue
+        meta, _, path = entry.partition('\t')
+        mode = meta.split(' ', 1)[0]
+        yield mode, path
+
+
+def runnable(path):
+    """Does this file begin with a shebang? Read as bytes: a file that is not
+    text at all still has a first two bytes, and one that cannot be opened is
+    not this check's problem to report."""
+    try:
+        with open(path, 'rb') as fh:
+            return fh.read(2) == b'#!'
+    except OSError:
+        return None
+
+
+def main(argv):
+    root, quiet, verbose = None, False, False
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a in ('-h', '--help'):
+            print(__doc__ or '')
+            return 0
+        if a in ('-V', '--version'):
+            print(VERSION)
+            return 0
+        if a in ('-q', '--quiet'):
+            quiet = True
+        elif a in ('-v', '--verbose'):
+            verbose = True
+        elif a in ('-n', '--count'):
+            i += 1
+        elif a.startswith('--count='):
+            pass
+        elif a in ('-C', '--directory'):
+            i += 1
+            root = argv[i] if i < len(argv) else None
+        elif a.startswith('--directory='):
+            root = a.split('=', 1)[1]
+        else:
+            sys.stderr.write('check-file-modes: unknown option %s\n' % a)
+            return 2
+        i += 1
+
+    if root is None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.dirname(here)
+
+    bad, checked, absent = [], 0, 0
+    for mode, rel in tracked(root):
+        if mode not in (REGULAR, EXECUTABLE):
+            continue
+        if any(x.search(rel) for x in EXEMPT):
+            continue
+        has_shebang = runnable(os.path.join(root, rel))
+        if has_shebang is None:
+            absent += 1
+            continue
+        checked += 1
+        want = EXECUTABLE if has_shebang else REGULAR
+        if mode != want:
+            if has_shebang:
+                why, fix = 'it begins with a shebang', '755 ... --chmod=+x'
+            else:
+                why, fix = 'it is not a program', '644 ... --chmod=-x'
+            bad.append('%s: recorded %s, wants %s -- %s; chmod %s'
+                       % (rel, mode, want, why, fix.replace('...', rel + ' && git update-index')))
+        elif verbose:
+            print('  %s %s' % (mode, rel))
+
+    for b in bad:
+        sys.stderr.write('FAIL %s\n' % b)
+    if bad:
+        sys.stderr.write('check-file-modes: %d file(s) checked, %d with the '
+                         'wrong mode. Fix the file, never the setting: '
+                         'core.fileMode false stops git reporting this and '
+                         'changes nothing else.\n' % (checked, len(bad)))
+        return 1
+    if not quiet:
+        tail = '' if not absent else ' (%d unreadable, not checked)' % absent
+        print('check-file-modes: %d file(s) checked, every mode is right%s'
+              % (checked, tail))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

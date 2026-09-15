@@ -29,6 +29,7 @@ bin/check-suites
 # fixture shims table and held to a pin while the surface does not claim it.
 # Host tools only; the cross assembler, when present, also assembles it.
 bin/check-roots
+bin/check-file-modes
 bin/check-substrate-line
 # What check-doc-refs is worth, which its own green says nothing about: nine
 # injected defects it must refuse, two of them a disabled exemption. Runs
