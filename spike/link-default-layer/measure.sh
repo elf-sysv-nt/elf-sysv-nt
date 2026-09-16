@@ -119,19 +119,33 @@ probe() { # label, prefix
 	cxx=$prefix/bin/$target-g++
 	ld=$prefix/bin/$target-ld
 	readelf=$prefix/bin/$target-readelf
+	bflag=
+
+	# Candidate D is a binutils and nothing else: raising ELF_MAXPAGESIZE
+	# changes the linker, and rebuilding a compiler to measure a linker would
+	# be measuring the wrong thing. So a prefix holding an ld and no gcc is
+	# driven by the baseline compiler with -B, which is how a caller would
+	# reach a second linker in practice, and the tools that read the result
+	# come from the same prefix as the linker that wrote it.
 	if ! { [ -x "$cc" ] || [ -x "$cc.exe" ]; }; then
-		printf '%s\tdriver=not-built\tdirect-ld=not-built\tno-specs=not-built\toverride=not-built\tunwinder=not-built\n' "$label"
-		return 0
+		if [ -x "$ld" ] || [ -x "$ld.exe" ]; then
+			cc=$baseline/bin/$target-gcc
+			cxx=$baseline/bin/$target-g++
+			bflag=-B$prefix/bin/
+		else
+			printf '%s\tdriver=not-built\tdirect-ld=not-built\tno-specs=not-built\toverride=not-built\tunwinder=not-built\n' "$label"
+			return 0
+		fi
 	fi
 
-	"$cc" -### -o "$work/probe" "$work/t.c" > "$work/dash3" 2>&1
+	"$cc" $bflag -### -o "$work/probe" "$work/t.c" > "$work/dash3" 2>&1
 	if grep -q 'max-page-size=0x10000' "$work/dash3"; then driver=carries; else driver=absent; fi
 
 	# The link nobody asked to be granule-separable: compile to an object with
 	# the driver, then link it with ld directly, the way a hand-written
 	# Makefile does. Only a linker-side default reaches this.
 	direct=unlinkable
-	if "$cc" -c -o "$work/t.o" "$work/t.c" 2>/dev/null &&
+	if "$cc" $bflag -c -o "$work/t.o" "$work/t.c" 2>/dev/null &&
 	   "$ld" -o "$work/direct" "$work/t.o" -e main 2>/dev/null; then
 		a=$(min_align "$readelf" "$work/direct")
 		if [ -n "$a" ]; then
@@ -144,12 +158,16 @@ probe() { # label, prefix
 	# searched in addition to the installed path.
 	nospecs=not-measured
 	version=$("$cc" -dumpversion 2>/dev/null)
-	specs=$prefix/lib/gcc/$target/$version/specs
+	# The specs file belongs to whichever prefix the compiler came from, which
+	# is the candidate's for A and the baseline's for a linker-only candidate.
+	specsroot=$prefix
+	[ -n "$bflag" ] && specsroot=$baseline
+	specs=$specsroot/lib/gcc/$target/$version/specs
 	saved=$work/specs.saved.$label
 	had=0
 	[ -f "$specs" ] && cp -p "$specs" "$saved" && had=1
 	rm -f "$specs"
-	"$cc" -### -o "$work/probe2" "$work/t.c" > "$work/dash3b" 2>&1
+	"$cc" $bflag -### -o "$work/probe2" "$work/t.c" > "$work/dash3b" 2>&1
 	if grep -q 'max-page-size=0x10000' "$work/dash3b"; then nospecs=default-holds; else nospecs=default-lost; fi
 	[ "$had" = 1 ] && cp -p "$saved" "$specs"
 
@@ -157,7 +175,7 @@ probe() { # label, prefix
 	# must stay overridable. A candidate that cannot be overridden disarms the
 	# test of the layer that is the actual guarantee.
 	override=not-measured
-	if "$cc" -o "$work/small" "$work/t.c" -Wl,-z,max-page-size=0x1000 2>/dev/null; then
+	if "$cc" $bflag -o "$work/small" "$work/t.c" -Wl,-z,max-page-size=0x1000 2>/dev/null; then
 		a=$(min_align "$readelf" "$work/small")
 		if [ -n "$a" ]; then
 			if [ "$a" -le 4096 ]; then override=honored; else override=ignored; fi
@@ -168,7 +186,7 @@ probe() { # label, prefix
 	# a hand-written specs file would cost these two again.
 	unwinder=no-cxx
 	if { [ -x "$cxx" ] || [ -x "$cxx.exe" ]; }; then
-		"$cxx" -O2 -fPIC -shared -o "$work/u.so" "$work/u.cc" -### > "$work/dash3c" 2>&1
+		"$cxx" $bflag -O2 -fPIC -shared -o "$work/u.so" "$work/u.cc" -### > "$work/dash3c" 2>&1
 		line=$(grep collect2 "$work/dash3c" | tr ' ' '\n' | tr -d '"')
 		eh=$(printf '%s\n' "$line" | grep -c -- '--eh-frame-hdr')
 		gs=$(printf '%s\n' "$line" | grep -cx -- '-lgcc_s')

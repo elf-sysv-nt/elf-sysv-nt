@@ -27,6 +27,11 @@ here rather than argued in the record that reads it.
     ./measure.sh -o results-$(date +%F).txt                    # baseline only
     ./measure.sh -a /c/-/x-a -d /c/-/x-d -o results-$(date +%F).txt
 
+Candidate D is a binutils and nothing else, because raising a linker's default
+does not need a compiler rebuilt to measure it. A prefix holding an `ld` and no
+`gcc` is driven by the baseline compiler with `-B`, and the `readelf` that reads
+the result comes from the same prefix as the `ld` that wrote it.
+
 A prefix that has not been built is reported as `not-built` rather than failing,
 because two of these three do not exist until somebody spends the rebuild. The
 baseline alone is worth a transcript: it records what the mechanism in force
@@ -52,6 +57,31 @@ DR-0108's property: `--eh-frame-hdr` and `-lgcc_s` are still passed.
 A candidate carries the default when `no-specs` holds and `override` is honored.
 Whether `direct-ld` is also granule-aligned is what separates the two layers,
 and it is the whole of the bzip2 argument.
+
+## What candidate D said, and what it did not
+
+D was built on 2026-09-16: binutils 2.42 with `ELF_MAXPAGESIZE` raised from
+`0x1000` to `0x10000` at `bfd/elf64-x86-64.c:5625`, which is the definition
+that precedes `x86_64_elf64_vec`, installed into its own prefix and driven by
+the baseline compiler with `-B`.
+
+It changed nothing. `direct-ld` is still `sub-granule` and `no-specs` is still
+`default-lost`, exactly as the baseline.
+
+That result is about the implementation and not about the candidate, which is
+the distinction worth keeping. The plumbing is demonstrably live: the same
+linker honours `-z max-page-size=0x10000` and `0x4000` precisely, so `p_align`
+follows the option. The patched value is demonstrably in the binary: the object
+was compiled at 03:57 from source patched at 03:52, `libbfd.a` was rebuilt with
+it, and the build tree's own linker gives the same `0x1000` the installed one
+does. So the default this target links at is set somewhere other than the line
+that was changed, and that somewhere has not been found.
+
+**D is therefore unmeasured rather than refuted.** What the run establishes is
+that raising `ELF_MAXPAGESIZE` on the vector is not sufficient, and that
+whoever takes D next starts by finding where the default actually comes from —
+`ld`'s own startup, the emulation's `CONSTANT (MAXPAGESIZE)` resolution, or an
+`elfxx-x86` default — rather than by rebuilding.
 
 ## What the baseline said
 
