@@ -27,6 +27,36 @@ leaf is an independent unit from the moment the seam's header exists, and
 replaces the gate and the arena in phase 1 and the toolchain half of phase 3
 while touching nothing from phase 4 on.
 
+## The milestone the phases are aimed at
+
+One package passing under substrate N, and the package is bzip2.
+
+The phase list above is scope and reads as scope: nine phases, seventeen
+criteria, two substrates, and nothing in it a reader outside the tree can
+recognise as an event. This names the first one that is. It is deliberately
+not the nearest achievable thing — a dynamic program of our own running
+through the rebuilt `ld.so` is nearer, and it proves the plumbing rather than
+the premise. The premise is that el8's binaries work, so the milestone is a
+package: built through the acceptance harness, mapped by the kernel, entered,
+and run to a correct exit.
+
+bzip2 rather than another package because the road is already mapped. Its
+hand-written Makefile is what made DR-0061 a requirement rather than a
+preference, it exercises the whole stack from the toolchain's link defaults
+through the mapper to the loader, and it needs no threads, terminals or
+sockets — which is to say it is reachable at the end of phase 3 rather than
+after phase 6.
+
+`acceptance/to-green.tsv` carries the ladder from `ready` to `passing` and is
+where the rungs are counted, with one caveat a reader needs: several of its
+rows name the veneer's loader, which DR-0097 retired, so the ladder wants
+re-homing against the core before its rungs mean what they say. That is
+re-homing rather than re-deriving — the capabilities it names are the same
+ones the core has to grow.
+
+Naming it does not reorder the phases. It is a target to report against, so
+that "where is this" has an answer that is not a count of unbuilt criteria.
+
 ## Where the position is read
 
 `test/suites.tsv` names every suite and its tier, and a criterion joins it
