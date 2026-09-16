@@ -47,8 +47,8 @@ are the `IS_IN (rtld)` arm and the earliest static path rather than the arm in
 question. Whether any gate call on those paths happens before the thread
 pointer exists is a measurable question this spike does not answer.
 
-**Gates.** `toolchain/glibc/patches/0001-x86_64-reach-the-kernel-through-the-gate-and-the-thr.patch`;
-`toolchain/glibc/build-glibc`; `a/issue/the-gate-call-a-program-cannot-reach.md`.
+**Gates.** `toolchain/glibc/patches/0001-x86_64-reach-the-kernel-through-the-gate-and-the-thr.patch`
+and `toolchain/glibc/build-glibc`, which is the build that stops.
 
 ## Running it
 
