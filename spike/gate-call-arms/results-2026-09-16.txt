@@ -4,7 +4,7 @@ host        ins-15
 cygwin      3.6.10-1.x86_64
 glibc       glibc-2.28-251.el8_10.40
 log         /c/-/el8/glibc/build/glibc-make.log
-date        2026-09-16T00:48:13Z
+date        2026-09-16T07:48:26Z
 script      measure 1.0
 
 reading
@@ -31,6 +31,14 @@ across the whole build
     SHARED only         0
     neither, compiles   3061
 
+static startup, against the thread pointer
+
+    csu/libc-tls.c calls __sbrk at line 151
+    and sets the thread pointer with TLS_INIT_TP at line 192
+    brk reaches the kernel through INLINE_SYSCALL, so the call at the
+    first line is a gate call made from an object in the third arm.
+    kernel called before the thread pointer exists: yes
+
 what this rules out
 
     A third arm conditioned on PIC cannot work. The failing object and
@@ -40,6 +48,13 @@ what this rules out
     object will join is linked statically or dynamically, and nothing
     in the flags can be made to say so.
 
+    A third arm that reads the thread pointer cannot work either, for
+    the reason the port gave and did not measure: a static program
+    calls brk to place its own TLS before it has a thread pointer to
+    read, and that call is in the third arm. Carving the static case
+    out would need exactly the condition the paragraph above shows
+    does not exist.
+
 verdict
 
-    finding=program-and-static-objects-are-indistinguishable-at-compile-time
+    finding=program-and-static-objects-are-indistinguishable-at-compile-time,static-startup-calls-the-kernel-before-the-thread-pointer

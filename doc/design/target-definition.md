@@ -63,11 +63,15 @@ the call reaches the kernel. Under substrate H the `syscall` instruction is
 the interface, as it is on Linux. Under substrate N the instruction cannot
 be trapped, so the rebuilt userland calls the gate instead and the
 instruction is never reached; the post-link check refuses an image that
-still carries one. DR-0005 was written when the instruction was the thing
+still carries one. Where user code reaches that gate is settled too: through `_dl_sysinfo`, a symbol libc exports, because a
+program's objects and the static libc's are indistinguishable at compile time and a
+static program calls the kernel before it has a thread pointer to read. DR-0005 was written when the instruction was the thing
 the platform could not honour, and its bound is gone; its argument for
 keeping the field, that the only replacements are a libc field `config.sub`
 refuses outright and a kernel field that costs a toolchain port, stands as
 written.
+
+Settled by: DR-0111.
 
 ## EI_OSABI
 

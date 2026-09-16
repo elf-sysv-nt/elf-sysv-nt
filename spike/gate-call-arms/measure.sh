@@ -86,6 +86,41 @@ row() { # label, basename.c
 	printf '%s\tshared=%s\tpic=%s\tmodule=%s\tarm=%s\n' "$1" "$s" "$p" "${m:-none}" "$(arm_of "$s")"
 }
 
+# The second question, and the one that separates the two candidates left
+# standing after the first. If a program's objects were to reach the gate
+# address through the thread pointer -- which is what upstream i386 does, and
+# what this port declined -- then every gate call those objects make has to
+# happen after the thread pointer is set. A static program sets it in
+# __libc_setup_tls, and the question is whether anything calls the kernel
+# before that line.
+#
+# This reads the source rather than running it: the line numbers of the first
+# syscall-bearing call and of TLS_INIT_TP in csu/libc-tls.c, and the chain from
+# the first to a gate call.
+startup_probe() {
+	src=$1
+	tls=$src/csu/libc-tls.c
+	brk=$src/sysdeps/unix/sysv/linux/x86_64/brk.c
+	if [ ! -r "$tls" ] || [ ! -r "$brk" ]; then
+		printf 'startup\tsbrk_line=?\ttls_init_line=?\tbefore=not-measured\n'
+		return
+	fi
+	sbrk_line=$(grep -n -m1 -e '__sbrk (' "$tls" | cut -d: -f1)
+	tls_line=$(grep -n -m1 -e 'TLS_INIT_TP (' "$tls" | cut -d: -f1)
+	syscall_in_brk=no
+	grep -q -e 'INLINE_SYSCALL' -e 'INTERNAL_SYSCALL' "$brk" && syscall_in_brk=yes
+	before=unknown
+	if [ -n "$sbrk_line" ] && [ -n "$tls_line" ]; then
+		if [ "$sbrk_line" -lt "$tls_line" ] && [ "$syscall_in_brk" = yes ]; then
+			before=yes
+		else
+			before=no
+		fi
+	fi
+	printf 'startup\tsbrk_line=%s\ttls_init_line=%s\tbrk_syscalls=%s\tbefore=%s\n' \
+		"${sbrk_line:-?}" "${tls_line:-?}" "$syscall_in_brk" "$before"
+}
+
 note 'reading the build log'
 {
 	row nscd-program     nscd_setup_thread.c
@@ -95,6 +130,12 @@ note 'reading the build log'
 	row libc-strlen      strlen.c
 	row static-reloc     static-reloc.c
 } > "$work/rows"
+
+src=${MEASURE_SRC:-$ELFSYSVNT_EL8/glibc/src/glibc-2.28}
+startup_probe "$src" > "$work/startup"
+before=$(awk -F'\t' '{ for (i=2;i<=NF;i++) { split($i,p,"="); if (p[1]=="before") print p[2] } }' "$work/startup")
+sbrk_line=$(awk -F'\t' '{ for (i=2;i<=NF;i++) { split($i,p,"="); if (p[1]=="sbrk_line") print p[2] } }' "$work/startup")
+tls_line=$(awk -F'\t' '{ for (i=2;i<=NF;i++) { split($i,p,"="); if (p[1]=="tls_init_line") print p[2] } }' "$work/startup")
 
 both=$(awk '/-DSHARED/ && /-DPIC/   { n++ } END { print n+0 }' "$log")
 piconly=$(awk '/-DPIC/ && !/-DSHARED/ { n++ } END { print n+0 }' "$log")
@@ -112,6 +153,12 @@ if [ "$nscd_flags" = "$static_flags" ] && [ "$sharedonly" = 0 ]; then
 else
 	finding="nscd[$nscd_flags]-static[$static_flags]-sharedonly[$sharedonly]"
 fi
+
+case $before in
+	yes) finding="$finding,static-startup-calls-the-kernel-before-the-thread-pointer" ;;
+	no)  finding="$finding,static-startup-has-a-thread-pointer-first" ;;
+	*)   finding="$finding,startup-not-measured" ;;
+esac
 
 {
 	printf 'which arm of ENTER_KERNEL each glibc object takes\n\n'
@@ -139,13 +186,26 @@ fi
 	printf '    SHARED only         %s\n' "$sharedonly"
 	printf '    neither, compiles   %s\n' "$neither"
 
+	printf '\nstatic startup, against the thread pointer\n\n'
+	printf '    csu/libc-tls.c calls __sbrk at line %s\n' "$sbrk_line"
+	printf '    and sets the thread pointer with TLS_INIT_TP at line %s\n' "$tls_line"
+	printf '    brk reaches the kernel through INLINE_SYSCALL, so the call at the\n'
+	printf '    first line is a gate call made from an object in the third arm.\n'
+	printf '    kernel called before the thread pointer exists: %s\n' "$before"
+
 	printf '\nwhat this rules out\n\n'
 	printf '    A third arm conditioned on PIC cannot work. The failing object and\n'
 	printf '    a static-libc object agree on both flags, so any condition written\n'
 	printf '    over them puts both in the same arm, which is where they already\n'
 	printf '    are. glibc does not know at compile time whether the program its\n'
 	printf '    object will join is linked statically or dynamically, and nothing\n'
-	printf '    in the flags can be made to say so.\n'
+	printf '    in the flags can be made to say so.\n\n'
+	printf '    A third arm that reads the thread pointer cannot work either, for\n'
+	printf '    the reason the port gave and did not measure: a static program\n'
+	printf '    calls brk to place its own TLS before it has a thread pointer to\n'
+	printf '    read, and that call is in the third arm. Carving the static case\n'
+	printf '    out would need exactly the condition the paragraph above shows\n'
+	printf '    does not exist.\n'
 
 	printf '\nverdict\n\n'
 	printf '    finding=%s\n' "$finding"
