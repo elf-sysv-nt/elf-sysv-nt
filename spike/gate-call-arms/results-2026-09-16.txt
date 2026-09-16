@@ -1,0 +1,45 @@
+which arm of ENTER_KERNEL each glibc object takes
+
+host        ins-15
+cygwin      3.6.10-1.x86_64
+glibc       glibc-2.28-251.el8_10.40
+log         /c/-/el8/glibc/build/glibc-make.log
+date        2026-09-16T00:48:13Z
+script      measure 1.0
+
+reading
+
+  the object that fails to link and an object destined for the static
+  libc are compiled with the same flags, so no arm of ENTER_KERNEL can
+  tell them apart. SHARED is a subset of PIC, and the plain pass that
+  builds both of them carries neither.
+
+per object
+
+    object             SHARED     PIC      module     arm
+    nscd-program       no         no       nscd       static
+    nscd-connections   no         no       nscd       static
+    rtld-dl-load       no         no       libc       static
+    libc-init-first    no         no       libc       static
+    libc-strlen        no         no       libc       static
+    static-reloc       no         no       libc       static
+
+across the whole build
+
+    SHARED and PIC      3568
+    PIC only            168
+    SHARED only         0
+    neither, compiles   3061
+
+what this rules out
+
+    A third arm conditioned on PIC cannot work. The failing object and
+    a static-libc object agree on both flags, so any condition written
+    over them puts both in the same arm, which is where they already
+    are. glibc does not know at compile time whether the program its
+    object will join is linked statically or dynamically, and nothing
+    in the flags can be made to say so.
+
+verdict
+
+    finding=program-and-static-objects-are-indistinguishable-at-compile-time
