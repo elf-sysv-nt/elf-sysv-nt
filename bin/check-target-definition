@@ -15,6 +15,17 @@
 # traceability. What this covers is everything that gets built or run:
 # sources, scripts, specs files, makefiles, macro sets.
 #
+# The walk is over tracked files. Two reasons, and the second is the one that
+# bit: nothing untracked is built or run, so an untracked file cannot be the
+# consumer this criterion is about; and a gate whose verdict depends on what a
+# session happened to leave in the working tree is not a gate. This one was
+# walking the a/ annex and failing on a suite build log -- evidence of a run
+# that happened, at real paths against a real target, which is exactly the
+# class the transcript exemption below already covers and for the same reason.
+# A gate that goes red because somebody saved a log teaches people to ignore
+# it. Outside a work tree the walk falls back to find, so -C into an unpacked
+# copy still works.
+#
 # Until WP-11 lands there is nothing outside doc/ and spike/ for it to find,
 # so a clean run today means the tree is empty rather than that the tree is
 # attributed. That is expected and it is why the count is printed.
@@ -128,34 +139,62 @@ carrying=0
 unattributed=0
 offenders=
 
-while IFS= read -r f; do
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/$prog.XXXXXX") || die 'cannot create a working directory'
+trap 'rm -rf "$tmp"' EXIT
+trap 'rm -rf "$tmp"; exit 130' INT TERM
+
+printf '%s\n' "$literals" > "$tmp/literals"
+
+# Tracked files when there are any, the whole tree otherwise. Both lists are
+# NUL separated and both are normalised to ./path, because skip()'s patterns
+# are written that way and git prints paths without the prefix.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+   git ls-files -z > "$tmp/all" 2>/dev/null && [ -s "$tmp/all" ]; then
+    scope=tracked
+else
+    find . -type f ! -name '*.o' ! -name '*.a' -print0 2>/dev/null > "$tmp/all"
+    scope=walked
+fi
+
+: > "$tmp/kept"
+while IFS= read -r -d '' f; do
+    case $f in ./*) ;; *) f=./$f ;; esac
     skip "$f" && continue
+    [ -f "$f" ] || continue          # a tracked path can be deleted in the tree
+    printf '%s\0' "$f" >> "$tmp/kept"
     examined=$((examined + 1))
-    hit=0
-    while IFS= read -r lit; do
-        grep -qF "$lit" "$f" 2>/dev/null && hit=1
-    done <<EOF
-$literals
-EOF
-    [ "$hit" = 1 ] || continue
+    chat "examined: ${f#./}"
+done < "$tmp/all"
+
+# One grep over the whole list rather than one grep per literal per file. The
+# old shape spawned six processes for every file in the tree, which on this
+# host took the gate past fifteen minutes -- long enough that nobody ran it,
+# which is how the trunk stayed red. Only the files that carry a value are
+# opened a second time, and there are few of those.
+: > "$tmp/carriers"
+if [ "$examined" -gt 0 ]; then
+    xargs -0 grep -l -F -f "$tmp/literals" -- < "$tmp/kept" \
+        > "$tmp/carriers" 2>/dev/null
+fi
+
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
     carrying=$((carrying + 1))
     if grep -qF "$record" "$f" 2>/dev/null; then
-        chat "cited: $f"
+        chat "cited: ${f#./}"
     else
         unattributed=$((unattributed + 1))
         offenders="$offenders${offenders:+
 }${f#./}"
         note "unattributed: ${f#./}"
     fi
-done <<EOF
-$(find . -type f ! -name '*.o' ! -name '*.a' 2>/dev/null)
-EOF
+done < "$tmp/carriers"
 
 if [ "$terse" = 1 ]; then
-    printf 'examined=%d\ncarrying=%d\nunattributed=%d\n' \
-        "$examined" "$carrying" "$unattributed"
+    printf 'scope=%s\nexamined=%d\ncarrying=%d\nunattributed=%d\n' \
+        "$scope" "$examined" "$carrying" "$unattributed"
 else
-    note "$examined files examined, $carrying carry a target value, $unattributed unattributed"
+    note "$examined $scope files examined, $carrying carry a target value, $unattributed unattributed"
 fi
 
 [ "$unattributed" = 0 ] || exit 1
