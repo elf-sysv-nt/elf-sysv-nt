@@ -5,7 +5,7 @@ cygwin      3.6.10-1.x86_64
 compiler    x86_64-elfsysvnt-linux-gnu-gcc (GCC) 13.3.0
 linker      GNU ld (GNU Binutils) 2.42
 target      x86_64-elfsysvnt-linux-gnu
-date        2026-09-16T08:02:17Z
+date        2026-09-16T08:24:25Z
 script      measure 1.0
 
 reading
@@ -19,13 +19,13 @@ per prefix
 
     prefix        driver    direct-ld        no-specs       override   unwinder
     baseline      carries   sub-granule      default-lost   honored    both-passed
-    candidate-d   carries   sub-granule      default-lost   honored    both-passed
+    candidate-d   carries   granule-aligned  default-holds  honored    both-passed
 
 raw
 
     baseline	driver=carries	direct-ld=sub-granule	no-specs=default-lost	override=honored	unwinder=both-passed
-    candidate-d	driver=carries	direct-ld=sub-granule	no-specs=default-lost	override=honored	unwinder=both-passed
+    candidate-d	driver=carries	direct-ld=granule-aligned	no-specs=default-holds	override=honored	unwinder=both-passed
 
 verdict
 
-    finding=baseline=does-not-carry d=does-not-carry
+    finding=baseline=does-not-carry d=carries-including-direct-ld

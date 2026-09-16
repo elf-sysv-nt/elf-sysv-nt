@@ -97,17 +97,40 @@ cat > "$work/u.cc" <<'EOF'
 void poke (int v) { if (v > 0) throw std::runtime_error ("crossed"); }
 EOF
 
-# The smallest alignment of any PT_LOAD in an image. readelf -lW puts p_align
-# last on each LOAD line, in 0x form. The comparison is done in the shell
-# rather than in awk, because strtonum is gawk's and this has to run wherever
-# the toolchain does. Prints nothing when there are no LOAD segments, which
-# the caller reads as a failed link.
-min_align() {
-	m=
-	for a in $("$1" -lW "$2" 2>/dev/null | awk '$1 == "LOAD" { print $NF }'); do
-		av=$((a))
-		if [ -z "$m" ] || [ "$av" -lt "$m" ]; then m=$av; fi
+# The smallest granule a PT_LOAD boundary falls on. This reads separation
+# between consecutive PT_LOAD p_vaddr values, NOT p_align, and the distinction
+# is the whole reason the first run of this spike reported candidate D as
+# changing nothing:
+#
+#   p_align comes from ELF_COMMONPAGESIZE, which is 0x1000 for this vector and
+#   which neither candidate touches. max-page-size moves where the linker
+#   *places* the next segment, so a raised max-page-size shows up as 0x10000
+#   between segments while p_align still reads 0x1000. A probe that reads
+#   p_align sees a linker-side default as absent however large it is.
+#
+# DR-0008 refuses two segments of unlike protection that share a granule, so
+# separation is also the quantity the record is written in terms of. An image
+# with one PT_LOAD has no separation to measure and falls back to p_align,
+# since for a single segment the two say the same thing. The arithmetic is
+# done in the shell rather than in awk, because strtonum is gawk's and this
+# has to run wherever the toolchain does. Prints nothing when there are no
+# LOAD segments, which the caller reads as a failed link.
+min_granule() {
+	m= prev=
+	for v in $("$1" -lW "$2" 2>/dev/null | awk '$1 == "LOAD" { print $3 }'); do
+		vv=$((v))
+		if [ -n "$prev" ]; then
+			d=$((vv - prev))
+			if [ "$d" -gt 0 ] && { [ -z "$m" ] || [ "$d" -lt "$m" ]; }; then m=$d; fi
+		fi
+		prev=$vv
 	done
+	if [ -z "$m" ]; then
+		for a in $("$1" -lW "$2" 2>/dev/null | awk '$1 == "LOAD" { print $NF }'); do
+			av=$((a))
+			if [ -z "$m" ] || [ "$av" -lt "$m" ]; then m=$av; fi
+		done
+	fi
 	[ -n "$m" ] && printf '%s\n' "$m"
 }
 
@@ -124,14 +147,41 @@ probe() { # label, prefix
 	# Candidate D is a binutils and nothing else: raising ELF_MAXPAGESIZE
 	# changes the linker, and rebuilding a compiler to measure a linker would
 	# be measuring the wrong thing. So a prefix holding an ld and no gcc is
-	# driven by the baseline compiler with -B, which is how a caller would
-	# reach a second linker in practice, and the tools that read the result
-	# come from the same prefix as the linker that wrote it.
+	# driven by the baseline compiler, and the tools that read the result come
+	# from the same prefix as the linker that wrote it.
+	#
+	# -B$prefix/bin/ is the obvious way to do that and it is wrong. The driver
+	# looks the linker up under the bare name `ld`, not under the triple, and
+	# $prefix/bin holds only $target-ld; so -B contributes no candidate `ld`
+	# and the driver falls through to $baseline/$target/bin/ld. The probes
+	# then report the baseline linker's behaviour under the candidate's name,
+	# which is how this spike first recorded candidate D as changing nothing.
+	# Verified with -print-prog-name=ld, which names the baseline copy under
+	# -B and the candidate only when asked for $target-ld.
+	#
+	# So the shim: a directory holding an `ld` under the name the driver asks
+	# for, pointing at the candidate's. -print-prog-name=ld is then asserted
+	# below rather than assumed, because this is exactly the mistake that a
+	# comment alone does not prevent a second time.
 	if ! { [ -x "$cc" ] || [ -x "$cc.exe" ]; }; then
 		if [ -x "$ld" ] || [ -x "$ld.exe" ]; then
 			cc=$baseline/bin/$target-gcc
 			cxx=$baseline/bin/$target-g++
-			bflag=-B$prefix/bin/
+			shim=$work/shim.$label
+			mkdir -p "$shim"
+			real=$ld
+			[ -x "$ld.exe" ] && real=$ld.exe
+			cp -p "$real" "$shim/ld" 2>/dev/null ||
+				ln -sf "$real" "$shim/ld" 2>/dev/null
+			cp -p "$real" "$shim/ld.exe" 2>/dev/null
+			bflag=-B$shim/
+			got=$("$cc" $bflag -print-prog-name=ld 2>/dev/null)
+			case $got in
+				"$shim"/*) : ;;
+				*) printf '%s\tdriver=shim-failed\tdirect-ld=shim-failed\tno-specs=shim-failed\toverride=shim-failed\tunwinder=shim-failed\n' "$label"
+				   note "$label: -B did not displace the linker; got $got"
+				   return 0 ;;
+			esac
 		else
 			printf '%s\tdriver=not-built\tdirect-ld=not-built\tno-specs=not-built\toverride=not-built\tunwinder=not-built\n' "$label"
 			return 0
@@ -147,7 +197,7 @@ probe() { # label, prefix
 	direct=unlinkable
 	if "$cc" $bflag -c -o "$work/t.o" "$work/t.c" 2>/dev/null &&
 	   "$ld" -o "$work/direct" "$work/t.o" -e main 2>/dev/null; then
-		a=$(min_align "$readelf" "$work/direct")
+		a=$(min_granule "$readelf" "$work/direct")
 		if [ -n "$a" ]; then
 			if [ "$a" -ge "$granule" ]; then direct=granule-aligned; else direct=sub-granule; fi
 		fi
@@ -167,8 +217,21 @@ probe() { # label, prefix
 	had=0
 	[ -f "$specs" ] && cp -p "$specs" "$saved" && had=1
 	rm -f "$specs"
-	"$cc" $bflag -### -o "$work/probe2" "$work/t.c" > "$work/dash3b" 2>&1
-	if grep -q 'max-page-size=0x10000' "$work/dash3b"; then nospecs=default-holds; else nospecs=default-lost; fi
+	# Ask the image, not the command line. A compiler-side default (candidate
+	# A) puts max-page-size on the link line and would answer either way; a
+	# linker-side one (candidate D) never appears on a command line at all,
+	# so grepping the driver's -### output reports every linker candidate as
+	# having lost a default it is in fact still applying. What both candidates
+	# claim is a granule-separable image with no specs file installed, so that
+	# is what gets measured.
+	if "$cc" $bflag -o "$work/probe2" "$work/t.c" 2>/dev/null; then
+		a=$(min_granule "$readelf" "$work/probe2")
+		if [ -n "$a" ]; then
+			if [ "$a" -ge "$granule" ]; then nospecs=default-holds; else nospecs=default-lost; fi
+		fi
+	else
+		nospecs=unlinkable
+	fi
 	[ "$had" = 1 ] && cp -p "$saved" "$specs"
 
 	# DR-0008's own test builds a sub-granule image on purpose, so the default
@@ -176,7 +239,7 @@ probe() { # label, prefix
 	# test of the layer that is the actual guarantee.
 	override=not-measured
 	if "$cc" $bflag -o "$work/small" "$work/t.c" -Wl,-z,max-page-size=0x1000 2>/dev/null; then
-		a=$(min_align "$readelf" "$work/small")
+		a=$(min_granule "$readelf" "$work/small")
 		if [ -n "$a" ]; then
 			if [ "$a" -le 4096 ]; then override=honored; else override=ignored; fi
 		fi

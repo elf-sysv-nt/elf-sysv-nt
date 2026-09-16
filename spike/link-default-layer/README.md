@@ -29,8 +29,16 @@ here rather than argued in the record that reads it.
 
 Candidate D is a binutils and nothing else, because raising a linker's default
 does not need a compiler rebuilt to measure it. A prefix holding an `ld` and no
-`gcc` is driven by the baseline compiler with `-B`, and the `readelf` that reads
-the result comes from the same prefix as the `ld` that wrote it.
+`gcc` is driven by the baseline compiler, and the `readelf` that reads the
+result comes from the same prefix as the `ld` that wrote it.
+
+Reaching that second linker takes more than `-B$prefix/bin/`. The driver looks
+the linker up under the bare name `ld`, and a toolchain prefix holds it as
+`$target-ld`, so a `-B` at that directory contributes no candidate `ld` at all
+and the driver silently falls through to the baseline's. The script builds a
+shim directory holding the candidate's linker under the name the driver asks
+for, and then asserts `-print-prog-name=ld` names it, reporting `shim-failed`
+rather than a verdict if it does not.
 
 A prefix that has not been built is reported as `not-built` rather than failing,
 because two of these three do not exist until somebody spends the rebuild. The
@@ -45,8 +53,8 @@ Five probes per prefix, each a verdict rather than a number.
 the link line at all. `direct-ld` compiles an object with the driver and then
 links it with `ld` itself, which is the shape a hand-written Makefile has and
 the one only a linker-side default reaches. `no-specs` moves the installed specs
-file aside and asks again, since a candidate that needs the specs file has not
-replaced it; the file is restored immediately, and `-B` cannot stand in for
+file aside and links an image, since a candidate that needs the specs file has
+not replaced it; the file is restored immediately, and `-B` cannot stand in for
 moving it, because a `-B` prefix is searched in addition to the installed path
 rather than instead of it. `override` links with `-Wl,-z,max-page-size=0x1000`
 and checks that the smaller page still wins, because DR-0008's own test builds a
@@ -54,34 +62,83 @@ sub-granule image on purpose and a default that could not be overridden would
 disarm the test of the layer that is the real guarantee. `unwinder` restates
 DR-0108's property: `--eh-frame-hdr` and `-lgcc_s` are still passed.
 
+Every probe that reads an image reads **separation between consecutive
+`PT_LOAD` addresses**, not `p_align`. The two are different quantities and the
+difference is not cosmetic: `p_align` comes from `ELF_COMMONPAGESIZE`, which
+neither candidate touches, while max-page-size moves where the linker places
+the next segment. A raised linker default therefore shows as `0x10000` between
+segments with `p_align` still reading `0x1000`. Separation is also the quantity
+DR-0008 is written in terms of — it refuses two segments of unlike protection
+that *share a granule* — so it is both the correct instrument and the one the
+record already speaks.
+
 A candidate carries the default when `no-specs` holds and `override` is honored.
 Whether `direct-ld` is also granule-aligned is what separates the two layers,
 and it is the whole of the bzip2 argument.
 
-## What candidate D said, and what it did not
+## What candidate D said
 
 D was built on 2026-09-16: binutils 2.42 with `ELF_MAXPAGESIZE` raised from
 `0x1000` to `0x10000` at `bfd/elf64-x86-64.c:5625`, which is the definition
 that precedes `x86_64_elf64_vec`, installed into its own prefix and driven by
-the baseline compiler with `-B`.
+the baseline compiler.
 
-It changed nothing. `direct-ld` is still `sub-granule` and `no-specs` is still
-`default-lost`, exactly as the baseline.
+**D carries the default, including for a direct `ld` invocation.**
+`direct-ld=granule-aligned` and `no-specs=default-holds`, against the
+baseline's `sub-granule` and `default-lost`, with `override` still `honored`
+and both unwinder properties still passed. That is the strongest verdict this
+spike defines, and it is DR-0061's bzip2 argument satisfied: a link that never
+runs the driver comes out granule-separable.
 
-That result is about the implementation and not about the candidate, which is
-the distinction worth keeping. The plumbing is demonstrably live: the same
-linker honours `-z max-page-size=0x10000` and `0x4000` precisely, so `p_align`
-follows the option. The patched value is demonstrably in the binary: the object
-was compiled at 03:57 from source patched at 03:52, `libbfd.a` was rebuilt with
-it, and the build tree's own linker gives the same `0x1000` the installed one
-does. So the default this target links at is set somewhere other than the line
-that was changed, and that somewhere has not been found.
+The chain is now traced end to end rather than assumed. `ld/ldemul.c:243` sets
+`link_info.maxpagesize` from `bfd_emul_get_maxpagesize (default_target)`, which
+returns `xvec_get_elf_backend_data (target)->maxpagesize`, which `elfxx-target.h`
+fills from `ELF_MAXPAGESIZE`. Line 5625 is the right lever and always was. The
+assignment is guarded by `if (link_info.maxpagesize == 0)`, so an explicit
+`-z max-page-size` still wins, which is why `override` stays honored.
 
-**D is therefore unmeasured rather than refuted.** What the run establishes is
-that raising `ELF_MAXPAGESIZE` on the vector is not sufficient, and that
-whoever takes D next starts by finding where the default actually comes from —
-`ld`'s own startup, the emulation's `CONSTANT (MAXPAGESIZE)` resolution, or an
-`elfxx-x86` default — rather than by rebuilding.
+### Why the first run said it changed nothing
+
+Three defects in this script, not one, and all three are the same mistake:
+the instrument was never checked against a case whose answer was known.
+
+1. **The verdict read `p_align`.** `p_align` comes from `ELF_COMMONPAGESIZE`
+   (`elf64-x86-64.c:5626`), which is `0x1000` and which D does not touch. D's
+   images separate segments at `0x10000` with `p_align` still `0x1000`. A
+   probe reading `p_align` cannot see a linker-side default however large.
+2. **`no-specs` grepped the driver's command line.** A compiler-side default
+   appears there; a linker-side one never does. The probe reported every
+   linker candidate as having lost a default it was still applying.
+3. **`-B$prefix/bin/` never displaced the linker.** The driver resolves the
+   bare name `ld`, the prefix holds `$target-ld`, and the driver fell through
+   to the baseline's copy in `$baseline/$target/bin/ld`. Confirmed with
+   `-print-prog-name=ld`, which names the baseline under `-B` and the
+   candidate only when asked for `$target-ld`. So the driver-mediated probes
+   were measuring the baseline linker under the candidate's name.
+
+The first two made a working candidate look inert. The third meant two of the
+probes were not exercising the candidate at all. Each is now fixed in
+`measure.sh` with the reasoning at the site, and the shim is asserted rather
+than assumed so that the third cannot recur silently.
+
+The general lesson, which is `verify-first`'s and is worth stating in the file
+that learned it: a probe that has never produced a *different* answer for a
+case known to differ is not yet an instrument. The baseline and D differ by
+construction; nothing checked that the script could tell them apart.
+
+### Where the default actually lives today
+
+Not in the linker. The shipping prefix's `ld` is stock: a bare `ld` link
+separates at `0x1000`. The granule default in force is the gcc driver's, from
+`toolchain/gcc/default.specs` —
+
+    *link:
+    + -z max-page-size=0x10000
+
+— appended to `*link` and merged into the installed specs file by
+`install-specs`. That is the mechanism DR-0108 repaired, and DR-0061's "the
+toolchain carries the default" is true only for links the driver runs. The
+`direct-ld=sub-granule` verdict on the baseline is that gap, measured.
 
 ## What the baseline said
 
